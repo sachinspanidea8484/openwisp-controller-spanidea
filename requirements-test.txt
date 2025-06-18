@@ -1,6 +1,11 @@
 pytest-cov~=6.1.1
-openwisp-utils[qa,selenium,channels-test] @ https://github.com/openwisp/openwisp-utils/tarball/1.2
 django_redis~=5.4.0
 mock-ssh-server~=0.9.1
 responses~=0.25.7
 psycopg2-binary~=2.9.10
+
+
+# github 
+# openwisp-utils[qa,selenium,channels-test] @ file:///home/spanidea-lt22/Desktop/NOKIA/communications/openwisp-utils
+# openwisp-utils[qa,selenium,channels-test] @ https://github.com/openwisp/openwisp-utils/tarball/1.2
+
