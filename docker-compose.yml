@@ -11,12 +11,15 @@ services:
       - 8000:8000
     depends_on:
       - redis
+      - postgres
 
   redis:
     image: redis:alpine
     ports:
       - "6379:6379"
     entrypoint: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
 
   postgres:
     image: postgis/postgis:17-3.5-alpine
@@ -26,3 +29,9 @@ services:
       POSTGRES_DB: openwisp2
     ports:
       - 5432:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  redis_data:
+  postgres_data:

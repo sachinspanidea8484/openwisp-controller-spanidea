@@ -10,14 +10,27 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 ALLOWED_HOSTS = ["*"]
 
+# SQLITE
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "openwisp_utils.db.backends.spatialite",
+#         "NAME": os.path.join(BASE_DIR, "openwisp-controller.db"),
+#     }
+# }
+
+
+# SPATIALITE_LIBRARY_PATH = "mod_spatialite.so"
+
 DATABASES = {
     "default": {
-        "ENGINE": "openwisp_utils.db.backends.spatialite",
-        "NAME": os.path.join(BASE_DIR, "openwisp-controller.db"),
+        "ENGINE": "django.contrib.gis.db.backends.postgis",
+        "NAME": "openwisp2",
+        "USER": "openwisp2",
+        "PASSWORD": "openwisp2",
+        "HOST": "127.0.0.1",
+        "PORT": "5432",
     }
 }
-
-SPATIALITE_LIBRARY_PATH = "mod_spatialite.so"
 
 SECRET_KEY = "fn)t*+$)ugeyip6-#txyy$5wf2ervc0d2n#h)qb)y5@ly$t*@w"
 

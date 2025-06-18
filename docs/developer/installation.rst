@@ -23,6 +23,8 @@ Install the system dependencies:
     sudo apt update
     sudo apt install -y sqlite3 libsqlite3-dev openssl libssl-dev
     sudo apt install -y gdal-bin libproj-dev libgeos-dev libspatialite-dev libsqlite3-mod-spatialite
+    sudo apt install libsqlite3-mod-spatialite spatialite-bin
+
     sudo apt install -y chromium-browser
 
 Fork and clone the forked repository:
@@ -48,22 +50,24 @@ Setup and activate a virtual-environment (we'll be using `virtualenv
 
 .. code-block:: shell
 
-    python -m virtualenv env
-    source env/bin/activate
+    python3.11 -m venv venv
+    source venv/bin/activate
 
 Make sure that your base python packages are up to date before moving to
 the next step:
 
 .. code-block:: shell
 
-    pip install -U pip wheel setuptools
+    pip install -U pip wheel setuptools 
 
 Install development dependencies:
 
 .. code-block:: shell
 
-    pip install -e .
-    pip install -r requirements-test.txt
+    pip install -e .   
+
+    pip install -r requirements.txt
+    pip install -r requirements-test.txt                 
     sudo npm install -g prettier
 
 Install WebDriver for Chromium for your browser version from
@@ -74,7 +78,7 @@ Create database:
 
 .. code-block:: shell
 
-    cd tests/
+    cd tests/ 
     ./manage.py migrate
     ./manage.py createsuperuser
 
@@ -88,7 +92,7 @@ Launch development server:
 
 .. code-block:: shell
 
-    ./manage.py runserver 0.0.0.0:8000
+    ./manage.py runserver 0.0.0.0:8000 
 
 You can access the admin interface at ``http://127.0.0.1:8000/admin/``.
 
