@@ -38,5 +38,10 @@ openwisp-notifications @ https://github.com/sachinspanidea8484/openwisp-notifica
 openwisp-ipam @ https://github.com/sachinspanidea8484/openwisp-ipam-spanidea/tarball/main
 
 
-# firmware v1
+# firmware 
 django-private-storage
+
+# monitoring 
+influxdb~=5.3.2
+django-nested-admin~=4.1.1
+python-dateutil>=2.7.0,<3.0.0

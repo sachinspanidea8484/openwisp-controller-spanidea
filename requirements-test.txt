@@ -9,3 +9,8 @@ psycopg2-binary~=2.9.10
 # firmware 
 celery
 redis
+
+# monitoring 
+channels_redis~=4.2.1
+freezegun~=1.5.1
+
