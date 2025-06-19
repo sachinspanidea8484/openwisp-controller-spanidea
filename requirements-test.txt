@@ -140,7 +140,7 @@ pysaml2==7.5.2
 PySocks==1.7.1
 pytest==8.4.1
 pytest-asyncio==0.26.0
-pytest-cov==6.1.1
+pytest-cov==6.2.1
 pytest-django==4.10.0
 python-dateutil==2.9.0.post0
 python-ipware==3.0.0
