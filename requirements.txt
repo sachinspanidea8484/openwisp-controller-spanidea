@@ -46,7 +46,7 @@ influxdb~=5.3.2
 django-nested-admin~=4.1.1
 python-dateutil>=2.7.0,<3.0.0
 
-# network topology
+# network topology v1
 jsonfield~=3.1.0
 django-flat-json-widget~=0.3.1
 netdiff @ https://github.com/sachinspanidea8484/netdiff-spanidea/tarball/main
