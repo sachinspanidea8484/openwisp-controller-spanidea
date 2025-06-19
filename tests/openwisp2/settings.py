@@ -1,5 +1,9 @@
 import os
 import sys
+# Suppress dj_rest_auth deprecation warnings
+import warnings
+warnings.filterwarnings("ignore", message="app_settings.USERNAME_REQUIRED is deprecated")
+warnings.filterwarnings("ignore", message="app_settings.EMAIL_REQUIRED is deprecated")
 
 # monitoring
 from datetime import timedelta
@@ -20,6 +24,10 @@ SHELL = "shell" in sys.argv or "shell_plus" in sys.argv
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 ALLOWED_HOSTS = ["*"]
+# radius
+OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = ["127.0.0.1"]
+OPENWISP_RADIUS_COA_ENABLED = True
+OPENWISP_RADIUS_ALLOWED_MOBILE_PREFIXES = ["+44", "+39", "+237", "+595"]
 
 
 
@@ -71,6 +79,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.gis",
+    "django.contrib.humanize",
+
     # all-auth
     "django.contrib.sites",
     "openwisp_users.accounts",
@@ -102,6 +112,19 @@ INSTALLED_APPS = [
     'openwisp_monitoring.device',
     'openwisp_monitoring.check',
     'nested_admin',
+
+    # social login
+    "allauth.socialaccount.providers.facebook",
+    "allauth.socialaccount.providers.google",
+
+    # openwisp radius
+    "openwisp_radius",
+    "openwisp2.integrations",
+    "djangosaml2",
+
+    # radius
+    "dj_rest_auth",
+    "dj_rest_auth.registration",
 
     
     # openwisp2 admin theme
@@ -148,7 +171,30 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # 'debug_toolbar.middleware.DebugToolbarMiddleware',
+    # radius
+    "djangosaml2.middleware.SamlSessionMiddleware",
+
 ]
+
+# radius
+if DEBUG:
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = True
+else:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SAML_ALLOWED_HOSTS = []
+SAML_USE_NAME_ID_AS_USERNAME = True
+SAML_CREATE_UNKNOWN_USER = True
+SAML_CONFIG = {}
+
+# WARNING: for development only!
+AUTH_PASSWORD_VALIDATORS = []
 
 INTERNAL_IPS = ['127.0.0.1' , '10.10.10.10']
 
@@ -183,7 +229,7 @@ if TESTING:
 TIME_ZONE = "Europe/Rome"
 LANGUAGE_CODE = "en-gb"
 USE_TZ = True
-USE_I18N = False
+USE_I18N = True
 USE_L10N = False
 STATIC_URL = "/static/"
 MEDIA_URL = "/media/"
@@ -215,6 +261,10 @@ EXTERNAL_APPS = {
     'openwisp_network_topology': {
         'submodules': [''],  # Main module only
         'base_path': os.path.join(PROJECT_ROOT, 'openwisp_network_topology')
+    },
+        'openwisp_radius': {
+        'submodules': [''],  # Main module only
+        'base_path': os.path.join(PROJECT_ROOT, 'openwisp_radius')
     }
 }
 
@@ -315,6 +365,25 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 # monitoring
 OPENWISP_MONITORING_MANAGEMENT_IP_ONLY = False
 
+# radius
+SOCIALACCOUNT_PROVIDERS = {
+    "facebook": {
+        "METHOD": "oauth2",
+        "SCOPE": ["email", "public_profile"],
+        "AUTH_PARAMS": {"auth_type": "reauthenticate"},
+        "INIT_PARAMS": {"cookie": True},
+        "FIELDS": ["id", "email", "name", "first_name", "last_name", "verified"],
+        "VERIFIED_EMAIL": True,
+    },
+    "google": {"SCOPE": ["profile", "email"], "AUTH_PARAMS": {"access_type": "online"}},
+}
+
+OPENWISP_RADIUS_PASSWORD_RESET_URLS = {
+    "__all__": (
+        "http://localhost:8080/{organization}/password/reset/confirm/{uid}/{token}"
+    ),
+}
+
 
 if not TESTING:
     CACHES = {
@@ -329,12 +398,26 @@ if not TESTING:
 
 
 # firmware
-SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+# SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_ENGINE = "django.contrib.sessions.backends.db"  # Use database sessions for now
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://0.0.0.0:8000']
+
+
 SESSION_CACHE_ALIAS = "default"
 
 if not TESTING:
     CELERY_BROKER_URL = f"{REDIS_URL}/1"
 else:
+    OPENWISP_RADIUS_GROUPCHECK_ADMIN = True
+    OPENWISP_RADIUS_GROUPREPLY_ADMIN = True
+    OPENWISP_RADIUS_USERGROUP_ADMIN = True
+    OPENWISP_RADIUS_USER_ADMIN_RADIUSTOKEN_INLINE = True
     CELERY_TASK_ALWAYS_EAGER = True
     CELERY_TASK_EAGER_PROPAGATES = True
     CELERY_BROKER_URL = "memory://"
@@ -370,6 +453,45 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 CELERY_EMAIL_BACKEND = EMAIL_BACKEND
+
+
+
+
+SENDSMS_BACKEND = "sendsms.backends.console.SmsBackend"
+OPENWISP_RADIUS_EXTRA_NAS_TYPES = (("cisco", "Cisco Router"),)
+
+# Add this to your REST_AUTH configuration
+REST_AUTH = {
+    "SESSION_LOGIN": False,
+    "PASSWORD_RESET_SERIALIZER": "openwisp_radius.api.serializers.PasswordResetSerializer",
+    "REGISTER_SERIALIZER": "openwisp_radius.api.serializers.RegisterSerializer",
+}
+
+# Add ACCOUNT settings to properly configure allauth
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
+
+ACCOUNT_EMAIL_VERIFICATION = "optional"  # or "mandatory" or "none"
+
+ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = "email_confirmation_success"
+ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = "email_confirmation_success"
+
+# Disable SAML2 CSP warning
+SAML_CSP_HANDLER = ''
+# OPENWISP_RADIUS_PASSWORD_RESET_URLS = {
+#     # use the uuid because the slug can change
+#     # 'dabbd57a-11ca-4277-8dbb-ad21057b5ecd': 'https://org.com/{organization}/password/reset/confirm/{uid}/{token}',
+#     # fallback in case the specific org page is not defined
+#     '__all__': 'https://example.com/{{organization}/password/reset/confirm/{uid}/{token}',
+# }
+
+
+if TESTING:
+    OPENWISP_RADIUS_SMS_TOKEN_MAX_USER_DAILY = 3
+    OPENWISP_RADIUS_SMS_TOKEN_MAX_ATTEMPTS = 3
+    OPENWISP_RADIUS_SMS_TOKEN_MAX_IP_DAILY = 4
+    SENDSMS_BACKEND = "sendsms.backends.dummy.SmsBackend"
+else:
+    OPENWISP_RADIUS_SMS_TOKEN_MAX_USER_DAILY = 10
 
 # LOGGING = {
 #     "version": 1,
@@ -633,8 +755,25 @@ if os.environ.get("SAMPLE_APP", False) and TESTING:
     OPENWISP_ORGANIZATION_OWNER_ADMIN = True
     OPENWISP_USERS_AUTH_API = True
 
+# CORS headers, useful during development and testing
+try:
+    import corsheaders  # noqa
+
+    INSTALLED_APPS.append("corsheaders")
+    MIDDLEWARE.insert(
+        MIDDLEWARE.index("django.middleware.common.CommonMiddleware"),
+        "corsheaders.middleware.CorsMiddleware",
+    )
+    # WARNING: for development only!
+    CORS_ORIGIN_ALLOW_ALL = True
+except ImportError:
+    pass
+
+
 # local settings must be imported before test runner otherwise they'll be ignored
 try:
     from .local_settings import *
 except ImportError:
     pass
+
+FORM_RENDERER = "django.forms.renderers.TemplatesSetting"

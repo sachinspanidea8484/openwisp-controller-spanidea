@@ -19,6 +19,28 @@ from .sample_config.api import views as config_api_views
 from .sample_connection.api import views as connection_api_views
 from .sample_geo import views as geo_views
 
+
+
+
+from . import views
+
+if os.environ.get("SAMPLE_APP", False):
+    # If you are extending the API views or social views,
+    # please import them, otherwise pass `None` in place
+    # of these values
+    from .sample_radius.api import views as api_views
+    from .sample_radius.saml import views as saml_views
+    from .sample_radius.social import views as social_views
+
+    radius_urls = path(
+        "", include((get_urls(api_views, social_views, saml_views), "radius"))
+    )
+else:
+    api_views = None
+    social_views = None
+    saml_views = None
+    radius_urls = path("", include("openwisp_radius.urls"))
+
 redirect_view = RedirectView.as_view(url=reverse_lazy("admin:index"))
 
 urlpatterns = []
@@ -67,9 +89,21 @@ urlpatterns += [
     path("", include("openwisp_network_topology.urls")),
 
     path("accounts/", include("openwisp_users.accounts.urls")),
+    radius_urls,
     path("api/v1/", include("openwisp_utils.api.urls")),
     path("api/v1/", include(("openwisp_users.api.urls", "users"), namespace="users")),
-]
+
+  path(
+        "captive-portal-mock/login/",
+        views.captive_portal_login,
+        name="captive_portal_login_mock",
+    ),
+    path(
+        "captive-portal-mock/logout/",
+        views.captive_portal_logout,
+        name="captive_portal_logout_mock",
+    ),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 urlpatterns += staticfiles_urlpatterns()
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
