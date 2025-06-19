@@ -36,3 +36,7 @@ openwisp-users @ https://github.com/sachinspanidea8484/openwisp-users-spanidea/t
 openwisp-utils[celery,channels] @ https://github.com/sachinspanidea8484/openwisp-utils-spanidea/tarball/main
 openwisp-notifications @ https://github.com/sachinspanidea8484/openwisp-notifications-spanidea/tarball/main
 openwisp-ipam @ https://github.com/sachinspanidea8484/openwisp-ipam-spanidea/tarball/main
+
+
+# firmware
+django-private-storage

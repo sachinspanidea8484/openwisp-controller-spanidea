@@ -4,3 +4,8 @@ django_redis~=5.4.0
 mock-ssh-server~=0.9.1
 responses~=0.25.7
 psycopg2-binary~=2.9.10
+
+
+# firmware 
+celery
+redis

@@ -58,6 +58,13 @@ INSTALLED_APPS = [
     "openwisp_controller.subnet_division",
     "openwisp_notifications",
     "openwisp_ipam",
+
+    # use firmware
+    "openwisp_firmware_upgrader",
+    "private_storage",
+
+
+    
     # openwisp2 admin theme
     # (must be loaded here)
     "openwisp_utils.admin_theme",
@@ -108,7 +115,12 @@ INTERNAL_IPS = ["127.0.0.1"]
 
 ROOT_URLCONF = "openwisp2.urls"
 
-ASGI_APPLICATION = "openwisp2.asgi.application"
+# controller
+# ASGI_APPLICATION = "openwisp2.asgi.application"
+
+# firmware
+ASGI_APPLICATION = "openwisp2.routing.application"
+
 if not TESTING:
     CHANNEL_LAYERS = {
         "default": {
@@ -130,9 +142,15 @@ MEDIA_ROOT = f"{os.path.dirname(BASE_DIR)}/media/"
 
 CORS_ORIGIN_ALLOW_ALL = True
 
+# firmware
+PRIVATE_STORAGE_ROOT = os.path.join(BASE_DIR, "private", "firmware")
+
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [os.path.join(os.path.dirname(BASE_DIR), "templates")], # for templates
+
         "OPTIONS": {
             "loaders": [
                 "django.template.loaders.filesystem.Loader",
@@ -173,6 +191,11 @@ if not TESTING:
         }
     }
 
+
+# firmware
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
+
 if not TESTING:
     CELERY_BROKER_URL = f"{REDIS_URL}/1"
 else:
@@ -180,6 +203,18 @@ else:
     CELERY_TASK_EAGER_PROPAGATES = True
     CELERY_BROKER_URL = "memory://"
 
+# LOGGING = {
+#     "version": 1,
+#     "filters": {"require_debug_true": {"()": "django.utils.log.RequireDebugTrue"}},
+#     "handlers": {
+#         "console": {
+#             "level": "DEBUG",
+#             "filters": ["require_debug_true"],
+#             "class": "logging.StreamHandler",
+#         }
+#     },
+# }
+# firmware
 LOGGING = {
     "version": 1,
     "filters": {"require_debug_true": {"()": "django.utils.log.RequireDebugTrue"}},
@@ -190,7 +225,29 @@ LOGGING = {
             "class": "logging.StreamHandler",
         }
     },
+    "loggers": {
+        "py.warnings": {"handlers": ["console"]},
+        "celery": {"handlers": ["console"], "level": "DEBUG"},
+        "celery.task": {"handlers": ["console"], "level": "DEBUG"},
+    },
 }
+
+
+# firmware
+OPENWISP_CUSTOM_OPENWRT_IMAGES = (
+    (
+        "customimage-squashfs-sysupgrade.bin",
+        {"label": "Custom WAP-1200", "boards": ("CWAP1200",)},
+    ),
+)
+# for firmware testing purposes
+OPENWISP_FIRMWARE_UPGRADER_OPENWRT_SETTINGS = {
+    "reconnect_delay": 150,
+    "reconnect_retry_delay": 30,
+    "reconnect_max_retries": 10,
+    "upgrade_timeout": 80,
+}
+
 
 if not TESTING and SHELL:
     LOGGING.update(
