@@ -38,5 +38,5 @@ openwisp-notifications @ https://github.com/sachinspanidea8484/openwisp-notifica
 openwisp-ipam @ https://github.com/sachinspanidea8484/openwisp-ipam-spanidea/tarball/main
 
 
-# firmware
+# firmware v1
 django-private-storage
