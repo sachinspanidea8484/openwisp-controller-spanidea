@@ -92,6 +92,10 @@ INSTALLED_APPS = [
     "openwisp_firmware_upgrader",
     "private_storage",
 
+    # network topology
+    "openwisp_network_topology",
+    "openwisp_network_topology.integrations.device",
+
 
     # monitoring
     'openwisp_monitoring.monitoring',
@@ -207,6 +211,10 @@ EXTERNAL_APPS = {
     'openwisp_firmware_upgrader': {
         'submodules': [''],  # Main module only
         'base_path': os.path.join(PROJECT_ROOT, 'openwisp_firmware_upgrader')
+    },
+    'openwisp_network_topology': {
+        'submodules': [''],  # Main module only
+        'base_path': os.path.join(PROJECT_ROOT, 'openwisp_network_topology')
     }
 }
 
@@ -220,7 +228,7 @@ for app_name, app_config in EXTERNAL_APPS.items():
         
         if os.path.exists(static_path):
             STATICFILES_DIRS.append(static_path)
-            print(f"Added static dir: {static_path}")
+            # print(f"Added static dir: {static_path}")
 
 # Template configuration
 TEMPLATE_DIRS = [
@@ -237,7 +245,7 @@ for app_name, app_config in EXTERNAL_APPS.items():
         
         if os.path.exists(template_path):
             TEMPLATE_DIRS.append(template_path)
-            print(f"Added template dir: {template_path}")
+            # print(f"Added template dir: {template_path}")
 
 TEMPLATES = [
     {
@@ -393,34 +401,75 @@ CELERY_EMAIL_BACKEND = EMAIL_BACKEND
 # }
 
 # monitoring
+# LOGGING = {
+#     'version': 1,
+#     'filters': {'require_debug_true': {'()': 'django.utils.log.RequireDebugTrue'}},
+#     'handlers': {
+#         'console': {
+#             'level': 'DEBUG',
+#             'filters': ['require_debug_true'],
+#             'class': 'logging.StreamHandler',
+#         }
+#     },
+#     'loggers': {
+#         '': {
+#             # this sets root level logger to log debug and higher level
+#             # logs to console. All other loggers inherit settings from
+#             # root level logger.
+#             'handlers': ['console'],
+#             'level': 'INFO',
+#             'propagate': False,
+#         },
+#         'django': {
+#             'handlers': ['console'],
+#             'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
+#             'propagate': False,
+#         },
+#         'py.warnings': {'handlers': ['console'], 'propagate': False},
+#         'celery': {'handlers': ['console'], 'level': 'DEBUG'},
+#         'celery.task': {'handlers': ['console'], 'level': 'DEBUG'},
+#     },
+# }
+
+
+# network topology 
+
 LOGGING = {
-    'version': 1,
-    'filters': {'require_debug_true': {'()': 'django.utils.log.RequireDebugTrue'}},
-    'handlers': {
-        'console': {
-            'level': 'DEBUG',
-            'filters': ['require_debug_true'],
-            'class': 'logging.StreamHandler',
-        }
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "require_debug_false": {"()": "django.utils.log.RequireDebugFalse"},
+        "require_debug_true": {"()": "django.utils.log.RequireDebugTrue"},
     },
-    'loggers': {
-        '': {
-            # this sets root level logger to log debug and higher level
-            # logs to console. All other loggers inherit settings from
-            # root level logger.
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
+    "formatters": {
+        "simple": {"format": "[%(levelname)s] %(message)s"},
+        "verbose": {
+            "format": "\n\n[%(levelname)s %(asctime)s] module: %(module)s, process: %(process)d, thread: %(thread)d\n%(message)s"
         },
-        'django': {
-            'handlers': ['console'],
-            'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
-            'propagate': False,
-        },
-        'py.warnings': {'handlers': ['console'], 'propagate': False},
-        'celery': {'handlers': ['console'], 'level': 'DEBUG'},
-        'celery.task': {'handlers': ['console'], 'level': 'DEBUG'},
     },
+    "handlers": {
+        "console": {
+            "level": "DEBUG",
+            "class": "logging.StreamHandler",
+            "filters": ["require_debug_true"],
+            "formatter": "simple",
+        },
+        "mail_admins": {
+            "level": "ERROR",
+            "filters": ["require_debug_false"],
+            "class": "django.utils.log.AdminEmailHandler",
+        },
+        "main_log": {
+            "level": "ERROR",
+            "class": "logging.handlers.RotatingFileHandler",
+            "formatter": "verbose",
+            "filename": os.path.join(BASE_DIR, "error.log"),
+            "maxBytes": 5242880.0,
+            "backupCount": 3,
+        },
+    },
+    "root": {"level": "INFO", "handlers": ["main_log", "console", "mail_admins"]},
+    "loggers": {"py.warnings": {"handlers": ["console"]}},
 }
 
 
@@ -552,26 +601,26 @@ else:
     # DJANGO_X509_CERT_MODEL = 'pki.Cert'
     pass
 
-    for app in [
-        'openwisp_monitoring.monitoring',
-        'openwisp_monitoring.check',
-        'openwisp_monitoring.device',
-    ]:
-        INSTALLED_APPS.remove(app)
-        # EXTENDED_APPS.append(app)
-    INSTALLED_APPS.append('openwisp2.sample_monitoring')
-    INSTALLED_APPS.append('openwisp2.sample_check')
-    INSTALLED_APPS.append('openwisp2.sample_device_monitoring')
-    CHECK_CHECK_MODEL = 'sample_check.Check'
-    MONITORING_CHART_MODEL = 'sample_monitoring.Chart'
-    MONITORING_METRIC_MODEL = 'sample_monitoring.Metric'
-    MONITORING_ALERTSETTINGS_MODEL = 'sample_monitoring.AlertSettings'
-    DEVICE_MONITORING_WIFICLIENT_MODEL = 'sample_device_monitoring.WifiClient'
-    DEVICE_MONITORING_WIFISESSION_MODEL = 'sample_device_monitoring.WifiSession'
-    DEVICE_MONITORING_DEVICEDATA_MODEL = 'sample_device_monitoring.DeviceData'
-    DEVICE_MONITORING_DEVICEMONITORING_MODEL = (
-        'sample_device_monitoring.DeviceMonitoring'
-    )
+    # for app in [
+    #     'openwisp_monitoring.monitoring',
+    #     'openwisp_monitoring.check',
+    #     'openwisp_monitoring.device',
+    # ]:
+    #     INSTALLED_APPS.remove(app)
+    #     # EXTENDED_APPS.append(app)
+    # INSTALLED_APPS.append('openwisp2.sample_monitoring')
+    # INSTALLED_APPS.append('openwisp2.sample_check')
+    # INSTALLED_APPS.append('openwisp2.sample_device_monitoring')
+    # CHECK_CHECK_MODEL = 'sample_check.Check'
+    # MONITORING_CHART_MODEL = 'sample_monitoring.Chart'
+    # MONITORING_METRIC_MODEL = 'sample_monitoring.Metric'
+    # MONITORING_ALERTSETTINGS_MODEL = 'sample_monitoring.AlertSettings'
+    # DEVICE_MONITORING_WIFICLIENT_MODEL = 'sample_device_monitoring.WifiClient'
+    # DEVICE_MONITORING_WIFISESSION_MODEL = 'sample_device_monitoring.WifiSession'
+    # DEVICE_MONITORING_DEVICEDATA_MODEL = 'sample_device_monitoring.DeviceData'
+    # DEVICE_MONITORING_DEVICEMONITORING_MODEL = (
+    #     'sample_device_monitoring.DeviceMonitoring'
+    # )
     # Celery auto detects tasks only from INSTALLED_APPS
     CELERY_IMPORTS = ('openwisp_monitoring.device.tasks',)
 

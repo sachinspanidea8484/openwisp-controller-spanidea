@@ -14,3 +14,6 @@ redis
 channels_redis~=4.2.1
 freezegun~=1.5.1
 
+# network topology
+
+
