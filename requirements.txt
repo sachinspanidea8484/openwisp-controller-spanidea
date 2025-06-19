@@ -47,7 +47,6 @@ django-flat-json-widget==0.3.1
 django-import-export==4.1.1
 django-ipware==7.0.1
 django-leaflet==0.32.0
-django-loci @ https://github.com/sachinspanidea8484/django-loci-spanidea-/tarball/main#sha256=8cbbf0b8e03851ecbd5f5b007bc9dbac5e4b3e6f917fc1519341526f56a61811
 django-model-utils==5.0.0
 django-nested-admin==4.1.1
 django-organizations==2.5.0
@@ -59,9 +58,8 @@ django-sendsms==0.5
 django-sesame==3.2.3
 django-sortedm2m==4.0.0
 django-taggit==6.0.0
-django-x509 @ https://github.com/sachinspanidea8484/django-x509-spanidea/tarball/main#sha256=7e5711bfdf9eccbd28ad5776de3afc608ef1adb951054aec72053173f25e29e1
 djangorestframework==3.15.1
-djangorestframework-gis @ https://github.com/openwisp/django-rest-framework-gis/tarball/1.2#sha256=910ec50e0ce7c562f406630667fbae63132079514f69cf323392a8420d0a7a25
+djangorestframework-gis @ https://github.com/openwisp/django-rest-framework-gis/tarball/1.2
 djangorestframework_simplejwt==5.5.0
 djangosaml2==1.10.1
 docstrfmt==1.10.0
@@ -107,18 +105,10 @@ msgpack==1.1.1
 multidict==6.5.0
 mypy_extensions==1.1.0
 netaddr==1.3.0
-netdiff @ https://github.com/sachinspanidea8484/netdiff-spanidea/tarball/main#sha256=57f35cf4087aca52a8c2519654195439baeb696a5e6e5662f54028ea05ba170c
-netjsonconfig @ https://github.com/sachinspanidea8484/netjsonconfig-spanidea/tarball/main#sha256=1a073ac8003ec64918cf2ac6cb505aef431a7438de73284ca86c9322e6d9c5f8
 networkx==3.4.2
 oauthlib==3.3.0
 openpyxl==3.1.5
-openvpn-status==0.2.2
--e git+https://github.com/sachinspanidea8484/openwisp-controller-spanidea.git@08c66db9079464202dbc6ccf4c76700364a3ec29#egg=openwisp_controller
-openwisp-ipam @ https://github.com/sachinspanidea8484/openwisp-ipam-spanidea/tarball/main#sha256=ed4dec4a2bfaf93d48b2e4deb61f956598d3e4c99fa0b22b901919977a6715c8
-openwisp-notifications @ https://github.com/sachinspanidea8484/openwisp-notifications-spanidea/tarball/main#sha256=17ba366ba5e2fe111be20d862f54a2c1b6c0de32283c1b8f3928d293e014321d
 openwisp-sphinx-theme==1.0.2
-openwisp-users @ https://github.com/sachinspanidea8484/openwisp-users-spanidea/tarball/main#sha256=1d5203bc6a789aa2a99d2e9e56ff084d14496459280046d8743234e8b91ec688
-openwisp-utils @ https://github.com/sachinspanidea8484/openwisp-utils-spanidea/tarball/main#sha256=98dbcfc363b40fe1ca0d6fc64ba362b7a364e49926c939c508ea06207b4ce5d7
 outcome==1.3.0.post0
 packaging==25.0
 paramiko==3.5.1
@@ -211,3 +201,16 @@ xmlschema==2.5.1
 yarl==1.20.1
 zope.interface==7.2
 zopfli==0.2.3.post1
+
+
+
+# github
+django-loci @ https://github.com/sachinspanidea8484/django-loci-spanidea-/tarball/main
+django-x509 @ https://github.com/sachinspanidea8484/django-x509-spanidea/tarball/main
+netdiff @ https://github.com/sachinspanidea8484/netdiff-spanidea/tarball/main
+netjsonconfig @ https://github.com/sachinspanidea8484/netjsonconfig-spanidea/tarball/main
+openwisp-ipam @ https://github.com/sachinspanidea8484/openwisp-ipam-spanidea/tarball/main
+openwisp-notifications @ https://github.com/sachinspanidea8484/openwisp-notifications-spanidea/tarball/main
+openwisp-users @ https://github.com/sachinspanidea8484/openwisp-users-spanidea/tarball/main
+openwisp-utils @ https://github.com/sachinspanidea8484/openwisp-utils-spanidea/tarball/main
+
