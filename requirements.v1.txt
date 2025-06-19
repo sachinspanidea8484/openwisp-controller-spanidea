@@ -15,7 +15,7 @@ djangorestframework-gis @ https://github.com/openwisp/django-rest-framework-gis/
 
 
 psycopg2-binary~=2.9.10
-django-redis~=5.4.0
+django-redis~=6.0.0
 
 
 
