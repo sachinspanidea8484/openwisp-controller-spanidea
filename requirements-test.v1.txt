@@ -1,5 +1,5 @@
 pytest-cov~=6.1.1
-openwisp-utils[qa,selenium,channels-test] @ https://github.com/sachinspanidea8484/openwisp-utils-spanidea/tarball/main
+openwisp-utils[qa,selenium,channels-test] @ file:///home/admin/Desktop/Nokia/openwisp-utils
 django_redis~=5.4.0
 mock-ssh-server~=0.9.1
 responses~=0.25.7

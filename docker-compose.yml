@@ -12,6 +12,7 @@ services:
     depends_on:
       - redis
       - postgres
+      - influxdb
 
   redis:
     image: redis:alpine
