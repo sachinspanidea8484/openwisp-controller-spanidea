@@ -194,6 +194,33 @@ class ConfigConfig(AppConfig):
                 "icon": "ow-config",
             },
         )
+        register_menu_group(
+            position=120,
+            config={
+                "label": "Test Management",
+                "items": {
+                    1: {
+                        "label": "Category 1",
+                        "model": get_model_name("testmanagement", "TestCase"),
+                        "name": "changelist",
+                        "icon": "ow-template",
+                    },
+                    2: {
+                        "label": "Category 2",
+                        "model": get_model_name("testmanagement", "TestSuite"),
+                        "name": "changelist",
+                        "icon": "ow-vpn",
+                    },
+                    3: {
+                        "label": "Category 3",
+                        "model": get_model_name("testmanagement", "TestSuiteCase"),
+                        "name": "changelist",
+                        "icon": "ow-device-group",
+                    },
+                },
+                "icon": "ow-config",
+            },
+        )
 
     def register_notification_types(self):
         register_notification_type(

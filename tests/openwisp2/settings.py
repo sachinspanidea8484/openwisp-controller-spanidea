@@ -149,6 +149,7 @@ INSTALLED_APPS = [
     "channels",
     "import_export",
     # 'debug_toolbar',
+    "testmanagement.apps.TestManagementConfig",
 ]
 EXTENDED_APPS = ("django_x509", "django_loci")
 
@@ -777,3 +778,9 @@ except ImportError:
     pass
 
 FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
+    ]
+}

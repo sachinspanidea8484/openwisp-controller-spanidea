@@ -82,6 +82,7 @@ if os.environ.get("SAMPLE_APP", False):
 
 urlpatterns += [
     path("", redirect_view, name="index"),
+    path('testmanagement/', include('testmanagement.urls')),
     path("admin/", admin.site.urls),
     path("", include("openwisp_controller.urls")),
     path("", include("openwisp_firmware_upgrader.urls")),
