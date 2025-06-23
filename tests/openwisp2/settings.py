@@ -126,7 +126,9 @@ INSTALLED_APPS = [
     "dj_rest_auth",
     "dj_rest_auth.registration",
 
-    
+    # openwisp test management
+    'openwisp_test_management',
+
     # openwisp2 admin theme
     # (must be loaded here)
     "openwisp_utils.admin_theme",

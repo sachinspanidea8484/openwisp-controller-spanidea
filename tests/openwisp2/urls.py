@@ -87,6 +87,7 @@ urlpatterns += [
     path("", include("openwisp_firmware_upgrader.urls")),
     path('', include('openwisp_monitoring.urls')),
     path("", include("openwisp_network_topology.urls")),
+    path('', include('openwisp_test_management.urls')),
 
     path("accounts/", include("openwisp_users.accounts.urls")),
     radius_urls,
