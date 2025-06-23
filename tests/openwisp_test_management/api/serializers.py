@@ -28,6 +28,7 @@ class TestCategorySerializer(BaseSerializer):
             "id",
             "organization",
             "name",
+            "code",
             "description",
             "test_case_count",
             "created",
