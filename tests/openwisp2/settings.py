@@ -772,6 +772,14 @@ except ImportError:
     pass
 
 
+# for test management
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_RATES': {
+        'test_management': '1000/minute',
+    }
+}
+
+
 # local settings must be imported before test runner otherwise they'll be ignored
 try:
     from .local_settings import *

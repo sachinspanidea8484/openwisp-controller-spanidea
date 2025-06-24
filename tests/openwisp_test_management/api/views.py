@@ -169,7 +169,7 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
         if 'test_case_id' in request.data and instance.test_case_id != request.data['test_case_id']:
             return Response(
                 {
-                    "test_case_id": _("Test case ID cannot be changed after creation")
+                    "test_case_id": _("Test Case ID cannot be changed after creation")
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )

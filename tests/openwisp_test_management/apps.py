@@ -38,8 +38,13 @@ class TestManagementConfig(ApiAppConfig):
                         "name": "changelist",
                         "icon": "ow-category",
                     },
+                    2: {
+                        "label": _("Test Cases"),
+                        "model": get_model_name(self.label, "TestCase"),
+                        "name": "changelist",
+                        "icon": "ow-test-case",
+                    },
                     # Future items will be added here:
-                    # 2: Cases
                     # 3: Suites
                     # 4: Mass Execution
                 },

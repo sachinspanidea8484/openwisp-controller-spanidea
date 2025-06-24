@@ -171,8 +171,6 @@ class TestCaseAdmin(BaseVersionAdmin):
         "test_case_id",
         "category_link",
         "is_active",
-        "suite_count",
-        "execution_count",
         "created",
         "modified",
     ]
@@ -190,7 +188,6 @@ class TestCaseAdmin(BaseVersionAdmin):
         "test_case_id",
         "description",
         "is_active",
-        "parameters",
         "created",
         "modified",
     ]
@@ -214,21 +211,12 @@ class TestCaseAdmin(BaseVersionAdmin):
     category_link.short_description = _("Category")
     category_link.admin_order_field = "category__name"
 
-    def suite_count(self, obj):
-        """Display count of test suites containing this test case"""
-        return obj.suite_count
-    suite_count.short_description = _("Suites")
-
-    def execution_count(self, obj):
-        """Display count of executions"""
-        return obj.execution_count
-    execution_count.short_description = _("Executions")
 
     def get_readonly_fields(self, request, obj=None):
         fields = super().get_readonly_fields(request, obj)
         # Make test_case_id readonly after creation to maintain consistency
-        if obj and obj.pk:
-            fields = list(fields) + ["test_case_id"]
+        # if obj and obj.pk:
+        #     fields = list(fields) + ["test_case_id"]
         return fields
 
     def has_delete_permission(self, request, obj=None):
@@ -239,31 +227,44 @@ class TestCaseAdmin(BaseVersionAdmin):
             return False
         return True
 
-    def delete_selected(self, request, queryset):
-        """
-        Custom delete action that checks if test cases can be deleted
-        """
-        # Check permissions
-        if not self.has_delete_permission(request):
-            raise PermissionDenied
-        
-        # Check if any test case is being used
-        undeletable = []
-        for obj in queryset:
-            if not obj.is_deletable:
-                undeletable.append(obj)
-        
-        if undeletable:
-            msg = _("Cannot delete test cases that are in use: %s") % (
-                ", ".join([str(obj) for obj in undeletable])
-            )
-            self.message_user(request, msg, messages.ERROR)
-            return
-        
-        # If we're here, all selected test cases can be deleted
-        return super().delete_selected(request, queryset)
-    
+def delete_selected(self, request, queryset):
+    """
+    Custom delete action that checks if test cases can be deleted
+    """
+    # Check permissions
+    if not self.has_delete_permission(request):
+        raise PermissionDenied
+
+    # Check for undeletable test cases
+    undeletable = [obj for obj in queryset if not obj.is_deletable]
+
+    if undeletable:
+        msg = _("Cannot delete test cases that are in use: %s") % (
+            ", ".join([str(obj) for obj in undeletable])
+        )
+        self.message_user(request, msg, messages.ERROR)
+        return
+
+    # Count before deletion
+    count = queryset.count()
+
+    # Perform deletion
+     # Perform deletion
+    self.delete_queryset(request, queryset)
+
+    self.message_user(
+        request,
+        ngettext(
+            "Successfully deleted %(count)d test case.",
+            "Successfully deleted %(count)d test cases.",
+            count,
+        ) % {"count": count},
+        messages.SUCCESS,
+    )
+
     delete_selected.short_description = _("Delete selected test cases")
+
+     
 
     @admin.action(description=_("Recover deleted test cases"))
     def recover_deleted(self, request, queryset):
@@ -319,7 +320,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         if "test_case_id" in form.base_fields:
             form.base_fields["test_case_id"].help_text = _(
                 "Unique identifier that devices will use to execute this test. "
-                "This cannot be changed after creation."
+                # "This cannot be changed after creation."
             )
         return form
 

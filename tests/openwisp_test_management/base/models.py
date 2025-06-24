@@ -88,13 +88,13 @@ class AbstractTestCase(TimeStampedEditableModel):
     Individual test cases that can be executed on devices
     """
     name = models.CharField(
-        _("test case name"),
+        _("Test Case Name"),
         max_length=128,
         db_index=True,
         help_text=_("Descriptive name for the test case")
     )
     test_case_id = models.CharField(
-        _("test case ID"),
+        _("Test Case ID"),
         max_length=64,
         db_index=True,
         help_text=_("Unique identifier used by devices to execute this test")
@@ -117,12 +117,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         default=True,
         help_text=_("Whether this test case is currently active")
     )
-    parameters = models.JSONField(
-        _("parameters"),
-        default=dict,
-        blank=True,
-        help_text=_("Optional parameters for test execution")
-    )
+
 
     class Meta:
         abstract = True
@@ -147,7 +142,7 @@ class AbstractTestCase(TimeStampedEditableModel):
             raise ValidationError({"name": _("Test case name is required")})
         
         if not self.test_case_id:
-            raise ValidationError({"test_case_id": _("Test case ID is required")})
+            raise ValidationError({"test_case_id": _("Test Case ID is required")})
         
         # Check for duplicate test_case_id across all organizations
         qs = self.__class__.objects.filter(
@@ -186,19 +181,9 @@ class AbstractTestCase(TimeStampedEditableModel):
         return self.category.organization
 
     @property
-    def suite_count(self):
-        """Return count of test suites containing this test case"""
-        # This will be implemented when TestSuite model is added
-        return 0
-
-    @property
-    def execution_count(self):
-        """Return count of times this test has been executed"""
-        # This will be implemented when TestExecution model is added
-        return 0
-
-    @property
     def is_deletable(self):
         """Check if test case can be deleted"""
         # Test cases in suites or with executions cannot be deleted
-        return self.suite_count == 0 and self.execution_count == 0
+        return True
+
+    

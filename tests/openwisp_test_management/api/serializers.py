@@ -79,8 +79,6 @@ class TestCategoryRelationSerializer(serializers.ModelSerializer):
 class TestCaseSerializer(ValidatedModelSerializer):
     """Serializer for TestCase model"""
     category_detail = TestCategoryRelationSerializer(source="category", read_only=True)
-    suite_count = serializers.IntegerField(read_only=True)
-    execution_count = serializers.IntegerField(read_only=True)
     organization = serializers.SerializerMethodField()
     
     class Meta(BaseMeta):
@@ -93,16 +91,11 @@ class TestCaseSerializer(ValidatedModelSerializer):
             "category_detail",
             "description",
             "is_active",
-            "parameters",
             "organization",
-            "suite_count",
-            "execution_count",
             "created",
             "modified",
         ]
         read_only_fields = BaseMeta.read_only_fields + [
-            "suite_count",
-            "execution_count",
             "organization",
         ]
 
@@ -119,7 +112,7 @@ class TestCaseSerializer(ValidatedModelSerializer):
     def validate_test_case_id(self, value):
         """Ensure test_case_id is unique"""
         if not value or not value.strip():
-            raise serializers.ValidationError(_("Test case ID cannot be empty"))
+            raise serializers.ValidationError(_("Test Case ID cannot be empty"))
         
         # Check if we're updating
         if self.instance and self.instance.test_case_id == value:
@@ -167,13 +160,9 @@ class TestCaseListSerializer(TestCaseSerializer):
             "category",
             "category_name",
             "is_active",
-            "suite_count",
-            "execution_count",
             "created",
             "modified",
         ]
         read_only_fields = BaseMeta.read_only_fields + [
-            "suite_count",
-            "execution_count",
             "category_name",
         ]
