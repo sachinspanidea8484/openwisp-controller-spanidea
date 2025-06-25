@@ -1,7 +1,6 @@
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
-from openwisp_users.api.mixins import FilterSerializerByOrgManaged
 from openwisp_utils.api.serializers import ValidatedModelSerializer
 
 from ..swapper import load_model
@@ -16,7 +15,7 @@ class BaseMeta:
     read_only_fields = ["created", "modified"]
 
 
-class BaseSerializer(FilterSerializerByOrgManaged, ValidatedModelSerializer):
+class BaseSerializer(ValidatedModelSerializer):
     """Base serializer for test management models"""
     pass
 
@@ -29,7 +28,6 @@ class TestCategorySerializer(BaseSerializer):
         model = TestCategory
         fields = [
             "id",
-            "organization",
             "name",
             "code",
             "description",
@@ -39,14 +37,6 @@ class TestCategorySerializer(BaseSerializer):
         ]
         read_only_fields = BaseMeta.read_only_fields + ["test_case_count"]
 
-    def validate_organization(self, value):
-        """Only superusers can create shared categories (organization=None)"""
-        request = self.context.get("request")
-        if not value and request and not request.user.is_superuser:
-            raise serializers.ValidationError(
-                _("Only superusers can create shared test categories")
-            )
-        return value
 
     def validate_name(self, value):
         """Ensure name is not empty and properly formatted"""
@@ -61,7 +51,6 @@ class TestCategoryListSerializer(TestCategorySerializer):
         model = TestCategory
         fields = [
             "id",
-            "organization",
             "name",
             "test_case_count",
             "created",
@@ -74,14 +63,13 @@ class TestCategoryRelationSerializer(serializers.ModelSerializer):
     """Serializer for showing category relationship"""
     class Meta:
         model = TestCategory
-        fields = ["id", "name", "organization"]
+        fields = ["id", "name", ]
         read_only_fields = fields
 
 
 class TestCaseSerializer(ValidatedModelSerializer):
     """Serializer for TestCase model"""
     category_detail = TestCategoryRelationSerializer(source="category", read_only=True)
-    organization = serializers.SerializerMethodField()
     
     class Meta(BaseMeta):
         model = TestCase
@@ -91,25 +79,14 @@ class TestCaseSerializer(ValidatedModelSerializer):
             "test_case_id",
             "category",
             "category_detail",
-            "description",
             "is_active",
-            "organization",
             "created",
             "modified",
         ]
         read_only_fields = BaseMeta.read_only_fields + [
-            "organization",
         ]
 
-    def get_organization(self, obj):
-        """Get organization from category"""
-        if obj.category and obj.category.organization:
-            return {
-                "id": str(obj.category.organization.id),
-                "name": obj.category.organization.name,
-                "slug": obj.category.organization.slug,
-            }
-        return None
+
 
     def validate_test_case_id(self, value):
         """Ensure test_case_id is unique"""
@@ -184,7 +161,6 @@ class TestSuiteSerializer(ValidatedModelSerializer):
     category_detail = TestCategoryRelationSerializer(source="category", read_only=True)
     test_case_count = serializers.IntegerField(read_only=True)
     execution_count = serializers.IntegerField(read_only=True)
-    organization = serializers.SerializerMethodField()
     test_cases = TestSuiteCaseSerializer(
         source="testsuitecase_set",
         many=True,
@@ -208,7 +184,6 @@ class TestSuiteSerializer(ValidatedModelSerializer):
             "category_detail",
             "test_cases",
             "test_case_ids",
-            "organization",
             "test_case_count",
             "execution_count",
             "created",
@@ -217,18 +192,9 @@ class TestSuiteSerializer(ValidatedModelSerializer):
         read_only_fields = BaseMeta.read_only_fields + [
             "test_case_count",
             "execution_count",
-            "organization",
         ]
 
-    def get_organization(self, obj):
-        """Get organization from category"""
-        if obj.category and obj.category.organization:
-            return {
-                "id": str(obj.category.organization.id),
-                "name": obj.category.organization.name,
-                "slug": obj.category.organization.slug,
-            }
-        return None
+
 
     def validate_name(self, value):
         """Ensure name is not empty and properly formatted"""

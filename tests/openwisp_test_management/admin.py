@@ -13,14 +13,10 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 from reversion.admin import VersionAdmin
 
-from openwisp_users.multitenancy import MultitenantAdminMixin
 from openwisp_utils.admin import TimeReadonlyAdminMixin
 
 from .filters import (
-    TestCategoryOrganizationFilter,
     TestCaseCategoryFilter,
-    TestCaseCategoryOrganizationFilter,
-    TestSuiteCategoryOrganizationFilter,
     TestSuiteCategoryFilter,
     TestSuiteActiveFilter,
 )
@@ -33,11 +29,11 @@ TestSuite = load_model("TestSuite")
 TestSuiteCase = load_model("TestSuiteCase")
 
 
-class BaseAdmin(MultitenantAdminMixin, TimeReadonlyAdminMixin, admin.ModelAdmin):
+class BaseAdmin(TimeReadonlyAdminMixin, admin.ModelAdmin):
     save_on_top = True
 
 
-class BaseVersionAdmin(MultitenantAdminMixin, TimeReadonlyAdminMixin, VersionAdmin):
+class BaseVersionAdmin(TimeReadonlyAdminMixin, VersionAdmin):
     history_latest_first = True
     save_on_top = True
 
@@ -46,17 +42,14 @@ class BaseVersionAdmin(MultitenantAdminMixin, TimeReadonlyAdminMixin, VersionAdm
 class TestCategoryAdmin(BaseVersionAdmin):
     list_display = [
         "name",
-        "organization",
         "test_case_count",
         "created",
         "modified",
     ]
-    list_filter = [TestCategoryOrganizationFilter]
-    list_select_related = ["organization"]
+    list_filter = []
     search_fields = ["name", "description"]
     ordering = ["name"]
     fields = [
-        "organization",
         "name",
         "code",    # ✅ code visible only in Add/Edit form
         "description",
@@ -182,11 +175,10 @@ class TestCaseAdmin(BaseVersionAdmin):
         "modified",
     ]
     list_filter = [
-        TestCaseCategoryOrganizationFilter,
         TestCaseCategoryFilter,
         "is_active",
     ]
-    list_select_related = ["category", "category__organization"]
+    list_select_related = ["category",]
     search_fields = ["name", "test_case_id", "description"]
     ordering = ["category__name", "name"]
     fields = [
@@ -459,16 +451,15 @@ class TestSuiteAdmin(BaseVersionAdmin):
         "category_link",
         "test_case_count",
         "is_active",
-        "execution_count",
+        # "execution_count",
         "created",
         "modified",
     ]
     list_filter = [
-        TestSuiteCategoryOrganizationFilter,
         TestSuiteCategoryFilter,
         TestSuiteActiveFilter,
     ]
-    list_select_related = ["category", "category__organization"]
+    list_select_related = ["category"]
     search_fields = ["name", "description"]
     ordering = ["category__name", "name"]
     fields = [

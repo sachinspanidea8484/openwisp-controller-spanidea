@@ -3,8 +3,13 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, generics, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from .filters import TestSuiteFilter
 
-from openwisp_users.api.mixins import FilterByOrganizationManaged
+from django.utils.translation import gettext_lazy as _
+from .serializers import TestSuiteListSerializer
+from .filters import TestSuiteFilter
+
+
 from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
 # from openwisp_users.api.pagination import LinkHeaderPagination
 
@@ -25,24 +30,9 @@ TestSuite = load_model("TestSuite")
 TestSuiteCase = load_model("TestSuiteCase")
 
 
-class ProtectedAPIMixin(BaseProtectedAPIMixin, FilterByOrganizationManaged):
+class ProtectedAPIMixin(BaseProtectedAPIMixin):
     """Base mixin for protected API views"""
     throttle_scope = "test_management"
-    # pagination_class = LinkHeaderPagination
-    
-    def get_queryset(self):
-        """Filter queryset by organization if specified"""
-        qs = super().get_queryset()
-        org_slug = self.request.query_params.get("organization", None)
-        
-        if org_slug:
-            try:
-                qs = qs.filter(organization__slug=org_slug)
-            except ValidationError:
-                # Invalid organization slug, return empty queryset
-                qs = qs.none()
-        
-        return qs
 
 
 class TestCategoryListCreateView(ProtectedAPIMixin, generics.ListCreateAPIView):
@@ -52,7 +42,7 @@ class TestCategoryListCreateView(ProtectedAPIMixin, generics.ListCreateAPIView):
     GET: Returns list of test categories with filtering and search
     POST: Creates a new test category
     """
-    queryset = TestCategory.objects.all().select_related("organization")
+    queryset = TestCategory.objects.all()
     serializer_class = TestCategorySerializer
     filterset_class = TestCategoryFilter
     filter_backends = [
@@ -79,7 +69,7 @@ class TestCategoryDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAP
     PUT/PATCH: Updates test category
     DELETE: Deletes test category (if no test cases exist)
     """
-    queryset = TestCategory.objects.all().select_related("organization")
+    queryset = TestCategory.objects.all()
     serializer_class = TestCategorySerializer
     lookup_field = "pk"
 
@@ -105,7 +95,7 @@ class TestCaseListCreateView(ProtectedAPIMixin, generics.ListCreateAPIView):
     GET: Returns list of test cases with filtering and search
     POST: Creates a new test case
     """
-    queryset = TestCase.objects.all().select_related("category", "category__organization")
+    queryset = TestCase.objects.all().select_related("category")
     serializer_class = TestCaseSerializer
     filterset_class = TestCaseFilter
     filter_backends = [
@@ -123,19 +113,7 @@ class TestCaseListCreateView(ProtectedAPIMixin, generics.ListCreateAPIView):
             return TestCaseListSerializer
         return TestCaseSerializer
 
-    def get_queryset(self):
-        """Custom queryset filtering"""
-        qs = super().get_queryset()
-        
-        # Additional filtering by organization through category
-        org_slug = self.request.query_params.get("organization", None)
-        if org_slug:
-            try:
-                qs = qs.filter(category__organization__slug=org_slug)
-            except ValidationError:
-                qs = qs.none()
-        
-        return qs
+
 
 
 class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -146,7 +124,7 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
     PUT/PATCH: Updates test case
     DELETE: Deletes test case (if not in use)
     """
-    queryset = TestCase.objects.all().select_related("category", "category__organization")
+    queryset = TestCase.objects.all().select_related("category")
     serializer_class = TestCaseSerializer
     lookup_field = "pk"
 
@@ -189,9 +167,11 @@ class TestSuiteListCreateView(ProtectedAPIMixin, generics.ListCreateAPIView):
     GET: Returns list of test suites with filtering and search
     POST: Creates a new test suite
     """
-    queryset = TestSuite.objects.all().select_related("category", "category__organization")
+    queryset = TestSuite.objects.all().select_related("category")
     serializer_class = TestSuiteSerializer
-    filterset_class = []
+    # filterset_class = []
+    filterset_class = TestSuiteFilter
+
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -207,19 +187,7 @@ class TestSuiteListCreateView(ProtectedAPIMixin, generics.ListCreateAPIView):
             return TestSuiteListSerializer
         return TestSuiteSerializer
 
-    def get_queryset(self):
-        """Custom queryset filtering"""
-        qs = super().get_queryset()
-        
-        # Additional filtering by organization through category
-        org_slug = self.request.query_params.get("organization", None)
-        if org_slug:
-            try:
-                qs = qs.filter(category__organization__slug=org_slug)
-            except ValidationError:
-                qs = qs.none()
-        
-        return qs
+
 
 
 class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -230,7 +198,7 @@ class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVi
     PUT/PATCH: Updates test suite
     DELETE: Deletes test suite (if not executed)
     """
-    queryset = TestSuite.objects.all().select_related("category", "category__organization")
+    queryset = TestSuite.objects.all().select_related("category")
     serializer_class = TestSuiteSerializer
     lookup_field = "pk"
 

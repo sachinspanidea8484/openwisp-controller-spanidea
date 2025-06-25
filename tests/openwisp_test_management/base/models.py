@@ -4,13 +4,12 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from openwisp_users.mixins import ShareableOrgMixin
 from openwisp_utils.base import TimeStampedEditableModel
 
 logger = logging.getLogger(__name__)
 
 
-class AbstractTestCategory(ShareableOrgMixin, TimeStampedEditableModel):
+class AbstractTestCategory(TimeStampedEditableModel):
     """
     Abstract model for Test Categories
     Categories group test cases by type or purpose
@@ -19,9 +18,10 @@ class AbstractTestCategory(ShareableOrgMixin, TimeStampedEditableModel):
         _("name"),
         max_length=64,
         db_index=True,
+        unique=True,
         help_text=_("Category name to group related test cases")
     )
-    code = models.CharField(  # ✅ Code field without uniqueness
+    code = models.CharField(
         _("code"),
         max_length=64,
         blank=True,
@@ -37,7 +37,6 @@ class AbstractTestCategory(ShareableOrgMixin, TimeStampedEditableModel):
         abstract = True
         verbose_name = _("Test Category")
         verbose_name_plural = _("Test Categories")
-        unique_together = ("name", "organization")
         ordering = ["name"]
 
     def __str__(self):
@@ -49,19 +48,14 @@ class AbstractTestCategory(ShareableOrgMixin, TimeStampedEditableModel):
         if not self.name:
             raise ValidationError({"name": _("Name is required")})
         
-        # Check for duplicate names within the same organization
-        if self.organization:
-            qs = self.__class__.objects.filter(
-                name__iexact=self.name,
-                organization=self.organization
-            ).exclude(pk=self.pk)
-            if qs.exists():
-                raise ValidationError({
-                    "name": _(
-                        f"A test category with this name already exists "
-                        f"in {self.organization}"
-                    )
-                })
+        # Check for duplicate names
+        qs = self.__class__.objects.filter(
+            name__iexact=self.name
+        ).exclude(pk=self.pk)
+        if qs.exists():
+            raise ValidationError({
+                "name": _("A test category with this name already exists")
+            })
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -103,6 +97,7 @@ class AbstractTestCase(TimeStampedEditableModel):
     test_case_id = models.CharField(
         _("test case ID"),
         max_length=64,
+        unique=True,
         db_index=True,
         help_text=_("Unique identifier used by devices to execute this test")
     )
@@ -124,12 +119,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         default=True,
         help_text=_("Whether this test case is currently active")
     )
-    parameters = models.JSONField(
-        _("parameters"),
-        default=dict,
-        blank=True,
-        help_text=_("Optional parameters for test execution")
-    )
+
 
     class Meta:
         abstract = True
@@ -156,7 +146,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         if not self.test_case_id:
             raise ValidationError({"test_case_id": _("Test case ID is required")})
         
-        # Check for duplicate test_case_id across all organizations
+        # Check for duplicate test_case_id
         qs = self.__class__.objects.filter(
             test_case_id=self.test_case_id
         ).exclude(pk=self.pk)
@@ -186,11 +176,6 @@ class AbstractTestCase(TimeStampedEditableModel):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
-
-    @property
-    def organization(self):
-        """Get organization from category"""
-        return self.category.organization
 
     @property
     def suite_count(self):
@@ -283,11 +268,6 @@ class AbstractTestSuite(TimeStampedEditableModel):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
-
-    @property
-    def organization(self):
-        """Get organization from category"""
-        return self.category.organization
 
     @property
     def test_case_count(self):
