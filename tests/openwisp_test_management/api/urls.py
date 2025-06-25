@@ -30,6 +30,17 @@ urlpatterns = [
                 views.test_case_detail,
                 name="api_test_case_detail",
             ),
+            # Test Suite endpoints
+            path(
+                "test-suite/",
+                views.test_suite_list,
+                name="api_test_suite_list",
+            ),
+            path(
+                "test-suite/<uuid:pk>/",
+                views.test_suite_detail,
+                name="api_test_suite_detail",
+            ),
             # Future endpoints will be added here:
             # test-suite/
             # mass-execution/

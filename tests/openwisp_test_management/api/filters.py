@@ -7,6 +7,8 @@ from ..swapper import load_model
 
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
+TestSuite = load_model("TestSuite")
+
 
 
 class TestCategoryFilter(FilterDjangoByOrgManaged):
@@ -63,3 +65,40 @@ class TestCaseFilter(FilterDjangoByOrgManaged):
             self.filters["category__organization__slug"].label = _("Organization slug")
         if "category" in self.filters:
             self.filters["category"].label = _("Category")
+
+
+
+
+
+
+class TestSuiteFilter(FilterDjangoByOrgManaged):
+    """API filter for test suites"""
+    name = filters.CharFilter(field_name="name", lookup_expr="icontains")
+    category = filters.UUIDFilter(field_name="category")
+    is_active = filters.BooleanFilter(field_name="is_active")
+    
+    class Meta:
+        model = TestSuite
+        fields = [
+            "category__organization",
+            "category__organization__slug",
+            "category",
+            "name",
+            "is_active",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._set_valid_filterform_labels()
+
+    def _set_valid_filterform_labels(self):
+        """Set user-friendly labels for filters"""
+        if "category__organization" in self.filters:
+            self.filters["category__organization"].label = _("Organization")
+        if "category__organization__slug" in self.filters:
+            self.filters["category__organization__slug"].label = _("Organization slug")
+        if "category" in self.filters:
+            self.filters["category"].label = _("Category")
+
+
+

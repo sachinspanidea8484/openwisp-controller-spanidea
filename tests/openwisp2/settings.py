@@ -267,6 +267,10 @@ EXTERNAL_APPS = {
         'openwisp_radius': {
         'submodules': [''],  # Main module only
         'base_path': os.path.join(PROJECT_ROOT, 'openwisp_radius')
+    },
+     'openwisp_test_management': {
+        'submodules': [''],  # Main module only
+        'base_path': os.path.join(PROJECT_ROOT, 'openwisp_test_management')
     }
 }
 

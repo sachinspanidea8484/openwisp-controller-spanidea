@@ -15,10 +15,14 @@ from .serializers import (
     TestCategorySerializer,
     TestCaseListSerializer,
     TestCaseSerializer,
+    TestSuiteSerializer ,
+    # TestSuiteFilter
 )
 
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
+TestSuite = load_model("TestSuite")
+TestSuiteCase = load_model("TestSuiteCase")
 
 
 class ProtectedAPIMixin(BaseProtectedAPIMixin, FilterByOrganizationManaged):
@@ -177,8 +181,81 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
         return super().update(request, *args, **kwargs)
 
 
+
+class TestSuiteListCreateView(ProtectedAPIMixin, generics.ListCreateAPIView):
+    """
+    List all test suites or create a new one.
+    
+    GET: Returns list of test suites with filtering and search
+    POST: Creates a new test suite
+    """
+    queryset = TestSuite.objects.all().select_related("category", "category__organization")
+    serializer_class = TestSuiteSerializer
+    filterset_class = []
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+    search_fields = ["name", "description"]
+    ordering_fields = ["name", "category__name", "created", "modified"]
+    ordering = ["category__name", "name"]
+
+    def get_serializer_class(self):
+        """Use lightweight serializer for list view"""
+        if self.request.method == "GET":
+            return TestSuiteListSerializer
+        return TestSuiteSerializer
+
+    def get_queryset(self):
+        """Custom queryset filtering"""
+        qs = super().get_queryset()
+        
+        # Additional filtering by organization through category
+        org_slug = self.request.query_params.get("organization", None)
+        if org_slug:
+            try:
+                qs = qs.filter(category__organization__slug=org_slug)
+            except ValidationError:
+                qs = qs.none()
+        
+        return qs
+
+
+class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    Retrieve, update or delete a test suite.
+    
+    GET: Returns single test suite details with test cases
+    PUT/PATCH: Updates test suite
+    DELETE: Deletes test suite (if not executed)
+    """
+    queryset = TestSuite.objects.all().select_related("category", "category__organization")
+    serializer_class = TestSuiteSerializer
+    lookup_field = "pk"
+
+    def destroy(self, request, *args, **kwargs):
+        """Custom delete to check if test suite can be deleted"""
+        instance = self.get_object()
+        
+        if not instance.is_deletable:
+            return Response(
+                {
+                    "detail": _("Cannot delete test suite that has been executed")
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        return super().destroy(request, *args, **kwargs)
+
+
+
+
+
 # Create view instances
 test_category_list = TestCategoryListCreateView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()
 test_case_list = TestCaseListCreateView.as_view()
 test_case_detail = TestCaseDetailView.as_view()
+test_suite_list = TestSuiteListCreateView.as_view()
+test_suite_detail = TestSuiteDetailView.as_view()
