@@ -1,0 +1,41 @@
+/* Style for test cases checkboxes */
+.field-test_cases ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    padding: 10px;
+    background: #f9f9f9;
+}
+
+.field-test_cases li {
+    margin-bottom: 5px;
+    padding: 5px;
+    background: white;
+    border: 1px solid #eee;
+}
+
+.field-test_cases li:hover {
+    background: #f0f0f0;
+}
+
+.field-test_cases input[type="checkbox"] {
+    margin-right: 10px;
+}
+
+/* Style for inline test cases */
+#testsuitecase_set-group .tabular td {
+    vertical-align: middle;
+}
+
+#testsuitecase_set-group .field-order input {
+    width: 50px;
+    text-align: center;
+}
+
+/* Hide test cases field when inline is shown */
+.change-form #testsuitecase_set-group:not(:empty) ~ .form-row.field-test_cases {
+    display: none;
+}

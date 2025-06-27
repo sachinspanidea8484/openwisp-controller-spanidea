@@ -32,7 +32,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-# monitoring
+  # monitoring
   influxdb:
     image: influxdb:1.8-alpine
     volumes:
@@ -47,11 +47,9 @@ services:
     environment:
       INFLUXDB_DB: openwisp2
       INFLUXDB_USER: openwisp
-      INFLUXDB_USER_PASSWORD: openwisp  
-
+      INFLUXDB_USER_PASSWORD: openwisp
 
 volumes:
   redis_data:
   postgres_data:
   influxdb-data: {}
-
