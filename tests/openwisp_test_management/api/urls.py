@@ -42,8 +42,19 @@ urlpatterns = [
                 name="api_test_suite_detail",
             ),
             # Future endpoints will be added here:
-            # test-suite/
-            # mass-execution/
+           # Test Suite Execution endpoints
+            path(
+                "execution/",
+                views.test_suite_execution_list,
+                name="api_test_suite_execution_list",
+            ),
+            path(
+                "execution/<uuid:pk>/",
+                views.test_suite_execution_detail,
+                name="api_test_suite_execution_detail",
+            ),
+             path("execution/available-devices/", views.available_devices, name="api_available_devices"),
+
         ]),
     ),
 ]

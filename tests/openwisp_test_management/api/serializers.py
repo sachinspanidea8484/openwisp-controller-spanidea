@@ -3,12 +3,21 @@ from rest_framework import serializers
 
 from openwisp_utils.api.serializers import ValidatedModelSerializer
 
+
+from openwisp_controller.connection.models import DeviceConnection
+from openwisp_controller.config.models import Device
+
+
 from ..swapper import load_model
 
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
 TestSuite = load_model("TestSuite")
 TestSuiteCase = load_model("TestSuiteCase")
+TestSuiteExecution = load_model("TestSuiteExecution")
+TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+
+
 
 
 class BaseMeta:
@@ -291,3 +300,144 @@ class TestSuiteListSerializer(TestSuiteSerializer):
             "execution_count",
             "category_name",
         ]        
+
+
+
+
+
+
+
+
+
+class DeviceSerializer(serializers.ModelSerializer):
+    """Minimal device serializer for execution"""
+    organization_name = serializers.CharField(source="organization.name", read_only=True)
+    
+    class Meta:
+        model = Device
+        fields = ["id", "name", "organization_name"]
+
+
+class TestSuiteExecutionDeviceSerializer(serializers.ModelSerializer):
+    """Serializer for execution devices"""
+    device_detail = DeviceSerializer(source="device", read_only=True)
+    
+    class Meta:
+        model = TestSuiteExecutionDevice
+        fields = [
+            "id",
+            "device",
+            "device_detail",
+            "status",
+            "started_at",
+            "completed_at",
+            "output",
+        ]
+        read_only_fields = ["started_at", "completed_at"]
+
+
+class TestSuiteExecutionSerializer(ValidatedModelSerializer):
+    """Serializer for Test Suite Executions"""
+    test_suite_detail = TestSuiteListSerializer(source="test_suite", read_only=True)
+    devices = TestSuiteExecutionDeviceSerializer(
+        many=True,
+        read_only=True
+    )
+    device_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=True,
+        help_text=_("List of device IDs to execute the test suite on")
+    )
+    device_count = serializers.IntegerField(read_only=True)
+    status_summary = serializers.SerializerMethodField()
+    
+    class Meta(BaseMeta):
+        model = TestSuiteExecution
+        fields = [
+            "id",
+            "test_suite",
+            "test_suite_detail",
+            "devices",
+            "device_ids",
+            "device_count",
+            "is_executed",
+            "status_summary",
+            "created",
+            "modified",
+        ]
+        read_only_fields = BaseMeta.read_only_fields + [
+            "is_executed",
+            "device_count",
+            "status_summary",
+        ]
+    
+    def get_status_summary(self, obj):
+        """Return status summary"""
+        return obj.status_summary
+    
+    def validate_device_ids(self, value):
+        """Validate device IDs have working SSH connections"""
+        if not value:
+            raise serializers.ValidationError(_("At least one device must be selected"))
+        
+        # Get devices with working connections
+        working_device_ids = DeviceConnection.objects.filter(
+            is_working=True,
+            enabled=True,
+            device_id__in=value
+        ).values_list('device_id', flat=True)
+        
+        # Check if all provided devices have working connections
+        invalid_devices = set(value) - set(working_device_ids)
+        if invalid_devices:
+            raise serializers.ValidationError(
+                _("Some devices do not have working SSH connections")
+            )
+        
+        return value
+    
+    def validate_test_suite(self, value):
+        """Ensure test suite is active"""
+        if not value.is_active:
+            raise serializers.ValidationError(_("Test suite must be active"))
+        return value
+    
+    def create(self, validated_data):
+        """Create execution with devices"""
+        device_ids = validated_data.pop('device_ids')
+        
+        # Create execution
+        execution = super().create(validated_data)
+        
+        # Create device executions
+        for device_id in device_ids:
+            TestSuiteExecutionDevice.objects.create(
+                test_suite_execution=execution,
+                device_id=device_id
+            )
+        
+        return execution
+
+
+class TestSuiteExecutionListSerializer(TestSuiteExecutionSerializer):
+    """Lightweight serializer for list views"""
+    test_suite_name = serializers.CharField(source="test_suite.name", read_only=True)
+    
+    class Meta(BaseMeta):
+        model = TestSuiteExecution
+        fields = [
+            "id",
+            "test_suite",
+            "test_suite_name",
+            "device_count",
+            "is_executed",
+            "status_summary",
+            "created",
+        ]
+        read_only_fields = BaseMeta.read_only_fields + [
+            "is_executed",
+            "device_count",
+            "status_summary",
+            "test_suite_name",
+        ]

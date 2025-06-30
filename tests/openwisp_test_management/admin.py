@@ -13,6 +13,11 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 from reversion.admin import VersionAdmin
 
+from openwisp_controller.connection.models import DeviceConnection
+from openwisp_controller.config.models import Device
+
+
+
 from openwisp_utils.admin import TimeReadonlyAdminMixin
 
 from .filters import (
@@ -27,6 +32,8 @@ TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
 TestSuite = load_model("TestSuite")
 TestSuiteCase = load_model("TestSuiteCase")
+TestSuiteExecution = load_model("TestSuiteExecution")
+TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 
 
 class BaseAdmin(TimeReadonlyAdminMixin, admin.ModelAdmin):
@@ -618,6 +625,244 @@ class TestSuiteAdmin(BaseVersionAdmin):
      if obj and obj.pk:
         return super().get_inline_instances(request, obj)
      return []
+    
+class MassExecutionForm(forms.Form):
+    """Form for creating mass executions"""
+    test_suite = forms.ModelChoiceField(
+        queryset=TestSuite.objects.filter(is_active=True),
+        empty_label=_("Select a test suite"),
+        label=_("Test Suite"),
+        help_text=_("Select an active test suite to execute"),
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    devices = forms.ModelMultipleChoiceField(
+        queryset=Device.objects.none(),
+        label=_("Devices"),
+        help_text=_("Select devices with working SSH connections"),
+        widget=forms.SelectMultiple(attrs={
+            'class': 'form-control',
+            'size': '10',
+            'style': 'height: 300px;'
+        })
+    )
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Get only devices with working SSH connections
+
+        working_device_ids = DeviceConnection.objects.filter(
+            is_working=True,
+            enabled=True
+        ).values_list('device_id', flat=True)
+
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+        
+        self.fields['devices'].queryset = Device.objects.filter(
+            id__in=working_device_ids
+        ).select_related('organization').order_by('organization__name', 'name')
+
+
+# Add inline for execution devices
+class TestSuiteExecutionDeviceInline(admin.TabularInline):
+    """Inline admin for devices in a test suite execution"""
+    model = TestSuiteExecutionDevice
+    extra = 0
+    fields = ['device', 'status', 'started_at', 'completed_at']
+    readonly_fields = ['device', 'status', 'started_at', 'completed_at']
+    
+    def has_add_permission(self, request, obj=None):
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+# Add the Mass Execution Admin
+@admin.register(TestSuiteExecution)
+class TestSuiteExecutionAdmin(BaseVersionAdmin):
+    list_display = [
+        "test_suite_name",
+        "device_count",
+        "execution_status",
+        "is_executed",
+        "created",
+    ]
+    list_filter = [
+        "is_executed",
+        "created",
+        ("test_suite", admin.RelatedOnlyFieldListFilter),
+    ]
+    list_select_related = ["test_suite", "test_suite__category"]
+    search_fields = ["test_suite__name"]
+    ordering = ["-created"]
+    fields = [
+        "test_suite",
+        "is_executed",
+        "device_summary",
+        "created",
+        "modified",
+    ]
+    readonly_fields = ["device_summary", "created", "modified"]
+    inlines = [TestSuiteExecutionDeviceInline]
+    actions = ["execute_test_suites"]
+    
+    def get_urls(self):
+        """Add custom URL for mass execution creation"""
+        urls = super().get_urls()
+        custom_urls = [
+            # path(
+            #     'mass-execution/',
+            #     self.admin_site.admin_view(self.mass_execution_view),
+            #     name='test_management_testsuitexecution_mass_execution'
+            # ),
+        ]
+        return custom_urls + urls
+    
+    def mass_execution_view(self, request):
+      
+        """View for creating mass executions"""
+        if request.method == 'POST':
+            form = MassExecutionForm(request.POST)
+            if form.is_valid():
+                test_suite = form.cleaned_data['test_suite']
+                devices = form.cleaned_data['devices']
+                
+                # Create test suite execution
+                execution = TestSuiteExecution.objects.create(
+                    test_suite=test_suite
+                )
+                
+                # Create device executions
+                for device in devices:
+                    TestSuiteExecutionDevice.objects.create(
+                        test_suite_execution=execution,
+                        device=device
+                    )
+                
+                self.message_user(
+                    request,
+                    _(f"Created mass execution for {test_suite.name} on {len(devices)} devices"),
+                    messages.SUCCESS
+                )
+                
+                # Redirect to the change page
+                return HttpResponseRedirect(
+                    reverse(
+                        'admin:test_management_testsuitexecution_change',
+                        args=[execution.pk]
+                    )
+                )
+        else:
+            form = MassExecutionForm()
+        
+        context = {
+            'title': _('Create Mass Execution'),
+            'form': form,
+            'opts': self.model._meta,
+            'has_view_permission': self.has_view_permission(request),
+            'has_add_permission': self.has_add_permission(request),
+            'has_change_permission': self.has_change_permission(request),
+            'has_delete_permission': self.has_delete_permission(request),
+        }
+        
+        return render(request, 'admin/test_management/mass_execution.html', context)
+    
+    def changelist_view(self, request, extra_context=None):
+        """Override to add custom button"""
+        extra_context = extra_context or {}
+        extra_context['has_mass_execution_permission'] = self.has_add_permission(request)
+        return super().changelist_view(request, extra_context)
+    
+    def test_suite_name(self, obj):
+        """Display test suite name with link"""
+        if obj.test_suite:
+            return format_html(
+                '<a href="../testsuite/{}/change/">{}</a>',
+                obj.test_suite.pk,
+                obj.test_suite.name
+            )
+        return "-"
+    test_suite_name.short_description = _("Test Suite")
+    test_suite_name.admin_order_field = "test_suite__name"
+    
+    def device_count(self, obj):
+        """Display device count"""
+        return obj.device_count
+    device_count.short_description = _("Devices")
+    
+    def execution_status(self, obj):
+        """Display execution status summary"""
+        summary = obj.status_summary
+        if isinstance(summary, str):
+            return summary
+        
+
+
+
+        
+        return format_html(
+            '<span title="Total: {total}, Completed: {completed}, Failed: {failed}, Running: {running}, Pending: {pending}">'
+            '✓ {completed} | ✗ {failed} | ⚡ {running} | ⏳ {pending}'
+            '</span>',
+            **summary
+        )
+    execution_status.short_description = _("Status")
+    
+    def device_summary(self, obj):
+        """Display device summary in detail view"""
+        if not obj.pk:
+            return "-"
+        
+        summary = obj.status_summary
+        if isinstance(summary, str):
+            return summary
+        
+        return format_html(
+            '<div style="line-height: 1.8;">'
+            '<strong>Total Devices:</strong> {total}<br>'
+            '<strong>Completed:</strong> <span style="color: green;">✓ {completed}</span><br>'
+            '<strong>Failed:</strong> <span style="color: red;">✗ {failed}</span><br>'
+            '<strong>Running:</strong> <span style="color: orange;">⚡ {running}</span><br>'
+            '<strong>Pending:</strong> <span style="color: gray;">⏳ {pending}</span>'
+            '</div>',
+            **summary
+        )
+    device_summary.short_description = _("Execution Summary")
+    
+    def has_delete_permission(self, request, obj=None):
+        """Prevent deletion of executed test suites"""
+        if obj and obj.is_executed:
+            return False
+        return super().has_delete_permission(request, obj)
+    
+    @admin.action(description=_("Execute selected test suites"))
+    def execute_test_suites(self, request, queryset):
+        """Action to execute test suites"""
+        # Filter only non-executed ones
+        to_execute = queryset.filter(is_executed=False)
+        
+        if to_execute.count() == 0:
+            self.message_user(
+                request,
+                _("No pending executions to process"),
+                messages.WARNING
+            )
+            return
+        
+        # Here you would trigger the actual execution
+        # For now, we'll just mark them as executed
+        count = to_execute.update(is_executed=True)
+        
+        self.message_user(
+            request,
+            ngettext(
+                "%d test suite execution was started.",
+                "%d test suite executions were started.",
+                count,
+            ) % count,
+            messages.SUCCESS,
+        )
+
 
 # Register models with reversion for history tracking
 if not reversion.is_registered(TestCategory):
@@ -633,3 +878,6 @@ if not reversion.is_registered(TestSuite):
     
 # if not reversion.is_registered(TestSuiteCase):
 #     reversion.register(TestSuiteCase)    
+
+if not reversion.is_registered(TestSuiteExecution):
+    reversion.register(TestSuiteExecution)

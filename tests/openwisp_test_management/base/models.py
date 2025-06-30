@@ -350,3 +350,172 @@ class AbstractTestSuiteCase(TimeStampedEditableModel):
         
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+
+
+
+
+
+
+
+
+
+
+class AbstractTestSuiteExecution(TimeStampedEditableModel):
+    """
+    Abstract model for Test Suite Executions
+    Tracks execution of a test suite on multiple devices
+    """
+    test_suite = models.ForeignKey(
+        'test_management.TestSuite',
+        on_delete=models.PROTECT,
+        related_name='executions',
+        verbose_name=_("test suite"),
+        help_text=_("Test suite to execute")
+    )
+    is_executed = models.BooleanField(
+        _("is executed"),
+        default=False,
+        help_text=_("Whether the execution has completed")
+    )
+    
+    class Meta:
+        abstract = True
+        verbose_name = _("Test Suite Execution")
+        verbose_name_plural = _("Test Suite Executions")
+        ordering = ["-created"]
+    
+    def __str__(self):
+        return f"{self.test_suite.name} - {self.created.strftime('%Y-%m-%d %H:%M')}"
+    
+    @property
+    def device_count(self):
+        """Return count of devices in this execution"""
+        from ..swapper import load_model
+        TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+        return TestSuiteExecutionDevice.objects.filter(test_suite_execution=self).count()
+    
+    @property
+    def status_summary(self):
+     """Return summary of execution status"""
+     from ..swapper import load_model
+     TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+    
+     devices = TestSuiteExecutionDevice.objects.filter(test_suite_execution=self)
+     total = devices.count()
+    
+    # Always return a dictionary, not a string
+     if total == 0:
+        return {
+            'total': 0,
+            'completed': 0,
+            'failed': 0,
+            'pending': 0,
+            'running': 0,
+            'has_devices': False
+        }
+    
+     completed = devices.filter(status='completed').count()
+     failed = devices.filter(status='failed').count()
+     pending = devices.filter(status='pending').count()
+     running = devices.filter(status='running').count()
+    
+     return {
+        'total': total,
+        'completed': completed,
+        'failed': failed,
+        'pending': pending,
+        'running': running,
+        'has_devices': True
+    }
+
+@property
+def execution_time(self):
+    """Calculate total execution time"""
+    from ..swapper import load_model
+    TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+    
+    devices = TestSuiteExecutionDevice.objects.filter(
+        test_suite_execution=self
+    ).exclude(
+        started_at__isnull=True
+    )
+    
+    if not devices.exists():
+        return None
+    
+    # Get earliest start time and latest completion time
+    start_time = devices.aggregate(
+        min_start=models.Min('started_at')
+    )['min_start']
+    
+    end_time = devices.filter(
+        completed_at__isnull=False
+    ).aggregate(
+        max_end=models.Max('completed_at')
+    )['max_end']
+    
+    if start_time and end_time:
+        duration = end_time - start_time
+        return duration
+    
+    return None
+
+
+class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
+    """
+    Abstract model for Test Suite Execution Devices
+    Links devices to test suite executions
+    """
+    test_suite_execution = models.ForeignKey(
+        'test_management.TestSuiteExecution',
+        on_delete=models.CASCADE,
+        related_name='devices',
+        verbose_name=_("test suite execution")
+    )
+    device = models.ForeignKey(
+        'config.Device',
+        on_delete=models.CASCADE,
+        related_name='test_executions',
+        verbose_name=_("device")
+    )
+    status = models.CharField(
+        _("status"),
+        max_length=20,
+        choices=[
+            ('pending', _('Pending')),
+            ('running', _('Running')),
+            ('completed', _('Completed')),
+            ('failed', _('Failed')),
+        ],
+        default='pending',
+        help_text=_("Execution status on this device")
+    )
+    started_at = models.DateTimeField(
+        _("started at"),
+        null=True,
+        blank=True,
+        help_text=_("When execution started on this device")
+    )
+    completed_at = models.DateTimeField(
+        _("completed at"),
+        null=True,
+        blank=True,
+        help_text=_("When execution completed on this device")
+    )
+    output = models.TextField(
+        _("output"),
+        blank=True,
+        help_text=_("Execution output/logs")
+    )
+    
+    class Meta:
+        abstract = True
+        verbose_name = _("Test Suite Execution Device")
+        verbose_name_plural = _("Test Suite Execution Devices")
+        unique_together = ("test_suite_execution", "device")
+        ordering = ["test_suite_execution", "device"]
+    
+    def __str__(self):
+        return f"{self.test_suite_execution} - {self.device.name}"

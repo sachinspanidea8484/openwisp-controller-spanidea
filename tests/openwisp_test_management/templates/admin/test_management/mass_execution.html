@@ -1,0 +1,181 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
+<script src="{% static 'admin/js/jquery.init.js' %}"></script>
+<script src="{% static 'admin/js/core.js' %}"></script>
+<script src="{% static 'admin/js/vendor/select2/select2.full.js' %}"></script>
+<link href="{% static 'admin/css/vendor/select2/select2.css' %}" rel="stylesheet">
+<style>
+    .form-row {
+        margin-bottom: 20px;
+    }
+
+    .form-row label {
+        font-weight: bold;
+        display: block;
+        margin-bottom: 5px;
+    }
+
+    .form-row .helptext {
+        display: block;
+        margin-top: 5px;
+        color: #666;
+        font-size: 12px;
+    }
+
+    #id_devices {
+        width: 100%;
+        max-width: 600px;
+    }
+
+    .device-count {
+        margin-top: 10px;
+        font-weight: bold;
+        color: #0066cc;
+    }
+
+    .submit-row {
+        margin-top: 30px;
+        padding: 10px;
+        background: #f8f8f8;
+        border: 1px solid #ddd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>{% trans "Create Mass Execution" %}</h1>
+
+<form method="post" id="mass-execution-form">
+    {% csrf_token %}
+
+    <fieldset class="module aligned">
+        <div class="form-row">
+            {{ form.test_suite.label_tag }}
+            {{ form.test_suite }}
+            {% if form.test_suite.help_text %}
+            <p class="helptext">{{ form.test_suite.help_text }}</p>
+            {% endif %}
+            {% if form.test_suite.errors %}
+            <ul class="errorlist">
+                {% for error in form.test_suite.errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+
+        <div class="form-row">
+            {{ form.devices.label_tag }}
+            <div class="device-search-wrapper">
+                <input type="text" id="device-search" placeholder="{% trans 'Search devices...' %}"
+                    style="width: 100%; max-width: 600px; margin-bottom: 10px; padding: 5px;">
+            </div>
+            {{ form.devices }}
+            <div class="device-count">
+                {% trans "Selected devices:" %} <span id="selected-count">0</span>
+            </div>
+            {% if form.devices.help_text %}
+            <p class="helptext">{{ form.devices.help_text }}</p>
+            {% endif %}
+            {% if form.devices.errors %}
+            <ul class="errorlist">
+                {% for error in form.devices.errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+    </fieldset>
+
+    <div class="submit-row">
+        <input type="submit" value="{% trans 'Create Execution' %}" class="default" name="_save">
+        <a href="{% url 'admin:test_management_testsuitexecution_changelist' %}" class="button cancel-link">
+            {% trans 'Cancel' %}
+        </a>
+    </div>
+</form>
+
+<script>
+    (function ($) {
+        $(document).ready(function () {
+            // Initialize Select2 on test suite dropdown
+            $('#id_test_suite').select2({
+                placeholder: "{% trans 'Select a test suite' %}",
+                allowClear: true,
+                width: '100%',
+                maximumSelectionLength: 1
+            });
+
+            // Device search functionality
+            const $deviceSelect = $('#id_devices');
+            const $searchInput = $('#device-search');
+            const $selectedCount = $('#selected-count');
+
+            // Store all options
+            const allOptions = $deviceSelect.find('option').toArray();
+
+            // Update selected count
+            function updateSelectedCount() {
+                const count = $deviceSelect.find('option:selected').length;
+                $selectedCount.text(count);
+            }
+
+            // Search functionality
+            $searchInput.on('keyup', function () {
+                const searchTerm = $(this).val().toLowerCase();
+
+                // Store currently selected values
+                const selectedValues = $deviceSelect.val() || [];
+
+                // Clear and rebuild options
+                $deviceSelect.empty();
+
+                allOptions.forEach(function (option) {
+                    const $option = $(option);
+                    const text = $option.text().toLowerCase();
+
+                    if (text.includes(searchTerm)) {
+                        const newOption = $option.clone();
+                        if (selectedValues.includes($option.val())) {
+                            newOption.prop('selected', true);
+                        }
+                        $deviceSelect.append(newOption);
+                    }
+                });
+
+                updateSelectedCount();
+            });
+
+            // Update count on change
+            $deviceSelect.on('change', updateSelectedCount);
+
+            // Initial count
+            updateSelectedCount();
+
+            // Form validation
+            $('#mass-execution-form').on('submit', function (e) {
+                const testSuite = $('#id_test_suite').val();
+                const devices = $('#id_devices').val();
+
+                if (!testSuite) {
+                    alert("{% trans 'Please select a test suite' %}");
+                    e.preventDefault();
+                    return false;
+                }
+
+                if (!devices || devices.length === 0) {
+                    alert("{% trans 'Please select at least one device' %}");
+                    e.preventDefault();
+                    return false;
+                }
+
+                return confirm("{% trans 'Create execution for ' %}" + devices.length + "{% trans ' devices?' %}");
+            });
+        });
+    })(django.jQuery);
+</script>
+{% endblock %}

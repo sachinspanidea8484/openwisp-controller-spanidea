@@ -5,6 +5,9 @@ from .base.models import (
     AbstractTestCase,
     AbstractTestSuite,
     AbstractTestSuiteCase,
+    AbstractTestSuiteExecution,
+    AbstractTestSuiteExecutionDevice
+
 )
 
 
@@ -43,3 +46,23 @@ class TestSuiteCase(AbstractTestSuiteCase):
         abstract = False
         swappable = swappable_setting("test_management", "TestSuiteCase")
         default_permissions = ()  # ← Add this line to prevent permission creation
+
+
+
+
+class TestSuiteExecution(AbstractTestSuiteExecution):
+    """
+    Concrete model for Test Suite Executions
+    """
+    class Meta(AbstractTestSuiteExecution.Meta):
+        abstract = False
+        swappable = swappable_setting("test_management", "TestSuiteExecution")
+
+
+class TestSuiteExecutionDevice(AbstractTestSuiteExecutionDevice):
+    """
+    Concrete model for Test Suite Execution Devices
+    """
+    class Meta(AbstractTestSuiteExecutionDevice.Meta):
+        abstract = False
+        swappable = swappable_setting("test_management", "TestSuiteExecutionDevice")

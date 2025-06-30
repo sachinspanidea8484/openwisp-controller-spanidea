@@ -1,6 +1,11 @@
 from django.core.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, generics, status
+
+from rest_framework.decorators import api_view
+
+
+
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .filters import TestSuiteFilter
@@ -8,6 +13,14 @@ from .filters import TestSuiteFilter
 from django.utils.translation import gettext_lazy as _
 from .serializers import TestSuiteListSerializer
 from .filters import TestSuiteFilter
+
+from openwisp_controller.config.models import Device
+from openwisp_controller.connection.models import DeviceConnection 
+from .serializers import (
+    TestSuiteExecutionListSerializer,
+    TestSuiteExecutionSerializer,
+)
+
 
 
 from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
@@ -28,6 +41,8 @@ TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
 TestSuite = load_model("TestSuite")
 TestSuiteCase = load_model("TestSuiteCase")
+TestSuiteExecution = load_model("TestSuiteExecution")
+TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 
 
 class ProtectedAPIMixin(BaseProtectedAPIMixin):
@@ -218,6 +233,78 @@ class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVi
 
 
 
+class TestSuiteExecutionListCreateView(ProtectedAPIMixin, generics.ListCreateAPIView):
+    """
+    List all test suite executions or create a new one.
+    GET: Returns list of test suite executions
+    POST: Creates a new test suite execution
+    """
+    queryset = TestSuiteExecution.objects.all().select_related("test_suite")
+    serializer_class = TestSuiteExecutionSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ["test_suite", "is_executed"]
+    search_fields = ["test_suite__name"]
+    ordering_fields = ["created", "test_suite__name"]
+    ordering = ["-created"]
+
+    def get_serializer_class(self):
+        """Use lightweight serializer for list view"""
+        if self.request.method == "GET":
+            return TestSuiteExecutionListSerializer
+        return TestSuiteExecutionSerializer
+
+
+class TestSuiteExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    Retrieve, update or delete a test suite execution.
+    
+    GET: Returns execution details with devices
+    PUT/PATCH: Updates execution (limited fields)
+    DELETE: Deletes execution (if not executed)
+    """
+    queryset = TestSuiteExecution.objects.all().select_related("test_suite")
+    serializer_class = TestSuiteExecutionSerializer
+    lookup_field = "pk"
+    
+    def destroy(self, request, *args, **kwargs):
+        """Prevent deletion of executed test suites"""
+        instance = self.get_object()
+        
+        if instance.is_executed:
+            return Response(
+                {"detail": _("Cannot delete executed test suite executions")},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        return super().destroy(request, *args, **kwargs)
+
+
+@api_view(["GET"])
+def available_devices(request):
+    """Get devices with working SSH connections"""
+    # Get devices with working connections
+    working_device_ids = DeviceConnection.objects.filter(
+        is_working=True,
+        enabled=True
+    ).values_list('device_id', flat=True)
+    
+    devices = Device.objects.filter(
+        id__in=working_device_ids
+    ).select_related('organization')
+    
+    # Simple serialization
+    data = [
+        {
+            'id': str(device.id),
+            'name': device.name,
+            'organization': device.organization.name
+        }
+        for device in devices
+    ]
+    
+    return Response(data)
+
+
 
 
 # Create view instances
@@ -227,3 +314,5 @@ test_case_list = TestCaseListCreateView.as_view()
 test_case_detail = TestCaseDetailView.as_view()
 test_suite_list = TestSuiteListCreateView.as_view()
 test_suite_detail = TestSuiteDetailView.as_view()
+test_suite_execution_list = TestSuiteExecutionListCreateView.as_view()
+test_suite_execution_detail = TestSuiteExecutionDetailView.as_view()
