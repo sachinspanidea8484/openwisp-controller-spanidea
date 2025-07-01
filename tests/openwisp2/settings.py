@@ -412,7 +412,13 @@ AUTHENTICATION_BACKENDS = [
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
-CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://0.0.0.0:8000']
+# CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://0.0.0.0:8000']
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000', 
+    'http://127.0.0.1:8000', 
+    'http://0.0.0.0:8000',
+    'https://f86b-2401-4900-7d70-d035-72a1-e5-5024-94cb.ngrok-free.app',  # Add your ngrok URL
+]
 
 
 SESSION_CACHE_ALIAS = "default"
@@ -783,7 +789,7 @@ REST_FRAMEWORK = {
     }
 }
 
-
+CORS_ORIGIN_ALLOW_ALL = True
 # local settings must be imported before test runner otherwise they'll be ignored
 try:
     from .local_settings import *

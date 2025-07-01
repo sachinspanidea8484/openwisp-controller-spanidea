@@ -12,6 +12,8 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 from reversion.admin import VersionAdmin
+from .base.models import TestTypeChoices
+
 
 from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Device
@@ -34,6 +36,13 @@ TestSuite = load_model("TestSuite")
 TestSuiteCase = load_model("TestSuiteCase")
 TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+
+# Device = load_model("config", "Device")
+# Credentials = load_model("connection", "Credentials")
+# DeviceConnection = load_model("connection", "DeviceConnection")
+
+
+
 
 
 class BaseAdmin(TimeReadonlyAdminMixin, admin.ModelAdmin):
@@ -178,11 +187,13 @@ class TestCaseAdmin(BaseVersionAdmin):
         "test_case_id",
         "category_link",
         "is_active",
+        "test_type_display",  # ADD THIS
         "created",
         "modified",
     ]
     list_filter = [
         TestCaseCategoryFilter,
+        "test_type",  # ADD THIS
         "is_active",
     ]
     list_select_related = ["category",]
@@ -192,6 +203,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         "category",
         "name",
         "test_case_id",
+        "test_type",  # ADD THIS
         "description",
         "is_active",
         "created",
@@ -204,6 +216,14 @@ class TestCaseAdmin(BaseVersionAdmin):
     object_history_template = "reversion/object_history.html"
     
     actions = ["delete_selected", "recover_deleted", "activate_cases", "deactivate_cases"]
+
+
+        # ADD THIS NEW METHOD
+    def test_type_display(self, obj):
+        """Display test type with a nice format"""
+        return obj.get_test_type_display()
+    test_type_display.short_description = _("Test Type")
+    test_type_display.admin_order_field = "test_type"
 
     def category_link(self, obj):
         """Display category as a link"""
@@ -342,6 +362,16 @@ class TestSuiteCaseInlineForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        
+        # Get already added test case IDs to exclude them
+        exclude_ids = []
+        if self.instance and self.instance.test_suite_id:
+            exclude_ids = TestSuiteCase.objects.filter(
+                test_suite_id=self.instance.test_suite_id
+            ).exclude(
+                pk=self.instance.pk if self.instance.pk else None
+            ).values_list('test_case_id', flat=True)
+        
         # Only filter if we have a valid test suite with a category
         if (self.instance and 
             hasattr(self.instance, 'test_suite_id') and 
@@ -349,17 +379,34 @@ class TestSuiteCaseInlineForm(forms.ModelForm):
             try:
                 test_suite = self.instance.test_suite
                 if test_suite and test_suite.category:
-                    self.fields['test_case'].queryset = TestCase.objects.filter(
+                    # Get test_type filter from request if available
+                    request = getattr(self, 'request', None)
+                    test_type_filter = None
+                    if request and 'test_type' in request.GET:
+                        test_type_filter = request.GET.get('test_type')
+                    
+                    # Build queryset
+                    queryset = TestCase.objects.filter(
                         category=test_suite.category,
                         is_active=True
-                    ).order_by('name')
+                    ).exclude(
+                        id__in=exclude_ids  # Exclude already added test cases
+                    )
+                    
+                    # Apply test_type filter if provided
+                    if test_type_filter:
+                        queryset = queryset.filter(test_type=test_type_filter)
+                    
+                    self.fields['test_case'].queryset = queryset.order_by('name')
                     return
             except:
                 pass
         
-        # Fallback: show all active test cases
+        # Fallback: show all active test cases excluding already added ones
         self.fields['test_case'].queryset = TestCase.objects.filter(
             is_active=True
+        ).exclude(
+            id__in=exclude_ids
         ).order_by('name')
 
 
@@ -397,6 +444,14 @@ class TestSuiteCaseInline(admin.TabularInline):
 
 class TestSuiteAdminForm(forms.ModelForm):
     """Custom form for TestSuite admin"""
+    # Add test_type filter field
+    filter_test_type = forms.ChoiceField(
+        choices=[('', 'All')] + TestTypeChoices.choices,
+        required=False,
+        label=_("Filter by Test Type"),
+        help_text=_("Filter test cases by type")
+    )
+    
     test_cases = forms.ModelMultipleChoiceField(
         queryset=TestCase.objects.none(),
         widget=forms.CheckboxSelectMultiple,
@@ -412,27 +467,47 @@ class TestSuiteAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
+        # Get already selected test cases
+        already_selected_ids = []
+        if self.instance and self.instance.pk:
+            already_selected_ids = self.instance.test_cases.values_list('id', flat=True)
+        
         # Set up test cases field based on category
         if self.instance and self.instance.pk and hasattr(self.instance, 'category_id') and self.instance.category_id:
             # Editing existing suite
-            self.fields['test_cases'].queryset = TestCase.objects.filter(
-                category_id=self.instance.category_id,  # Use category_id instead of category
+            queryset = TestCase.objects.filter(
+                category_id=self.instance.category_id,
                 is_active=True
-            ).order_by('name')
-            self.fields['test_cases'].initial = self.instance.test_cases.all()
+            )
+            
+            # Apply test_type filter if provided in data
+            if 'filter_test_type' in self.data and self.data['filter_test_type']:
+                queryset = queryset.filter(test_type=self.data['filter_test_type'])
+            
+            self.fields['test_cases'].queryset = queryset.order_by('name')
+            self.fields['test_cases'].initial = already_selected_ids
+            
         elif 'category' in self.data:
             # Creating new suite with category selected
             try:
                 category_id = self.data.get('category')
                 if category_id:
-                    self.fields['test_cases'].queryset = TestCase.objects.filter(
+                    queryset = TestCase.objects.filter(
                         category_id=category_id,
                         is_active=True
-                    ).order_by('name')
+                    )
+                    
+                    # Apply test_type filter if provided
+                    if 'filter_test_type' in self.data and self.data['filter_test_type']:
+                        queryset = queryset.filter(test_type=self.data['filter_test_type'])
+                    
+                    self.fields['test_cases'].queryset = queryset.order_by('name')
             except (ValueError, TypeError):
                 pass
 
     def save(self, commit=True):
+        # Remove filter field from cleaned_data before saving
+        self.cleaned_data.pop('filter_test_type', None)
         instance = super().save(commit=commit)
         
         if commit and 'test_cases' in self.cleaned_data:
@@ -474,10 +549,13 @@ class TestSuiteAdmin(BaseVersionAdmin):
         "name",
         "description",
         "is_active",
-        # "test_cases",
-        "created",
+        "filter_test_type",  # ADD THIS
+        # "test_cases",  # UNCOMMENT THIS   
+                  "created",
         "modified",
     ]
+
+    
     readonly_fields = ["created", "modified"]
     autocomplete_fields = ["category"]
     inlines = [TestSuiteCaseInline]
@@ -613,6 +691,7 @@ class TestSuiteAdmin(BaseVersionAdmin):
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
+        form.request = request
         # Add help text to form fields
         if "name" in form.base_fields:
             form.base_fields["name"].help_text = _(
@@ -649,13 +728,10 @@ class MassExecutionForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Get only devices with working SSH connections
-
         working_device_ids = DeviceConnection.objects.filter(
             is_working=True,
             enabled=True
         ).values_list('device_id', flat=True)
-
-        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
         
         self.fields['devices'].queryset = Device.objects.filter(
             id__in=working_device_ids

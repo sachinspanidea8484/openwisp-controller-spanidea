@@ -7,6 +7,7 @@ from openwisp_utils.api.serializers import ValidatedModelSerializer
 from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Device
 
+from ..base.models import TestTypeChoices  # ADD THIS IMPORT
 
 from ..swapper import load_model
 
@@ -79,6 +80,7 @@ class TestCategoryRelationSerializer(serializers.ModelSerializer):
 class TestCaseSerializer(ValidatedModelSerializer):
     """Serializer for TestCase model"""
     category_detail = TestCategoryRelationSerializer(source="category", read_only=True)
+    test_type_display = serializers.CharField(source='get_test_type_display', read_only=True)  # ADD THIS
     
     class Meta(BaseMeta):
         model = TestCase
@@ -88,11 +90,15 @@ class TestCaseSerializer(ValidatedModelSerializer):
             "test_case_id",
             "category",
             "category_detail",
+            "test_type",  # ADD THIS
+            "test_type_display",  # ADD THIS
+            "description",  # ADD THIS (was missing)
             "is_active",
             "created",
             "modified",
         ]
         read_only_fields = BaseMeta.read_only_fields + [
+            "test_type_display",  # ADD THIS
         ]
 
 
@@ -138,6 +144,7 @@ class TestCaseSerializer(ValidatedModelSerializer):
 class TestCaseListSerializer(TestCaseSerializer):
     """Lightweight serializer for list views"""
     category_name = serializers.CharField(source="category.name", read_only=True)
+    test_type_display = serializers.CharField(source='get_test_type_display', read_only=True)  # ADD THIS
     
     class Meta(BaseMeta):
         model = TestCase
@@ -147,12 +154,15 @@ class TestCaseListSerializer(TestCaseSerializer):
             "test_case_id",
             "category",
             "category_name",
+            "test_type",  # ADD THIS
+            "test_type_display",  # ADD THIS
             "is_active",
             "created",
             "modified",
         ]
         read_only_fields = BaseMeta.read_only_fields + [
             "category_name",
+            "test_type_display",  # ADD THIS
         ]
 
 
@@ -180,6 +190,11 @@ class TestSuiteSerializer(ValidatedModelSerializer):
         write_only=True,
         required=False,
         help_text=_("List of test case IDs to include in the suite")
+    )
+    filter_test_type = serializers.IntegerField(
+        write_only=True,
+        required=False,
+        help_text=_("Filter test cases by type (1=Robot Framework, 2=Agent)")
     )
     
     class Meta(BaseMeta):
@@ -229,17 +244,21 @@ class TestSuiteSerializer(ValidatedModelSerializer):
         if not category:
             raise serializers.ValidationError(_("Category must be specified"))
         
-        # Validate all test cases belong to the same category
-        test_cases = TestCase.objects.filter(id__in=value)
+        # Build test case queryset
+        test_cases_qs = TestCase.objects.filter(
+            id__in=value,
+            category=category,
+            is_active=True
+        )
         
-        if test_cases.count() != len(value):
-            raise serializers.ValidationError(_("Some test case IDs are invalid"))
+        # Apply test_type filter if provided
+        if 'filter_test_type' in self.initial_data:
+            test_cases_qs = test_cases_qs.filter(
+                test_type=self.initial_data['filter_test_type']
+            )
         
-        for test_case in test_cases:
-            if test_case.category != category:
-                raise serializers.ValidationError(
-                    _(f"Test case '{test_case.name}' does not belong to the selected category")
-                )
+        if test_cases_qs.count() != len(value):
+            raise serializers.ValidationError(_("Some test case IDs are invalid or don't match the filter"))
         
         return value
 

@@ -7,6 +7,7 @@ TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
 TestSuite = load_model("TestSuite")
 TestSuiteExecution = load_model("TestSuiteExecution")
+from ..base.models import TestTypeChoices  # ADD THIS IMPORT
 
 
 
@@ -27,6 +28,11 @@ class TestCaseFilter(filters.FilterSet):
     test_case_id = filters.CharFilter(field_name="test_case_id", lookup_expr="icontains")
     category = filters.UUIDFilter(field_name="category")
     is_active = filters.BooleanFilter(field_name="is_active")
+    test_type = filters.ChoiceFilter(
+    field_name="test_type",
+    choices=TestTypeChoices.choices,  # Use the actual choices
+    label=_("Test Type")
+    )
     
     class Meta:
         model = TestCase
@@ -34,6 +40,7 @@ class TestCaseFilter(filters.FilterSet):
             "category",
             "name",
             "test_case_id",
+            "test_type",  # ADD THIS
             "is_active",
         ]
 

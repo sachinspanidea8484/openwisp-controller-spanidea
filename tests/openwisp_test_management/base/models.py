@@ -8,6 +8,11 @@ from openwisp_utils.base import TimeStampedEditableModel
 
 logger = logging.getLogger(__name__)
 
+# ADD THIS NEW ENUM CLASS HERE
+class TestTypeChoices(models.IntegerChoices):
+    ROBOT_FRAMEWORK = 1, _('Robot Framework')
+    AGENT = 2, _('Agent')
+
 
 class AbstractTestCategory(TimeStampedEditableModel):
     """
@@ -119,6 +124,12 @@ class AbstractTestCase(TimeStampedEditableModel):
         default=True,
         help_text=_("Whether this test case is currently active")
     )
+    test_type = models.IntegerField(
+        _("test type"),
+        choices=TestTypeChoices.choices,
+        default=TestTypeChoices.ROBOT_FRAMEWORK,
+        help_text=_("Type of test: Robot Framework or Agent")
+    )
 
 
     class Meta:
@@ -133,7 +144,8 @@ class AbstractTestCase(TimeStampedEditableModel):
         ]
 
     def __str__(self):
-        return f"{self.category.name} - {self.name}"
+        return f"{self.category.name} - {self.name} ({self.get_test_type_display()})"
+
 
     def clean(self):
         """Validate the test case"""
