@@ -128,7 +128,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         _("test type"),
         choices=TestTypeChoices.choices,
         default=TestTypeChoices.ROBOT_FRAMEWORK,
-        help_text=_("Type of test: Robot Framework or Agent")
+        help_text=_("Type of test: Robot Framework or Agent ")
     )
 
 
