@@ -2,6 +2,7 @@
 import logging
 from celery import shared_task
 from django.utils import timezone
+import paramiko
 
 from .swapper import load_model
 
@@ -11,6 +12,33 @@ TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestCase = load_model("TestCase")
 
+
+@shared_task
+def run_command_on_device(device_ip, username, password, command):
+    # device_model = load_model("TestSuiteExecutionDevice")
+    # for device in device_model.objects.get(all):
+    #     if device.id==device_id:
+    #         executiondevice = device
+    #         break
+
+    print("Running test on device: ", device_ip, command)
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    ssh.connect(
+        hostname=device_ip,
+        username=username,
+        password=password,
+        look_for_keys=False
+    )   
+
+    stdin, stdout, stderr = ssh.exec_command(command)
+    output = stdout.read().decode()
+    error = stderr.read().decode()
+
+    ssh.close()
+
+    return output
 
 @shared_task
 def execute_test_suite_on_devices(execution_id):
@@ -76,7 +104,7 @@ def execute_test_suite_on_device(device_execution_id):
             # Here you would implement actual SSH command execution
             # For now, we'll simulate it
             output_lines.append(f"Executing test: {test_case.name} (ID: {test_case.test_case_id})")
-            
+            print(output_lines)
             # Simulate test execution via SSH
             # command = f"run_test {test_case.test_case_id}"
             # result = connection.connector.exec_command(command)
