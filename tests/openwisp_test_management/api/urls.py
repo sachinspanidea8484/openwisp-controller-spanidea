@@ -55,6 +55,25 @@ urlpatterns = [
             ),
              path("execution/available-devices/", views.available_devices, name="api_available_devices"),
 
+
+
+# testing-purpose 
+               path(
+                "add-all-test-data/",
+                views.add_all_test_data,
+                name="api_add_all_test_data",
+            ),
+               path(
+                "delete-all-test-data/",
+                views.delete_all_test_data,
+                name="api_delete_all_test_data",
+            ),
+              path(
+                "execution-details/",
+                views.get_execution_details,
+                name="api_get_execution_details",
+            ),
+
         ]),
     ),
 ]

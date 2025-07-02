@@ -1,41 +1,147 @@
-/* Style for test cases checkboxes */
-.field-test_cases ul {
-    list-style: none;
+/* JSON View Button Styles */
+.json-view-btn {
+    background-color: #17a2b8 !important;
+    border-color: #17a2b8 !important;
+    color: white !important;
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+    border-radius: 3px !important;
+    text-decoration: none !important;
+    display: inline-block !important;
+    margin-right: 5px !important;
+}
+
+.json-view-btn:hover {
+    background-color: #138496 !important;
+    border-color: #117a8b !important;
+    color: white !important;
+    text-decoration: none !important;
+}
+
+/* Modal Styles */
+.json-modal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.json-modal-content {
+    background-color: #fefefe;
+    margin: 2% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    border-radius: 5px;
+    width: 90%;
+    max-width: 1200px;
+    height: 90%;
+    overflow: auto;
+    position: relative;
+}
+
+.json-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
+.json-modal-title {
+    margin: 0;
+    color: #333;
+    font-size: 24px;
+}
+
+.json-modal-close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    background: none;
+    border: none;
     padding: 0;
     margin: 0;
-    max-height: 300px;
-    overflow-y: auto;
-    border: 1px solid #ddd;
-    padding: 10px;
-    background: #f9f9f9;
 }
 
-.field-test_cases li {
-    margin-bottom: 5px;
-    padding: 5px;
-    background: white;
-    border: 1px solid #eee;
+.json-modal-close:hover,
+.json-modal-close:focus {
+    color: #000;
+    text-decoration: none;
 }
 
-.field-test_cases li:hover {
-    background: #f0f0f0;
+.json-modal-body {
+    height: calc(100% - 80px);
+    overflow: auto;
 }
 
-.field-test_cases input[type="checkbox"] {
-    margin-right: 10px;
+.json-container {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    padding: 15px;
+    font-family: 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 100%;
+    overflow: auto;
 }
 
-/* Style for inline test cases */
-#testsuitecase_set-group .tabular td {
-    vertical-align: middle;
-}
-
-#testsuitecase_set-group .field-order input {
-    width: 50px;
+.json-loading {
     text-align: center;
+    padding: 50px;
+    font-size: 18px;
+    color: #666;
 }
 
-/* Hide test cases field when inline is shown */
-.change-form #testsuitecase_set-group:not(:empty) ~ .form-row.field-test_cases {
-    display: none;
+.json-error {
+    color: #dc3545;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 5px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+/* Copy button */
+.json-copy-btn {
+    position: absolute;
+    top: 20px;
+    right: 60px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.json-copy-btn:hover {
+    background-color: #218838;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .json-modal-content {
+        width: 95%;
+        height: 95%;
+        margin: 2.5% auto;
+    }
+
+    .json-modal-title {
+        font-size: 20px;
+    }
+
+    .json-container {
+        font-size: 12px;
+    }
 }

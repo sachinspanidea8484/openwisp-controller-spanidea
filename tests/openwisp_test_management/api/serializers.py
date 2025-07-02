@@ -191,11 +191,7 @@ class TestSuiteSerializer(ValidatedModelSerializer):
         required=False,
         help_text=_("List of test case IDs to include in the suite")
     )
-    filter_test_type = serializers.IntegerField(
-        write_only=True,
-        required=False,
-        help_text=_("Filter test cases by type (1=Robot Framework, 2=Agent)")
-    )
+
     
     class Meta(BaseMeta):
         model = TestSuite
@@ -460,3 +456,21 @@ class TestSuiteExecutionListSerializer(TestSuiteExecutionSerializer):
             "status_summary",
             "test_suite_name",
         ]
+
+
+
+# Add this new serializer class
+class ExecutionDetailsRequestSerializer(serializers.Serializer):
+    """Serializer for execution details request"""
+    execution_id = serializers.UUIDField(
+        required=True,
+        help_text=_("UUID of the test suite execution")
+    )
+    
+    def validate_execution_id(self, value):
+        """Validate that execution exists"""
+        if not TestSuiteExecution.objects.filter(id=value).exists():
+            raise serializers.ValidationError(
+                _("TestSuiteExecution with this ID does not exist")
+            )
+        return value
