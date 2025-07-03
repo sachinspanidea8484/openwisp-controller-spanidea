@@ -6,7 +6,8 @@ from .base.models import (
     AbstractTestSuite,
     AbstractTestSuiteCase,
     AbstractTestSuiteExecution,
-    AbstractTestSuiteExecutionDevice
+    AbstractTestSuiteExecutionDevice,
+    AbstractTestCaseExecution
 
 )
 
@@ -66,3 +67,11 @@ class TestSuiteExecutionDevice(AbstractTestSuiteExecutionDevice):
     class Meta(AbstractTestSuiteExecutionDevice.Meta):
         abstract = False
         swappable = swappable_setting("test_management", "TestSuiteExecutionDevice")
+
+class TestCaseExecution(AbstractTestCaseExecution):
+    """
+    Concrete model for Test Case Executions
+    """
+    class Meta(AbstractTestCaseExecution.Meta):
+        abstract = False
+        swappable = swappable_setting("test_management", "TestCaseExecution")

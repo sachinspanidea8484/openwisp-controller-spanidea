@@ -568,7 +568,7 @@ class AbstractCommand(TimeStampedEditableModel):
         # if couldn't connect to device, stop here
         if not self.connection.is_working:
             return None
-        # custom commands, perform each one separately and save output incrementally
+        # custom commands, perform each one separately and save output incrementallys
         if self.is_custom:
             command = self.custom_command
             output, exit_code = self.connection.connector_instance.exec_command(
