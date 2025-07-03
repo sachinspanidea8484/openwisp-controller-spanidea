@@ -343,21 +343,21 @@ def add_all_test_data(request):
             # 2. Create TestCase 1
             test_case_1 = TestCase.objects.create(
                 name="Test Case 1",
-                test_case_id="001",
+                test_case_id="TestCase_001",
                 category=category,
                 description="Primary traffic validation test for basic connectivity and data flow",
                 is_active=True,
-                test_type=1  # ROBOT_FRAMEWORK
+                test_type=2  # Device Agent
             )
             
             # 3. Create TestCase 2
             test_case_2 = TestCase.objects.create(
                 name="Test Case 2",
-                test_case_id="002",
+                test_case_id="TestCase_002",
                 category=category,
                 description="Secondary traffic validation test for advanced routing and switching",
                 is_active=True,
-                test_type=1  # ROBOT_FRAMEWORK
+                test_type=2  # Device Agent
             )
             
             # 4. Create TestSuite
@@ -389,7 +389,7 @@ def add_all_test_data(request):
             
             # 7. Create TestSuiteExecutionDevice
             try:
-                device = Device.objects.get(id="19f44ddc-8b89-478a-be50-89de3b91097c") # rreplace acc to your device id
+                device = Device.objects.get(id="5ec3b03b-a2c4-484c-a896-0f951770f3f5") # rreplace acc to your device id
                 TestSuiteExecutionDevice.objects.create(
                     test_suite_execution=execution,
                     device=device,
@@ -397,7 +397,7 @@ def add_all_test_data(request):
                 )
             except Device.DoesNotExist:
                 return Response(
-                    {"error": "Device with ID 19f44ddc-8b89-478a-be50-89de3b91097c not found"},
+                    {"error": "Device with ID 5ec3b03b-a2c4-484c-a896-0f951770f3f5 not found"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
@@ -556,7 +556,7 @@ def get_execution_details(request):
     #     )
     
     # execution_id = serializer.validated_data['execution_id']
-    execution_id = "18b054d8-079d-40b0-9c81-21826a77de7e"
+    execution_id = "3542c364-3228-4091-8659-08de26f21f15"
 
 
 

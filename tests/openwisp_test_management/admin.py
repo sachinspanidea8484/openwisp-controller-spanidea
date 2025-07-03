@@ -2,6 +2,7 @@ import logging
 
 import reversion
 from django import forms
+from django.conf import settings
 
 from django.contrib import admin, messages
 from django.contrib.admin import helpers
@@ -28,6 +29,7 @@ from .filters import (
     TestSuiteActiveFilter,
 )
 from .swapper import load_model
+from .tasks import run_command_on_device
 
 logger = logging.getLogger(__name__)
 TestCategory = load_model("TestCategory")
@@ -216,7 +218,6 @@ class TestCaseAdmin(BaseVersionAdmin):
     object_history_template = "reversion/object_history.html"
     
     actions = ["delete_selected", "recover_deleted", "activate_cases", "deactivate_cases"]
-
 
         # ADD THIS NEW METHOD
     def test_type_display(self, obj):
@@ -911,6 +912,12 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             return False
         return super().has_delete_permission(request, obj)
     
+
+    def run_test_on_device(self, device_ip, username, password, testcase_id):
+        exec_command = "python3 " + settings.OPENWRT_TESTCASE_DIR + testcase_id + "/" + testcase_id + ".py"
+        print("Command for test case: ", testcase_id, exec_command)
+        run_command_on_device.delay(device_ip, username, password, exec_command)
+        
     @admin.action(description=_("Execute selected test suites"))
     def execute_test_suite(self, request, queryset):
         """Action to execute test suites"""
@@ -1053,6 +1060,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             for device_info in devices:
                 print(f"  🔄 [SIMULATED] Executing on device {device_info['name']} ({device_info['last_ip']})")
                 for test_case_info in test_cases:
+                    if test_case_info['test_type']==2:
+                        self.run_test_on_device(device_info['last_ip'], ssh_detail['username'], ssh_detail['password'], test_case_info['test_case_id'])
                     print(f"      ▶️  Running test: {test_case_info['test_case_id']} - {test_case_info['name']}")
                     # Here you would execute: ssh_command = f"run_test {test_case_info['test_case_id']}"
                     print(f"         Command: run_test {test_case_info['test_case_id']}")
@@ -1090,6 +1099,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     #     ) % count,
     #     messages.SUCCESS,
     # )
+
 
 
     

@@ -621,7 +621,8 @@ OPENWISP_FIRMWARE_UPGRADER_OPENWRT_SETTINGS = {
     "reconnect_max_retries": 10,
     "upgrade_timeout": 80,
 }
-
+# Test Dir path on Openwrt
+OPENWRT_TESTCASE_DIR = "/root/Test_Cases/"
 
 if not TESTING and SHELL:
     LOGGING.update(
