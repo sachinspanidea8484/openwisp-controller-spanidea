@@ -314,7 +314,8 @@ class AbstractTestSuite(TimeStampedEditableModel):
         TestSuiteCase = load_model("TestSuiteCase")
         return TestSuiteCase.objects.filter(
             test_suite=self
-        ).select_related('test_case').order_by('order')
+        ).select_related('test_case')
+        #  .order_by('order')
 
 
 class AbstractTestSuiteCase(TimeStampedEditableModel):

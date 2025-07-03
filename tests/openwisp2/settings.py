@@ -5,6 +5,7 @@ import warnings
 warnings.filterwarnings("ignore", message="app_settings.USERNAME_REQUIRED is deprecated")
 warnings.filterwarnings("ignore", message="app_settings.EMAIL_REQUIRED is deprecated")
 
+
 # monitoring
 from datetime import timedelta
 
@@ -461,6 +462,11 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(minute='*/5', hour='0-6'),
         'args': (['openwisp_monitoring.check.classes.Iperf3'],),
         'relative': True,
+    },
+
+        'timeout-stuck-tests': {
+        'task': 'openwisp_test_management.tasks.timeout_stuck_tests',
+        'schedule': crontab(minute='*/5'),  # Run every 5 minutes
     },
 }
 

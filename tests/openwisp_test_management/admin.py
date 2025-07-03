@@ -29,7 +29,6 @@ from .filters import (
     TestSuiteActiveFilter,
 )
 from .swapper import load_model
-from .tasks import run_command_on_device
 
 logger = logging.getLogger(__name__)
 TestCategory = load_model("TestCategory")
@@ -913,175 +912,214 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         return super().has_delete_permission(request, obj)
     
 
-    def run_test_on_device(self, device_ip, username, password, testcase_id):
-        exec_command = "python3 " + settings.OPENWRT_TESTCASE_DIR + testcase_id + "/" + testcase_id + ".py"
-        print("Command for test case: ", testcase_id, exec_command)
-        run_command_on_device.delay(device_ip, username, password, exec_command)
-        
+
     @admin.action(description=_("Execute selected test suites"))
     def execute_test_suite(self, request, queryset):
-        """Action to execute test suites"""
-        # Filter only non-executed ones
-        to_execute = queryset.filter(is_executed=False)
-        
-        if to_execute.count() == 0:
-            self.message_user(
-                request,
-                _("No pending executions to process"),
-                messages.WARNING
-            )
-            return
-        for execution in to_execute:
-         print(f"\n📋 Processing Execution ID: {execution.id}")
-         print(f"📋 Test Suite: {execution.test_suite.name}")
-         print("-" * 60)
-        
-        try:
-            # Get all devices for this execution
-            execution_devices = TestSuiteExecutionDevice.objects.filter(
-                test_suite_execution=execution
-            ).select_related('device')
-            
-            print(f"🖥️  Found {execution_devices.count()} devices for this execution")
-            
-            # Get all device IDs
-            device_ids = [exec_device.device.id for exec_device in execution_devices]
-            
-            # Get all device connections with credentials in one query
-            device_connections = {}
-            if device_ids:
-                connections = DeviceConnection.objects.filter(
-                    device_id__in=device_ids
-                ).select_related('credentials')
-                
-                print(f"🔗 Found {connections.count()} device connections")
-                
-                for conn in connections:
-                    device_connections[conn.device_id] = conn
-            
-            # Build devices list with SSH details
-            devices = []
-            for exec_device in execution_devices:
-                device = exec_device.device
-                ssh_detail = {
-                    "username": "",
-                    "password": "",
-                    "port": 22
-                }
-                
-                # Check if device has connection
-                if device.id in device_connections:
-                    device_connection = device_connections[device.id]
-                    if device_connection.credentials:
-                        params = device_connection.credentials.params or {}
-                        ssh_detail = {
-                            "username": params.get("username", ""),
-                            "password": params.get("password", ""),
-                            "port": params.get("port", 22)
-                        }
-                
-                device_info = {
-                    "id": str(device.id),
-                    "name": device.name,
-                    "mac_address": device.mac_address,
-                    "last_ip": device.last_ip,
-                    "ssh_detail": ssh_detail
-                }
-                devices.append(device_info)
-                
-                # Print individual device info
-                print(f"  🖥️  Device: {device.name}")
-                print(f"      ID: {device.id}")
-                print(f"      MAC: {device.mac_address}")
-                print(f"      Last IP: {device.last_ip}")
-                print(f"      SSH User: {ssh_detail['username']}")
-                print(f"      SSH Port: {ssh_detail['port']}")
-                print(f"      SSH Pass: {'***' if ssh_detail['password'] else 'None'}")
-            
-            # Get test suite details with test cases
-            test_suite = execution.test_suite
-            
-            # Get ordered test cases for the suite
-            suite_cases = TestSuiteCase.objects.filter(
-                test_suite=test_suite
-            ).select_related('test_case').order_by('order')
-            
-            test_cases = []
-            print(f"\n📝 Test Suite Details:")
-            print(f"      Name: {test_suite.name}")
-            print(f"      Description: {test_suite.description}")
-            print(f"      Category: {test_suite.category.name} ({test_suite.category.code})")
-            print(f"      Test Cases: {suite_cases.count()}")
-            
-            for suite_case in suite_cases:
-                test_case = suite_case.test_case
-                test_case_info = {
-                    "name": test_case.name,
-                    "test_case_id": test_case.test_case_id,
-                    "test_type": test_case.test_type,
-                    "test_type_display": test_case.get_test_type_display(),
-                    "order": suite_case.order
-                }
-                test_cases.append(test_case_info)
-                
-                # Print individual test case info
-                print(f"      📄 {suite_case.order}. {test_case.name}")
-                print(f"          ID: {test_case.test_case_id}")
-                print(f"          Type: {test_case.get_test_type_display()}")
-                print(f"          Active: {test_case.is_active}")
-            
-            # Build complete response data
-            response_data = {
-                "success": True,
-                "execution_id": str(execution.id),
-                "devices": devices,
-                "testsuite_detail": {
-                    "testsuite_name": test_suite.name,
-                    "testsuite_description": test_suite.description,
-                    "category_detail": {
-                        "name": test_suite.category.name,
-                        "code": test_suite.category.code
-                    },
-                    "test_cases": test_cases
-                }
-            }
-            
-            # Print complete JSON data
-            print(f"\n📦 Complete JSON Data for Execution {execution.id}:")
-            print("=" * 60)
-            import json
-            print(json.dumps(response_data, indent=2))
-            print("=" * 60)
-            
-            # HERE IS WHERE ACTUAL EXECUTION WOULD HAPPEN
-            print(f"\n🔄 [SIMULATED] Executing test suite '{test_suite.name}' on {len(devices)} devices...")
-            
-            # Simulate execution for each device
-            for device_info in devices:
-                print(f"  🔄 [SIMULATED] Executing on device {device_info['name']} ({device_info['last_ip']})")
-                for test_case_info in test_cases:
-                    if test_case_info['test_type']==2:
-                        self.run_test_on_device(device_info['last_ip'], ssh_detail['username'], ssh_detail['password'], test_case_info['test_case_id'])
-                    print(f"      ▶️  Running test: {test_case_info['test_case_id']} - {test_case_info['name']}")
-                    # Here you would execute: ssh_command = f"run_test {test_case_info['test_case_id']}"
-                    print(f"         Command: run_test {test_case_info['test_case_id']}")
-                    print(f"         Result: [SIMULATED] PASSED ✅")
-            
-            print(f"✅ Execution {execution.id} processing completed!\n")
-            
-        except Exception as e:
-            print(f"❌ ERROR processing execution {execution.id}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+     """Execute test suites using Celery tasks"""
+     from .tasks import execute_test_suite
     
-    # COMMENT OUT THE ACTUAL DATABASE UPDATE FOR DEVELOPMENT
-    # count = to_execute.update(is_executed=True)
+     # Filter only non-executed ones
+    #  to_execute = queryset.filter(is_executed=False)
+     to_execute = queryset.filter(is_executed=True)
+
     
-    # DEVELOPMENT MESSAGE
-    print("🚀" + "="*80)
-    print("🚀 DEVELOPMENT MODE: No executions were actually marked as executed")
-    print("🚀 Remove this comment to enable actual execution marking")
-    print("🚀" + "="*80)
+     if to_execute.count() == 0:
+        self.message_user(
+            request,
+            _("No pending executions to process"),
+            messages.WARNING
+        )
+        return
+    
+     executed_count = 0
+     for execution in to_execute:
+        # Mark as executed
+        execution.is_executed = True
+        execution.save()
+        
+        # Launch Celery task
+        execute_test_suite.delay(str(execution.id))
+        executed_count += 1
+    
+     self.message_user(
+        request,
+        ngettext(
+            "%d test suite execution was started.",
+            "%d test suite executions were started.",
+            executed_count,
+        ) % executed_count,
+        messages.SUCCESS,
+    )  
+
+    # def run_test_on_device(self, device_ip, username, password, testcase_id):
+    #     exec_command = "python3 " + settings.OPENWRT_TESTCASE_DIR + testcase_id + "/" + testcase_id + ".py"
+    #     print("Command for test case: ", testcase_id, exec_command)
+    #     run_command_on_device.delay(device_ip, username, password, exec_command)
+        
+    # @admin.action(description=_("Execute selected test suites"))
+    # def execute_test_suite(self, request, queryset):
+    #     """Action to execute test suites"""
+    #     # Filter only non-executed ones
+    #     to_execute = queryset.filter(is_executed=False)
+        
+    #     if to_execute.count() == 0:
+    #         self.message_user(
+    #             request,
+    #             _("No pending executions to process"),
+    #             messages.WARNING
+    #         )
+    #         return
+    #     for execution in to_execute:
+    #      print(f"\n📋 Processing Execution ID: {execution.id}")
+    #      print(f"📋 Test Suite: {execution.test_suite.name}")
+    #      print("-" * 60)
+        
+    #     try:
+    #         # Get all devices for this execution
+    #         execution_devices = TestSuiteExecutionDevice.objects.filter(
+    #             test_suite_execution=execution
+    #         ).select_related('device')
+            
+    #         print(f"🖥️  Found {execution_devices.count()} devices for this execution")
+            
+    #         # Get all device IDs
+    #         device_ids = [exec_device.device.id for exec_device in execution_devices]
+            
+    #         # Get all device connections with credentials in one query
+    #         device_connections = {}
+    #         if device_ids:
+    #             connections = DeviceConnection.objects.filter(
+    #                 device_id__in=device_ids
+    #             ).select_related('credentials')
+                
+    #             print(f"🔗 Found {connections.count()} device connections")
+                
+    #             for conn in connections:
+    #                 device_connections[conn.device_id] = conn
+            
+    #         # Build devices list with SSH details
+    #         devices = []
+    #         for exec_device in execution_devices:
+    #             device = exec_device.device
+    #             ssh_detail = {
+    #                 "username": "",
+    #                 "password": "",
+    #                 "port": 22
+    #             }
+                
+    #             # Check if device has connection
+    #             if device.id in device_connections:
+    #                 device_connection = device_connections[device.id]
+    #                 if device_connection.credentials:
+    #                     params = device_connection.credentials.params or {}
+    #                     ssh_detail = {
+    #                         "username": params.get("username", ""),
+    #                         "password": params.get("password", ""),
+    #                         "port": params.get("port", 22)
+    #                     }
+                
+    #             device_info = {
+    #                 "id": str(device.id),
+    #                 "name": device.name,
+    #                 "mac_address": device.mac_address,
+    #                 "last_ip": device.last_ip,
+    #                 "ssh_detail": ssh_detail
+    #             }
+    #             devices.append(device_info)
+                
+    #             # Print individual device info
+    #             print(f"  🖥️  Device: {device.name}")
+    #             print(f"      ID: {device.id}")
+    #             print(f"      MAC: {device.mac_address}")
+    #             print(f"      Last IP: {device.last_ip}")
+    #             print(f"      SSH User: {ssh_detail['username']}")
+    #             print(f"      SSH Port: {ssh_detail['port']}")
+    #             print(f"      SSH Pass: {'***' if ssh_detail['password'] else 'None'}")
+            
+    #         # Get test suite details with test cases
+    #         test_suite = execution.test_suite
+            
+    #         # Get ordered test cases for the suite
+    #         suite_cases = TestSuiteCase.objects.filter(
+    #             test_suite=test_suite
+    #         ).select_related('test_case').order_by('order')
+            
+    #         test_cases = []
+    #         print(f"\n📝 Test Suite Details:")
+    #         print(f"      Name: {test_suite.name}")
+    #         print(f"      Description: {test_suite.description}")
+    #         print(f"      Category: {test_suite.category.name} ({test_suite.category.code})")
+    #         print(f"      Test Cases: {suite_cases.count()}")
+            
+    #         for suite_case in suite_cases:
+    #             test_case = suite_case.test_case
+    #             test_case_info = {
+    #                 "name": test_case.name,
+    #                 "test_case_id": test_case.test_case_id,
+    #                 "test_type": test_case.test_type,
+    #                 "test_type_display": test_case.get_test_type_display(),
+    #                 "order": suite_case.order
+    #             }
+    #             test_cases.append(test_case_info)
+                
+    #             # Print individual test case info
+    #             print(f"      📄 {suite_case.order}. {test_case.name}")
+    #             print(f"          ID: {test_case.test_case_id}")
+    #             print(f"          Type: {test_case.get_test_type_display()}")
+    #             print(f"          Active: {test_case.is_active}")
+            
+    #         # Build complete response data
+    #         response_data = {
+    #             "success": True,
+    #             "execution_id": str(execution.id),
+    #             "devices": devices,
+    #             "testsuite_detail": {
+    #                 "testsuite_name": test_suite.name,
+    #                 "testsuite_description": test_suite.description,
+    #                 "category_detail": {
+    #                     "name": test_suite.category.name,
+    #                     "code": test_suite.category.code
+    #                 },
+    #                 "test_cases": test_cases
+    #             }
+    #         }
+            
+    #         # Print complete JSON data
+    #         print(f"\n📦 Complete JSON Data for Execution {execution.id}:")
+    #         print("=" * 60)
+    #         import json
+    #         print(json.dumps(response_data, indent=2))
+    #         print("=" * 60)
+            
+    #         # HERE IS WHERE ACTUAL EXECUTION WOULD HAPPEN
+    #         print(f"\n🔄 [SIMULATED] Executing test suite '{test_suite.name}' on {len(devices)} devices...")
+            
+    #         # Simulate execution for each device
+    #         for device_info in devices:
+    #             print(f"  🔄 [SIMULATED] Executing on device {device_info['name']} ({device_info['last_ip']})")
+    #             for test_case_info in test_cases:
+    #                 if test_case_info['test_type']==2:
+    #                     self.run_test_on_device(device_info['last_ip'], ssh_detail['username'], ssh_detail['password'], test_case_info['test_case_id'])
+    #                 print(f"      ▶️  Running test: {test_case_info['test_case_id']} - {test_case_info['name']}")
+    #                 # Here you would execute: ssh_command = f"run_test {test_case_info['test_case_id']}"
+    #                 print(f"         Command: run_test {test_case_info['test_case_id']}")
+    #                 print(f"         Result: [SIMULATED] PASSED ✅")
+            
+    #         print(f"✅ Execution {execution.id} processing completed!\n")
+            
+    #     except Exception as e:
+    #         print(f"❌ ERROR processing execution {execution.id}: {str(e)}")
+    #         import traceback
+    #         traceback.print_exc()
+    
+    # # COMMENT OUT THE ACTUAL DATABASE UPDATE FOR DEVELOPMENT
+    # # count = to_execute.update(is_executed=True)
+    
+    # # DEVELOPMENT MESSAGE
+    # print("🚀" + "="*80)
+    # print("🚀 DEVELOPMENT MODE: No executions were actually marked as executed")
+    # print("🚀 Remove this comment to enable actual execution marking")
+    # print("🚀" + "="*80)
     
     # self.message_user(
     #     request,
