@@ -919,7 +919,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
      from .tasks import execute_test_suite
     
      # Filter only non-executed ones
-     to_execute = queryset.filter(is_executed=True)
+     to_execute = queryset.filter(is_executed=False)
+    #  to_execute = queryset.filter(is_executed=True)
     
      if to_execute.count() == 0:
         self.message_user(
@@ -942,7 +943,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         
         # Mark as executed
         execution.is_executed = True
-        execution.save()
+        # execution.save()
         
         # Launch Celery task
         execute_test_suite.delay(str(execution.id))

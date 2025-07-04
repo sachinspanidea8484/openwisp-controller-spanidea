@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # ADD THIS NEW ENUM CLASS HERE
 class TestTypeChoices(models.IntegerChoices):
     ROBOT_FRAMEWORK = 1, _('Robot Framework')
-    AGENT = 2, _('Agent')
+    AGENT = 2, _('Device Agent')
 
 class TestExecutionStatus(models.TextChoices):
     PENDING = 'pending', _('Pending')
@@ -138,7 +138,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         _("test type"),
         choices=TestTypeChoices.choices,
         default=TestTypeChoices.ROBOT_FRAMEWORK,
-        help_text=_("Type of test: Robot Framework or Agent ")
+        help_text=_("Type of test: Robot Framework or Device Agent ")
     )
 
 
@@ -549,6 +549,7 @@ class AbstractTestCaseExecution(TimeStampedEditableModel):
     Abstract model for individual test case execution results
     Tracks execution of a single test case on a single device
     """
+    
     test_suite_execution = models.ForeignKey(
         'test_management.TestSuiteExecution',
         on_delete=models.CASCADE,
@@ -689,24 +690,13 @@ class AbstractTestCaseExecution(TimeStampedEditableModel):
                 "completed_at": _("Completion time cannot be before start time")
             })
 
-    def save(self, *args, **kwargs):
-        # Calculate duration if both timestamps are available
-        if self.started_at and self.completed_at:
-            self.execution_duration = self.completed_at - self.started_at
-        
-        # Set execution order from TestSuiteCase if not set
-        if self.execution_order == 0 and self.test_case and self.test_suite_execution:
-            try:
-                suite_case = TestSuiteCase.objects.get(
-                    test_suite=self.test_suite_execution.test_suite,
-                    test_case=self.test_case
-                )
-                self.execution_order = suite_case.order
-            except TestSuiteCase.DoesNotExist:
-                pass
-        
-        self.full_clean()
-        super().save(*args, **kwargs)
+def save(self, *args, **kwargs):
+    # Calculate duration if both timestamps are available
+    if self.started_at and self.completed_at:
+        self.execution_duration = self.completed_at - self.started_at
+    
+    # Just call super().save() without validation for now
+    super().save(*args, **kwargs)  # ← This is essential!
 
     @property
     def is_completed(self):

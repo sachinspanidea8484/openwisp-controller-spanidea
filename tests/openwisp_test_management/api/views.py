@@ -50,6 +50,9 @@ TestSuite = load_model("TestSuite")
 TestSuiteCase = load_model("TestSuiteCase")
 TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+TestCaseExecution = load_model("TestCaseExecution")
+
+
 
 
 class ProtectedAPIMixin(BaseProtectedAPIMixin):
@@ -347,7 +350,7 @@ def add_all_test_data(request):
                 category=category,
                 description="Primary traffic validation test for basic connectivity and data flow",
                 is_active=True,
-                test_type=2  # Device Agent
+                test_type=1  # Device Agent
             )
             
             # 3. Create TestCase 2
@@ -357,7 +360,7 @@ def add_all_test_data(request):
                 category=category,
                 description="Secondary traffic validation test for advanced routing and switching",
                 is_active=True,
-                test_type=2  # Device Agent
+                test_type=1  # Device Agent
             )
             
             # 4. Create TestSuite
@@ -448,22 +451,25 @@ def add_all_test_data(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     
+
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_all_test_data(request):
     """
     Delete all test management data in correct order:
-    1. TestSuiteExecutionDevice
-    2. TestSuiteExecution
-    3. TestSuiteCase
-    4. TestSuite
-    5. TestCase
-    6. TestCategory
+    1. TestCaseExecution
+    2. TestSuiteExecutionDevice
+    3. TestSuiteExecution
+    4. TestSuiteCase
+    5. TestSuite
+    6. TestCase
+    7. TestCategory
     """
     try:
         with transaction.atomic():
             # Count existing records before deletion
             counts_before = {
+                'test_case_executions': TestCaseExecution.objects.count(),
                 'execution_devices': TestSuiteExecutionDevice.objects.count(),
                 'executions': TestSuiteExecution.objects.count(),
                 'suite_cases': TestSuiteCase.objects.count(),
@@ -474,26 +480,30 @@ def delete_all_test_data(request):
             
             # Delete in correct order (reverse dependency order)
             
-            # 1. Delete TestSuiteExecutionDevice (depends on TestSuiteExecution)
+            # 1. Delete TestCaseExecution (depends on TestSuiteExecution, Device, TestCase)
+            deleted_test_case_executions = TestCaseExecution.objects.all().delete()[0]
+            
+            # 2. Delete TestSuiteExecutionDevice (depends on TestSuiteExecution, Device)
             deleted_execution_devices = TestSuiteExecutionDevice.objects.all().delete()[0]
             
-            # 2. Delete TestSuiteExecution (depends on TestSuite)
+            # 3. Delete TestSuiteExecution (depends on TestSuite)
             deleted_executions = TestSuiteExecution.objects.all().delete()[0]
             
-            # 3. Delete TestSuiteCase (depends on TestSuite and TestCase)
+            # 4. Delete TestSuiteCase (depends on TestSuite and TestCase)
             deleted_suite_cases = TestSuiteCase.objects.all().delete()[0]
             
-            # 4. Delete TestSuite (depends on TestCategory)
+            # 5. Delete TestSuite (depends on TestCategory)
             deleted_test_suites = TestSuite.objects.all().delete()[0]
             
-            # 5. Delete TestCase (depends on TestCategory)
+            # 6. Delete TestCase (depends on TestCategory)
             deleted_test_cases = TestCase.objects.all().delete()[0]
             
-            # 6. Delete TestCategory (no dependencies)
+            # 7. Delete TestCategory (no dependencies)
             deleted_categories = TestCategory.objects.all().delete()[0]
             
             # Count records after deletion (should all be 0)
             counts_after = {
+                'test_case_executions': TestCaseExecution.objects.count(),
                 'execution_devices': TestSuiteExecutionDevice.objects.count(),
                 'executions': TestSuiteExecution.objects.count(),
                 'suite_cases': TestSuiteCase.objects.count(),
@@ -502,24 +512,29 @@ def delete_all_test_data(request):
                 'categories': TestCategory.objects.count(),
             }
             
+            # Calculate total deleted
+            total_deleted = (
+                deleted_test_case_executions +
+                deleted_execution_devices + 
+                deleted_executions + 
+                deleted_suite_cases + 
+                deleted_test_suites + 
+                deleted_test_cases + 
+                deleted_categories
+            )
+            
             return Response({
                 "success": True,
                 "message": "All test management data deleted successfully",
                 "deleted_counts": {
+                    "test_case_executions": deleted_test_case_executions,
                     "execution_devices": deleted_execution_devices,
                     "executions": deleted_executions,
                     "suite_cases": deleted_suite_cases,
                     "test_suites": deleted_test_suites,
                     "test_cases": deleted_test_cases,
                     "categories": deleted_categories,
-                    "total_deleted": (
-                        deleted_execution_devices + 
-                        deleted_executions + 
-                        deleted_suite_cases + 
-                        deleted_test_suites + 
-                        deleted_test_cases + 
-                        deleted_categories
-                    )
+                    "total_deleted": total_deleted
                 },
                 "counts_before": counts_before,
                 "counts_after": counts_after,
@@ -537,7 +552,135 @@ def delete_all_test_data(request):
                 "message": "Some data may have been partially deleted. Please check the database state."
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )    
+        )
+
+
+# Alternative version with force delete (if you want to bypass foreign key constraints)
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def force_delete_all_test_data(request):
+    """
+    Force delete all test management data by disabling foreign key checks
+    WARNING: This bypasses all foreign key constraints and should be used with caution
+    """
+    try:
+        with transaction.atomic():
+            # Count existing records before deletion
+            counts_before = {
+                'test_case_executions': TestCaseExecution.objects.count(),
+                'execution_devices': TestSuiteExecutionDevice.objects.count(),
+                'executions': TestSuiteExecution.objects.count(),
+                'suite_cases': TestSuiteCase.objects.count(),
+                'test_suites': TestSuite.objects.count(),
+                'test_cases': TestCase.objects.count(),
+                'categories': TestCategory.objects.count(),
+            }
+            
+            # Force delete all records without checking foreign keys
+            from django.db import connection
+            cursor = connection.cursor()
+            
+            # Disable foreign key checks (MySQL/SQLite)
+            if connection.vendor == 'mysql':
+                cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+            elif connection.vendor == 'sqlite':
+                cursor.execute("PRAGMA foreign_keys = OFF")
+            
+            try:
+                # Delete all records
+                deleted_counts = {}
+                
+                # Delete in any order since we disabled FK checks
+                deleted_counts['test_case_executions'] = TestCaseExecution.objects.all().delete()[0]
+                deleted_counts['execution_devices'] = TestSuiteExecutionDevice.objects.all().delete()[0]
+                deleted_counts['executions'] = TestSuiteExecution.objects.all().delete()[0]
+                deleted_counts['suite_cases'] = TestSuiteCase.objects.all().delete()[0]
+                deleted_counts['test_suites'] = TestSuite.objects.all().delete()[0]
+                deleted_counts['test_cases'] = TestCase.objects.all().delete()[0]
+                deleted_counts['categories'] = TestCategory.objects.all().delete()[0]
+                
+            finally:
+                # Re-enable foreign key checks
+                if connection.vendor == 'mysql':
+                    cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+                elif connection.vendor == 'sqlite':
+                    cursor.execute("PRAGMA foreign_keys = ON")
+            
+            # Count records after deletion
+            counts_after = {
+                'test_case_executions': TestCaseExecution.objects.count(),
+                'execution_devices': TestSuiteExecutionDevice.objects.count(),
+                'executions': TestSuiteExecution.objects.count(),
+                'suite_cases': TestSuiteCase.objects.count(),
+                'test_suites': TestSuite.objects.count(),
+                'test_cases': TestCase.objects.count(),
+                'categories': TestCategory.objects.count(),
+            }
+            
+            total_deleted = sum(deleted_counts.values())
+            
+            return Response({
+                "success": True,
+                "message": "All test management data force deleted successfully",
+                "deleted_counts": {
+                    **deleted_counts,
+                    "total_deleted": total_deleted
+                },
+                "counts_before": counts_before,
+                "counts_after": counts_after,
+                "verification": {
+                    "all_tables_empty": all(count == 0 for count in counts_after.values()),
+                    "details": counts_after
+                }
+            }, status=status.HTTP_200_OK)
+            
+    except Exception as e:
+        return Response(
+            {
+                "error": "Failed to force delete test management data", 
+                "details": str(e),
+                "message": "Some data may have been partially deleted. Please check the database state."
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Additional utility function to check data before deletion
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def check_test_data_counts(request):
+    """
+    Check current counts of all test management data
+    """
+    try:
+        counts = {
+            'test_case_executions': TestCaseExecution.objects.count(),
+            'execution_devices': TestSuiteExecutionDevice.objects.count(),
+            'executions': TestSuiteExecution.objects.count(),
+            'suite_cases': TestSuiteCase.objects.count(),
+            'test_suites': TestSuite.objects.count(),
+            'test_cases': TestCase.objects.count(),
+            'categories': TestCategory.objects.count(),
+        }
+        
+        total_records = sum(counts.values())
+        
+        return Response({
+            "success": True,
+            "message": "Test management data counts retrieved successfully",
+            "counts": counts,
+            "total_records": total_records,
+            "has_data": total_records > 0
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response(
+            {
+                "error": "Failed to retrieve test management data counts", 
+                "details": str(e)
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )   
 
 
 @api_view(['POST'])
@@ -665,6 +808,294 @@ def get_execution_details(request):
         )
 
 
+# First API - Device Test Data
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_device_test_data(request):
+    """
+    Create device test data in one request:
+    1. TestCategory (Traffic)
+    2. Two TestCases (Device Agent type)
+    3. TestSuite with TestSuiteCases
+    4. TestSuiteExecution with TestSuiteExecutionDevice
+    """
+    try:
+        # Get device_id from request data
+        # device_id = request.data.get('device_id')
+        device_id = 'd8f0a0a1-c622-4268-8111-c4189c549faf'
+
+
+        if not device_id:
+            return Response(
+                {"error": "device_id is required in request bodysss"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        with transaction.atomic():
+            # 1. Create or get TestCategory
+            category, created = TestCategory.objects.get_or_create(
+                name="Traffic",
+                defaults={
+                    'code': "TRF",
+                    'description': "Traffic testing category for network performance and throughput validation"
+                }
+            )
+            
+            # 2. Create TestCase 1
+            test_case_1 = TestCase.objects.create(
+                name="Test Case 1",
+                test_case_id="TestCase_001",
+                category=category,
+                description="Primary traffic validation test for basic connectivity and data flow using device agent",
+                is_active=True,
+                test_type=2  # Device Agent
+            )
+            
+            # 3. Create TestCase 2
+            test_case_2 = TestCase.objects.create(
+                name="Test Case 2",
+                test_case_id="TestCase_002",
+                category=category,
+                description="Secondary traffic validation test for advanced routing and switching using device agent",
+                is_active=True,
+                test_type=2  # Device Agent
+            )
+            
+            # 4. Create TestSuite
+            test_suite = TestSuite.objects.create(
+                name="Logging and Reboot",
+                category=category,
+                description="Comprehensive test suite for system logging and reboot functionality using device agents",
+                is_active=True
+            )
+            
+            # 5. Create TestSuiteCase entries
+            TestSuiteCase.objects.create(
+                test_suite=test_suite,
+                test_case=test_case_1,
+                order=1
+            )
+            
+            TestSuiteCase.objects.create(
+                test_suite=test_suite,
+                test_case=test_case_2,
+                order=2
+            )
+            
+            # 6. Create TestSuiteExecution
+            execution = TestSuiteExecution.objects.create(
+                test_suite=test_suite,
+                is_executed=False
+            )
+            
+            # 7. Create TestSuiteExecutionDevice
+            try:
+                device = Device.objects.get(id=device_id)
+                TestSuiteExecutionDevice.objects.create(
+                    test_suite_execution=execution,
+                    device=device,
+                    status='pending'
+                )
+            except Device.DoesNotExist:
+                return Response(
+                    {"error": f"Device with ID {device_id} not found"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Return success response with created data
+            return Response({
+                "success": True,
+                "message": "All device test data created successfully",
+                "data": {
+                    "category": {
+                        "id": str(category.id),
+                        "name": category.name,
+                        "code": category.code,
+                        "created": created
+                    },
+                    "test_cases": [
+                        {
+                            "id": str(test_case_1.id),
+                            "name": test_case_1.name,
+                            "test_case_id": test_case_1.test_case_id,
+                            "test_type": "Device Agent"
+                        },
+                        {
+                            "id": str(test_case_2.id),
+                            "name": test_case_2.name,
+                            "test_case_id": test_case_2.test_case_id,
+                            "test_type": "Device Agent"
+                        }
+                    ],
+                    "test_suite": {
+                        "id": str(test_suite.id),
+                        "name": test_suite.name,
+                        "test_case_count": 2
+                    },
+                    "execution": {
+                        "id": str(execution.id),
+                        "test_suite_name": test_suite.name,
+                        "device_count": 1,
+                        "device_id": device_id,
+                        "status": "pending"
+                    }
+                }
+            }, status=status.HTTP_201_CREATED)
+            
+    except ValidationError as e:
+        return Response(
+            {"error": "Validation error", "details": str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        return Response(
+            {"error": "Failed to create device test data", "details": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Second API - Robot Test Data
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_robot_test_data(request):
+    """
+    Create robot test data in one request:
+    1. TestCategory (Wifi)
+    2. Two TestCases (Robot Framework type)
+    3. TestSuite with TestSuiteCases
+    4. TestSuiteExecution with TestSuiteExecutionDevice
+    """
+    try:
+        # Get device_id from request data
+        # device_id = request.data.get('device_id')
+        device_id = 'd8f0a0a1-c622-4268-8111-c4189c549faf'  
+        if not device_id:
+            return Response(
+                {"error": "device_id is required in request body"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        with transaction.atomic():
+            # 1. Create or get TestCategory
+            category, created = TestCategory.objects.get_or_create(
+                name="Wifi",
+                defaults={
+                    'code': "WF",
+                    'description': "Wireless networking and connectivity testing category for WiFi interfaces, bridging, and WAN connectivity validation"
+                }
+            )
+            
+            # 2. Create TestCase 1
+            test_case_1 = TestCase.objects.create(
+                name="Ethernet (LAN) Bridging",
+                test_case_id="BB-TRF-BRG-001",
+                category=category,
+                description="Validates Ethernet LAN bridging functionality, including bridge configuration, traffic forwarding, and network connectivity across bridge interfaces",
+                is_active=True,
+                test_type=1  # Robot Framework
+            )
+            
+            # 3. Create TestCase 2
+            test_case_2 = TestCase.objects.create(
+                name="Wifi Wan Interface",
+                test_case_id="BB-INT-WWAN-001",
+                category=category,
+                description="Comprehensive testing of WiFi WAN interface functionality including connection establishment, authentication, data transmission, and failover scenarios",
+                is_active=True,
+                test_type=1  # Robot Framework
+            )
+            
+            # 4. Create TestSuite
+            test_suite = TestSuite.objects.create(
+                name="Ether and Wifi For Robot",
+                category=category,
+                description="Comprehensive Robot Framework test suite covering Ethernet bridging and WiFi WAN interface validation for network connectivity and performance testing",
+                is_active=True
+            )
+            
+            # 5. Create TestSuiteCase entries
+            TestSuiteCase.objects.create(
+                test_suite=test_suite,
+                test_case=test_case_1,
+                order=1
+            )
+            
+            TestSuiteCase.objects.create(
+                test_suite=test_suite,
+                test_case=test_case_2,
+                order=2
+            )
+            
+            # 6. Create TestSuiteExecution
+            execution = TestSuiteExecution.objects.create(
+                test_suite=test_suite,
+                is_executed=False
+            )
+            
+            # 7. Create TestSuiteExecutionDevice
+            try:
+                device = Device.objects.get(id=device_id)
+                TestSuiteExecutionDevice.objects.create(
+                    test_suite_execution=execution,
+                    device=device,
+                    status='pending'
+                )
+            except Device.DoesNotExist:
+                return Response(
+                    {"error": f"Device with ID {device_id} not found"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Return success response with created data
+            return Response({
+                "success": True,
+                "message": "All robot test data created successfully",
+                "data": {
+                    "category": {
+                        "id": str(category.id),
+                        "name": category.name,
+                        "code": category.code,
+                        "created": created
+                    },
+                    "test_cases": [
+                        {
+                            "id": str(test_case_1.id),
+                            "name": test_case_1.name,
+                            "test_case_id": test_case_1.test_case_id,
+                            "test_type": "Robot Framework"
+                        },
+                        {
+                            "id": str(test_case_2.id),
+                            "name": test_case_2.name,
+                            "test_case_id": test_case_2.test_case_id,
+                            "test_type": "Robot Framework"
+                        }
+                    ],
+                    "test_suite": {
+                        "id": str(test_suite.id),
+                        "name": test_suite.name,
+                        "test_case_count": 2
+                    },
+                    "execution": {
+                        "id": str(execution.id),
+                        "test_suite_name": test_suite.name,
+                        "device_count": 1,
+                        "device_id": device_id,
+                        "status": "pending"
+                    }
+                }
+            }, status=status.HTTP_201_CREATED)
+            
+    except ValidationError as e:
+        return Response(
+            {"error": "Validation error", "details": str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        return Response(
+            {"error": "Failed to create robot test data", "details": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 

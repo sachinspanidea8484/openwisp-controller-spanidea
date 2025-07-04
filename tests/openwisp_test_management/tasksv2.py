@@ -19,8 +19,6 @@ TestSuiteCase = load_model("TestSuiteCase")
 
 @shared_task
 def execute_test_suite(execution_id):
-
-
     """
     Main task to execute a test suite on all devices.
     
@@ -176,30 +174,15 @@ def execute_tests_on_device(device_execution_id):
                 logger.info(f"Creating execution record for device agent test: {test_case.name}")
                 print(f"[TASK] execute_tests_on_device - Creating execution record for: {test_case.name}")
                 
-
                 test_execution = TestCaseExecution.objects.create(
-                        test_suite_execution=test_suite_execution,
-                        device=device,
-                        test_case=test_case,
-                        status=TestExecutionStatus.PENDING,
-
-                        # execution_order=suite_case.order,
-                        # status='running',
-                        # started_at=timezone.now()
-                    )
-                test_execution.save()  # Add this line to be sure
-
+                    test_suite_execution=test_suite_execution,
+                    device=device,
+                    test_case=test_case,
+                    status=TestExecutionStatus.PENDING,
+                )
                 test_execution_ids.append(test_execution.id)
                 if test_execution and test_execution.id:
                  print(f"✅ Successfully created TestCaseExecution with ID: {test_execution.id}")
-
-
-
-                 try:
-                   verify = TestCaseExecution.objects.get(pk=test_execution.id)
-                   print(f"✅❌❌❌❌❌ Verified TestCaseExecution exists in DB with ID: {verify.id}")
-                 except TestCaseExecution.DoesNotExist:
-                     print(f"❌ TestCaseExecution NOT FOUND in DB after create!")
         
                 
                 logger.debug(f"Created TestCaseExecution ID: {test_execution.id}")

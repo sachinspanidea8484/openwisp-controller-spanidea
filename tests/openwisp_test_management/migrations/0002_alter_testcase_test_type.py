@@ -14,9 +14,9 @@ class Migration(migrations.Migration):
             model_name="testcase",
             name="test_type",
             field=models.IntegerField(
-                choices=[(1, "Robot Framework"), (2, "Agent")],
+                choices=[(1, "Robot Framework"), (2, "Device Agent")],
                 default=1,
-                help_text="Type of test: Robot Framework or Agent ",
+                help_text="Type of test: Robot Framework or Device Agent ",
                 verbose_name="test type",
             ),
         ),

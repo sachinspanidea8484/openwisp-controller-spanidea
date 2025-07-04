@@ -58,11 +58,11 @@ urlpatterns = [
 
 
 # testing-purpose 
-               path(
-                "add-all-test-data/",
-                views.add_all_test_data,
-                name="api_add_all_test_data",
-            ),
+            #    path(
+            #     "add-all-test-data/",
+            #     views.add_all_test_data,
+            #     name="api_add_all_test_data",
+            # ),
                path(
                 "delete-all-test-data/",
                 views.delete_all_test_data,
@@ -73,6 +73,16 @@ urlpatterns = [
                 views.get_execution_details,
                 name="api_get_execution_details",
             ),
+                path(
+    "add-device-test-data/",
+    views.add_device_test_data,  
+    name="api_add_device_test_data", 
+),
+path(
+    "add-robot-test-data/",
+    views.add_robot_test_data,    
+    name="api_add_robot_test_data", 
+),
 
         ]),
     ),
