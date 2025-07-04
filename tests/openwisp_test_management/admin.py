@@ -919,9 +919,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
      from .tasks import execute_test_suite
     
      # Filter only non-executed ones
-    #  to_execute = queryset.filter(is_executed=False)
      to_execute = queryset.filter(is_executed=True)
-
     
      if to_execute.count() == 0:
         self.message_user(
@@ -933,6 +931,15 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     
      executed_count = 0
      for execution in to_execute:
+        # Calculate estimated test count
+        test_count = 0
+        device_count = execution.device_count
+        
+        for test_case in execution.test_suite.test_cases.filter(test_type=1):
+            test_count += 1
+        
+        total_test_executions = test_count * device_count
+        
         # Mark as executed
         execution.is_executed = True
         execution.save()
@@ -940,6 +947,13 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         # Launch Celery task
         execute_test_suite.delay(str(execution.id))
         executed_count += 1
+        
+        # Log info
+        logger.info(
+            f"Started execution {execution.id}: "
+            f"{test_count} tests × {device_count} devices = "
+            f"{total_test_executions} parallel test executions"
+        )
     
      self.message_user(
         request,
@@ -950,6 +964,9 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         ) % executed_count,
         messages.SUCCESS,
     )  
+     
+
+
 
     # def run_test_on_device(self, device_ip, username, password, testcase_id):
     #     exec_command = "python3 " + settings.OPENWRT_TESTCASE_DIR + testcase_id + "/" + testcase_id + ".py"
