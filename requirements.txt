@@ -54,7 +54,6 @@ django-phonenumber-field==8.1.0
 django-private-storage==3.1.1
 django-redis==5.4.0
 django-reversion==5.1.0
-django-sendsms==0.5
 django-sesame==3.2.3
 django-sortedm2m==4.0.0
 django-taggit==6.0.0
@@ -156,7 +155,6 @@ roman-numerals-py==3.1.0
 rpds-py==0.25.1
 scp==0.15.0
 selenium==4.29.0
-sendsms==0.2.0
 service-identity==24.2.0
 shortuuid==1.0.13
 six==1.17.0
@@ -184,7 +182,6 @@ tinyhtml5==2.0.0
 toml==0.10.2
 trio==0.30.0
 trio-websocket==0.12.2
-twilio==9.6.3
 Twisted==25.5.0
 txaio==23.1.1
 typing_extensions==4.14.0
@@ -202,15 +199,18 @@ yarl==1.20.1
 zope.interface==7.2
 zopfli==0.2.3.post1
 
+# Fix for TwilioRestClient import error
+dj-database-url==2.1.0
+
 
 
 # github
-django-loci @ https://github.com/sachinspanidea8484/django-loci-spanidea-/tarball/main
-django-x509 @ https://github.com/sachinspanidea8484/django-x509-spanidea/tarball/main
-netdiff @ https://github.com/sachinspanidea8484/netdiff-spanidea/tarball/main
-netjsonconfig @ https://github.com/sachinspanidea8484/netjsonconfig-spanidea/tarball/main
-openwisp-ipam @ https://github.com/sachinspanidea8484/openwisp-ipam-spanidea/tarball/main
-openwisp-notifications @ https://github.com/sachinspanidea8484/openwisp-notifications-spanidea/tarball/main
-openwisp-users @ https://github.com/sachinspanidea8484/openwisp-users-spanidea/tarball/main
-openwisp-utils @ https://github.com/sachinspanidea8484/openwisp-utils-spanidea/tarball/main
+# django-loci @ https://github.com/sachinspanidea8484/django-loci-spanidea-/tarball/main
+# django-x509 @ https://github.com/sachinspanidea8484/django-x509-spanidea/tarball/main
+# netdiff @ https://github.com/sachinspanidea8484/netdiff-spanidea/tarball/main
+# netjsonconfig @ https://github.com/sachinspanidea8484/netjsonconfig-spanidea/tarball/main
+# openwisp-ipam @ https://github.com/sachinspanidea8484/openwisp-ipam-spanidea/tarball/main
+# openwisp-notifications @ https://github.com/sachinspanidea8484/openwisp-notifications-spanidea/tarball/main
+# openwisp-users @ https://github.com/sachinspanidea8484/openwisp-users-spanidea/tarball/main
+# openwisp-utils @ https://github.com/sachinspanidea8484/openwisp-utils-spanidea/tarball/main
 

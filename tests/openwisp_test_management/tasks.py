@@ -325,8 +325,16 @@ def execute_single_test_case(test_execution_id, ssh_params, device_ip, device_ex
             print(f"[TASK] execute_single_test_case - SSH connection established")
             
             # Prepare test execution command
-            test_path = f"/usr/bin/tests/{test_case.test_case_id}"
-            command = f"sh {test_path}"
+            # test_path = f"/usr/bin/tests/{test_case.test_case_id}"
+            # command = f"sh {test_path}"
+
+            test_path = f"/usr/bin/tests/Test_Cases/{test_case.test_case_id}/{test_case.test_case_id}.py"
+            print("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅")
+            print(test_path)
+            print("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅")
+
+            command = f"python3 {test_path}"
+
             
             logger.info(f"Executing test script: {command}")
             print(f"[TASK] execute_single_test_case - Executing command: {command}")

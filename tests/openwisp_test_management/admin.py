@@ -760,11 +760,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         "test_suite_name",
         "device_count",
         "execution_status",
-        "is_executed",
+        # "is_executed",
         "created",
     ]
     list_filter = [
-        "is_executed",
+        # "is_executed",
         "created",
         ("test_suite", admin.RelatedOnlyFieldListFilter),
     ]
@@ -773,7 +773,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     ordering = ["-created"]
     fields = [
         "test_suite",
-        "is_executed",
+        # "is_executed",
         "device_summary",
         "created",
         "modified",

@@ -1,0 +1,117 @@
+version: '3.8'
+
+services:
+  controller:
+    image: openwisp/controller-production:latest
+    build:
+      context: .
+      dockerfile: ./Dockerfile.Prod
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgis://openwisp2:openwisp2@postgres:5432/openwisp2
+      - INFLUXDB_HOST=influxdb
+      - INFLUXDB_PORT=8086
+      - INFLUXDB_USER=openwisp
+      - INFLUXDB_PASSWORD=openwisp
+      - INFLUXDB_DATABASE=openwisp2
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - postgres
+      - influxdb
+    volumes:
+      - static_files:/opt/openwisp/static
+      - media_files:/opt/openwisp/media
+    restart: unless-stopped
+
+  celery:
+    image: openwisp/controller-production:latest
+    build:
+      context: .
+      dockerfile: ./Dockerfile.Prod
+    command: celery -A openwisp2 worker -l info
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgis://openwisp2:openwisp2@postgres:5432/openwisp2
+      - INFLUXDB_HOST=influxdb
+      - INFLUXDB_PORT=8086
+      - INFLUXDB_USER=openwisp
+      - INFLUXDB_PASSWORD=openwisp
+      - INFLUXDB_DATABASE=openwisp2
+    depends_on:
+      - redis
+      - postgres
+      - influxdb
+    volumes:
+      - static_files:/opt/openwisp/static
+      - media_files:/opt/openwisp/media
+    restart: unless-stopped
+
+  celery-beat:
+    image: openwisp/controller-production:latest
+    build:
+      context: .
+      dockerfile: ./Dockerfile.Prod
+    command: celery -A openwisp2 beat -l info
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgis://openwisp2:openwisp2@postgres:5432/openwisp2
+      - INFLUXDB_HOST=influxdb
+      - INFLUXDB_PORT=8086
+      - INFLUXDB_USER=openwisp
+      - INFLUXDB_PASSWORD=openwisp
+      - INFLUXDB_DATABASE=openwisp2
+    depends_on:
+      - redis
+      - postgres
+      - influxdb
+    volumes:
+      - static_files:/opt/openwisp/static
+      - media_files:/opt/openwisp/media
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  postgres:
+    image: postgis/postgis:17-3.5-alpine
+    environment:
+      POSTGRES_PASSWORD: openwisp2
+      POSTGRES_USER: openwisp2
+      POSTGRES_DB: openwisp2
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb:1.8-alpine
+    volumes:
+      - influxdb_data:/var/lib/influxdb
+      - ./tests/influxdb.conf:/etc/influxdb/influxdb.conf
+    ports:
+      - "8086:8086"
+      - "8089:8089/udp"
+      - "8090:8090/udp"
+      - "8091:8091/udp"
+      - "8092:8092/udp"
+    environment:
+      INFLUXDB_DB: openwisp2
+      INFLUXDB_USER: openwisp
+      INFLUXDB_USER_PASSWORD: openwisp
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  postgres_data:
+  influxdb_data:
+  static_files:
+  media_files:

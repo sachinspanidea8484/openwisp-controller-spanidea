@@ -38,20 +38,20 @@ class TestManagementConfig(ApiAppConfig):
                         "name": "changelist",
                         "icon": "ow-category",
                     },
-                    2: {
-                        "label": _("Test Cases"),
-                        "model": get_model_name(self.label, "TestCase"),
-                        "name": "changelist",
-                        "icon": "ow-test-case",
-                    },
-                    3: {
-                        "label": _("Test Suites"),
-                        "model": get_model_name(self.label, "TestSuite"),
-                        "name": "changelist",
-                        "icon": "ow-test-suite",
-                    },
+                    # 2: {
+                    #     "label": _("Test Cases"),
+                    #     "model": get_model_name(self.label, "TestCase"),
+                    #     "name": "changelist",
+                    #     "icon": "ow-test-case",
+                    # },
+                    # 3: {
+                    #     "label": _("Test Suites"),
+                    #     "model": get_model_name(self.label, "TestSuite"),
+                    #     "name": "changelist",
+                    #     "icon": "ow-test-suite",
+                    # },
                       4: {
-                    "label": _("Mass Executions"),
+                    "label": _("Test Suite Executions"),
                     "model": get_model_name(self.label, "TestSuiteExecution"),
                     "name": "changelist",
                     "icon": "ow-mass-execution",

@@ -475,7 +475,7 @@ CELERY_EMAIL_BACKEND = EMAIL_BACKEND
 
 
 
-SENDSMS_BACKEND = "sendsms.backends.console.SmsBackend"
+# SENDSMS_BACKEND = "sendsms.backends.console.SmsBackend"
 OPENWISP_RADIUS_EXTRA_NAS_TYPES = (("cisco", "Cisco Router"),)
 
 # Add this to your REST_AUTH configuration
@@ -503,13 +503,14 @@ SAML_CSP_HANDLER = ''
 # }
 
 
-if TESTING:
-    OPENWISP_RADIUS_SMS_TOKEN_MAX_USER_DAILY = 3
-    OPENWISP_RADIUS_SMS_TOKEN_MAX_ATTEMPTS = 3
-    OPENWISP_RADIUS_SMS_TOKEN_MAX_IP_DAILY = 4
-    SENDSMS_BACKEND = "sendsms.backends.dummy.SmsBackend"
-else:
-    OPENWISP_RADIUS_SMS_TOKEN_MAX_USER_DAILY = 10
+# if TESTING:
+    # OPENWISP_RADIUS_SMS_TOKEN_MAX_USER_DAILY = 3
+    # OPENWISP_RADIUS_SMS_TOKEN_MAX_ATTEMPTS = 3
+    # OPENWISP_RADIUS_SMS_TOKEN_MAX_IP_DAILY = 4
+    # SENDSMS_BACKEND = "sendsms.backends.dummy.SmsBackend"
+    
+# else:
+    # OPENWISP_RADIUS_SMS_TOKEN_MAX_USER_DAILY = 10
 
 # LOGGING = {
 #     "version": 1,

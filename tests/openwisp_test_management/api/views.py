@@ -362,6 +362,36 @@ def add_all_test_data(request):
                 is_active=True,
                 test_type=1  # Device Agent
             )
+
+
+
+            test_case_3 = TestCase.objects.create(
+             name="Test Case 3",
+             test_case_id="TestCase_003",
+             category=category,
+             description="Load test to verify device performance under high traffic conditions",
+             is_active=True,
+             test_type=1  # Device Agent
+            )
+
+            test_case_4 = TestCase.objects.create(
+    name="Test Case 4",
+    test_case_id="TestCase_004",
+    category=category,
+    description="Failover test to validate automatic recovery mechanisms",
+    is_active=True,
+    test_type=1  # Device Agent
+            )
+
+            test_case_5 = TestCase.objects.create(
+    name="Test Case 5",
+    test_case_id="TestCase_005",
+    category=category,
+    description="Security test to evaluate firewall and intrusion prevention functionality",
+    is_active=True,
+    test_type=1  # Device Agent
+            )
+            
             
             # 4. Create TestSuite
             test_suite = TestSuite.objects.create(
@@ -382,6 +412,23 @@ def add_all_test_data(request):
                 test_suite=test_suite,
                 test_case=test_case_2,
                 order=2
+            )
+
+            TestSuiteCase.objects.create(
+                test_suite=test_suite,
+                test_case=test_case_3,
+                order=3
+            )
+            
+            TestSuiteCase.objects.create(
+                test_suite=test_suite,
+                test_case=test_case_4,
+                order=4
+            )
+            TestSuiteCase.objects.create(
+                test_suite=test_suite,
+                test_case=test_case_5,
+                order=5
             )
             
             # 6. Create TestSuiteExecution
@@ -424,7 +471,23 @@ def add_all_test_data(request):
                             "id": str(test_case_2.id),
                             "name": test_case_2.name,
                             "test_case_id": test_case_2.test_case_id
-                        }
+                        },
+                         {
+                            "id": str(test_case_3.id),
+                            "name": test_case_3.name,
+                            "test_case_id": test_case_3.test_case_id
+                        },
+                        {
+                            "id": str(test_case_4.id),
+                            "name": test_case_4.name,
+                            "test_case_id": test_case_4.test_case_id
+                        },
+                         {
+                            "id": str(test_case_5.id),
+                            "name": test_case_5.name,
+                            "test_case_id": test_case_5.test_case_id
+                        },
+
                     ],
                     "test_suite": {
                         "id": str(test_suite.id),
@@ -822,7 +885,7 @@ def add_device_test_data(request):
     try:
         # Get device_id from request data
         # device_id = request.data.get('device_id')
-        device_id = 'd8f0a0a1-c622-4268-8111-c4189c549faf'
+        device_id = '6c02259d-558e-48fc-a5ec-773a464d951a'
 
 
         if not device_id:
@@ -854,7 +917,7 @@ def add_device_test_data(request):
             # 3. Create TestCase 2
             test_case_2 = TestCase.objects.create(
                 name="Test Case 2",
-                test_case_id="TestCase_002",
+                test_case_id="TestCase_004",
                 category=category,
                 description="Secondary traffic validation test for advanced routing and switching using device agent",
                 is_active=True,
@@ -968,7 +1031,7 @@ def add_robot_test_data(request):
     try:
         # Get device_id from request data
         # device_id = request.data.get('device_id')
-        device_id = 'd8f0a0a1-c622-4268-8111-c4189c549faf'  
+        device_id = '6c02259d-558e-48fc-a5ec-773a464d951a'  
         if not device_id:
             return Response(
                 {"error": "device_id is required in request body"},
