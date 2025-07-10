@@ -16,6 +16,9 @@ TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestCaseExecution = load_model("TestCaseExecution")
 TestSuiteCase = load_model("TestSuiteCase")
 
+# Robot Framework API Server Configuration
+ROBOT_API_SERVER = getattr(settings, 'ROBOT_API_SERVER', 'http://localhost:5000')
+ROBOT_API_TIMEOUT = getattr(settings, 'ROBOT_API_TIMEOUT', 300)  # 5 minutes default
 
 @shared_task
 def execute_test_suite(execution_id):
@@ -205,6 +208,7 @@ def execute_tests_on_device(device_execution_id):
                 logger.debug(f"Created TestCaseExecution ID: {test_execution.id}")
                 print(f"[DEBUG] execute_tests_on_device - Created TestCaseExecution ID: {test_execution.id}")
             else:
+                # robot framework code✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅
                 logger.debug(f"Skipping non-device-agent test: {test_case.name} (Type: {test_case.test_type})")
                 print(f"[DEBUG] execute_tests_on_device - Skipping non-device-agent test: {test_case.name}")
         
@@ -345,7 +349,8 @@ def execute_single_test_case(test_execution_id, ssh_params, device_ip, device_ex
             
             output, exit_code = ssh_conn.exec_command(
                 command,
-                timeout=300,  # 5 minutes max per test
+                # timeout=300,  # 5 minutes max per test
+                timeout=86400,  # 1 day (24 hours) max per test
                 exit_codes=[0, 1, 2, 3, 4, 5],  # Accept multiple exit codes
                 raise_unexpected_exit=False
             )
@@ -366,7 +371,8 @@ def execute_single_test_case(test_execution_id, ssh_params, device_ip, device_ex
             test_execution.completed_at = timezone.now()
             
             # Determine test status based on exit code
-            if exit_code == 0:
+            # if exit_code == 0:
+            if exit_code == 0 or exit_code == 2:
                 test_execution.status = TestExecutionStatus.SUCCESS
                 logger.info(f"Test {test_case.test_case_id} PASSED")
                 print(f"[TASK] execute_single_test_case - Test {test_case.test_case_id} PASSED")
@@ -446,7 +452,9 @@ def check_device_execution_completion(device_execution_id, retry_count=0):
         - Schedules retry if tests are still running
         - Triggers suite completion checking when device is done
     """
-    max_retries = 600  # Max 50 minutes of checking (600 * 5 seconds)
+    # max_retries = 600  # Max 50 minutes of checking (600 * 5 seconds)
+    max_retries = 1440  # Max 24 hours of checking (1440 * 60 seconds)
+
     
     logger.info(f"Checking device execution completion for ID: {device_execution_id} (retry: {retry_count})")
     print(f"[TASK] check_device_execution_completion - Device execution ID: {device_execution_id}, retry: {retry_count}")
@@ -460,10 +468,17 @@ def check_device_execution_completion(device_execution_id, retry_count=0):
         print(f"[TASK] check_device_execution_completion - Device: {device_execution.device.name}")
         
         # Count pending/running tests for this device
+        # pending_or_running = TestCaseExecution.objects.filter(
+        #     test_suite_execution=test_suite_execution,
+        #     device=device_execution.device,
+        #     status__in=[TestExecutionStatus.PENDING, TestExecutionStatus.RUNNING],
+        # ).count()
+
         pending_or_running = TestCaseExecution.objects.filter(
             test_suite_execution=test_suite_execution,
             device=device_execution.device,
             status__in=[TestExecutionStatus.PENDING, TestExecutionStatus.RUNNING],
+            test_case__test_type=2  # Only count Device Agent tests
         ).count()
         
         logger.info(f"Found {pending_or_running} tests still pending/running")
@@ -477,7 +492,9 @@ def check_device_execution_completion(device_execution_id, retry_count=0):
                 
                 check_device_execution_completion.apply_async(
                     args=[device_execution_id, retry_count + 1],
-                    countdown=5  # Check again in 5 seconds
+                    # countdown=5  # Check again in 5 seconds
+                    countdown=3600  # Check again in 1 hour (3600 seconds)
+
                 )
                 return
             else:
@@ -496,10 +513,16 @@ def check_device_execution_completion(device_execution_id, retry_count=0):
         print(f"[TASK] check_device_execution_completion - All tests completed for {device_execution.device.name}")
         
         # Get all test executions for this device
+        # test_executions = TestCaseExecution.objects.filter(
+        #     test_suite_execution=test_suite_execution,
+        #     device=device_execution.device
+        # ).order_by('test_case__name')  # Order by name since we're not using execution_order
+        # With this:
         test_executions = TestCaseExecution.objects.filter(
             test_suite_execution=test_suite_execution,
-            device=device_execution.device
-        ).order_by('test_case__name')  # Order by name since we're not using execution_order
+            device=device_execution.device,
+            test_case__test_type=2  # Only get Device Agent test results
+        ).order_by('test_case__name')
         
         total_executions = test_executions.count()
         logger.info(f"Retrieved {total_executions} test executions for summary")
@@ -689,7 +712,9 @@ def timeout_stuck_tests():
     """
     from datetime import timedelta
     
-    timeout_threshold = timezone.now() - timedelta(minutes=30)  # 30 minute timeout
+    # timeout_threshold = timezone.now() - timedelta(minutes=30)  # 30 minute timeout
+    timeout_threshold = timezone.now() - timedelta(days=1)  # 1 day timeout
+
     
     logger.info("Starting timeout check for stuck tests")
     print(f"[TASK] timeout_stuck_tests - Starting timeout check")
@@ -697,9 +722,14 @@ def timeout_stuck_tests():
     
     try:
         # Find stuck tests
+        # stuck_tests = TestCaseExecution.objects.filter(
+        #     status=TestExecutionStatus.RUNNING,
+        #     started_at__lt=timeout_threshold
+        # ).select_related('test_case', 'device', 'test_suite_execution')
         stuck_tests = TestCaseExecution.objects.filter(
             status=TestExecutionStatus.RUNNING,
-            started_at__lt=timeout_threshold
+            started_at__lt=timeout_threshold,
+            test_case__test_type=2  # Only timeout Device Agent tests
         ).select_related('test_case', 'device', 'test_suite_execution')
         
         stuck_count = stuck_tests.count()

@@ -73,15 +73,30 @@ urlpatterns = [
                 views.get_execution_details,
                 name="api_get_execution_details",
             ),
-                path(
+#                 path(
+#     "add-device-test-data/",
+#     views.add_device_test_data,  
+#     name="api_add_device_test_data", 
+# ),
+# path(
+#     "add-robot-test-data/",
+#     views.add_robot_test_data,    
+#     name="api_add_robot_test_data", 
+# ),
+path(
     "add-device-test-data/",
-    views.add_device_test_data,  
-    name="api_add_device_test_data", 
+    views.AddDeviceTestDataView.as_view(),
+    name="api_add_device_test_data",
 ),
 path(
     "add-robot-test-data/",
-    views.add_robot_test_data,    
+    views.AddRobotTestDataView.as_view(),    
     name="api_add_robot_test_data", 
+),
+path(
+    "test-case-execution/result/",
+    views.TestCaseExecutionResultView.as_view(),
+    name="api_test_case_execution_result",
 ),
 
         ]),

@@ -1,5 +1,10 @@
 import os
 import sys
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 # Suppress dj_rest_auth deprecation warnings
 import warnings
 warnings.filterwarnings("ignore", message="app_settings.USERNAME_REQUIRED is deprecated")
@@ -19,10 +24,10 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
 
 
 DEBUG = True
-TESTING = os.environ.get("TESTING", False) or sys.argv[1:2] == ["test"]
-SELENIUM_HEADLESS = True if os.environ.get("SELENIUM_HEADLESS", False) else False
+TESTING = True
+SELENIUM_HEADLESS = True
 SHELL = "shell" in sys.argv or "shell_plus" in sys.argv
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+REDIS_URL = "redis://localhost:6379"
 
 ALLOWED_HOSTS = ["*"]
 # radius
@@ -60,14 +65,14 @@ TIMESERIES_DATABASE = {
     'USER': 'openwisp',
     'PASSWORD': 'openwisp',
     'NAME': 'openwisp2',
-    'HOST': os.getenv('INFLUXDB_HOST', 'localhost'),
+    'HOST': "localhost",
     'PORT': '8086',
     # UDP writes are disabled by default
     'OPTIONS': {'udp_writes': False, 'udp_port': 8089},
 }
 
 if TESTING:
-    if os.environ.get('TIMESERIES_UDP', False):
+    if True:
         TIMESERIES_DATABASE['OPTIONS'] = {'udp_writes': True, 'udp_port': 8091}
 
 SECRET_KEY = "fn)t*+$)ugeyip6-#txyy$5wf2ervc0d2n#h)qb)y5@ly$t*@w"
@@ -796,6 +801,10 @@ REST_FRAMEWORK = {
         'test_management': '1000/minute',
     }
 }
+
+
+
+
 
 CORS_ORIGIN_ALLOW_ALL = True
 # local settings must be imported before test runner otherwise they'll be ignored

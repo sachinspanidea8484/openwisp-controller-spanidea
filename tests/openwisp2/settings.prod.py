@@ -1,6 +1,10 @@
 import os
 import sys
 import dj_database_url
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Suppress dj_rest_auth deprecation warnings
 import warnings

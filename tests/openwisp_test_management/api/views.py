@@ -3,6 +3,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, generics, status
 
 from rest_framework.decorators import api_view
+from rest_framework.views import APIView
+from django.utils import timezone
+
+import logging
+logger = logging.getLogger(__name__)
 
 from django.db import transaction
 from rest_framework.decorators import permission_classes
@@ -17,6 +22,7 @@ from .filters import TestSuiteFilter
 from django.utils.translation import gettext_lazy as _
 from .serializers import TestSuiteListSerializer
 from .filters import TestSuiteFilter
+from ..base.models import TestExecutionStatus
 
 from openwisp_controller.config.models import Device 
 from openwisp_controller.connection.models import Credentials
@@ -25,7 +31,9 @@ from openwisp_controller.connection.models import DeviceConnection
 from .serializers import (
     TestSuiteExecutionListSerializer,
     TestSuiteExecutionSerializer,
-    ExecutionDetailsRequestSerializer
+    ExecutionDetailsRequestSerializer,
+    DeviceTestDataRequestSerializer,
+    TestCaseExecutionResultSerializer
 )
 
 
@@ -871,6 +879,289 @@ def get_execution_details(request):
         )
 
 
+class AddDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
+    """
+    Create device test data in one request:
+    1. TestCategory (Traffic)
+    2. Two TestCases (Device Agent type)
+    3. TestSuite with TestSuiteCases
+    4. TestSuiteExecution with TestSuiteExecutionDevice
+    """
+    serializer_class = DeviceTestDataRequestSerializer
+    queryset = TestSuiteExecution.objects.none()  # ← ADD THIS DUMMY QUERYSET
+    
+    def create(self, request, *args, **kwargs):  # ← CHANGE post TO create
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        device_id = serializer.validated_data['device_id']
+        try:
+            with transaction.atomic():
+                # 1. Create or get TestCategory
+                category, created = TestCategory.objects.get_or_create(
+                    name="Traffic",
+                    defaults={
+                        'code': "TRF",
+                        'description': "Traffic testing category for network performance and throughput validation"
+                    }
+                )
+                
+                # 2. Create TestCase 1
+                test_case_1 = TestCase.objects.create(
+                    name="Test Case 1",
+                    test_case_id="TestCase_001",
+                    category=category,
+                    description="Primary traffic validation test for basic connectivity and data flow using device agent",
+                    is_active=True,
+                    test_type=2  # Device Agent
+                )
+                
+                # 3. Create TestCase 2
+                test_case_2 = TestCase.objects.create(
+                    name="Test Case 2",
+                    test_case_id="TestCase_004",
+                    category=category,
+                    description="Secondary traffic validation test for advanced routing and switching using device agent",
+                    is_active=True,
+                    test_type=2  # Device Agent
+                )
+                
+                # 4. Create TestSuite
+                test_suite = TestSuite.objects.create(
+                    name="Logging and Reboot",
+                    category=category,
+                    description="Comprehensive test suite for system logging and reboot functionality using device agents",
+                    is_active=True
+                )
+                
+                # 5. Create TestSuiteCase entries
+                TestSuiteCase.objects.create(
+                    test_suite=test_suite,
+                    test_case=test_case_1,
+                    order=1
+                )
+                
+                TestSuiteCase.objects.create(
+                    test_suite=test_suite,
+                    test_case=test_case_2,
+                    order=2
+                )
+                
+                # 6. Create TestSuiteExecution
+                execution = TestSuiteExecution.objects.create(
+                    test_suite=test_suite,
+                    is_executed=False
+                )
+                
+                # 7. Create TestSuiteExecutionDevice
+                try:
+                    device = Device.objects.get(id=device_id)
+                    TestSuiteExecutionDevice.objects.create(
+                        test_suite_execution=execution,
+                        device=device,
+                        status='pending'
+                    )
+                except Device.DoesNotExist:
+                    return Response(
+                        {"error": f"Device with ID {device_id} not found"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Return success response with created data
+                return Response({
+                    "success": True,
+                    "message": "All device test data created successfully",
+                    "data": {
+                        "category": {
+                            "id": str(category.id),
+                            "name": category.name,
+                            "code": category.code,
+                            "created": created
+                        },
+                        "test_cases": [
+                            {
+                                "id": str(test_case_1.id),
+                                "name": test_case_1.name,
+                                "test_case_id": test_case_1.test_case_id,
+                                "test_type": "Device Agent"
+                            },
+                            {
+                                "id": str(test_case_2.id),
+                                "name": test_case_2.name,
+                                "test_case_id": test_case_2.test_case_id,
+                                "test_type": "Device Agent"
+                            }
+                        ],
+                        "test_suite": {
+                            "id": str(test_suite.id),
+                            "name": test_suite.name,
+                            "test_case_count": 2
+                        },
+                        "execution": {
+                            "id": str(execution.id),
+                            "test_suite_name": test_suite.name,
+                            "device_count": 1,
+                            "device_id": str(device_id),
+                            "device_name": device.name,
+                            "status": "pending"
+                        }
+                    }
+                }, status=status.HTTP_201_CREATED)
+                
+        except ValidationError as e:
+            return Response(
+                {"error": "Validation error", "details": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {"error": "Failed to create device test data", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class AddRobotTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
+    """
+    Create robot test data in one request:
+    1. TestCategory (Wifi)
+    2. Two TestCases (Robot Framework type)
+    3. TestSuite with TestSuiteCases
+    4. TestSuiteExecution with TestSuiteExecutionDevice
+    """
+    serializer_class = DeviceTestDataRequestSerializer
+    queryset = TestSuiteExecution.objects.none()  # ← ADD THIS DUMMY QUERYSET
+    
+    def create(self, request, *args, **kwargs):  # ← CHANGE post TO create
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        device_id = serializer.validated_data['device_id']
+        
+        try:
+            with transaction.atomic():
+                # 1. Create or get TestCategory
+                category, created = TestCategory.objects.get_or_create(
+                    name="Wifi",
+                    defaults={
+                        'code': "WF",
+                        'description': "Wireless networking and connectivity testing category for WiFi interfaces, bridging, and WAN connectivity validation"
+                    }
+                )
+                
+                # 2. Create TestCase 1
+                test_case_1 = TestCase.objects.create(
+                    name="Ethernet (LAN) Bridging",
+                    test_case_id="BB-TRF-BRG-001",
+                    category=category,
+                    description="Validates Ethernet LAN bridging functionality, including bridge configuration, traffic forwarding, and network connectivity across bridge interfaces",
+                    is_active=True,
+                    test_type=1  # Robot Framework
+                )
+                
+                # 3. Create TestCase 2
+                test_case_2 = TestCase.objects.create(
+                    name="Wifi Wan Interface",
+                    test_case_id="BB-INT-WWAN-001",
+                    category=category,
+                    description="Comprehensive testing of WiFi WAN interface functionality including connection establishment, authentication, data transmission, and failover scenarios",
+                    is_active=True,
+                    test_type=1  # Robot Framework
+                )
+                
+                # 4. Create TestSuite
+                test_suite = TestSuite.objects.create(
+                    name="Ether and Wifi For Robot",
+                    category=category,
+                    description="Comprehensive Robot Framework test suite covering Ethernet bridging and WiFi WAN interface validation for network connectivity and performance testing",
+                    is_active=True
+                )
+                
+                # 5. Create TestSuiteCase entries
+                TestSuiteCase.objects.create(
+                    test_suite=test_suite,
+                    test_case=test_case_1,
+                    order=1
+                )
+                
+                TestSuiteCase.objects.create(
+                    test_suite=test_suite,
+                    test_case=test_case_2,
+                    order=2
+                )
+                
+                # 6. Create TestSuiteExecution
+                execution = TestSuiteExecution.objects.create(
+                    test_suite=test_suite,
+                    is_executed=False
+                )
+                
+                # 7. Create TestSuiteExecutionDevice
+                try:
+                    device = Device.objects.get(id=device_id)
+                    TestSuiteExecutionDevice.objects.create(
+                        test_suite_execution=execution,
+                        device=device,
+                        status='pending'
+                    )
+                except Device.DoesNotExist:
+                    return Response(
+                        {"error": f"Device with ID {device_id} not found"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Return success response with created data
+                return Response({
+                    "success": True,
+                    "message": "All robot test data created successfully",
+                    "data": {
+                        "category": {
+                            "id": str(category.id),
+                            "name": category.name,
+                            "code": category.code,
+                            "created": created
+                        },
+                        "test_cases": [
+                            {
+                                "id": str(test_case_1.id),
+                                "name": test_case_1.name,
+                                "test_case_id": test_case_1.test_case_id,
+                                "test_type": "Robot Framework"
+                            },
+                            {
+                                "id": str(test_case_2.id),
+                                "name": test_case_2.name,
+                                "test_case_id": test_case_2.test_case_id,
+                                "test_type": "Robot Framework"
+                            }
+                        ],
+                        "test_suite": {
+                            "id": str(test_suite.id),
+                            "name": test_suite.name,
+                            "test_case_count": 2
+                        },
+                        "execution": {
+                            "id": str(execution.id),
+                            "test_suite_name": test_suite.name,
+                            "device_count": 1,
+                            "device_id": str(device_id),
+                            "device_name": device.name,
+                            "status": "pending"
+                        }
+                    }
+                }, status=status.HTTP_201_CREATED)
+                
+        except ValidationError as e:
+            return Response(
+                {"error": "Validation error", "details": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {"error": "Failed to create robot test data", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )        
+
+
+        
 # First API - Device Test Data
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -1161,6 +1452,176 @@ def add_robot_test_data(request):
         )
 
 
+
+# class TestCaseExecutionResultView(ProtectedAPIMixin, generics.GenericAPIView):
+class TestCaseExecutionResultView(generics.GenericAPIView):
+
+    """
+    Update test case execution results
+    """
+    serializer_class = TestCaseExecutionResultSerializer
+    queryset = TestCaseExecution.objects.none()
+    
+    def patch(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # return Response({"status" : "new_status" })
+
+        
+        validated_data = serializer.validated_data
+        execution = validated_data['execution_instance']
+        
+        try:
+
+            # Get the new status
+            new_status = validated_data['status']
+            
+            # Update based on status
+            if new_status == TestExecutionStatus.RUNNING:
+                # Mark as running
+                execution.status = new_status
+                # execution.started_at = timezone.now()
+                execution.save(update_fields=['status', 'started_at'])
+                
+            elif new_status in [TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED]:
+                # Mark as completed (success or failed)
+                execution.status = new_status
+                # execution.completed_at = timezone.now()
+                execution.exit_code = validated_data.get('exit_code')
+                execution.stdout = validated_data.get('stdout', '')
+                execution.stderr = validated_data.get('stderr', '')
+                
+                # Calculate duration if started_at exists
+                if execution.started_at:
+                    execution.execution_duration = execution.completed_at - execution.started_at
+                
+                # Set error message for failed status
+                if new_status == TestExecutionStatus.FAILED:
+                    execution.error_message = validated_data.get('stderr', 'Test failed')
+                
+                execution.save(update_fields=[
+                    'status', 'completed_at', 'exit_code', 'stdout', 
+                    'stderr', 'execution_duration', 'error_message'
+                ])
+                
+            elif new_status == TestExecutionStatus.TIMEOUT:
+                # Mark as timeout
+                execution.status = new_status
+                # execution.completed_at = timezone.now()
+                execution.error_message = "Test execution timed out"
+                
+                if execution.started_at:
+                    execution.execution_duration = execution.completed_at - execution.started_at
+                
+                execution.save(update_fields=[
+                    'status', 'completed_at', 'error_message', 'execution_duration'
+                ])
+                
+            elif new_status == TestExecutionStatus.CANCELLED:
+                # Mark as cancelled
+                execution.status = new_status
+                # execution.completed_at = timezone.now()
+                execution.error_message = "Test execution was cancelled"
+                
+                if execution.started_at:
+                    execution.execution_duration = execution.completed_at - execution.started_at
+                
+                execution.save(update_fields=[
+                    'status', 'completed_at', 'error_message', 'execution_duration'
+                ])
+            
+            # Check if all test cases are completed for this suite execution
+            # self._check_suite_execution_completion(execution.test_suite_execution, execution.device)
+            
+            # Prepare response
+            response_data = {
+                "success": True,
+                "message": f"Test case execution updated to {new_status}",
+                "data": {
+                    "execution_id": str(execution.id),
+                    "test_case_id": str(execution.test_case_id),
+                    "test_case_name": execution.test_case.name,
+                    "device_id": str(execution.device_id),
+                    "device_name": execution.device.name,
+                    "status": execution.status,
+                    "started_at": execution.started_at.isoformat() if execution.started_at else None,
+                    "completed_at": execution.completed_at.isoformat() if execution.completed_at else None,
+                    "exit_code": execution.exit_code,
+                    "stdout": execution.stdout,
+                    "stderr": execution.stderr,
+                    "error_message": execution.error_message,
+                    # "duration": execution.formatted_duration,
+
+                }
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response(
+                {
+                    "error": "Failed to update test case execution",
+                    "details": str(e)
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def _check_suite_execution_completion(self, test_suite_execution, device):
+        """Check if all test cases for a device in suite execution are completed"""
+        try:
+            # Get all test case executions for this suite and device
+            all_executions = TestCaseExecution.objects.filter(
+                test_suite_execution=test_suite_execution,
+                device=device
+            )
+            
+            # Check if all are completed
+            incomplete_count = all_executions.filter(
+                status__in=[TestExecutionStatus.PENDING, TestExecutionStatus.RUNNING]
+            ).count()
+            
+            if incomplete_count == 0:
+                # All test cases completed for this device
+                # Update the TestSuiteExecutionDevice status
+                suite_device = TestSuiteExecutionDevice.objects.get(
+                    test_suite_execution=test_suite_execution,
+                    device=device
+                )
+                
+                # Check if any test case failed
+                failed_count = all_executions.filter(
+                    status__in=[TestExecutionStatus.FAILED, TestExecutionStatus.TIMEOUT]
+                ).count()
+                
+                if failed_count > 0:
+                    suite_device.status = 'failed'
+                else:
+                    suite_device.status = 'completed'
+                
+                suite_device.completed_at = timezone.now()
+                suite_device.save(update_fields=['status', 'completed_at'])
+                
+                # Check if all devices are completed for the suite execution
+                self._check_overall_suite_completion(test_suite_execution)
+                
+        except Exception as e:
+            logger.error(f"Error checking suite execution completion: {e}")
+    
+    def _check_overall_suite_completion(self, test_suite_execution):
+        """Check if all devices have completed the suite execution"""
+        try:
+            incomplete_devices = TestSuiteExecutionDevice.objects.filter(
+                test_suite_execution=test_suite_execution,
+                status__in=['pending', 'running']
+            ).count()
+            
+            if incomplete_devices == 0:
+                # All devices completed
+                test_suite_execution.is_executed = True
+                test_suite_execution.save(update_fields=['is_executed'])
+                
+        except Exception as e:
+            logger.error(f"Error checking overall suite completion: {e}")
 
 
 # Create view instances

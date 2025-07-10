@@ -7,7 +7,7 @@ from openwisp_utils.api.serializers import ValidatedModelSerializer
 from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Device
 
-from ..base.models import TestTypeChoices  # ADD THIS IMPORT
+from ..base.models import TestExecutionStatus  # ADD THIS IMPORT
 
 from ..swapper import load_model
 
@@ -474,3 +474,107 @@ class ExecutionDetailsRequestSerializer(serializers.Serializer):
                 _("TestSuiteExecution with this ID does not exist")
             )
         return value
+
+class DeviceTestDataRequestSerializer(serializers.Serializer):
+    """Serializer for test data creation request"""
+    device_id = serializers.UUIDField(
+        required=True,
+        help_text=_("UUID of the device to create test data for")
+    )  
+
+class TestCaseExecutionResultSerializer(serializers.Serializer):
+    """Serializer for updating test case execution results"""
+    execution_id = serializers.UUIDField(
+        required=True,
+        help_text=_("UUID of the test case execution")
+    )
+    test_suite_execution_id = serializers.UUIDField(
+        required=True,
+        help_text=_("UUID of the test suite execution")
+    )
+    device_id = serializers.UUIDField(
+        required=True,
+        help_text=_("UUID of the device")
+    )
+    test_case_id = serializers.UUIDField(
+        required=True,
+        help_text=_("UUID of the test case")
+    )
+    status = serializers.ChoiceField(
+        choices=TestExecutionStatus.choices,
+        required=True,
+        help_text=_("Execution status")
+    )
+    exit_code = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text=_("Exit code from test execution")
+    )
+    stdout = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text=_("Standard output from test execution")
+    )
+    stderr = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text=_("Standard error output from test execution")
+    )
+    
+    def validate(self, data):
+        """Cross-field validation"""
+        # Load the model
+        from ..swapper import load_model
+        TestCaseExecution = load_model("TestCaseExecution")
+        
+        # Check if execution exists
+        try:
+            execution = TestCaseExecution.objects.get(
+                id=data['execution_id'],
+                test_suite_execution_id=data['test_suite_execution_id'],
+                device_id=data['device_id'],
+                test_case_id=data['test_case_id']
+            )
+            data['execution_instance'] = execution
+        except TestCaseExecution.DoesNotExist:
+            raise serializers.ValidationError({
+                "execution_id": _(
+                    "TestCaseExecution not found with the provided combination of "
+                    "execution_id, test_suite_execution_id, device_id, and test_case_id"
+                )
+            })
+        
+        # Validate status transitions
+        current_status = execution.status
+        new_status = data['status']
+        
+        # Define valid status transitions
+        valid_transitions = {
+            TestExecutionStatus.PENDING: [
+                TestExecutionStatus.RUNNING,
+                TestExecutionStatus.CANCELLED
+            ],
+            TestExecutionStatus.RUNNING: [
+                TestExecutionStatus.SUCCESS,
+                TestExecutionStatus.FAILED,
+                TestExecutionStatus.TIMEOUT,
+                TestExecutionStatus.CANCELLED
+            ],
+            TestExecutionStatus.SUCCESS: [],  # Terminal state
+            TestExecutionStatus.FAILED: [],   # Terminal state
+            TestExecutionStatus.TIMEOUT: [],  # Terminal state
+            TestExecutionStatus.CANCELLED: []  # Terminal state
+        }
+        
+        # if current_status in valid_transitions:
+        #     if new_status not in valid_transitions[current_status] and new_status != current_status:
+        #         raise serializers.ValidationError({
+        #             "status": _(
+        #                 f"Invalid status transition from '{current_status}' to '{new_status}'. "
+        #                 f"Valid transitions: {', '.join(valid_transitions[current_status])}"
+        #             )
+        #         })
+        
+        return data
