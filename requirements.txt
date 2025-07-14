@@ -205,7 +205,7 @@ python-dotenv==1.0.0
 
 
 
-# github clone
+# github clone s
 django-loci @ https://github.com/sachinspanidea8484/django-loci-spanidea-/tarball/main
 django-x509 @ https://github.com/sachinspanidea8484/django-x509-spanidea/tarball/main
 netdiff @ https://github.com/sachinspanidea8484/netdiff-spanidea/tarball/main
