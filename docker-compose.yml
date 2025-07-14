@@ -27,6 +27,9 @@ services:
       EOF
       python manage.py runserver 0.0.0.0:8000
       "
+          # No ports needed for worker
+    volumes:
+      - logs:/opt/openwisp/tests/openwisp2
 
   celery-worker:
     image: openwisp/controller-production:latest
@@ -40,9 +43,12 @@ services:
       - influxdb
       - controller  # Wait for migrations to complete
     command: celery -A openwisp2 worker -l info
+
     # No ports needed for worker
     volumes:
       - ./:/opt/openwisp  # Share the same code volume if needed
+      - logs:/opt/openwisp/tests/openwisp2
+      
 
   celery-beat:
     image: openwisp/controller-production:latest
@@ -55,10 +61,11 @@ services:
       - postgres
       - influxdb
       - controller  # Wait for migrations to complete
-    command: celery -A openwisp2 beat -l info
+    command: celery -A openwisp2 beat -l info --schedule /opt/openwisp/tests/openwisp2/celerybeat-schedule
     # No ports needed for beat
     volumes:
       - ./:/opt/openwisp  # Share the same code volume if needed
+      - logs:/opt/openwisp/tests/openwisp2
 
   redis:
     image: redis:alpine

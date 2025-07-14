@@ -19,7 +19,3 @@ EOF
 python manage.py migrate --no-input
 create_superuser admin admin@example.com admin
 python manage.py runserver 0.0.0.0:8000
-
-
-
-

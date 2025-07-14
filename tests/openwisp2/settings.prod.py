@@ -35,10 +35,10 @@ SELENIUM_HEADLESS = True
 SHELL = "shell" in sys.argv or "shell_plus" in sys.argv
 REDIS_URL = "redis://redis:6379"  # Changed from "redis://localhost:6379"
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "controller","10.10.10.10"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "controller","10.10.10.10" ,'192.168.122.1', '54.234.248.241' ,'10.8.12.123' ]
 
 # radius
-OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = ["127.0.0.1","10.10.10.10"]
+OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = ["127.0.0.1","10.10.10.10" ,'192.168.122.1', '54.234.248.241' ,'10.8.12.123' ]
 OPENWISP_RADIUS_COA_ENABLED = True
 OPENWISP_RADIUS_ALLOWED_MOBILE_PREFIXES = ["+44", "+39", "+237", "+595"]
 
@@ -211,7 +211,10 @@ SAML_CONFIG = {}
 # WARNING: for development only!
 AUTH_PASSWORD_VALIDATORS = []
 
-INTERNAL_IPS = ['127.0.0.1' , '10.10.10.10']
+INTERNAL_IPS = ['127.0.0.1' , '10.10.10.10',
+'54.234.248.241' ,'10.8.12.123'
+                ]
+
 
 ROOT_URLCONF = "openwisp2.urls"
 
@@ -432,6 +435,13 @@ CSRF_TRUSTED_ORIGINS = [
     'http://0.0.0.0:8000',
     'http://10.10.10.10:8000',
     'http://controller:8000',  # Add this
+    'http://54.234.248.241:8000',
+    'http://54.234.248.241',
+
+
+
+
+
     # Keep your ngrok URL if needed
 ]
 

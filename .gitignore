@@ -75,3 +75,7 @@ local_settings.py
 # Pipenv
 Pipfile
 Pipfile.lock
+
+
+Dockerfile
+docker-compose.yml
