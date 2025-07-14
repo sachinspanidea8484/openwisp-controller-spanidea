@@ -244,7 +244,7 @@ if TESTING:
     OPENWISP_MONITORING_AUTO_IPERF3 = True
 
 
-TIME_ZONE = "Europe/Rome"
+TIME_ZONE = "UTC"
 LANGUAGE_CODE = "en-gb"
 USE_TZ = True
 USE_I18N = True
@@ -464,6 +464,8 @@ else:
 # Celery TIME_ZONE should be equal to django TIME_ZONE
 # In order to schedule run_iperf3_checks on the correct time intervals
 CELERY_TIMEZONE = TIME_ZONE
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
 
 CELERY_BEAT_SCHEDULE = {
     'run_checks': {
