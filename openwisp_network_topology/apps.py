@@ -18,7 +18,7 @@ class OpenwispNetworkTopologyConfig(AppConfig):
         from .signals import broadcast_topology, update_topology
 
         update_topology.connect(broadcast_topology)
-        self.register_menu_groups()
+        # self.register_menu_groups()
 
     def register_menu_groups(self):
         register_menu_group(

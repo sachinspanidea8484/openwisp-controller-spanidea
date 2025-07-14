@@ -98,6 +98,11 @@ path(
     views.TestCaseExecutionResultView.as_view(),
     name="api_test_case_execution_result",
 ),
+path(
+    "robot-test-result/",
+    views.RobotTestResultView.as_view(),
+    name="api_robot_test_result",
+),
 
         ]),
     ),

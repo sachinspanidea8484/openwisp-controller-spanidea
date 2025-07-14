@@ -201,16 +201,17 @@ zopfli==0.2.3.post1
 
 # Fix for TwilioRestClient import error
 dj-database-url==2.1.0
+python-dotenv==1.0.0
 
 
 
-# github
-# django-loci @ https://github.com/sachinspanidea8484/django-loci-spanidea-/tarball/main
-# django-x509 @ https://github.com/sachinspanidea8484/django-x509-spanidea/tarball/main
-# netdiff @ https://github.com/sachinspanidea8484/netdiff-spanidea/tarball/main
-# netjsonconfig @ https://github.com/sachinspanidea8484/netjsonconfig-spanidea/tarball/main
-# openwisp-ipam @ https://github.com/sachinspanidea8484/openwisp-ipam-spanidea/tarball/main
-# openwisp-notifications @ https://github.com/sachinspanidea8484/openwisp-notifications-spanidea/tarball/main
-# openwisp-users @ https://github.com/sachinspanidea8484/openwisp-users-spanidea/tarball/main
-# openwisp-utils @ https://github.com/sachinspanidea8484/openwisp-utils-spanidea/tarball/main
+# github clone
+django-loci @ https://github.com/sachinspanidea8484/django-loci-spanidea-/tarball/main
+django-x509 @ https://github.com/sachinspanidea8484/django-x509-spanidea/tarball/main
+netdiff @ https://github.com/sachinspanidea8484/netdiff-spanidea/tarball/main
+netjsonconfig @ https://github.com/sachinspanidea8484/netjsonconfig-spanidea/tarball/main
+openwisp-ipam @ https://github.com/sachinspanidea8484/openwisp-ipam-spanidea/tarball/main
+openwisp-notifications @ https://github.com/sachinspanidea8484/openwisp-notifications-spanidea/tarball/main
+openwisp-users @ https://github.com/sachinspanidea8484/openwisp-users-spanidea/tarball/main
+openwisp-utils @ https://github.com/sachinspanidea8484/openwisp-utils-spanidea/tarball/main
 

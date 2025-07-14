@@ -1,8 +1,10 @@
 import os
 import sys
-from dotenv import load_dotenv
 
 # Load environment variables from .env file
+from dotenv import load_dotenv
+
+# Load the .env file
 load_dotenv()
 
 # Suppress dj_rest_auth deprecation warnings
@@ -23,15 +25,20 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
 
 
+
+
+
+
 DEBUG = True
-TESTING = True
+TESTING = False
 SELENIUM_HEADLESS = True
 SHELL = "shell" in sys.argv or "shell_plus" in sys.argv
-REDIS_URL = "redis://localhost:6379"
+REDIS_URL = "redis://redis:6379"  # Changed from "redis://localhost:6379"
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "controller","10.10.10.10"]
+
 # radius
-OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = ["127.0.0.1"]
+OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = ["127.0.0.1","10.10.10.10"]
 OPENWISP_RADIUS_COA_ENABLED = True
 OPENWISP_RADIUS_ALLOWED_MOBILE_PREFIXES = ["+44", "+39", "+237", "+595"]
 
@@ -54,7 +61,7 @@ DATABASES = {
         "NAME": "openwisp2",
         "USER": "openwisp2",
         "PASSWORD": "openwisp2",
-        "HOST": "127.0.0.1",
+        "HOST": "postgres",  # Changed from "127.0.0.1" to "postgres"
         "PORT": "5432",
     }
 }
@@ -65,7 +72,7 @@ TIMESERIES_DATABASE = {
     'USER': 'openwisp',
     'PASSWORD': 'openwisp',
     'NAME': 'openwisp2',
-    'HOST': "localhost",
+    'HOST': "influxdb",  # Changed from "localhost"
     'PORT': '8086',
     # UDP writes are disabled by default
     'OPTIONS': {'udp_writes': False, 'udp_port': 8089},
@@ -241,17 +248,17 @@ USE_I18N = True
 USE_L10N = False
 STATIC_URL = "/static/"
 MEDIA_URL = "/media/"
-MEDIA_ROOT = f"{os.path.dirname(BASE_DIR)}/media/"
+MEDIA_ROOT = "/opt/openwisp/media/"  # Absolute path in container
 
 CORS_ORIGIN_ALLOW_ALL = True
 
 # firmware
-PRIVATE_STORAGE_ROOT = os.path.join(BASE_DIR, "private", "firmware")
+PRIVATE_STORAGE_ROOT = "/opt/openwisp/private/firmware"
 
 
 
 # additional statics 
-STATIC_ROOT = os.path.join(os.path.dirname(BASE_DIR), 'static_collected')
+STATIC_ROOT = "/opt/openwisp/static_collected/"  # Absolute path in container
 
 # Dynamic static files discovery
 STATICFILES_DIRS = []
@@ -423,7 +430,9 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000', 
     'http://127.0.0.1:8000', 
     'http://0.0.0.0:8000',
-    'https://f86b-2401-4900-7d70-d035-72a1-e5-5024-94cb.ngrok-free.app',  # Add your ngrok URL
+    'http://10.10.10.10:8000',
+    'http://controller:8000',  # Add this
+    # Keep your ngrok URL if needed
 ]
 
 

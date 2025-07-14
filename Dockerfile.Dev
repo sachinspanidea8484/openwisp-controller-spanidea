@@ -70,5 +70,5 @@ ENV NAME=openwisp-controller \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/opt/openwisp:/opt/openwisp/tests:$PYTHONPATH
 
-CMD ["sh", "docker-entrypoint.sh"]
+CMD ["sh", "docker-entrypoint-dev.sh"]
 EXPOSE 8000

@@ -18,5 +18,8 @@ EOF
 
 python manage.py migrate --no-input
 create_superuser admin admin@example.com admin
-celery -A openwisp2 worker -l info & \
 python manage.py runserver 0.0.0.0:8000
+
+
+
+

@@ -199,16 +199,17 @@ xmlschema==2.5.1
 yarl==1.20.1
 zope.interface==7.2
 zopfli==0.2.3.post1
+python-dotenv==1.0.0
 
 
 
 
 # github
-# django-loci @ https://github.com/sachinspanidea8484/django-loci-spanidea-/tarball/main
-# django-x509 @ https://github.com/sachinspanidea8484/django-x509-spanidea/tarball/main
-# netdiff @ https://github.com/sachinspanidea8484/netdiff-spanidea/tarball/main
-# netjsonconfig @ https://github.com/sachinspanidea8484/netjsonconfig-spanidea/tarball/main
-# openwisp-ipam @ https://github.com/sachinspanidea8484/openwisp-ipam-spanidea/tarball/main
-# openwisp-notifications @ https://github.com/sachinspanidea8484/openwisp-notifications-spanidea/tarball/main
-# openwisp-users @ https://github.com/sachinspanidea8484/openwisp-users-spanidea/tarball/main
-# openwisp-utils @ https://github.com/sachinspanidea8484/openwisp-utils-spanidea/tarball/main
+django-loci @ https://github.com/sachinspanidea8484/django-loci-spanidea-/tarball/main
+django-x509 @ https://github.com/sachinspanidea8484/django-x509-spanidea/tarball/main
+netdiff @ https://github.com/sachinspanidea8484/netdiff-spanidea/tarball/main
+netjsonconfig @ https://github.com/sachinspanidea8484/netjsonconfig-spanidea/tarball/main
+openwisp-ipam @ https://github.com/sachinspanidea8484/openwisp-ipam-spanidea/tarball/main
+openwisp-notifications @ https://github.com/sachinspanidea8484/openwisp-notifications-spanidea/tarball/main
+openwisp-users @ https://github.com/sachinspanidea8484/openwisp-users-spanidea/tarball/main
+openwisp-utils @ https://github.com/sachinspanidea8484/openwisp-utils-spanidea/tarball/main

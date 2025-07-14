@@ -1,8 +1,8 @@
-# NOTE: This Docker image is for development purposes only.
+# NOTE: This Docker image is for production purposes only.
 
 services:
   controller:
-    image: openwisp/controller-development:latest
+    image: openwisp/controller-production:latest
     environment:
       - REDIS_URL=redis://redis:6379
     build:
@@ -12,6 +12,53 @@ services:
     depends_on:
       - redis
       - postgres
+      - influxdb
+    # Override the command to only run Django server
+    command: |
+      sh -c "
+      python manage.py migrate --no-input &&
+      python manage.py shell <<EOF
+      from django.contrib.auth import get_user_model
+      User = get_user_model()
+      if not User.objects.filter(username='admin').exists():
+          User.objects.create_superuser('admin', 'admin@example.com', 'admin')
+      else:
+          print('User \"admin\" exists already, not created')
+      EOF
+      python manage.py runserver 0.0.0.0:8000
+      "
+
+  celery-worker:
+    image: openwisp/controller-production:latest
+    environment:
+      - REDIS_URL=redis://redis:6379
+    build:
+      context: .
+    depends_on:
+      - redis
+      - postgres
+      - influxdb
+      - controller  # Wait for migrations to complete
+    command: celery -A openwisp2 worker -l info
+    # No ports needed for worker
+    volumes:
+      - ./:/opt/openwisp  # Share the same code volume if needed
+
+  celery-beat:
+    image: openwisp/controller-production:latest
+    environment:
+      - REDIS_URL=redis://redis:6379
+    build:
+      context: .
+    depends_on:
+      - redis
+      - postgres
+      - influxdb
+      - controller  # Wait for migrations to complete
+    command: celery -A openwisp2 beat -l info
+    # No ports needed for beat
+    volumes:
+      - ./:/opt/openwisp  # Share the same code volume if needed
 
   redis:
     image: redis:alpine

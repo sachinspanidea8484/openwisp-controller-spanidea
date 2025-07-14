@@ -6,6 +6,9 @@ from openwisp_controller.connection.connectors.ssh import Ssh
 from openwisp_controller.connection.models import DeviceConnection
 from .swapper import load_model
 from .base.models import TestExecutionStatus
+import requests
+
+
 
 # Configure logger for this module
 logger = logging.getLogger(__name__)
@@ -17,11 +20,12 @@ TestCaseExecution = load_model("TestCaseExecution")
 TestSuiteCase = load_model("TestSuiteCase")
 
 # Robot Framework API Server Configuration
-ROBOT_API_SERVER = getattr(settings, 'ROBOT_API_SERVER', 'http://localhost:5000')
-ROBOT_API_TIMEOUT = getattr(settings, 'ROBOT_API_TIMEOUT', 300)  # 5 minutes default
+# ROBOT_API_SERVER = getattr(settings, 'ROBOT_API_SERVER', 'http://localhost:5000')
+# ROBOT_API_TIMEOUT = getattr(settings, 'ROBOT_API_TIMEOUT', 300)  # 5 minutes default
 
 @shared_task
 def execute_test_suite(execution_id):
+    
 
 
     """
@@ -42,8 +46,7 @@ def execute_test_suite(execution_id):
         Exception: Logs any errors that occur during execution setup
     """
     logger.info(f"Starting test suite execution with ID: {execution_id}")
-    print(f"[TASK] execute_test_suite - Starting execution ID: {execution_id}")
-    
+    # print(f"🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️: {execution_id})")
     try:
         # Retrieve the test suite execution record
         execution = TestSuiteExecution.objects.get(pk=execution_id)
@@ -167,14 +170,34 @@ def execute_tests_on_device(device_execution_id):
         
         # Create TestCaseExecution records for all test cases
         test_execution_ids = []
-        device_agent_tests = 0
+        device_agent_tests = []
+        robot_framework_tests = []
+        device_data = {
+    "device_name": device.name,
+    "last_ip": device.last_ip,
+    "device_id": device.id,
+    "ssh": {
+        "host": device.last_ip,
+        "username": device_conn.credentials.params.get('username', ''),
+        "password": device_conn.credentials.params.get('password', '')
+    }
+}
+        test_suite_data = {
+    "test_suite_name": test_suite_execution.test_suite.name,
+    "test_suite_id": test_suite_execution.test_suite.id,
+    "test_suite_category": test_suite_execution.test_suite.category.name,
+    "test_cases": []
+}
+
+
+        
         
         for suite_case in test_cases:
             test_case = suite_case.test_case
             
             # Only create execution records for Device Agent type tests (type=2)
             if test_case.test_type == 2:
-                device_agent_tests += 1
+                # device_agent_tests += 1
                 
                 logger.info(f"Creating execution record for device agent test: {test_case.name}")
                 print(f"[TASK] execute_tests_on_device - Creating execution record for: {test_case.name}")
@@ -208,13 +231,46 @@ def execute_tests_on_device(device_execution_id):
                 logger.debug(f"Created TestCaseExecution ID: {test_execution.id}")
                 print(f"[DEBUG] execute_tests_on_device - Created TestCaseExecution ID: {test_execution.id}")
             else:
-                # robot framework code✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅
-                logger.debug(f"Skipping non-device-agent test: {test_case.name} (Type: {test_case.test_type})")
-                print(f"[DEBUG] execute_tests_on_device - Skipping non-device-agent test: {test_case.name}")
+                test_execution = TestCaseExecution.objects.create(
+                      test_suite_execution=test_suite_execution,
+                      device=device,
+                      test_case=test_case,
+                      status=TestExecutionStatus.PENDING,
+                    #   execution_order=suite_case.order
+                         )
+                test_execution.save()
+                robot_framework_tests.append(test_execution.id)
+                test_suite_data["test_cases"].append({
+                  "test_case_id": test_case.test_case_id,
+                  "test_case_name": test_case.name,
+                  "execution_id": test_execution.id
+                     })
+                logger.info(f"Created execution record for Robot Framework test: {test_case.name}")
+                print(f"[TASK] Created Robot Framework test execution ID: {test_execution.id}")
+                # print(f"🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️: {test_case.test_type})")
+                # print(f"✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅: {test_case.name}")
+
         
         logger.info(f"Created {len(test_execution_ids)} device agent test execution records out of {total_test_cases} total tests")
         print(f"[TASK] execute_tests_on_device - Created {len(test_execution_ids)} device agent tests out of {total_test_cases} total")
         
+
+
+
+        logger.info(f"Created {len(robot_framework_tests)} Robot Framework and {len(device_agent_tests)} Device Agent test execution records")
+        if robot_framework_tests:
+         logger.info(f"Sending {len(robot_framework_tests)} Robot Framework tests to API")
+         print(f"[TASK] Sending {len(robot_framework_tests)} Robot Framework tests to external API")
+    
+        execute_robot_framework_tests.delay(
+        robot_framework_tests,
+        device_data,
+        test_suite_data,
+        # device_execution_id
+    )
+        
+        
+
         # Now launch ALL test cases in parallel
         if test_execution_ids:
             logger.info(f"Launching {len(test_execution_ids)} test cases in parallel")
@@ -860,3 +916,206 @@ def debug_test_execution_status(execution_id=None, device_id=None):
         error_msg = f"Error in debug task: {str(e)}"
         logger.error(error_msg, exc_info=True)
         print(f"[ERROR] debug_test_execution_status - {error_msg}")
+
+
+@shared_task
+def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_data):
+    """
+    Execute Robot Framework tests by calling external Robot Framework API.
+    This is completely separate from device agent tests.
+    """
+    print(f"\n{'='*80}")
+    print(f"[DEBUG] ROBOT FRAMEWORK TEST EXECUTION STARTED")
+    print(f"{'='*80}")
+    
+    logger.info(f"Executing Robot Framework tests for {len(test_execution_ids)} test cases")
+    
+    # Convert UUIDs to strings
+    test_execution_ids_str = [str(id) for id in test_execution_ids]
+    
+    # Fix device_data UUIDs
+    device_data_fixed = {
+        "device_name": device_data.get('device_name', 'N/A'),
+        "last_ip": device_data.get('last_ip', 'N/A'),
+        "device_id": str(device_data.get('device_id', '')),  # Convert UUID to string
+        "ssh": device_data.get('ssh', {})
+    }
+    
+    # Fix test_suite_data UUIDs
+    test_suite_data_fixed = {
+        "test_suite_name": test_suite_data.get('test_suite_name', 'N/A'),
+        "test_suite_id": str(test_suite_data.get('test_suite_id', '')),  # Convert UUID to string
+        "test_suite_category": test_suite_data.get('test_suite_category', 'N/A'),
+        "test_cases": []
+    }
+    
+    # Fix test case execution IDs
+    for test_case in test_suite_data.get('test_cases', []):
+        test_suite_data_fixed["test_cases"].append({
+            "test_case_id": test_case.get('test_case_id', 'N/A'),
+            "test_case_name": test_case.get('test_case_name', 'N/A'),
+            "execution_id": str(test_case.get('execution_id', ''))  # Convert UUID to string
+        })
+    
+    # Extract and convert device_execution_id
+    device_execution_id = str(test_suite_data.get("device_execution_id", ''))
+    
+    # Debug: Print input parameters
+    print(f"\n[DEBUG] Input Parameters (after UUID conversion):")
+    print(f"[DEBUG] Number of test executions: {len(test_execution_ids_str)}")
+    print(f"[DEBUG] Test execution IDs: {test_execution_ids_str}")
+    
+    print(f"\n[DEBUG] Device Data:")
+    print(f"  - Device Name: {device_data_fixed.get('device_name', 'N/A')}")
+    print(f"  - Device ID: {device_data_fixed.get('device_id', 'N/A')}")
+    print(f"  - Device IP: {device_data_fixed.get('last_ip', 'N/A')}")
+    print(f"  - SSH Host: {device_data_fixed.get('ssh', {}).get('host', 'N/A')}")
+    print(f"  - SSH Username: {device_data_fixed.get('ssh', {}).get('username', 'N/A')}")
+    print(f"  - SSH Password: {'***' if device_data_fixed.get('ssh', {}).get('password') else 'N/A'}")
+    
+    print(f"\n[DEBUG] Test Suite Data:")
+    print(f"  - Suite Name: {test_suite_data_fixed.get('test_suite_name', 'N/A')}")
+    print(f"  - Suite ID: {test_suite_data_fixed.get('test_suite_id', 'N/A')}")
+    print(f"  - Suite Category: {test_suite_data_fixed.get('test_suite_category', 'N/A')}")
+    print(f"  - Device Execution ID: {device_execution_id}")
+    print(f"  - Number of test cases: {len(test_suite_data_fixed.get('test_cases', []))}")
+    
+    print(f"\n[DEBUG] Test Cases to Execute:")
+    for idx, test_case in enumerate(test_suite_data_fixed.get('test_cases', []), 1):
+        print(f"  {idx}. Test Case ID: {test_case.get('test_case_id', 'N/A')}")
+        print(f"     Test Case Name: {test_case.get('test_case_name', 'N/A')}")
+        print(f"     Execution ID: {test_case.get('execution_id', 'N/A')}")
+    
+    # Prepare API payload with string UUIDs
+    api_payload = {
+        "devices": [device_data_fixed],  # API expects array of devices
+        "test_suites": {
+            "test_suite_name": test_suite_data_fixed.get('test_suite_name'),
+            "test_suite_id": test_suite_data_fixed.get('test_suite_id'),
+            "test_suite_category": test_suite_data_fixed.get('test_suite_category'),
+            "test_cases": test_suite_data_fixed.get('test_cases', [])
+        },
+        "execution_metadata": {
+            "device_execution_id": device_execution_id,
+            "test_execution_ids": test_execution_ids_str
+        }
+    }
+    
+    print(f"\n[DEBUG] API Payload:")
+    # print(f"[DEBUG] Full payload: {json.dumps(api_payload, indent=2)}")
+    
+    # Call Robot Framework API
+    robot_api_url = "http://0.0.0.0:8080/run-robot/"
+    
+    print(f"\n[DEBUG] Making API Call:")
+    print(f"[DEBUG] API URL: {robot_api_url}")
+    print(f"[DEBUG] Method: POST")
+    print(f"[DEBUG] Timeout: 10 seconds")
+    
+    try:
+        print(f"[DEBUG] Sending request to Robot Framework API...")
+        
+        response = requests.post(
+            robot_api_url,
+            json=api_payload,
+            timeout=6000  # Quick timeout just to submit the job
+        )
+        
+        print(f"\n[DEBUG] API Response:")
+        print(f"[DEBUG] Status Code: {response.status_code}")
+        print(f"[DEBUG] Response Headers: {dict(response.headers)}")
+        
+        try:
+            response_json = response.json()
+            # print(f"[DEBUG] Response Body: {json.dumps(response_json, indent=2)}")
+        except:
+            print(f"[DEBUG] Response Body (text): {response.text[:500]}...")  # First 500 chars
+        
+        if response.status_code == 200:
+            logger.info("Robot Framework API called successfully")
+            print(f"\n[DEBUG] ✅ API call successful! Updating test execution statuses...")
+            
+            # Update test execution records to running
+            for idx, exec_id in enumerate(test_execution_ids, 1):
+                try:
+                    print(f"[DEBUG] Updating test execution {idx}/{len(test_execution_ids)} (ID: {exec_id})...")
+                    
+                    test_exec = TestCaseExecution.objects.get(pk=exec_id)
+                    old_status = test_exec.status
+                    
+                    test_exec.status = TestExecutionStatus.RUNNING
+                    test_exec.started_at = timezone.now()
+                    test_exec.save()
+                    
+                    print(f"[DEBUG] ✅ Updated test execution {exec_id}: {old_status} -> {TestExecutionStatus.RUNNING}")
+                    
+                except TestCaseExecution.DoesNotExist:
+                    print(f"[DEBUG] ❌ Test execution {exec_id} not found in database!")
+                    logger.error(f"Test execution {exec_id} not found")
+                    
+                except Exception as e:
+                    print(f"[DEBUG] ❌ Error updating test execution {exec_id}: {str(e)}")
+                    logger.error(f"Error updating test execution {exec_id}: {str(e)}")
+                    
+        else:
+            logger.error(f"Robot Framework API call failed: {response.status_code}")
+            print(f"\n[DEBUG] ❌ API call failed! Status: {response.status_code}")
+            print(f"[DEBUG] Marking all tests as failed...")
+            
+            # Mark tests as failed
+            for idx, exec_id in enumerate(test_execution_ids, 1):
+                try:
+                    print(f"[DEBUG] Failing test execution {idx}/{len(test_execution_ids)} (ID: {exec_id})...")
+                    
+                    test_exec = TestCaseExecution.objects.get(pk=exec_id)
+                    test_exec.status = TestExecutionStatus.FAILED
+                    test_exec.error_message = f"Robot Framework API call failed: {response.status_code}"
+                    test_exec.completed_at = timezone.now()
+                    # test_exec.save()
+                    
+                    print(f"[DEBUG] ✅ Marked test execution {exec_id} as FAILED")
+                    
+                except Exception as e:
+                    print(f"[DEBUG] ❌ Error updating failed test {exec_id}: {str(e)}")
+                    logger.error(f"Error updating failed test {exec_id}: {str(e)}")
+                    
+    except requests.exceptions.Timeout:
+        print(f"\n[DEBUG] ❌ API call timed out!")
+        logger.error("Robot Framework API call timed out")
+        
+        # Mark all tests as failed due to timeout
+        for exec_id in test_execution_ids:
+            try:
+                test_exec = TestCaseExecution.objects.get(pk=exec_id)
+                test_exec.status = TestExecutionStatus.FAILED
+                test_exec.error_message = "Robot Framework API timeout"
+                test_exec.completed_at = timezone.now()
+                # test_exec.save()
+                print(f"[DEBUG] Marked test {exec_id} as FAILED due to timeout")
+            except Exception as e:
+                print(f"[DEBUG] Error updating test {exec_id} after timeout: {str(e)}")
+                
+    except Exception as e:
+        print(f"\n[DEBUG] ❌ Unexpected error calling Robot Framework API!")
+        print(f"[DEBUG] Error type: {type(e).__name__}")
+        print(f"[DEBUG] Error message: {str(e)}")
+        print(f"[DEBUG] Traceback:")
+        import traceback
+        traceback.print_exc()
+        
+        logger.error(f"Error calling Robot Framework API: {str(e)}")
+        
+        # Mark all tests as failed due to error
+        for exec_id in test_execution_ids:
+            try:
+                test_exec = TestCaseExecution.objects.get(pk=exec_id)
+                test_exec.status = TestExecutionStatus.FAILED
+                test_exec.error_message = f"API error: {str(e)}"
+                test_exec.completed_at = timezone.now()
+                # test_exec.save()
+                print(f"[DEBUG] Marked test {exec_id} as FAILED due to error")
+            except Exception as update_error:
+                print(f"[DEBUG] Error updating test {exec_id} after API error: {str(update_error)}")
+    
+    print(f"\n[DEBUG] Robot Framework test execution task completed")
+    print(f"{'='*80}\n")

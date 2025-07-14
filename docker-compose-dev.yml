@@ -1,8 +1,8 @@
-# NOTE: This Docker image is for production purposes only.
+# NOTE: This Docker image is for development purposes only.
 
 services:
   controller:
-    image: openwisp/controller-production:latest
+    image: openwisp/controller-development:latest
     environment:
       - REDIS_URL=redis://redis:6379
     build:
@@ -29,7 +29,7 @@ services:
       "
 
   celery-worker:
-    image: openwisp/controller-production:latest
+    image: openwisp/controller-development:latest
     environment:
       - REDIS_URL=redis://redis:6379
     build:
@@ -45,7 +45,7 @@ services:
       - ./:/opt/openwisp  # Share the same code volume if needed
 
   celery-beat:
-    image: openwisp/controller-production:latest
+    image: openwisp/controller-development:latest
     environment:
       - REDIS_URL=redis://redis:6379
     build:

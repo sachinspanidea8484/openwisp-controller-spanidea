@@ -54,17 +54,17 @@ class OpenwispRadiusConfig(ApiAppConfig):
         from . import checks  # noqa
 
         super().ready(*args, **kwargs)
-        self.connect_signals()
-        self.regiser_menu_groups()
+        # self.connect_signals()
+        # self.regiser_menu_groups()
 
-        if app_settings.SOCIAL_REGISTRATION_CONFIGURED:
-            register_registration_method("social_login", _("Social login"))
-        if app_settings.SAML_REGISTRATION_CONFIGURED:
-            register_registration_method(
-                "saml",
-                app_settings.SAML_REGISTRATION_METHOD_LABEL,
-                strong_identity=True,
-            )
+        # if app_settings.SOCIAL_REGISTRATION_CONFIGURED:
+        #     register_registration_method("social_login", _("Social login"))
+        # if app_settings.SAML_REGISTRATION_CONFIGURED:
+        #     register_registration_method(
+        #         "saml",
+        #         app_settings.SAML_REGISTRATION_METHOD_LABEL,
+        #         strong_identity=True,
+        #     )
 
     def connect_signals(self):
         Organization = swapper.load_model("openwisp_users", "Organization")
