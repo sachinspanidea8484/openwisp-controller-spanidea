@@ -28,7 +28,8 @@ services:
       python manage.py runserver 0.0.0.0:8000
       "
           # No ports needed for worker
-
+    volumes:
+      - logs:/opt/openwisp/tests/openwisp2
 
   celery-worker:
     image: openwisp/controller-production:latest
@@ -106,3 +107,4 @@ volumes:
   redis_data:
   postgres_data:
   influxdb-data: {}
+  logs: {}
