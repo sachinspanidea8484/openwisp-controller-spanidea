@@ -552,6 +552,14 @@ OPENWRT_FIRMWARE_IMAGE_MAP.update(
                     "boards": ("Geode(TM) Integrated Processor by AMD PCS", "Alix 2D2"),
                 },
             ),
+            (
+                'openwrt-layerscape-armv8_64b-fsl_ls1046a-frwy-sdboot-squashfs-sysupgrade.bin',
+                {
+                    'label' :'NXP Eval Board',
+                    'boards' : ('LS1046A FRWY Board',),
+ 
+                }
+            )
         )
     )
 )
