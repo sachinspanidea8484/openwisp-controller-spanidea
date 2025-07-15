@@ -137,7 +137,7 @@ def execute_tests_on_device(device_execution_id):
         try:
             device_conn = DeviceConnection.objects.get(
                 device=device,
-                is_working=True,
+                # is_working=True,
                 enabled=True
             )
             logger.info(f"Found working device connection: {device_conn}")
@@ -174,10 +174,10 @@ def execute_tests_on_device(device_execution_id):
         robot_framework_tests = []
         device_data = {
     "device_name": device.name,
-    "last_ip": device.last_ip,
+    "management_ip": device.management_ip,
     "device_id": device.id,
     "ssh": {
-        "host": device.last_ip,
+        "host": device.management_ip,
         "username": device_conn.credentials.params.get('username', ''),
         "password": device_conn.credentials.params.get('password', '')
     }
@@ -284,7 +284,7 @@ def execute_tests_on_device(device_execution_id):
                 execute_single_test_case.delay(
                     test_execution_id,
                     device_conn.credentials.params,
-                    device.last_ip,
+                    device.management_ip,
                     device_execution_id
                 )
             
@@ -936,7 +936,7 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     # Fix device_data UUIDs
     device_data_fixed = {
         "device_name": device_data.get('device_name', 'N/A'),
-        "last_ip": device_data.get('last_ip', 'N/A'),
+        "management_ip": device_data.get('management_ip', 'N/A'),
         "device_id": str(device_data.get('device_id', '')),  # Convert UUID to string
         "ssh": device_data.get('ssh', {})
     }
@@ -968,7 +968,7 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     print(f"\n[DEBUG] Device Data:")
     print(f"  - Device Name: {device_data_fixed.get('device_name', 'N/A')}")
     print(f"  - Device ID: {device_data_fixed.get('device_id', 'N/A')}")
-    print(f"  - Device IP: {device_data_fixed.get('last_ip', 'N/A')}")
+    print(f"  - Device IP: {device_data_fixed.get('management_ip', 'N/A')}")
     print(f"  - SSH Host: {device_data_fixed.get('ssh', {}).get('host', 'N/A')}")
     print(f"  - SSH Username: {device_data_fixed.get('ssh', {}).get('username', 'N/A')}")
     print(f"  - SSH Password: {'***' if device_data_fixed.get('ssh', {}).get('password') else 'N/A'}")
