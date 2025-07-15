@@ -918,14 +918,14 @@ class AddDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
                 )
                 
                 # 3. Create TestCase 2
-                test_case_2 = TestCase.objects.create(
-                    name="Test Case 2",
-                    test_case_id="TestCase_004",
-                    category=category,
-                    description="Secondary traffic validation test for advanced routing and switching using device agent",
-                    is_active=True,
-                    test_type=2  # Device Agent
-                )
+                # test_case_2 = TestCase.objects.create(
+                #     name="Test Case 2",
+                #     test_case_id="TestCase_004",
+                #     category=category,
+                #     description="Secondary traffic validation test for advanced routing and switching using device agent",
+                #     is_active=True,
+                #     test_type=2  # Device Agent
+                # )
                 
                 # 4. Create TestSuite
                 test_suite = TestSuite.objects.create(
@@ -942,11 +942,11 @@ class AddDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
                     order=1
                 )
                 
-                TestSuiteCase.objects.create(
-                    test_suite=test_suite,
-                    test_case=test_case_2,
-                    order=2
-                )
+                # TestSuiteCase.objects.create(
+                #     test_suite=test_suite,
+                #     test_case=test_case_2,
+                #     order=2
+                # )
                 
                 # 6. Create TestSuiteExecution
                 execution = TestSuiteExecution.objects.create(
@@ -986,12 +986,12 @@ class AddDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
                                 "test_case_id": test_case_1.test_case_id,
                                 "test_type": "Device Agent"
                             },
-                            {
-                                "id": str(test_case_2.id),
-                                "name": test_case_2.name,
-                                "test_case_id": test_case_2.test_case_id,
-                                "test_type": "Device Agent"
-                            }
+                            # {
+                            #     "id": str(test_case_2.id),
+                            #     "name": test_case_2.name,
+                            #     "test_case_id": test_case_2.test_case_id,
+                            #     "test_type": "Device Agent"
+                            # }
                         ],
                         "test_suite": {
                             "id": str(test_suite.id),
