@@ -34,7 +34,9 @@ from .serializers import (
     TestSuiteExecutionSerializer,
     ExecutionDetailsRequestSerializer,
     DeviceTestDataRequestSerializer,
-    TestCaseExecutionResultSerializer
+    TestCaseExecutionResultSerializer,
+    TestSuiteExecutionDeleteSerializer,
+    TestSuiteExecutionDeleteAllSerializer
 )
 
 
@@ -1019,6 +1021,493 @@ class AddDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
                 {"error": "Failed to create device test data", "details": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        
+
+
+
+class AddFireWallGDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
+    """
+    Create device test data in one request:
+    1. TestCategory (FireWall)
+    2. Two TestCases (Device Agent type)
+    3. TestSuite with TestSuiteCases
+    4. TestSuiteExecution with TestSuiteExecutionDevice
+    """
+    serializer_class = DeviceTestDataRequestSerializer
+    queryset = TestSuiteExecution.objects.none()  # ← ADD THIS DUMMY QUERYSET
+    
+    def create(self, request, *args, **kwargs):  # ← CHANGE post TO create
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        device_id = serializer.validated_data['device_id']
+        try:
+            with transaction.atomic():
+                # 1. Create or get TestCategory
+                category, created = TestCategory.objects.get_or_create(
+                    name="FireWall",
+                    defaults={
+                        'code': "FireWall",
+                        'description': "FireWall testing category for network performance and throughput validation"
+                    }
+                )
+                
+                # 2. Create TestCase 1
+                test_case_1 = TestCase.objects.create(
+                    name="FireWall Traffic",
+                    test_case_id="BB-FF-001",
+                    category=category,
+                    description="Primary FireWall traffic validation ",
+                    is_active=True,
+                    test_type=1  # Robot specific
+                )
+       
+                # 4. Create TestSuite
+                test_suite = TestSuite.objects.create(
+                    name="FireWall Test Suite",
+                    category=category,
+                    description="Comprehensive test suite for system logging and reboot functionality using device agents",
+                    is_active=True
+                )
+                
+                # 5. Create TestSuiteCase entries
+                TestSuiteCase.objects.create(
+                    test_suite=test_suite,
+                    test_case=test_case_1,
+                    order=1
+                )
+ 
+                
+                # 6. Create TestSuiteExecution
+                execution = TestSuiteExecution.objects.create(
+                    test_suite=test_suite,
+                    is_executed=False
+                )
+                
+                # 7. Create TestSuiteExecutionDevice
+                try:
+                    device = Device.objects.get(id=device_id)
+                    TestSuiteExecutionDevice.objects.create(
+                        test_suite_execution=execution,
+                        device=device,
+                        status='pending'
+                    )
+                except Device.DoesNotExist:
+                    return Response(
+                        {"error": f"Device with ID {device_id} not found"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Return success response with created data
+                return Response({
+                    "success": True,
+                    "message": "All device test data created successfully",
+                    "data": {
+                        "category": {
+                            "id": str(category.id),
+                            "name": category.name,
+                            "code": category.code,
+                            "created": created
+                        },
+                        "test_cases": [
+                            {
+                                "id": str(test_case_1.id),
+                                "name": test_case_1.name,
+                                "test_case_id": test_case_1.test_case_id,
+                                "test_type": "Device Agent"
+                            },
+  
+                        ],
+                        "test_suite": {
+                            "id": str(test_suite.id),
+                            "name": test_suite.name,
+                            "test_case_count": 1
+                        },
+                        "execution": {
+                            "id": str(execution.id),
+                            "test_suite_name": test_suite.name,
+                            "device_count": 1,
+                            "device_id": str(device_id),
+                            "device_name": device.name,
+                            "status": "pending"
+                        }
+                    }
+                }, status=status.HTTP_201_CREATED)
+                
+        except ValidationError as e:
+            return Response(
+                {"error": "Validation error", "details": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {"error": "Failed to create device test data", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+
+class AddWifiGDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
+    """
+    Create device test data in one request:
+    1. TestCategory (Wifi)
+    2. Two TestCases (Device Agent type)
+    3. TestSuite with TestSuiteCases
+    4. TestSuiteExecution with TestSuiteExecutionDevice
+    """
+    serializer_class = DeviceTestDataRequestSerializer
+    queryset = TestSuiteExecution.objects.none()  # ← ADD THIS DUMMY QUERYSET
+    
+    def create(self, request, *args, **kwargs):  # ← CHANGE post TO create
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        device_id = serializer.validated_data['device_id']
+        try:
+            with transaction.atomic():
+                # 1. Create or get TestCategory
+                category, created = TestCategory.objects.get_or_create(
+                    name="Wifi",
+                    defaults={
+                        'code': "Wifi",
+                        'description': "Wifi testing category for network performance and throughput validation"
+                    }
+                )
+                
+                # 2. Create TestCase 1
+                test_case_1 = TestCase.objects.create(
+                    name="Wifi Traffic",
+                    test_case_id="BB-TRF-BRG-001",
+                    category=category,
+                    description="Primary wifi traffic validation ",
+                    is_active=True,
+                    test_type=1  # Robot specific
+                )
+       
+                # 4. Create TestSuite
+                test_suite = TestSuite.objects.create(
+                    name="Wifi Test Suite",
+                    category=category,
+                    description="Comprehensive test suite for system logging and reboot functionality using device agents",
+                    is_active=True
+                )
+                
+                # 5. Create TestSuiteCase entries
+                TestSuiteCase.objects.create(
+                    test_suite=test_suite,
+                    test_case=test_case_1,
+                    order=1
+                )
+ 
+                
+                # 6. Create TestSuiteExecution
+                execution = TestSuiteExecution.objects.create(
+                    test_suite=test_suite,
+                    is_executed=False
+                )
+                
+                # 7. Create TestSuiteExecutionDevice
+                try:
+                    device = Device.objects.get(id=device_id)
+                    TestSuiteExecutionDevice.objects.create(
+                        test_suite_execution=execution,
+                        device=device,
+                        status='pending'
+                    )
+                except Device.DoesNotExist:
+                    return Response(
+                        {"error": f"Device with ID {device_id} not found"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Return success response with created data
+                return Response({
+                    "success": True,
+                    "message": "All device test data created successfully",
+                    "data": {
+                        "category": {
+                            "id": str(category.id),
+                            "name": category.name,
+                            "code": category.code,
+                            "created": created
+                        },
+                        "test_cases": [
+                            {
+                                "id": str(test_case_1.id),
+                                "name": test_case_1.name,
+                                "test_case_id": test_case_1.test_case_id,
+                                "test_type": "Device Agent"
+                            },
+  
+                        ],
+                        "test_suite": {
+                            "id": str(test_suite.id),
+                            "name": test_suite.name,
+                            "test_case_count": 1
+                        },
+                        "execution": {
+                            "id": str(execution.id),
+                            "test_suite_name": test_suite.name,
+                            "device_count": 1,
+                            "device_id": str(device_id),
+                            "device_name": device.name,
+                            "status": "pending"
+                        }
+                    }
+                }, status=status.HTTP_201_CREATED)
+                
+        except ValidationError as e:
+            return Response(
+                {"error": "Validation error", "details": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {"error": "Failed to create device test data", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+
+class AddFiveGDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
+    """
+    Create device test data in one request:
+    1. TestCategory (5G)
+    2. Two TestCases (Device Agent type)
+    3. TestSuite with TestSuiteCases
+    4. TestSuiteExecution with TestSuiteExecutionDevice
+    """
+    serializer_class = DeviceTestDataRequestSerializer
+    queryset = TestSuiteExecution.objects.none()  # ← ADD THIS DUMMY QUERYSET
+    
+    def create(self, request, *args, **kwargs):  # ← CHANGE post TO create
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        device_id = serializer.validated_data['device_id']
+        try:
+            with transaction.atomic():
+                # 1. Create or get TestCategory
+                category, created = TestCategory.objects.get_or_create(
+                    name="5G",
+                    defaults={
+                        'code': "5G",
+                        'description': "5G testing category for network performance and throughput validation"
+                    }
+                )
+                
+                # 2. Create TestCase 1
+                test_case_1 = TestCase.objects.create(
+                    name="Black Box 5G",
+                    test_case_id="BB_INT_5G_001",
+                    category=category,
+                    description="Primary 5g sim validation ",
+                    is_active=True,
+                    test_type=2  # Device Agent
+                )
+       
+                # 4. Create TestSuite
+                test_suite = TestSuite.objects.create(
+                    name="5G Test Suite",
+                    category=category,
+                    description="Comprehensive test suite for system logging and reboot functionality using device agents",
+                    is_active=True
+                )
+                
+                # 5. Create TestSuiteCase entries
+                TestSuiteCase.objects.create(
+                    test_suite=test_suite,
+                    test_case=test_case_1,
+                    order=1
+                )
+ 
+                
+                # 6. Create TestSuiteExecution
+                execution = TestSuiteExecution.objects.create(
+                    test_suite=test_suite,
+                    is_executed=False
+                )
+                
+                # 7. Create TestSuiteExecutionDevice
+                try:
+                    device = Device.objects.get(id=device_id)
+                    TestSuiteExecutionDevice.objects.create(
+                        test_suite_execution=execution,
+                        device=device,
+                        status='pending'
+                    )
+                except Device.DoesNotExist:
+                    return Response(
+                        {"error": f"Device with ID {device_id} not found"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Return success response with created data
+                return Response({
+                    "success": True,
+                    "message": "All device test data created successfully",
+                    "data": {
+                        "category": {
+                            "id": str(category.id),
+                            "name": category.name,
+                            "code": category.code,
+                            "created": created
+                        },
+                        "test_cases": [
+                            {
+                                "id": str(test_case_1.id),
+                                "name": test_case_1.name,
+                                "test_case_id": test_case_1.test_case_id,
+                                "test_type": "Device Agent"
+                            },
+  
+                        ],
+                        "test_suite": {
+                            "id": str(test_suite.id),
+                            "name": test_suite.name,
+                            "test_case_count": 1
+                        },
+                        "execution": {
+                            "id": str(execution.id),
+                            "test_suite_name": test_suite.name,
+                            "device_count": 1,
+                            "device_id": str(device_id),
+                            "device_name": device.name,
+                            "status": "pending"
+                        }
+                    }
+                }, status=status.HTTP_201_CREATED)
+                
+        except ValidationError as e:
+            return Response(
+                {"error": "Validation error", "details": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {"error": "Failed to create device test data", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class AddLoggingDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
+    """
+    Create device test data in one request:
+    1. TestCategory (Logging)
+    2. Two TestCases (Device Agent type)
+    3. TestSuite with TestSuiteCases
+    4. TestSuiteExecution with TestSuiteExecutionDevice
+    """
+    serializer_class = DeviceTestDataRequestSerializer
+    queryset = TestSuiteExecution.objects.none()  # ← ADD THIS DUMMY QUERYSET
+    
+    def create(self, request, *args, **kwargs):  # ← CHANGE post TO create
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        device_id = serializer.validated_data['device_id']
+        try:
+            with transaction.atomic():
+                # 1. Create or get TestCategory
+                category, created = TestCategory.objects.get_or_create(
+                    name="Logging",
+                    defaults={
+                        'code': "LOG",
+                        'description': "Logging testing category for network performance and throughput validation"
+                    }
+                )
+                
+                # 2. Create TestCase 1
+                test_case_1 = TestCase.objects.create(
+                    name="Test Case 1",
+                    test_case_id="TestCase_001",
+                    category=category,
+                    description="Primary logging validation test for basic connectivity and data flow using device agent",
+                    is_active=True,
+                    test_type=2  # Device Agent
+                )
+       
+                # 4. Create TestSuite
+                test_suite = TestSuite.objects.create(
+                    name="Logging Test Suite",
+                    category=category,
+                    description="Comprehensive test suite for system logging and reboot functionality using device agents",
+                    is_active=True
+                )
+                
+                # 5. Create TestSuiteCase entries
+                TestSuiteCase.objects.create(
+                    test_suite=test_suite,
+                    test_case=test_case_1,
+                    order=1
+                )
+ 
+                
+                # 6. Create TestSuiteExecution
+                execution = TestSuiteExecution.objects.create(
+                    test_suite=test_suite,
+                    is_executed=False
+                )
+                
+                # 7. Create TestSuiteExecutionDevice
+                try:
+                    device = Device.objects.get(id=device_id)
+                    TestSuiteExecutionDevice.objects.create(
+                        test_suite_execution=execution,
+                        device=device,
+                        status='pending'
+                    )
+                except Device.DoesNotExist:
+                    return Response(
+                        {"error": f"Device with ID {device_id} not found"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Return success response with created data
+                return Response({
+                    "success": True,
+                    "message": "All device test data created successfully",
+                    "data": {
+                        "category": {
+                            "id": str(category.id),
+                            "name": category.name,
+                            "code": category.code,
+                            "created": created
+                        },
+                        "test_cases": [
+                            {
+                                "id": str(test_case_1.id),
+                                "name": test_case_1.name,
+                                "test_case_id": test_case_1.test_case_id,
+                                "test_type": "Device Agent"
+                            },
+  
+                        ],
+                        "test_suite": {
+                            "id": str(test_suite.id),
+                            "name": test_suite.name,
+                            "test_case_count": 1
+                        },
+                        "execution": {
+                            "id": str(execution.id),
+                            "test_suite_name": test_suite.name,
+                            "device_count": 1,
+                            "device_id": str(device_id),
+                            "device_name": device.name,
+                            "status": "pending"
+                        }
+                    }
+                }, status=status.HTTP_201_CREATED)
+                
+        except ValidationError as e:
+            return Response(
+                {"error": "Validation error", "details": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {"error": "Failed to create device test data", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class AddRobotTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
     """
@@ -1861,6 +2350,213 @@ class RobotTestResultView(APIView):
         except Exception as e:
             logger.error(f"Error checking overall suite completion: {e}")
 
+
+
+# views.py
+class TestSuiteExecutionDeleteView(ProtectedAPIMixin, generics.DestroyAPIView):
+    """
+    Delete a test suite execution and all related data.
+    
+    This will delete:
+    - TestSuiteExecution record
+    - All related TestSuiteExecutionDevice records (CASCADE)
+    - All related TestCaseExecution records (CASCADE)
+    
+    The TestSuite itself will NOT be deleted (PROTECT).
+    """
+    queryset = TestSuiteExecution.objects.all()
+    serializer_class = TestSuiteExecutionDeleteSerializer
+    lookup_field = 'pk'
+    
+    def destroy(self, request, *args, **kwargs):
+        """Custom destroy with confirmation and detailed response"""
+        instance = self.get_object()
+        
+        # Validate confirmation
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Gather information before deletion
+        deletion_summary = {
+            'test_suite_execution': {
+                'id': str(instance.id),
+                'test_suite_name': instance.test_suite.name,
+                'created_at': instance.created.isoformat(),
+                'is_executed': instance.is_executed
+            },
+            'related_data': {
+                'execution_devices_count': instance.devices.count(),
+                'test_case_executions_count': TestCaseExecution.objects.filter(
+                    test_suite_execution=instance
+                ).count()
+            }
+        }
+        
+        # Get device names for reference
+        device_names = list(
+            instance.devices.values_list('device__name', flat=True)
+        )
+        deletion_summary['devices'] = device_names
+        
+        try:
+            # Perform deletion (CASCADE will handle related objects)
+            instance.delete()
+            
+            return Response({
+                'success': True,
+                'message': _('Test suite execution and all related data deleted successfully'),
+                'deleted_data': deletion_summary
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': _('Failed to delete test suite execution'),
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def delete(self, request, *args, **kwargs):
+        """Override delete method to use destroy"""
+        return self.destroy(request, *args, **kwargs)
+
+# views.py
+class TestSuiteExecutionDeleteAllView(ProtectedAPIMixin, generics.GenericAPIView):
+    """
+    Delete a test suite execution and ALL related data including:
+    - TestCaseExecution records
+    - TestSuiteExecutionDevice records
+    - TestSuite
+    - TestSuiteCase records
+    - TestCase records (if not used elsewhere)
+    - TestCategory (if not used elsewhere)
+    """
+    queryset = TestSuiteExecution.objects.all()  # Add this line
+    serializer_class = TestSuiteExecutionDeleteAllSerializer  # Add this line
+    lookup_field = 'pk'
+    
+    def delete(self, request, pk):
+        """Delete all related test data"""
+        execution = self.get_object()  # This will now work with GenericAPIView
+        
+        # Validate request
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        force_delete = serializer.validated_data.get('force_delete', False)
+        
+        try:
+            with transaction.atomic():
+                # Collect all related data before deletion
+                test_suite = execution.test_suite
+                category = test_suite.category
+                
+                # Get all test cases from this suite
+                test_cases = list(test_suite.test_cases.all())
+                test_case_ids = [tc.id for tc in test_cases]
+                
+                # Prepare deletion summary
+                deletion_summary = {
+                    'test_suite_execution': {
+                        'id': str(execution.id),
+                        'created_at': execution.created.isoformat()
+                    },
+                    'test_suite': {
+                        'id': str(test_suite.id),
+                        'name': test_suite.name
+                    },
+                    'category': {
+                        'id': str(category.id),
+                        'name': category.name
+                    },
+                    'deleted_counts': {}
+                }
+                
+                # 1. Delete TestCaseExecution records
+                case_exec_count = TestCaseExecution.objects.filter(
+                    test_suite_execution=execution
+                ).delete()[0]
+                deletion_summary['deleted_counts']['test_case_executions'] = case_exec_count
+                
+                # 2. Delete TestSuiteExecutionDevice records
+                device_count = TestSuiteExecutionDevice.objects.filter(
+                    test_suite_execution=execution
+                ).delete()[0]
+                deletion_summary['deleted_counts']['execution_devices'] = device_count
+                
+                # 3. Delete the TestSuiteExecution
+                execution.delete()
+                deletion_summary['deleted_counts']['test_suite_execution'] = 1
+                
+                # 4. Check if test suite is used in other executions
+                other_executions = TestSuiteExecution.objects.filter(
+                    test_suite=test_suite
+                ).exists()
+                
+                if not other_executions or force_delete:
+                    # 5. Delete TestSuiteCase relationships
+                    suite_case_count = TestSuiteCase.objects.filter(
+                        test_suite=test_suite
+                    ).delete()[0]
+                    deletion_summary['deleted_counts']['test_suite_cases'] = suite_case_count
+                    
+                    # 6. Delete the TestSuite
+                    test_suite.delete()
+                    deletion_summary['deleted_counts']['test_suite'] = 1
+                    
+                    # 7. Delete TestCases if not used elsewhere
+                    deleted_test_cases = []
+                    for test_case in test_cases:
+                        # Check if test case is used in other suites
+                        other_suites = TestSuiteCase.objects.filter(
+                            test_case=test_case
+                        ).exists()
+                        
+                        # Check if test case has other executions
+                        other_case_executions = TestCaseExecution.objects.filter(
+                            test_case=test_case
+                        ).exists()
+                        
+                        if (not other_suites and not other_case_executions) or force_delete:
+                            deleted_test_cases.append({
+                                'id': str(test_case.id),
+                                'name': test_case.name,
+                                'test_case_id': test_case.test_case_id
+                            })
+                            test_case.delete()
+                    
+                    deletion_summary['deleted_counts']['test_cases'] = len(deleted_test_cases)
+                    deletion_summary['deleted_test_cases'] = deleted_test_cases
+                    
+                    # 8. Delete Category if not used elsewhere
+                    other_test_cases = TestCase.objects.filter(
+                        category=category
+                    ).exists()
+                    other_test_suites = TestSuite.objects.filter(
+                        category=category
+                    ).exists()
+                    
+                    if (not other_test_cases and not other_test_suites) or force_delete:
+                        category.delete()
+                        deletion_summary['deleted_counts']['category'] = 1
+                        deletion_summary['category_deleted'] = True
+                    else:
+                        deletion_summary['category_deleted'] = False
+                        deletion_summary['category_still_in_use'] = True
+                else:
+                    deletion_summary['test_suite_deleted'] = False
+                    deletion_summary['test_suite_still_in_use'] = True
+                
+                return Response({
+                    'success': True,
+                    'message': _('Test data deleted successfully'),
+                    'deletion_summary': deletion_summary
+                }, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            return Response({
+                'error': _('Failed to delete test data'),
+                'details': str(e),
+                'type': type(e).__name__
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 # Create view instances
 test_category_list = TestCategoryListCreateView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()
@@ -1870,3 +2566,5 @@ test_suite_list = TestSuiteListCreateView.as_view()
 test_suite_detail = TestSuiteDetailView.as_view()
 test_suite_execution_list = TestSuiteExecutionListCreateView.as_view()
 test_suite_execution_detail = TestSuiteExecutionDetailView.as_view()
+
+

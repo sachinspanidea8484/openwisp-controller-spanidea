@@ -1005,8 +1005,8 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     # print(f"[DEBUG] Full payload: {json.dumps(api_payload, indent=2)}")
     
     # Call Robot Framework API
-    # robot_api_url = "http://0.0.0.0:8080/run-robot/"
-    robot_api_url = "http://10.8.12.123:8080/run-robot/"
+    robot_api_url = "http://0.0.0.0:8080/run-robot/"
+    # robot_api_url = "http://10.8.12.123:8080/run-robot/"
 
     
     print(f"\n[DEBUG] Making API Call:")

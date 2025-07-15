@@ -32,24 +32,24 @@ class TestManagementConfig(ApiAppConfig):
             config={
                 "label": _("Test Management"),
                 "items": {
-                    # 1: {
-                    #     "label": _("Categories"),
-                    #     "model": get_model_name(self.label, "TestCategory"),
-                    #     "name": "changelist",
-                    #     "icon": "ow-category",
-                    # },
-                    # 2: {
-                    #     "label": _("Test Cases"),
-                    #     "model": get_model_name(self.label, "TestCase"),
-                    #     "name": "changelist",
-                    #     "icon": "ow-test-case",
-                    # },
-                    # 3: {
-                    #     "label": _("Test Suites"),
-                    #     "model": get_model_name(self.label, "TestSuite"),
-                    #     "name": "changelist",
-                    #     "icon": "ow-test-suite",
-                    # },
+                    1: {
+                        "label": _("Categories"),
+                        "model": get_model_name(self.label, "TestCategory"),
+                        "name": "changelist",
+                        "icon": "ow-category",
+                    },
+                    2: {
+                        "label": _("Test Cases"),
+                        "model": get_model_name(self.label, "TestCase"),
+                        "name": "changelist",
+                        "icon": "ow-test-case",
+                    },
+                    3: {
+                        "label": _("Test Suites"),
+                        "model": get_model_name(self.label, "TestSuite"),
+                        "name": "changelist",
+                        "icon": "ow-test-suite",
+                    },
                       4: {
                     "label": _("Test Suite Executions"),
                     "model": get_model_name(self.label, "TestSuiteExecution"),

@@ -104,6 +104,55 @@ path(
     name="api_robot_test_result",
 ),
 
+
+
+
+
+
+
+
+
+
+path(
+    "add-logging-test-data/",
+    views.AddLoggingDeviceTestDataView.as_view(),    
+    name="api_add_logging_test_data", 
+),
+path(
+    "add-5g-test-data/",
+    views.AddFiveGDeviceTestDataView.as_view(),    
+    name="api_add_5g_test_data", 
+),
+
+path(
+    "add-wifi-test-data/",
+    views.AddWifiGDeviceTestDataView.as_view(),    
+    name="api_add_wifi_test_data", 
+),
+
+path(
+    "add-firewall-test-data/",
+    views.AddFireWallGDeviceTestDataView.as_view(),    
+    name="api_add_firewall_test_data", 
+),
+
+
+# urls.py
+# path(
+#     "test-suite-execution/<uuid:pk>/delete/",
+#     views.TestSuiteExecutionDeleteView.as_view(),
+#     name="api_test_suite_execution_delete",
+# ),
+
+# urls.py
+path(
+    "test-suite-execution/<uuid:pk>/delete-all/",
+    views.TestSuiteExecutionDeleteAllView.as_view(),
+    name="api_test_suite_execution_delete_all",
+),
+
+
+
         ]),
     ),
 ]

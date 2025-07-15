@@ -578,3 +578,45 @@ class TestCaseExecutionResultSerializer(serializers.Serializer):
         #         })
         
         return data
+    
+
+
+
+# serializers.py
+class TestSuiteExecutionDeleteSerializer(serializers.Serializer):
+    """Serializer for test suite execution deletion confirmation"""
+    confirm = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text=_("Confirm deletion of test suite execution and all related data")
+    )
+    
+    def validate_confirm(self, value):
+        """Ensure deletion is confirmed"""
+        # if not value:
+        #     raise serializers.ValidationError(
+        #         _("Please confirm deletion by setting 'confirm' to true")
+        #     )
+        return value
+
+
+# serializers.py
+class TestSuiteExecutionDeleteAllSerializer(serializers.Serializer):
+    """Serializer for complete test data deletion"""
+    # confirm = serializers.BooleanField(
+    #     required=True,
+    #     help_text=_("Confirm deletion of ALL related test data including categories, test cases, and test suites")
+    # )
+    # force_delete = serializers.BooleanField(
+    #     required=False,
+    #     default=False,
+    #     help_text=_("Force delete even if test cases/categories are used elsewhere")
+    # )
+    
+    def validate_confirm(self, value):
+        """Ensure deletion is confirmed"""
+        # if not value:
+        #     raise serializers.ValidationError(
+        #         _("You must confirm deletion by setting 'confirm' to true")
+        #     )
+        return value
