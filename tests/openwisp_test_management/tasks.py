@@ -1005,14 +1005,27 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     # print(f"[DEBUG] Full payload: {json.dumps(api_payload, indent=2)}")
     
     # Call Robot Framework API
-    robot_api_url = "http://0.0.0.0:8080/run-robot/"
+    # robot_api_url = "http://0.0.0.0:8080/run-robot/"
     # robot_api_url = "http://10.8.12.123:8080/run-robot/"
+    robot_api_url = "http://192.168.122.1:8080/run-robot/"
+    # robot_api_url = "http://192.168.201.37:8080/run-robot/"
+    print(f"\n🔍 [DEBUG] Making API Call:")
+    print(f"📍 [DEBUG] API URL: {robot_api_url}")
+    print(f"📮 [DEBUG] Method: POST")
+    print(f"⏱️  [DEBUG] Timeout: 6000 seconds")
+    # Check if API is reachable first
+    try:
+     print(f"🔄 [DEBUG] Checking if API is reachable...")
+     base_url = robot_api_url.rsplit('/', 2)[0]  # Get base URL
+     test_response = requests.get(base_url, timeout=60)
+     print(f"✅✅✅✅✅✅✅✅✅✅✅✅         ✅✅✅✅✅✅✅✅✅✅✅✅ [DEBUG] API server is reachable at {base_url}")
+    except Exception as e:
+     print(f"❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌ [ERROR] Cannot reach API server: {e}")
+     print(f"⚠️  [ERROR] Make sure the server at {robot_api_url} is running")
 
-    
-    print(f"\n[DEBUG] Making API Call:")
-    print(f"[DEBUG] API URL: {robot_api_url}")
-    print(f"[DEBUG] Method: POST")
-    print(f"[DEBUG] Timeout: 10 seconds")
+
+
+
     
     try:
         print(f"[DEBUG] Sending request to Robot Framework API...")

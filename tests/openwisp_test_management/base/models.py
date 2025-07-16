@@ -34,7 +34,7 @@ class AbstractTestCategory(TimeStampedEditableModel):
         max_length=64,
         db_index=True,
         unique=True,
-        help_text=_("Category name to group related test cases")
+        help_text=_("Category name to group related test cases s")
     )
     code = models.CharField(
         _("code"),

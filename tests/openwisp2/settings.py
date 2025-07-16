@@ -2,8 +2,10 @@ import os
 import sys
 
 # Load environment variables from .env file
-# from dotenv import load_dotenv
-# load_dotenv()
+from dotenv import load_dotenv
+
+# Load the .env file
+load_dotenv()
 
 # Suppress dj_rest_auth deprecation warnings
 import warnings
@@ -23,18 +25,28 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
 
 
+
+
+
+
 DEBUG = True
 TESTING = False
 SELENIUM_HEADLESS = True
 SHELL = "shell" in sys.argv or "shell_plus" in sys.argv
-REDIS_URL = "redis://localhost:6379"
+REDIS_URL = "redis://redis:6379"  # Changed from "redis://localhost:6379"
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "controller","10.10.10.10" ,'192.168.122.1', '54.234.248.241' ,'10.8.12.123' ]
+# ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "controller","10.10.10.10" ,'192.168.122.1', '54.234.248.241' ,'10.8.12.123' ,'192.168.201.37' ]
+ALLOWED_HOSTS = ["*"]
+
 
 # radius
-OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = ["127.0.0.1","10.10.10.10" ,'192.168.122.1', '54.234.248.241' ,'10.8.12.123' ]
+# OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = ["127.0.0.1","10.10.10.10" ,'192.168.122.1', '54.234.248.241' ,'10.8.12.123' ,'192.168.201.37' ]
+OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = ["*"]
+
+
 OPENWISP_RADIUS_COA_ENABLED = True
 OPENWISP_RADIUS_ALLOWED_MOBILE_PREFIXES = ["+44", "+39", "+237", "+595"]
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 
 
@@ -55,7 +67,7 @@ DATABASES = {
         "NAME": "openwisp2",
         "USER": "openwisp2",
         "PASSWORD": "openwisp2",
-        "HOST": "localhost",  # Changed from "127.0.0.1" to "postgres"
+        "HOST": "postgres",  # Changed from "127.0.0.1" to "postgres"
         "PORT": "5432",
     }
 }
@@ -66,7 +78,7 @@ TIMESERIES_DATABASE = {
     'USER': 'openwisp',
     'PASSWORD': 'openwisp',
     'NAME': 'openwisp2',
-    'HOST': "localhost",  # Changed from "localhost"
+    'HOST': "influxdb",  # Changed from "localhost"
     'PORT': '8086',
     # UDP writes are disabled by default
     'OPTIONS': {'udp_writes': False, 'udp_port': 8089},
@@ -205,9 +217,11 @@ SAML_CONFIG = {}
 # WARNING: for development only!
 AUTH_PASSWORD_VALIDATORS = []
 
-INTERNAL_IPS = ['127.0.0.1' , '10.10.10.10',
-'54.234.248.241' ,'10.8.12.123'
-                ]
+# INTERNAL_IPS = ['127.0.0.1' , '10.10.10.10',
+# '54.234.248.241' ,'10.8.12.123' ,'192.168.201.37'
+                # ]
+INTERNAL_IPS = []
+
 
 ROOT_URLCONF = "openwisp2.urls"
 
@@ -237,7 +251,7 @@ if TESTING:
     OPENWISP_MONITORING_AUTO_IPERF3 = True
 
 
-TIME_ZONE = "Europe/Rome"
+TIME_ZONE = 'UTC'
 LANGUAGE_CODE = "en-gb"
 USE_TZ = True
 USE_I18N = True
@@ -422,15 +436,22 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://0.0.0.0:8000']
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:8000', 
-    'http://127.0.0.1:8000', 
-    'http://0.0.0.0:8000',
-    'http://10.10.10.10:8000',
-    'http://controller:8000',  # Add this
-    'http://54.234.248.241',
-    # Keep your ngrok URL if needed
-]
+# CSRF_TRUSTED_ORIGINS = [
+#     'http://localhost:8000', 
+#     'http://127.0.0.1:8000', 
+#     'http://0.0.0.0:8000',
+#     'http://10.10.10.10:8000',
+#     'http://controller:8000',  # Add this
+#     'http://54.234.248.241:8000',
+#     'http://54.234.248.241',
+
+
+
+
+
+#     # Keep your ngrok URL if needed
+# ]
+CSRF_TRUSTED_ORIGINS = []
 
 
 SESSION_CACHE_ALIAS = "default"

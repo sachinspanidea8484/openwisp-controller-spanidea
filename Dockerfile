@@ -45,7 +45,7 @@ COPY requirements-test.txt requirements.txt ./
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir -r requirements-test.txt && \
-    pip install --no-cache-dir redis gunicorn
+    pip install --no-cache-dir redis gunicorn watchdog
 
 # Install SMS dependencies with compatible Twilio version
 # Twilio 6.x has TwilioRestClient, while 7.x+ uses Client

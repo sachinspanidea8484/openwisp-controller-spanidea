@@ -1178,7 +1178,7 @@ class AddWifiGDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
                 # 2. Create TestCase 1
                 test_case_1 = TestCase.objects.create(
                     name="Wifi Traffic",
-                    test_case_id="BB-TRF-BRG-001",
+                    test_case_id="BB-INT-WWAN-001",
                     category=category,
                     description="Primary wifi traffic validation ",
                     is_active=True,
