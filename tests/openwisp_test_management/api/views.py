@@ -36,7 +36,8 @@ from .serializers import (
     DeviceTestDataRequestSerializer,
     TestCaseExecutionResultSerializer,
     TestSuiteExecutionDeleteSerializer,
-    TestSuiteExecutionDeleteAllSerializer
+    TestSuiteExecutionDeleteAllSerializer,
+    BulkTestDataCreationSerializer
 )
 
 
@@ -2556,6 +2557,219 @@ class TestSuiteExecutionDeleteAllView(ProtectedAPIMixin, generics.GenericAPIView
                 'details': str(e),
                 'type': type(e).__name__
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+
+
+
+
+
+
+
+# views.py
+class BulkTestDataCreationView(ProtectedAPIMixin, generics.CreateAPIView):
+    """
+    Create complete test data in one request:
+    1. TestCategory (create or use existing)
+    2. Multiple TestCases (create or use existing)
+    3. TestSuite with test cases
+    4. TestSuiteExecution with multiple devices
+    """
+    serializer_class = BulkTestDataCreationSerializer
+    queryset = TestSuiteExecution.objects.none()  # Dummy queryset for permissions
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        category_data = serializer.validated_data['category']
+        test_cases_data = serializer.validated_data['test_cases']
+        test_suite_data = serializer.validated_data['test_suite']
+        device_ids = serializer.validated_data['device_ids']
+        use_existing = serializer.validated_data['use_existing']
+        
+        try:
+            with transaction.atomic():
+                # 1. Create or get TestCategory
+                if use_existing:
+                    category, category_created = TestCategory.objects.get_or_create(
+                        name=category_data['name'],
+                        defaults={
+                            'code': category_data.get('code', ''),
+                            'description': category_data.get('description', '')
+                        }
+                    )
+                else:
+                    # Force create new category
+                    category = TestCategory.objects.create(
+                        name=category_data['name'],
+                        code=category_data.get('code', ''),
+                        description=category_data.get('description', '')
+                    )
+                    category_created = True
+                
+                # 2. Create TestCases
+                created_test_cases = []
+                test_case_objects = []
+                
+                for tc_data in test_cases_data:
+                    if use_existing:
+                        # Try to get existing test case by test_case_id
+                        test_case = TestCase.objects.filter(
+                            test_case_id=tc_data['test_case_id']
+                        ).first()
+                        
+                        if test_case:
+                            # Update category if different
+                            if test_case.category != category:
+                                test_case.category = category
+                                test_case.save()
+                            test_case_created = False
+                        else:
+                            # Create new test case
+                            test_case = TestCase.objects.create(
+                                name=tc_data['name'],
+                                test_case_id=tc_data['test_case_id'],
+                                category=category,
+                                test_type=tc_data['test_type'],
+                                description=tc_data.get('description', ''),
+                                is_active=tc_data.get('is_active', True)
+                            )
+                            test_case_created = True
+                    else:
+                        # Force create new test case
+                        test_case = TestCase.objects.create(
+                            name=tc_data['name'],
+                            test_case_id=tc_data['test_case_id'],
+                            category=category,
+                            test_type=tc_data['test_type'],
+                            description=tc_data.get('description', ''),
+                            is_active=tc_data.get('is_active', True)
+                        )
+                        test_case_created = True
+                    
+                    test_case_objects.append(test_case)
+                    created_test_cases.append({
+                        'id': str(test_case.id),
+                        'name': test_case.name,
+                        'test_case_id': test_case.test_case_id,
+                        'test_type': test_case.get_test_type_display(),
+                        'created': test_case_created
+                    })
+                
+                # 3. Create TestSuite
+                if use_existing:
+                    # Check if suite exists with same name and category
+                    test_suite = TestSuite.objects.filter(
+                        name=test_suite_data['name'],
+                        category=category
+                    ).first()
+                    
+                    if test_suite:
+                        test_suite_created = False
+                        # Clear existing test cases
+                        TestSuiteCase.objects.filter(test_suite=test_suite).delete()
+                    else:
+                        test_suite = TestSuite.objects.create(
+                            name=test_suite_data['name'],
+                            category=category,
+                            description=test_suite_data.get('description', ''),
+                            is_active=test_suite_data.get('is_active', True)
+                        )
+                        test_suite_created = True
+                else:
+                    test_suite = TestSuite.objects.create(
+                        name=test_suite_data['name'],
+                        category=category,
+                        description=test_suite_data.get('description', ''),
+                        is_active=test_suite_data.get('is_active', True)
+                    )
+                    test_suite_created = True
+                
+                # 4. Create TestSuiteCase entries
+                for order, test_case in enumerate(test_case_objects, start=1):
+                    TestSuiteCase.objects.create(
+                        test_suite=test_suite,
+                        test_case=test_case,
+                        order=order
+                    )
+                
+                # 5. Create TestSuiteExecution
+                execution = TestSuiteExecution.objects.create(
+                    test_suite=test_suite,
+                    is_executed=False
+                )
+                
+                # 6. Create TestSuiteExecutionDevice entries
+                devices = Device.objects.filter(id__in=device_ids)
+                execution_devices = []
+                
+                for device in devices:
+                    exec_device = TestSuiteExecutionDevice.objects.create(
+                        test_suite_execution=execution,
+                        device=device,
+                        status='pending'
+                    )
+                    execution_devices.append({
+                        'device_id': str(device.id),
+                        'device_name': device.name,
+                        'status': 'pending'
+                    })
+                
+                # 7. Create TestCaseExecution entries for each device and test case
+                for device in devices:
+                    for order, test_case in enumerate(test_case_objects, start=1):
+                        TestCaseExecution.objects.create(
+                            test_suite_execution=execution,
+                            device=device,
+                            test_case=test_case,
+                            status=TestExecutionStatus.PENDING,
+                            execution_order=order
+                        )
+                
+                # Return comprehensive response
+                return Response({
+                    'success': True,
+                    'message': 'Test data created successfully',
+                    'data': {
+                        'category': {
+                            'id': str(category.id),
+                            'name': category.name,
+                            'code': category.code,
+                            'created': category_created
+                        },
+                        'test_cases': created_test_cases,
+                        'test_cases_count': len(created_test_cases),
+                        'test_suite': {
+                            'id': str(test_suite.id),
+                            'name': test_suite.name,
+                            'description': test_suite.description,
+                            'test_case_count': len(test_case_objects),
+                            'created': test_suite_created
+                        },
+                        'execution': {
+                            'id': str(execution.id),
+                            'test_suite_name': test_suite.name,
+                            'device_count': len(devices),
+                            'devices': execution_devices,
+                            'total_test_executions': len(devices) * len(test_case_objects)
+                        }
+                    }
+                }, status=status.HTTP_201_CREATED)
+                
+        except ValidationError as e:
+            return Response(
+                {'error': 'Validation error', 'details': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': 'Failed to create test data', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+
 
 # Create view instances
 test_category_list = TestCategoryListCreateView.as_view()

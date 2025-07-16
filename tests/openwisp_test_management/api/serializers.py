@@ -620,3 +620,128 @@ class TestSuiteExecutionDeleteAllSerializer(serializers.Serializer):
         #         _("You must confirm deletion by setting 'confirm' to true")
         #     )
         return value
+    
+
+
+# serializers.py
+class BulkTestDataCreationSerializer(serializers.Serializer):
+    """Serializer for bulk test data creation"""
+    
+    # Category data
+    category = serializers.DictField(
+        required=True,
+        help_text=_("Category data: {name, code, description}")
+    )
+    
+    # Array of test cases
+    test_cases = serializers.ListField(
+        child=serializers.DictField(),
+        required=True,
+        min_length=1,
+        help_text=_("Array of test cases: [{name, test_case_id, test_type, description, is_active}]")
+    )
+    
+    # Test suite data
+    test_suite = serializers.DictField(
+        required=True,
+        help_text=_("Test suite data: {name, description, is_active}")
+    )
+    
+    # Array of device IDs for execution
+    device_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=True,
+        min_length=1,
+        help_text=_("Array of device UUIDs to execute test suite on")
+    )
+    
+    # Options
+    use_existing = serializers.BooleanField(
+        default=True,
+        help_text=_("Use existing category/test cases if they exist")
+    )
+    
+    def validate_category(self, value):
+        """Validate category data"""
+        required_fields = ['name']
+        for field in required_fields:
+            if field not in value:
+                raise serializers.ValidationError(f"Category must have '{field}' field")
+        
+        if not value.get('name', '').strip():
+            raise serializers.ValidationError("Category name cannot be empty")
+        
+        return value
+    
+    def validate_test_cases(self, value):
+        """Validate test cases data"""
+        if not value:
+            raise serializers.ValidationError("At least one test case is required")
+        
+        test_case_ids = set()
+        for idx, test_case in enumerate(value):
+            # Check required fields
+            required_fields = ['name', 'test_case_id', 'test_type']
+            for field in required_fields:
+                if field not in test_case:
+                    raise serializers.ValidationError(
+                        f"Test case at index {idx} must have '{field}' field"
+                    )
+            
+            # Validate test_case_id uniqueness in request
+            tc_id = test_case.get('test_case_id')
+            if tc_id in test_case_ids:
+                raise serializers.ValidationError(
+                    f"Duplicate test_case_id '{tc_id}' in request"
+                )
+            test_case_ids.add(tc_id)
+            
+            # Validate test_type
+            test_type = test_case.get('test_type')
+            if test_type not in [1, 2]:  # Robot Framework=1, Device Agent=2
+                raise serializers.ValidationError(
+                    f"Test case at index {idx}: test_type must be 1 (Robot Framework) or 2 (Device Agent)"
+                )
+        
+        return value
+    
+    def validate_test_suite(self, value):
+        """Validate test suite data"""
+        required_fields = ['name']
+        for field in required_fields:
+            if field not in value:
+                raise serializers.ValidationError(f"Test suite must have '{field}' field")
+        
+        if not value.get('name', '').strip():
+            raise serializers.ValidationError("Test suite name cannot be empty")
+        
+        return value
+    
+    def validate_device_ids(self, value):
+        """Validate device IDs exist and have working connections"""
+        if not value:
+            raise serializers.ValidationError("At least one device is required")
+        
+        # Check if all devices exist
+        existing_devices = Device.objects.filter(id__in=value).values_list('id', flat=True)
+        missing_devices = set(value) - set(existing_devices)
+        
+        if missing_devices:
+            raise serializers.ValidationError(
+                f"Devices not found: {', '.join(str(d) for d in missing_devices)}"
+            )
+        
+        # Check for working connections
+        working_devices = DeviceConnection.objects.filter(
+            device_id__in=value,
+            is_working=True,
+            enabled=True
+        ).values_list('device_id', flat=True)
+        
+        devices_without_connection = set(value) - set(working_devices)
+        if devices_without_connection:
+            raise serializers.ValidationError(
+                f"Devices without working SSH connections: {', '.join(str(d) for d in devices_without_connection)}"
+            )
+        
+        return value

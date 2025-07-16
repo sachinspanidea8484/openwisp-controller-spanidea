@@ -151,6 +151,11 @@ path(
     name="api_test_suite_execution_delete_all",
 ),
 
+path(
+    "bulk-test-data/",
+    views.BulkTestDataCreationView.as_view(),
+    name="api_bulk_test_data_creation",
+),
 
 
         ]),
