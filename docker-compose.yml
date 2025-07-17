@@ -32,6 +32,9 @@ services:
       - logs:/opt/openwisp/tests/openwisp2
       # Mount Django project for hot reload
       - ./:/opt/openwisp
+      # Add firmware and media volumes (in case beat tasks need access)
+      - media_data:/opt/openwisp/media
+      - firmware_data:/opt/openwisp/private/firmware
 
   celery-worker:
     image: openwisp/controller-production:latest
@@ -50,6 +53,9 @@ services:
     volumes:
       - ./:/opt/openwisp  # Share the same code volume if needed
       - logs:/opt/openwisp/tests/openwisp2
+      # Add firmware and media volumes (in case beat tasks need access)
+      - media_data:/opt/openwisp/media
+      - firmware_data:/opt/openwisp/private/firmware
       
 
   celery-beat:
@@ -68,6 +74,9 @@ services:
     volumes:
       - ./:/opt/openwisp  # Share the same code volume if needed
       - logs:/opt/openwisp/tests/openwisp2
+      # Add firmware and media volumes (in case beat tasks need access)
+      - media_data:/opt/openwisp/media
+      - firmware_data:/opt/openwisp/private/firmware
       
 
   redis:
@@ -111,5 +120,8 @@ volumes:
   postgres_data:
   influxdb-data: {}
   logs: {}
+  # Add new volumes for firmware and media storage
+  media_data: {}
+  firmware_data: {}
 
 #
