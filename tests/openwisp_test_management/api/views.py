@@ -1065,7 +1065,7 @@ class AddFireWallGDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
        
                 # 4. Create TestSuite
                 test_suite = TestSuite.objects.create(
-                    name="FireWall Test Suite",
+                    name="FireWall",
                     category=category,
                     description="Comprehensive test suite for system logging and reboot functionality using device agents",
                     is_active=True
@@ -1187,7 +1187,7 @@ class AddWifiGDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
        
                 # 4. Create TestSuite
                 test_suite = TestSuite.objects.create(
-                    name="Wifi Test Suite",
+                    name="Wifi",
                     category=category,
                     description="Comprehensive test suite for system logging and reboot functionality using device agents",
                     is_active=True
@@ -1309,7 +1309,7 @@ class AddFiveGDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
        
                 # 4. Create TestSuite
                 test_suite = TestSuite.objects.create(
-                    name="5G Test Suite",
+                    name="5G",
                     category=category,
                     description="Comprehensive test suite for system logging and reboot functionality using device agents",
                     is_active=True
@@ -1429,7 +1429,7 @@ class AddLoggingDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
        
                 # 4. Create TestSuite
                 test_suite = TestSuite.objects.create(
-                    name="Logging Test Suite",
+                    name="Logging",
                     category=category,
                     description="Comprehensive test suite for system logging and reboot functionality using device agents",
                     is_active=True

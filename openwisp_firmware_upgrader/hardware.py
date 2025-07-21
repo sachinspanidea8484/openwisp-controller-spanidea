@@ -559,6 +559,20 @@ OPENWRT_FIRMWARE_IMAGE_MAP.update(
                     'boards' : ('LS1046A FRWY Board',),
  
                 }
+            ),
+                      (
+                '23.05-openwrt-x86-64-generic-ext4-combined.img-openwisp-http.gz',
+                {
+                  'label' :'23.05-openwrt-x86-64' ,
+                  'boards' :('QEMU Standard PC (i440FX + PIIX, 1996)',),
+               },
+            ),
+            (
+              '24.10-openwrt-x86-64-generic-ext4-combined.img-openwisp-python3-http.gz',
+              {
+                  'label' :'24.05-openwrt-x86-64' ,
+                  'boards' :('QEMU Standard PC (i440FX + PIIX, 1996)',),
+               },
             )
         )
     )

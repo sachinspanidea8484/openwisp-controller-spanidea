@@ -1007,13 +1007,20 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     # Call Robot Framework API
     # robot_api_url = "http://0.0.0.0:8080/run-robot/"
     # robot_api_url = "http://10.8.12.123:8080/run-robot/"
-    robot_api_url = "http://192.168.122.1:8080/run-robot/"
+    # robot_api_url = "http://192.168.122.1:8080/run-robot/" # sachin
+    robot_api_url = "http://192.168.201.37:8080/run-robot/" # kalyani
+
+
+
     # robot_api_url = "http://192.168.201.37:8080/run-robot/"
     print(f"\n🔍 [DEBUG] Making API Call:")
     print(f"📍 [DEBUG] API URL: {robot_api_url}")
     print(f"📮 [DEBUG] Method: POST")
     print(f"⏱️  [DEBUG] Timeout: 6000 seconds")
     # Check if API is reachable first
+
+
+    
     try:
      print(f"🔄 [DEBUG] Checking if API is reachable...")
      base_url = robot_api_url.rsplit('/', 2)[0]  # Get base URL
