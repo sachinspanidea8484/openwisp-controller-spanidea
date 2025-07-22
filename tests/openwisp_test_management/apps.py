@@ -32,12 +32,12 @@ class TestManagementConfig(ApiAppConfig):
             config={
                 "label": _("Test Management"),
                 "items": {
-                    # 1: {
-                    #     "label": _("Categories"),
-                    #     "model": get_model_name(self.label, "TestCategory"),
-                    #     "name": "changelist",
-                    #     "icon": "ow-category",
-                    # },
+                    1: {
+                        "label": _("Categories"),
+                        "model": get_model_name(self.label, "TestCategory"),
+                        "name": "changelist",
+                        "icon": "ow-category",
+                    },
                     # 2: {
                     #     "label": _("Test Cases"),
                     #     "model": get_model_name(self.label, "TestCase"),

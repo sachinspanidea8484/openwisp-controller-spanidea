@@ -1182,7 +1182,12 @@ class AddWifiGDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
                     category=category,
                     description="Primary wifi traffic validation ",
                     is_active=True,
-                    test_type=1  # Robot specific
+                    test_type=1,  # Robot specific,
+                    params =  {
+                        "PC1": { "ip": "10.10.10.1", "username": "osboxes", "password": "spanidea" },
+                        "PC2": { "ip": "10.10.10.2", "username": "osboxes", "password": "spanidea" },
+                        "PC3": { "ip": "10.10.10.3", "username": "osboxes", "password": "spanidea" }
+                        }
                 )
        
                 # 4. Create TestSuite
@@ -2213,8 +2218,8 @@ class RobotTestResultView(APIView):
                 execution.stderr = data.get('stderr', '')
                 
                 # Calculate duration
-                if execution.started_at:
-                    execution.execution_duration = execution.completed_at - execution.started_at
+                # if execution.started_at:
+                #     execution.execution_duration = execution.completed_at - execution.started_at
                 
                 # Set error message for failed status
                 if execution_status == TestExecutionStatus.FAILED:

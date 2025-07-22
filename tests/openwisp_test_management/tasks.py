@@ -243,6 +243,7 @@ def execute_tests_on_device(device_execution_id):
                 test_suite_data["test_cases"].append({
                   "test_case_id": test_case.test_case_id,
                   "test_case_name": test_case.name,
+                  "params": test_case.params,
                   "execution_id": test_execution.id
                      })
                 logger.info(f"Created execution record for Robot Framework test: {test_case.name}")
@@ -951,10 +952,14 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     
     # Fix test case execution IDs
     for test_case in test_suite_data.get('test_cases', []):
+        print(">>>>>>>>>>>>>>>>>>>>test_case" ,test_case)
         test_suite_data_fixed["test_cases"].append({
             "test_case_id": test_case.get('test_case_id', 'N/A'),
             "test_case_name": test_case.get('test_case_name', 'N/A'),
-            "execution_id": str(test_case.get('execution_id', ''))  # Convert UUID to string
+            "execution_id": str(test_case.get('execution_id', '')), # Convert UUID to string
+            "params": test_case.get('params', 'N/A'),
+
+            
         })
     
     # Extract and convert device_execution_id
@@ -1007,8 +1012,8 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     # Call Robot Framework API
     # robot_api_url = "http://0.0.0.0:8080/run-robot/"
     # robot_api_url = "http://10.8.12.123:8080/run-robot/"
-    # robot_api_url = "http://192.168.122.1:8080/run-robot/" # sachin
-    robot_api_url = "http://192.168.201.37:8080/run-robot/" # kalyani
+    robot_api_url = " http://192.168.122.1:8080/api/v1/run-robot/" # sachin
+    # robot_api_url = "http://192.168.201.37:8080/run-robot/" # kalyani
 
 
 

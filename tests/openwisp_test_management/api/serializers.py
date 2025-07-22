@@ -94,6 +94,7 @@ class TestCaseSerializer(ValidatedModelSerializer):
             "test_type_display",  # ADD THIS
             "description",  # ADD THIS (was missing)
             "is_active",
+            "params",  # ADD THIS - NEW FIELD
             "created",
             "modified",
         ]
@@ -702,6 +703,13 @@ class BulkTestDataCreationSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     f"Test case at index {idx}: test_type must be 1 (Robot Framework) or 2 (Device Agent)"
                 )
+            # ADD THIS - Validate params if provided
+            params = test_case.get('params')
+            if params is not None:
+                if not isinstance(params, dict):
+                    raise serializers.ValidationError(
+                        f"Test case at index {idx}: params must be a JSON object (dictionary)"
+                    )
         
         return value
     

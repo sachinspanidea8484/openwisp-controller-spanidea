@@ -34,7 +34,7 @@ class AbstractTestCategory(TimeStampedEditableModel):
         max_length=64,
         db_index=True,
         unique=True,
-        help_text=_("Category name to group related test cases s")
+        help_text=_("Category name to group related test cases")
     )
     code = models.CharField(
         _("code"),
@@ -139,6 +139,13 @@ class AbstractTestCase(TimeStampedEditableModel):
         choices=TestTypeChoices.choices,
         default=TestTypeChoices.ROBOT_FRAMEWORK,
         help_text=_("Type of test: Robot Framework or Device Agent ")
+    )
+    params = models.JSONField(
+        _("parameters"),
+        default=dict,
+        blank=True,
+        help_text=_("Optional parameters for test execution in JSON format. "
+                    "These parameters can be used to customize test case behavior.")
     )
 
 

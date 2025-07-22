@@ -189,6 +189,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         "category_link",
         "is_active",
         "test_type_display",  # ADD THIS
+        # "has_params",  # ADD THIS - NEW FIELD
         "created",
         "modified",
     ]
@@ -205,6 +206,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         "name",
         "test_case_id",
         "test_type",  # ADD THIS
+        "params",  # ADD THIS - NEW FIELD
         "description",
         "is_active",
         "created",
@@ -238,6 +240,8 @@ class TestCaseAdmin(BaseVersionAdmin):
     category_link.admin_order_field = "category__name"
 
 
+
+
     def get_readonly_fields(self, request, obj=None):
         fields = super().get_readonly_fields(request, obj)
         # Make test_case_id readonly after creation to maintain consistency
@@ -252,6 +256,25 @@ class TestCaseAdmin(BaseVersionAdmin):
         if obj and not obj.is_deletable:
             return False
         return True
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        # Add help text to form fields
+        if "name" in form.base_fields:
+            form.base_fields["name"].help_text = _(
+                "Choose a descriptive name for this test case"
+            )
+        if "test_case_id" in form.base_fields:
+            form.base_fields["test_case_id"].help_text = _(
+                "Unique identifier that devices will use to execute this test. "
+                # "This cannot be changed after creation."
+            )
+        # ADD THIS - Help text for params field
+        if "params" in form.base_fields:
+            form.base_fields["params"].help_text = _(
+                "Optional parameters for test execution in JSON format. "
+                "Example: {\"timeout\": 30, \"retry_attempts\": 3}"
+            )
+        return form
 
 def delete_selected(self, request, queryset):
     """
