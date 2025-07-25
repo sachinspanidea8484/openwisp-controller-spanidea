@@ -30,17 +30,17 @@ class AbstractTestCategory(TimeStampedEditableModel):
     Categories group test cases by type or purpose
     """
     name = models.CharField(
-        _("name"),
-        max_length=64,
+        _("category Name"),
+        max_length=50,
         db_index=True,
         unique=True,
         help_text=_("Category name to group related test cases")
     )
     code = models.CharField(
         _("code"),
-        max_length=64,
-        blank=True,
-        help_text=_("Optional code for this category")
+        max_length=50,
+        blank=False,  # Changed from blank=True to blank=False
+        help_text=_("Required code for this category")  # Updated help text
     )
     description = models.TextField(
         _("description"),
@@ -61,7 +61,9 @@ class AbstractTestCategory(TimeStampedEditableModel):
         """Validate the test category"""
         super().clean()
         if not self.name:
-            raise ValidationError({"name": _("Name is required")})
+            raise ValidationError({"name": _("Category Name is required")})
+        if not self.code:
+            raise ValidationError({"code": _("Category Code is required")})
         
         # Check for duplicate names
         qs = self.__class__.objects.filter(
@@ -104,14 +106,14 @@ class AbstractTestCase(TimeStampedEditableModel):
     Individual test cases that can be executed on devices
     """
     name = models.CharField(
-        _("test case name"),
-        max_length=128,
+        _("Test Case"),
+        max_length=50,
         db_index=True,
         help_text=_("Descriptive name for the test case")
     )
     test_case_id = models.CharField(
-        _("test case ID"),
-        max_length=64,
+        _("Test Case ID"),
+        max_length=50,
         unique=True,
         db_index=True,
         help_text=_("Unique identifier used by devices to execute this test")
@@ -120,31 +122,31 @@ class AbstractTestCase(TimeStampedEditableModel):
         'test_management.TestCategory',
         on_delete=models.PROTECT,
         related_name='test_cases',
-        verbose_name=_("category"),
+        verbose_name=_("Select Test Category"),  # Changed label
         help_text=_("Category this test case belongs to")
     )
     description = models.TextField(
-        _("description"),
+        _("Description"),
         blank=True,
         help_text=_("Detailed description of what this test does")
     )
     # Additional fields for future use
     is_active = models.BooleanField(
-        _("is active"),
+        _("Is Active"),
         default=True,
         help_text=_("Whether this test case is currently active")
     )
     test_type = models.IntegerField(
-        _("test type"),
+        _("Test Type"),
         choices=TestTypeChoices.choices,
         default=TestTypeChoices.ROBOT_FRAMEWORK,
         help_text=_("Type of test: Robot Framework or Device Agent ")
     )
     params = models.JSONField(
-        _("parameters"),
+        _("Parameters"),
         default=dict,
         blank=True,
-        help_text=_("Optional parameters for test execution in JSON format. "
+        help_text=_("Optional parameters for test case execution in JSON format. "
                     "These parameters can be used to customize test case behavior.")
     )
 
@@ -165,46 +167,65 @@ class AbstractTestCase(TimeStampedEditableModel):
 
 
     def clean(self):
-        """Validate the test case"""
-        super().clean()
-        
-        # Validate required fields
-        if not self.name:
-            raise ValidationError({"name": _("Test case name is required")})
-        
-        if not self.test_case_id:
-            raise ValidationError({"test_case_id": _("Test case ID is required")})
-        
-        # Check for duplicate test_case_id
+     """Validate the test case"""
+     super().clean()
+    
+    # Validate required fields
+     if not self.name:
+        raise ValidationError({"name": _("Test case name is required")})
+    
+     if not self.test_case_id:
+        raise ValidationError({"test_case_id": _("Test case ID is required")})
+    
+     # Handle empty params - set to empty dict if None or empty
+     if not self.params:
+        self.params = {}
+    
+     # Validate JSON params if provided
+     if self.params and self.params != {}:
+        try:
+            if not isinstance(self.params, dict):
+                raise ValidationError({
+                    "params": _("Parameters must be a valid JSON object")
+                })
+        except (TypeError, ValueError):
+            raise ValidationError({
+                "params": _("Parameters must be valid JSON format")
+            })
+    
+     # Check for duplicate test_case_id
+     qs = self.__class__.objects.filter(
+        test_case_id=self.test_case_id
+     ).exclude(pk=self.pk)
+    
+     if qs.exists():
+        raise ValidationError({
+            "test_case_id": _(
+                f"A test case with ID '{self.test_case_id}' already exists"
+            )
+        })
+    
+     # Check for duplicate name within the same category
+     if self.category_id:
         qs = self.__class__.objects.filter(
-            test_case_id=self.test_case_id
+            category=self.category,
+            name__iexact=self.name
         ).exclude(pk=self.pk)
         
         if qs.exists():
             raise ValidationError({
-                "test_case_id": _(
-                    f"A test case with ID '{self.test_case_id}' already exists"
+                "name": _(
+                    f"A test case with this name already exists "
+                    f"in category '{self.category.name}'"
                 )
             })
-        
-        # Check for duplicate name within the same category
-        if self.category_id:
-            qs = self.__class__.objects.filter(
-                category=self.category,
-                name__iexact=self.name
-            ).exclude(pk=self.pk)
-            
-            if qs.exists():
-                raise ValidationError({
-                    "name": _(
-                        f"A test case with this name already exists "
-                        f"in category '{self.category.name}'"
-                    )
-                })
 
     def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
+     # Ensure params is always a dict, never None or empty string
+     if not self.params:
+        self.params = {}
+     self.full_clean()
+     super().save(*args, **kwargs)
 
     @property
     def suite_count(self):
@@ -232,40 +253,40 @@ class AbstractTestSuite(TimeStampedEditableModel):
     Groups test cases for coordinated execution
     """
     name = models.CharField(
-        _("name"),
-        max_length=128,
+        _("Test Group Name"),  # Changed label
+        max_length=50,
         db_index=True,
-        help_text=_("Descriptive name for the test suite")
+        help_text=_("Descriptive name for the test group")  # Changed help text
     )
     description = models.TextField(
-        _("description"),
+        _("Description"),
         blank=True,
-        help_text=_("Detailed description of what this test suite does")
+        help_text=_("Detailed description of what this test group does")  # Changed help text
     )
     is_active = models.BooleanField(
-        _("is active"),
+        _("Is Active"),  # Changed label
         default=True,
-        help_text=_("Whether this test suite is currently active")
+        help_text=_("Whether this test group is currently active")  # Changed help text
     )
     category = models.ForeignKey(
         'test_management.TestCategory',
         on_delete=models.PROTECT,
-        related_name='test_suites',
-        verbose_name=_("category"),
-        help_text=_("Category this test suite belongs to")
+        related_name='test_suites',  # Keep model relation name same
+        verbose_name=_("Select Test Category"),  # Changed label
+        help_text=_("Category this test group belongs to")  # Changed help text
     )
     test_cases = models.ManyToManyField(
         'test_management.TestCase',
         through='test_management.TestSuiteCase',
-        related_name='test_suites',
-        verbose_name=_("test cases"),
-        help_text=_("Test cases included in this suite")
+        related_name='test_suites',  # Keep model relation name same
+        verbose_name=_("Test Cases"),  # Changed label
+        help_text=_("Test cases included in this group")  # Changed help text
     )
 
     class Meta:
         abstract = True
-        verbose_name = _("Test Suite")
-        verbose_name_plural = _("Test Suites")
+        verbose_name = _("Test Group")  # Changed from "Test Suite"
+        verbose_name_plural = _("Test Groups")  # Changed from "Test Suites"
         unique_together = ("category", "name")
         ordering = ["category", "name"]
 
@@ -273,7 +294,7 @@ class AbstractTestSuite(TimeStampedEditableModel):
         return f"{self.category.name} - {self.name}"
 
     def clean(self):
-        """Validate the test suite"""
+        """Validate the test group"""
         super().clean()
         
         if not self.name:
@@ -289,7 +310,7 @@ class AbstractTestSuite(TimeStampedEditableModel):
             if qs.exists():
                 raise ValidationError({
                     "name": _(
-                        f"A test suite with this name already exists "
+                        f"A test group with this name already exists "
                         f"in category '{self.category.name}'"
                     )
                 })
@@ -300,18 +321,18 @@ class AbstractTestSuite(TimeStampedEditableModel):
 
     @property
     def test_case_count(self):
-        """Return count of test cases in this suite"""
+        """Return count of test cases in this group"""
         return self.test_cases.count()
 
     @property
     def execution_count(self):
-        """Return count of times this suite has been executed"""
+        """Return count of times this group has been executed"""
         # This will be implemented when MassExecution model is added
         return 0
 
     @property
     def is_deletable(self):
-        """Check if test suite can be deleted"""
+        """Check if test group can be deleted"""
         # Suites with executions cannot be deleted
         return self.execution_count == 0
 
@@ -333,23 +354,23 @@ class AbstractTestSuiteCase(TimeStampedEditableModel):
     test_suite = models.ForeignKey(
         'test_management.TestSuite',
         on_delete=models.CASCADE,
-        verbose_name=_("test suite")
+        verbose_name=_("Test Group")  # Changed label
     )
     test_case = models.ForeignKey(
         'test_management.TestCase',
         on_delete=models.CASCADE,
-        verbose_name=_("test case")
+        verbose_name=_("Test Case")  # Keep same
     )
     order = models.PositiveIntegerField(
         _("order"),
         default=0,
-        help_text=_("Execution order of test case within the suite")
+        help_text=_("Execution order of test case within the group")  # Changed help text
     )
 
     class Meta:
         abstract = True
-        verbose_name = _("Test Suite Case")
-        verbose_name_plural = _("Test Suite Cases")
+        verbose_name = _("Test Group Case")  # Changed
+        verbose_name_plural = _("Test Group Cases")  # Changed
         unique_together = ("test_suite", "test_case")
         ordering = ["test_suite", "order", "test_case"]
 
@@ -357,15 +378,15 @@ class AbstractTestSuiteCase(TimeStampedEditableModel):
         return f"{self.test_suite.name} - {self.order}: {self.test_case.name}"
 
     def clean(self):
-        """Validate test suite case"""
+        """Validate test group case"""
         super().clean()
         
-        # Ensure test case belongs to the same category as the suite
+        # Ensure test case belongs to the same category as the group
         if self.test_case and self.test_suite:
             if self.test_case.category != self.test_suite.category:
                 raise ValidationError({
                     "test_case": _(
-                        "Test case must belong to the same category as the test suite"
+                        "Test case must belong to the same category as the test group"
                     )
                 })
 
@@ -400,8 +421,8 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         'test_management.TestSuite',
         on_delete=models.PROTECT,
         related_name='executions',
-        verbose_name=_("test suite"),
-        help_text=_("Test suite to execute")
+        verbose_name=_("Select Test Group"),
+        help_text=_("Test to execute")
     )
     is_executed = models.BooleanField(
         _("is executed"),
@@ -411,8 +432,8 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
     
     class Meta:
         abstract = True
-        verbose_name = _("Test Suite Execution")
-        verbose_name_plural = _("Test Suite Executions")
+        verbose_name = _("Test Group Execution")
+        verbose_name_plural = _("Test Executions")
         ordering = ["-created"]
     
     def __str__(self):
@@ -495,7 +516,7 @@ def execution_time(self):
 class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
     """
     Abstract model for Test Suite Execution Devices
-    Links devices to test suite executions
+    Links devices to test executions
     """
     test_suite_execution = models.ForeignKey(
         'test_management.TestSuiteExecution',

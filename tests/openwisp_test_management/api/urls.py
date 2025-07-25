@@ -19,6 +19,11 @@ urlpatterns = [
                 views.test_category_detail,
                 name="api_test_category_detail",
             ),
+            path(
+                "category/<uuid:category_id>/test-cases/",
+                views.get_category_test_cases,
+                name="api_category_test_cases",
+            ),
             # Test Case endpoints
             path(
                 "test-case/",
@@ -31,6 +36,11 @@ urlpatterns = [
                 name="api_test_case_detail",
             ),
             # Test Suite endpoints
+           path(
+        "test-suite/<uuid:suite_id>/details/",
+        views.get_test_suite_details,
+        name="api_test_suite_details",
+    ),
             path(
                 "test-suite/",
                 views.test_suite_list,
@@ -158,6 +168,16 @@ path(
 ),
 
 
+            path(
+                "devices/",
+                views.get_available_devices,
+                name="api_available_devices",
+            ),
+
+
+
         ]),
     ),
+
+
 ]

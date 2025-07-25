@@ -17,8 +17,6 @@ from .base.models import TestTypeChoices
 import json
 from django.urls import path
 from django.shortcuts import get_object_or_404, render
-import traceback
-
 
 
 
@@ -828,10 +826,6 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>M<<<<<<<<<<<<<<<")
-        
-        # Store selected devices data for later use
-        self._selected_devices_data = None
         
         # Customize test_suite field
         if "test_suite" in self.fields:
@@ -844,27 +838,20 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
     
     def clean(self):
         """Custom validation"""
-        print(">>> CLEAN METHOD STARTED <<<")
         cleaned_data = super().clean()
         test_suite = cleaned_data.get('test_suite')
         
         if not test_suite:
-            print(">>> ERROR: No test suite selected <<<")
             raise forms.ValidationError({
                 'test_suite': _('Please select a test group to execute.')
             })
         
         # Validate selected devices
         selected_devices_data = self.data.get('selected_devices_data', '')
-        print(f">>> Selected devices data from form: {selected_devices_data} <<<")
-        
         if selected_devices_data:
             try:
                 selected_device_ids = json.loads(selected_devices_data)
-                print(f">>> Parsed device IDs: {selected_device_ids} <<<")
-                
                 if not selected_device_ids or len(selected_device_ids) == 0:
-                    print(">>> ERROR: No devices selected <<<")
                     raise forms.ValidationError({
                         '__all__': _('At least one device must be selected for execution.')
                     })
@@ -872,131 +859,401 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                 # Validate that all selected devices exist and are working
                 valid_devices = Device.objects.filter(
                     id__in=selected_device_ids,
-                    # is_working=True
+                    is_working=True
                 ).count()
                 
-                print(f">>> Valid devices count: {valid_devices}, Selected count: {len(selected_device_ids)} <<<")
-                
                 if valid_devices != len(selected_device_ids):
-                    print(">>> ERROR: Some devices are not available or not working <<<")
                     raise forms.ValidationError({
                         '__all__': _('Some selected devices are not available or not working.')
                     })
-                
-                # Store the validated device data for later use
-                self._selected_devices_data = selected_devices_data
                     
             except json.JSONDecodeError:
-                print(">>> ERROR: JSON decode error for device selection <<<")
                 raise forms.ValidationError({
                     '__all__': _('Invalid device selection data.')
                 })
         else:
-            print(">>> ERROR: No device selection data found <<<")
             raise forms.ValidationError({
                 '__all__': _('At least one device must be selected for execution.')
             })
         
-        print(">>> CLEAN METHOD COMPLETED SUCCESSFULLY <<<")
         return cleaned_data
     
-    def save_devices(self, instance):
-        """Save devices for the test suite execution"""
-        print(f">>> SAVE_DEVICES METHOD STARTED for instance: {instance.id} <<<")
-        
-        # Use stored device data or get from form data
-        selected_devices_data = self._selected_devices_data or self.data.get('selected_devices_data', '')
-        print(f">>> Processing selected devices data: {selected_devices_data} <<<")
-        
-        if selected_devices_data:
-            try:
-                selected_device_ids = json.loads(selected_devices_data)
-                print(f">>> Parsed device IDs for saving: {selected_device_ids} <<<")
-                
-                # Clear existing devices for this execution
-                deleted_count = TestSuiteExecutionDevice.objects.filter(test_suite_execution=instance).delete()
-                print(f">>> Deleted {deleted_count[0]} existing TestSuiteExecutionDevice entries <<<")
-                
-                # Create new TestSuiteExecutionDevice entries
-                successful_devices = 0
-                for device_id in selected_device_ids:
-                    print(f">>> Processing device ID: {device_id} <<<")
-                    try:
-                        device = Device.objects.get(id=device_id)
-                        print(f">>> Found device: {device} (ID: {device.id}) <<<")
-                        
-                        execution_device = TestSuiteExecutionDevice.objects.create(
-                            test_suite_execution=instance,
-                            device=device,
-                            status='pending'
-                        )
-                        print(f">>> Created TestSuiteExecutionDevice: {execution_device.id} <<<")
-                        successful_devices += 1
-                        
-                    except Device.DoesNotExist:
-                        error_msg = f"Device not found: {device_id}"
-                        logger.error(error_msg)
-                        print(f">>> ERROR: {error_msg} <<<")
-                    except Exception as e:
-                        error_msg = f"Error creating TestSuiteExecutionDevice: {e}"
-                        logger.error(error_msg)
-                        print(f">>> ERROR: {error_msg} <<<")
-                        print(f">>> Exception type: {type(e).__name__} <<<")
-                        print(f">>> Full traceback: {traceback.format_exc()} <<<")
-                
-                print(f">>> Successfully created {successful_devices}/{len(selected_device_ids)} TestSuiteExecutionDevice entries <<<")
-                
-                # Verify the saved devices
-                saved_devices = TestSuiteExecutionDevice.objects.filter(test_suite_execution=instance)
-                print(f">>> Verification: Found {saved_devices.count()} devices in DB for this execution <<<")
-                for sd in saved_devices:
-                    print(f">>>   - Device: {sd.device.id}, Status: {sd.status} <<<")
-                        
-            except json.JSONDecodeError as e:
-                error_msg = f"Error parsing selected devices JSON: {e}"
-                logger.error(error_msg)
-                print(f">>> ERROR: {error_msg} <<<")
-            except Exception as e:
-                error_msg = f"Unexpected error saving devices: {e}"
-                logger.error(error_msg)
-                print(f">>> ERROR: {error_msg} <<<")
-                print(f">>> Exception type: {type(e).__name__} <<<")
-                print(f">>> Full traceback: {traceback.format_exc()} <<<")
-        else:
-            print(">>> WARNING: No selected_devices_data found during save_devices <<<")
-    
     def save(self, commit=True):
-        print(">>> SAVE METHOD STARTED <<<")
-        print(f">>> Commit parameter: {commit} <<<")
-        
         instance = super().save(commit=False)
-        print(f">>> Instance created/updated: {instance} (ID: {instance.id if instance.id else 'NEW'}) <<<")
         
         if commit:
             instance.save()
-            print(f">>> Instance saved to DB. ID: {instance.id} <<<")
             
-            # Save devices after the instance is saved
-            self.save_devices(instance)
-        else:
-            # When commit=False, we need to add a hook to save devices later
-            print(">>> Commit=False, adding save_m2m hook for devices <<<")
-            old_save_m2m = self.save_m2m
-            def save_m2m():
-                old_save_m2m()
-                print(">>> save_m2m called, now saving devices <<<")
-                self.save_devices(instance)
-            self.save_m2m = save_m2m
+            # Process selected devices
+            selected_devices_data = self.data.get('selected_devices_data', '')
+            if selected_devices_data:
+                try:
+                    selected_device_ids = json.loads(selected_devices_data)
+                    
+                    # Clear existing devices for this execution
+                    TestSuiteExecutionDevice.objects.filter(test_suite_execution=instance).delete()
+                    
+                    # Create new TestSuiteExecutionDevice entries
+                    for device_id in selected_device_ids:
+                        try:
+                            device = Device.objects.get(id=device_id, is_working=True)
+                            TestSuiteExecutionDevice.objects.create(
+                                test_suite_execution=instance,
+                                device=device,
+                                status='pending'
+                            )
+                        except Device.DoesNotExist:
+                            logger.error(f"Device not found or not working: {device_id}")
+                        except Exception as e:
+                            logger.error(f"Error creating TestSuiteExecutionDevice: {e}")
+                            
+                except json.JSONDecodeError as e:
+                    logger.error(f"Error parsing selected devices JSON: {e}")
+                except Exception as e:
+                    logger.error(f"Unexpected error saving devices: {e}")
         
-        print(f">>> SAVE METHOD COMPLETED. Returning instance: {instance} <<<")
         return instance
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# @admin.register(TestSuiteExecution)
+# class TestSuiteExecutionAdmin(BaseVersionAdmin):
+#     form = TestSuiteExecutionAdminForm
+#     change_form_template = 'admin/test_management/testsuiteexecution/change_form.html'
+#     list_display = [
+#         "test_suite_name",
+#         "device_count",
+#         # "execution_status",
+#         "status_summary_display",
+#         "is_executed",
+#         "created",
+#         "view_history",  # Add this new column
+#     ]
+#     list_filter = [
+#         TestExecutionStatusFilter,  # Add this new filter
+#         "created",
+#         ("test_suite", admin.RelatedOnlyFieldListFilter),
+#     ]
+#     list_select_related = ["test_suite", "test_suite__category"]
+#     search_fields = ["test_suite__name"]
+#     ordering = ["-created"]
+    
+#     fields = [
+#         "test_suite",
+#     ]
+    
+
+#     readonly_fields = ["created", "modified"]
+#     actions = ["execute_test_suite"]
+
+#     class Media:
+#         js = ('admin/js/jquery.init.js',)
+    
+#     class Meta:
+#         verbose_name = _("Test Execution")  # Change from "Test Suite Execution"
+#         verbose_name_plural = _("Test Executions")  # Change from "Test Suite Executions"
+    
+#     def changelist_view(self, request, extra_context=None):
+#         """Override to add custom title"""
+#         extra_context = extra_context or {}
+#         extra_context['title'] = _("Test Executions")  # Change title
+#         return super().changelist_view(request, extra_context)
+    
+#     def test_suite_name(self, obj):
+#         """Display test suite name with link"""
+#         if obj.test_suite:
+#             return format_html(
+#                 '<a href="../testsuite/{}/change/">{}</a>',
+#                 obj.test_suite.pk,
+#                 obj.test_suite.name
+#             )
+#         return "-"
+#     test_suite_name.short_description = _("Test Group Name")
+#     test_suite_name.admin_order_field = "test_suite__name"
+    
+#     def device_count(self, obj):
+#         """Display device count"""
+#         return obj.device_count
+#     device_count.short_description = _("Devices") 
+#     def get_urls(self):
+#      """Add custom URL for test execution history"""
+#      urls = super().get_urls()
+#      custom_urls = [
+#         path(
+#             '<path:object_id>/history/',
+#             self.admin_site.admin_view(self.execution_history_view),
+#             name='test_management_testexecution_history'
+#         ),
+#      ]
+#      return custom_urls + urls
+
+#     def execution_history_view(self, request, object_id):
+#      """Custom view for execution history"""
+#      execution = get_object_or_404(TestSuiteExecution, pk=object_id)
+    
+#      # Get all execution devices
+#      execution_devices = TestSuiteExecutionDevice.objects.filter(
+#         test_suite_execution=execution
+#      ).select_related('device').order_by('device__name')
+    
+#      # Get all test case executions
+#      test_case_executions = TestCaseExecution.objects.filter(
+#         test_suite_execution=execution
+#      ).select_related('device', 'test_case', 'test_case__category').order_by(
+#         'device__name', 'execution_order'
+#      )
+    
+#      # Group test case executions by device
+#      device_executions = {}
+#      for device_exec in execution_devices:
+#         device = device_exec.device
+#         device_executions[device.id] = {
+#             'device': device,
+#             'device_execution': device_exec,
+#             'test_cases': test_case_executions.filter(device=device)
+#         }
+    
+#      context = {
+#         'title': f'Test Execution History - {execution.test_suite.name}',
+#         'execution': execution,
+#         'execution_devices': execution_devices,
+#         'device_executions': device_executions,
+#         'test_case_executions': test_case_executions,
+#         'opts': self.model._meta,
+#         'has_view_permission': True,
+#         'original': execution,
+#         'preserved_filters': self.get_preserved_filters(request),
+#      }
+    
+#      return render(
+#         request,
+#         'admin/test_management/testexecution/execution_history.html',
+#         context
+#         )
+
+    
+    
+#     def view_history(self, obj):
+#         """Add history view link"""
+#         if obj.pk:
+#             # You can customize the URL pattern based on your history view
+#             return format_html(
+#                 '<a href="{}" class="viewlink">View History</a>',
+#             f'{obj.pk}/history/',
+#             )
+#         return "-"
+#     view_history.short_description = _("History")
+#     view_history.allow_tags = True
+    
+#     def execution_status(self, obj):
+#         """Display execution status summary"""
+#         summary = obj.status_summary
+#         if isinstance(summary, str):
+#             return summary
+        
+#         return format_html(
+#             '<span title="Total: {total}, Completed: {completed}, Failed: {failed}, Running: {running}, Pending: {pending}">'
+#             '✓ {completed} | ✗ {failed} | ⚡ {running} | ⏳ {pending}'
+#             '</span>',
+#             **summary
+#         )
+#     execution_status.short_description = _("Status")
+    
+#     def device_summary(self, obj):
+#         """Display device summary in detail view"""
+#         if not obj.pk:
+#             return "-"
+        
+#         summary = obj.status_summary
+#         if isinstance(summary, str):
+#             return summary
+        
+#         return format_html(
+#             '<div style="line-height: 1.8;">'
+#             '<strong>Total Devices:</strong> {total}<br>'
+#             '<strong>Completed:</strong> <span style="color: green;">✓ {completed}</span><br>'
+#             '<strong>Failed:</strong> <span style="color: red;">✗ {failed}</span><br>'
+#             '<strong>Running:</strong> <span style="color: orange;">⚡ {running}</span><br>'
+#             '<strong>Pending:</strong> <span style="color: gray;">⏳ {pending}</span>'
+#             '</div>',
+#             **summary
+#         )
+#     device_summary.short_description = _("Execution Summary")
+    
+#     def has_delete_permission(self, request, obj=None):
+#         """Prevent deletion of executed test suites"""
+#         if obj and obj.is_executed:
+#             return False
+#         return super().has_delete_permission(request, obj)
+    
+#     @admin.action(description=_("Execute selected test suites"))
+#     def execute_test_suite(self, request, queryset):
+#         """Execute test suites using Celery tasks"""
+#         from .tasks import execute_test_suite
+        
+#         # Filter only non-executed ones
+#         to_execute = queryset.filter(is_executed=False)
+        
+#         if to_execute.count() == 0:
+#             self.message_user(
+#                 request,
+#                 _("No pending executions to process"),
+#                 messages.WARNING
+#             )
+#             return
+        
+#         executed_count = 0
+#         for execution in to_execute:
+#             # Calculate estimated test count
+#             test_count = 0
+#             device_count = execution.device_count
+            
+#             for test_case in execution.test_suite.test_cases.filter(test_type=1):
+#                 test_count += 1
+            
+#             total_test_executions = test_count * device_count
+            
+#             # Mark as executed
+#             execution.is_executed = True
+#             execution.save()
+            
+#             # Launch Celery task
+#             execute_test_suite.delay(str(execution.id))
+#             executed_count += 1
+            
+#             # Log info
+#             logger.info(
+#                 f"Started execution {execution.id}: "
+#                 f"{test_count} tests × {device_count} devices = "
+#                 f"{total_test_executions} parallel test executions"
+#             )
+        
+#         self.message_user(
+#             request,
+#             ngettext(
+#                 "%d test execution was started.",
+#                 "%d test executions were started.",
+#                 executed_count,
+#             ) % executed_count,
+#             messages.SUCCESS,
+#         )
+
+    
+        
+        
+# @admin.register(TestSuiteExecution)
+# class TestSuiteExecutionAdmin(BaseVersionAdmin):
+#     form = TestSuiteExecutionAdminForm
+#     change_form_template = 'admin/test_management/testsuiteexecution/change_form.html'
+
+    
+#     list_display = [
+#         "test_suite_name",
+#         "device_count",
+#         "status_summary_display", # want later
+#         "is_executed",
+#         "created",
+#     ]
+    
+#     list_filter = [
+#         "is_executed",
+#         "created",
+#     ]
+    
+#     search_fields = ["test_suite__name"]
+#     ordering = ["-created"]
+    
+#     fields = [
+#         "test_suite",
+#     ]
+    
+#     readonly_fields = ["created", "modified"]
+    
+#     # Enable history button
+#     object_history_template = "reversion/object_history.html"
+
+#     class Media:
+#         js = ('admin/js/jquery.init.js',)
+
+#     def test_suite_name(self, obj):
+#         """Display test suite name"""
+#         return obj.test_suite.name
+#     test_suite_name.short_description = _("Test Group Name")
+#     test_suite_name.admin_order_field = "test_suite__name"
+
+#     def status_summary_display(self, obj):
+#         """Display execution status summary"""
+#         summary = obj.status_summary
+#         if not summary.get('has_devices', False):
+#             return format_html('<span style="color: #999;">No devices</span>')
+        
+#         total = summary['total']
+#         completed = summary['completed']
+#         failed = summary['failed']
+#         running = summary['running']
+#         pending = summary['pending']
+        
+#         html = f'<div style="font-size: 12px;">'
+#         html += f'<div>Total: {total}</div>'
+#         if completed > 0:
+#             html += f'<div style="color: #28a745;">Completed: {completed}</div>'
+#         if running > 0:
+#             html += f'<div style="color: #007bff;">Running: {running}</div>'
+#         if failed > 0:
+#             html += f'<div style="color: #dc3545;">Failed: {failed}</div>'
+#         if pending > 0:
+#             html += f'<div style="color: #ffc107;">Pending: {pending}</div>'
+#         html += '</div>'
+        
+#         return format_html(html)
+#     status_summary_display.short_description = _("Status Summary")
+
+#     def get_form(self, request, obj=None, **kwargs):
+#         form = super().get_form(request, obj, **kwargs)
+        
+#         # Customize form fields
+#         if "test_suite" in form.base_fields:
+#             form.base_fields["test_suite"].help_text = _(
+#                 "Select a test group to execute on selected devices"
+#             )
+        
+#         return form
+
+#     def changelist_view(self, request, extra_context=None):
+#         extra_context = extra_context or {}
+#         extra_context['title'] = _("Test Executions")
+#         return super().changelist_view(request, extra_context)
+
+#     def has_change_permission(self, request, obj=None):
+#         """Prevent editing of executed test suites"""
+#         if obj and obj.is_executed:
+#             return False
+#         return super().has_change_permission(request, obj)
+
+#     def has_delete_permission(self, request, obj=None):
+#         """Prevent deletion of executed test suites"""
+#         if obj and obj.is_executed:
+#             return False
+#         return super().has_delete_permission(request, obj)
+
 
 
 @admin.register(TestSuiteExecution)
 class TestSuiteExecutionAdmin(BaseVersionAdmin):
     form = TestSuiteExecutionAdminForm
-    
-    change_form_template = 'admin/test_management/testsuitexecution/change_form.html'
+    change_form_template = 'admin/test_management/testsuiteexecution/change_form.html'
     list_display = [
         "test_suite_name",
         "device_count",
@@ -1022,9 +1279,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
     readonly_fields = ["created", "modified"]
     actions = ["execute_test_suite"]
-
-    class Media:
-        js = ('admin/js/jquery.init.js',)
+    
     
     class Meta:
         verbose_name = _("Test Execution")  # Change from "Test Suite Execution"
@@ -1156,17 +1411,6 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             **summary
         )
     device_summary.short_description = _("Execution Summary")
-
-
-    def save_model(self, request, obj, form, change):
-        print(f">>> ADMIN save_model called. Change: {change} <<<")
-        super().save_model(request, obj, form, change)
-        print(f">>> Object saved with ID: {obj.id} <<<")
-        
-        # Ensure devices are saved
-        if hasattr(form, 'save_devices'):
-            form.save_devices(obj)
-        print(">>> ADMIN save_model completed <<<")
     
     def has_delete_permission(self, request, obj=None):
         """Prevent deletion of executed test suites"""
@@ -1228,10 +1472,6 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
     
         
-        
-
-
-
         
 
 

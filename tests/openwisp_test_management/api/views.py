@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 from django.db import transaction
 from rest_framework.decorators import permission_classes
 from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
 
 
 
@@ -2776,6 +2777,283 @@ class BulkTestDataCreationView(ProtectedAPIMixin, generics.CreateAPIView):
 
 
 
+# Add this function to your views.py
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_category_test_cases(request, category_id):
+    """
+    API endpoint to get test cases for a specific category
+    Used by the admin interface for dynamic test case selection
+    """
+    try:
+        # Verify category exists
+        if not TestCategory.objects.filter(id=category_id).exists():
+            return Response(
+                {"error": "Category not found", "category_id": str(category_id)},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get active test cases for the category
+        test_cases = TestCase.objects.filter(
+            category_id=category_id,
+            is_active=True
+        ).order_by('name')
+        
+        # Serialize test cases
+        test_cases_data = []
+        for tc in test_cases:
+            test_cases_data.append({
+                'id': str(tc.id),
+                'name': tc.name,
+                'test_case_id': tc.test_case_id,
+                'test_type': tc.test_type,
+                'test_type_display': tc.get_test_type_display()
+            })
+        
+        return Response({
+            'success': True,
+            'category_id': str(category_id),
+            'test_cases': test_cases_data,
+            'count': len(test_cases_data)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting test cases for category {category_id}: {str(e)}")
+        return Response(
+            {"error": "Failed to retrieve test cases", "details": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+
+
+
+
+
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_test_suite_details(request, suite_id):
+    """
+    API endpoint to get test suite details with test cases
+    Used by TestSuiteExecution admin interface
+    """
+    if not suite_id:
+        return Response({
+            'success': False,
+            'error': 'suite_id is required in URL'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # Get test suite
+        test_suite = get_object_or_404(TestSuite, id=suite_id)
+
+        # Get test cases with their order
+        test_suite_cases = TestSuiteCase.objects.filter(
+            test_suite=test_suite
+        ).select_related('test_case', 'test_case__category').order_by('order')
+
+        # Serialize test cases data
+        test_cases_data = []
+        for suite_case in test_suite_cases:
+            tc = suite_case.test_case
+            test_cases_data.append({
+                'id': str(tc.id),
+                'name': tc.name,
+                'test_case_id': tc.test_case_id,
+                'category': tc.category.name,
+                'test_type': tc.test_type,
+                'test_type_display': tc.get_test_type_display(),
+                'order': suite_case.order,
+                'is_active': tc.is_active
+            })
+
+        # Serialize test suite data
+        test_suite_data = {
+            'id': str(test_suite.id),
+            'name': test_suite.name,
+            'category': test_suite.category.name,
+            'category_id': str(test_suite.category.id),
+            'description': test_suite.description or '',
+            'is_active': test_suite.is_active,
+            'test_case_count': len(test_cases_data),
+            'created': test_suite.created.isoformat() if test_suite.created else None,
+            'modified': test_suite.modified.isoformat() if test_suite.modified else None
+        }
+
+        return Response({
+            'success': True,
+            'test_suite': test_suite_data,
+            'test_cases': test_cases_data,
+            'count': len(test_cases_data)
+        }, status=status.HTTP_200_OK)
+
+    except TestSuite.DoesNotExist:
+        return Response({
+            'success': False,
+            'error': 'Test suite not found',
+            'suite_id': str(suite_id)
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        logger.error(f"Error getting test suite details for {suite_id}: {str(e)}")
+        return Response({
+            'success': False,
+            'error': 'Failed to retrieve test suite details',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_available_devices(request):
+    """
+    API endpoint to get available devices for test execution
+    Used by TestSuiteExecution admin interface
+    """
+    # ============= CONFIGURATION SECTION =============
+    # Set this to True to show only devices with connections
+    # Set this to False to show all devices regardless of connection status
+    FILTER_BY_CONNECTION = False  # ← Change this to False when you want to show all devices
+    # =================================================
+    
+    try:
+        # Get organization filter if user has limited access
+        organization_filter = {}
+        
+        # Check different possible ways organizations might be associated with user
+        user_organizations = None
+        
+        # Try different organization access patterns in OpenWISP
+        if hasattr(request.user, 'organizations_managed'):
+            orgs_managed = request.user.organizations_managed
+            if hasattr(orgs_managed, 'all'):
+                user_organizations = orgs_managed.all()
+            elif isinstance(orgs_managed, (list, tuple)):
+                user_organizations = orgs_managed
+        elif hasattr(request.user, 'organizations'):
+            orgs = request.user.organizations
+            if hasattr(orgs, 'all'):
+                user_organizations = orgs.all()
+            elif isinstance(orgs, (list, tuple)):
+                user_organizations = orgs
+        elif hasattr(request.user, 'organizationuser_set'):
+            user_organizations = [ou.organization for ou in request.user.organizationuser_set.all()]
+        
+        # Apply organization filter if user has organization restrictions
+        if user_organizations:
+            if isinstance(user_organizations, (list, tuple)):
+                if len(user_organizations) > 0:
+                    organization_filter['organization__in'] = user_organizations
+            else:
+                if user_organizations.exists():
+                    organization_filter['organization__in'] = user_organizations
+        
+        # Get devices with organization filter
+        devices_query = Device.objects.filter(
+            **organization_filter
+        ).select_related('organization')
+        
+        # Apply connection filter if enabled
+        if FILTER_BY_CONNECTION:
+            devices_query = devices_query.filter(
+                deviceconnection__isnull=False, 
+                deviceconnection__enabled=True
+            ).distinct()
+        
+        devices = devices_query.order_by('name')
+        
+        devices_data = []
+        for device in devices:
+            try:
+                # Get device connection status
+                has_connection = False
+                connection_status = 'No Connection'
+                
+                try:
+                    if hasattr(device, 'deviceconnection'):
+                        device_conn = device.deviceconnection
+                        if device_conn and hasattr(device_conn, 'enabled'):
+                            has_connection = device_conn.enabled
+                            connection_status = 'Connected' if has_connection else 'Disabled'
+                except Exception as conn_error:
+                    logger.debug(f"Connection check failed for device {device.id}: {str(conn_error)}")
+                
+                # Skip devices without connection if filtering is enabled
+                if FILTER_BY_CONNECTION and not has_connection:
+                    continue
+                
+                # Determine device status based on available fields
+                device_status = 'Offline'
+                is_deactivated = getattr(device, '_is_deactivated', False)
+                
+                if is_deactivated:
+                    device_status = 'Deactivated'
+                elif getattr(device, 'last_ip', None) and getattr(device, 'management_ip', None):
+                    device_status = 'Online'
+                elif getattr(device, 'last_ip', None):
+                    device_status = 'Reachable'
+                
+                device_data = {
+                    'id': str(device.id),
+                    'name': device.name,
+                    'organization': device.organization.name if device.organization else 'No Organization',
+                    'organization_id': str(device.organization.id) if device.organization else None,
+                    'last_ip': getattr(device, 'last_ip', None) or 'N/A',
+                    'management_ip': getattr(device, 'management_ip', None) or 'N/A',
+                    'mac_address': getattr(device, 'mac_address', None) or 'N/A',
+                    'status': device_status,
+                    'connection_status': connection_status,
+                    'has_connection': has_connection,
+                    'is_active': not is_deactivated,  # Use _is_deactivated field inverted
+                    'model': getattr(device, 'model', None) or 'Unknown',
+                    'os': getattr(device, 'os', None) or 'Unknown',
+                    'hardware_id': getattr(device, 'hardware_id', None) or 'N/A',
+                    'created': device.created.isoformat() if hasattr(device, 'created') and device.created else None,
+                }
+                
+                devices_data.append(device_data)
+                
+            except Exception as device_error:
+                logger.warning(f"Error processing device {device.id}: {str(device_error)}")
+                # Add device with basic info even if there's an error (only if not filtering by connection)
+                if not FILTER_BY_CONNECTION:
+                    devices_data.append({
+                        'id': str(device.id),
+                        'name': getattr(device, 'name', 'Unknown Device'),
+                        'organization': device.organization.name if device.organization else 'No Organization',
+                        'organization_id': str(device.organization.id) if device.organization else None,
+                        'last_ip': getattr(device, 'last_ip', None) or 'N/A',
+                        'management_ip': 'N/A',
+                        'mac_address': 'N/A',
+                        'status': 'Unknown',
+                        'connection_status': 'Unknown',
+                        'has_connection': False,
+                        'is_active': True,
+                        'model': 'Unknown',
+                        'os': 'Unknown',
+                        'hardware_id': 'N/A',
+                        'created': None,
+                    })
+        
+        # Sort devices by name
+        devices_data.sort(key=lambda x: x['name'].lower())
+        
+        return Response({
+            'success': True,
+            'devices': devices_data,
+            'count': len(devices_data),
+            'filters_applied': bool(organization_filter),
+            'connection_filter_enabled': FILTER_BY_CONNECTION,
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error getting available devices: {str(e)}")
+        return Response({
+            'success': False,
+            'error': 'Failed to retrieve available devices',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 # Create view instances
 test_category_list = TestCategoryListCreateView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()
