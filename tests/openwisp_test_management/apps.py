@@ -54,7 +54,7 @@ class TestManagementConfig(ApiAppConfig):
                     "label": _("Test Executions"),
                     "model": get_model_name(self.label, "TestSuiteExecution"),
                     "name": "changelist",
-                    "icon": "ow-mass-execution",
+                    "icon": "ow-mass-upgrade",
                 },
 
                 },

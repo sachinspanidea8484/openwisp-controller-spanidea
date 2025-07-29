@@ -206,12 +206,30 @@ python-dotenv==1.0.0
 
 
 # github clone s
-django-loci @ https://github.com/sachinspanidea8484/django-loci-spanidea-/tarball/main
-django-x509 @ https://github.com/sachinspanidea8484/django-x509-spanidea/tarball/main
-netdiff @ https://github.com/sachinspanidea8484/netdiff-spanidea/tarball/main
-netjsonconfig @ https://github.com/sachinspanidea8484/netjsonconfig-spanidea/tarball/main
-openwisp-ipam @ https://github.com/sachinspanidea8484/openwisp-ipam-spanidea/tarball/main
-openwisp-notifications @ https://github.com/sachinspanidea8484/openwisp-notifications-spanidea/tarball/main
-openwisp-users @ https://github.com/sachinspanidea8484/openwisp-users-spanidea/tarball/main
-openwisp-utils @ https://github.com/sachinspanidea8484/openwisp-utils-spanidea/tarball/main
+# django-loci @ https://github.com/sachinspanidea8484/django-loci-spanidea-/tarball/main
+# django-x509 @ https://github.com/sachinspanidea8484/django-x509-spanidea/tarball/main
+# netdiff @ https://github.com/sachinspanidea8484/netdiff-spanidea/tarball/main
+# netjsonconfig @ https://github.com/sachinspanidea8484/netjsonconfig-spanidea/tarball/main
+# openwisp-ipam @ https://github.com/sachinspanidea8484/openwisp-ipam-spanidea/tarball/main
+# openwisp-notifications @ https://github.com/sachinspanidea8484/openwisp-notifications-spanidea/tarball/main
+# openwisp-users @ https://github.com/sachinspanidea8484/openwisp-users-spanidea/tarball/main
+# openwisp-utils @ https://github.com/sachinspanidea8484/openwisp-utils-spanidea/tarball/main
 
+# django-loci @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/django-loci-spanidea.git@dev
+# django-x509 @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/django-x509-spanidea.git@dev
+# netdiff @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/netdiff-spanidea.git@dev
+# netjsonconfig @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/netjsonconfig-spanidea.git@dev
+# openwisp-ipam @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/openwisp-ipam-spanidea.git@dev
+# openwisp-notifications @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/openwisp-notifications-spanidea.git@dev
+# openwisp-users @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/openwisp-users-spanidea.git@dev
+# openwisp-utils @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/openwisp-utils-spanidea.git@dev 
+
+
+# django-loci @ file:///home/spanidea-lt22/Desktop/NOKIA/communications/django-loci
+# django-x509 @ file:///home/spanidea-lt22/Desktop/NOKIA/communications/django-x509
+# netdiff @ file:///home/spanidea-lt22/Desktop/NOKIA/communications/netdiff
+# netjsonconfig @ file:///home/spanidea-lt22/Desktop/NOKIA/communications/netjsonconfig
+# openwisp-ipam @ file:///home/spanidea-lt22/Desktop/NOKIA/communications/openwisp-ipam
+# openwisp-notifications @ file:///home/spanidea-lt22/Desktop/NOKIA/communications/openwisp-notifications
+# openwisp-users @ file:///home/spanidea-lt22/Desktop/NOKIA/communications/openwisp-users
+# openwisp-utils @ file:///home/spanidea-lt22/Desktop/NOKIA/communications/openwisp-utils

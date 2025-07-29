@@ -117,6 +117,29 @@ path(
 
 
 
+           path(
+                "execution/<uuid:execution_id>/history/",
+                views.test_execution_history,
+                name="api_test_execution_history",
+            ),
+            path(
+                "test-case-execution/<uuid:execution_id>/download-log/",
+                views.download_test_log,
+                name="api_download_test_log",
+            ),
+            path(
+                "test-case-execution/<uuid:execution_id>/retry/",
+                views.retry_test_execution,
+                name="api_retry_test_execution",
+            ),
+            path(
+                "device-execution/<uuid:device_execution_id>/retry-all/",
+                views.retry_device_tests,
+                name="api_retry_device_tests",
+            ),
+
+
+
 
 
 

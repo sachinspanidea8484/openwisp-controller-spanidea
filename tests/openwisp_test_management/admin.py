@@ -996,6 +996,7 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
 class TestSuiteExecutionAdmin(BaseVersionAdmin):
     form = TestSuiteExecutionAdminForm
     
+    
     change_form_template = 'admin/test_management/testsuitexecution/change_form.html'
     list_display = [
         "test_suite_name",
@@ -1053,62 +1054,94 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         return obj.device_count
     device_count.short_description = _("Devices") 
     def get_urls(self):
-     """Add custom URL for test execution history"""
-     urls = super().get_urls()
-     custom_urls = [
-        path(
-            '<path:object_id>/history/',
-            self.admin_site.admin_view(self.execution_history_view),
-            name='test_management_testexecution_history'
-        ),
-     ]
-     return custom_urls + urls
+        """Add custom URL for test execution history only"""
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<path:object_id>/history/',
+                self.admin_site.admin_view(self.execution_history_view),
+                name='test_management_testexecution_history'
+            ),
+        ]
+        return custom_urls + urls
 
     def execution_history_view(self, request, object_id):
-     """Custom view for execution history"""
-     execution = get_object_or_404(TestSuiteExecution, pk=object_id)
-    
-     # Get all execution devices
-     execution_devices = TestSuiteExecutionDevice.objects.filter(
-        test_suite_execution=execution
-     ).select_related('device').order_by('device__name')
-    
-     # Get all test case executions
-     test_case_executions = TestCaseExecution.objects.filter(
-        test_suite_execution=execution
-     ).select_related('device', 'test_case', 'test_case__category').order_by(
-        'device__name', 'execution_order'
-     )
-    
-     # Group test case executions by device
-     device_executions = {}
-     for device_exec in execution_devices:
-        device = device_exec.device
-        device_executions[device.id] = {
-            'device': device,
-            'device_execution': device_exec,
-            'test_cases': test_case_executions.filter(device=device)
-        }
-    
-     context = {
-        'title': f'Test Execution History - {execution.test_suite.name}',
-        'execution': execution,
-        'execution_devices': execution_devices,
-        'device_executions': device_executions,
-        'test_case_executions': test_case_executions,
-        'opts': self.model._meta,
-        'has_view_permission': True,
-        'original': execution,
-        'preserved_filters': self.get_preserved_filters(request),
-     }
-    
-     return render(
-        request,
-        'admin/test_management/testexecution/execution_history.html',
-        context
+        """Custom view for execution history with enhanced statistics"""
+        execution = get_object_or_404(TestSuiteExecution, pk=object_id)
+        
+        # Get all execution devices
+        execution_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device').order_by('device__name')
+        
+        # Get all test case executions
+        test_case_executions = TestCaseExecution.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device', 'test_case', 'test_case__category').order_by(
+            'device__name', 'execution_order'
         )
+        
+        # Group test case executions by device with statistics
+        device_executions = {}
+        for device_exec in execution_devices:
+            device = device_exec.device
+            device_test_cases = test_case_executions.filter(device=device)
+            
+            # Calculate statistics
+            total = device_test_cases.count()
+            success = device_test_cases.filter(status='success').count()
+            failed = device_test_cases.filter(status='failed').count()
+            completed = success + failed
+            
+            # Determine overall status
+            if total == 0:
+                overall_status = 'pending'
+                percentage = 0
+            elif completed == 0:
+                overall_status = 'pending'
+                percentage = 0
+            elif failed == 0 and success == total:
+                overall_status = 'success'
+                percentage = 100
+            else:
+                overall_status = 'failed'
+                percentage = (success / total * 100) if total > 0 else 0
+            
+            device_executions[device.id] = {
+                'device': device,
+                'device_execution': device_exec,
+                'test_cases': device_test_cases,
+                'stats': {
+                    'total': total,
+                    'success': success,
+                    'failed': failed,
+                    'completed': completed,
+                    'percentage': percentage,
+                    'overall_status': overall_status
+                }
+            }
+        
+        context = {
+            'title': f'Test Execution History - {execution.test_suite.name}',
+            'execution': execution,
+            'execution_id': str(execution.pk),
 
+            'execution_devices': execution_devices,
+            'device_executions': device_executions,
+            'test_case_executions': test_case_executions,
+            'opts': self.model._meta,
+            'has_view_permission': True,
+            'original': execution,
+            'preserved_filters': self.get_preserved_filters(request),
+        }
+        
+        return render(
+            request,
+            'admin/test_management/testexecution/execution_history.html',
+            context
+        )
     
+
     
     def view_history(self, obj):
         """Add history view link"""

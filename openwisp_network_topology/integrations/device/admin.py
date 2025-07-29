@@ -1,7 +1,7 @@
 from django.contrib import admin
 from swapper import load_model
 
-from openwisp_network_topology.admin import TopologyAdmin
+# from openwisp_network_topology.admin import TopologyAdmin
 
 from . import settings as app_settings
 
@@ -15,5 +15,5 @@ class WifiMeshInlineAdmin(admin.StackedInline):
     max_num = 1
 
 
-if app_settings.WIFI_MESH_INTEGRATION:
-    TopologyAdmin.inlines = list(TopologyAdmin.inlines) + [WifiMeshInlineAdmin]
+# if app_settings.WIFI_MESH_INTEGRATION:
+#     TopologyAdmin.inlines = list(TopologyAdmin.inlines) + [WifiMeshInlineAdmin]

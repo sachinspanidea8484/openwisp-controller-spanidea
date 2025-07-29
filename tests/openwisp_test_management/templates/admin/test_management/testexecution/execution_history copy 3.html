@@ -1,0 +1,702 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    /* OpenWISP Standard Colors */
+    :root {
+        --ow-green: #1aae52;
+        --ow-green-dark: #159240;
+        --ow-red: #df5d43;
+        --ow-orange: #f39c12;
+        --ow-blue: #3498db;
+        --ow-gray: #73879c;
+        --ow-light-gray: #ecf0f1;
+        --ow-dark-gray: #50606e;
+    }
+
+    /* Professional Summary Section */
+    .execution-summary {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 20px;
+        margin-bottom: 30px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .execution-summary h2 {
+        margin: 0 0 20px 0;
+        color: var(--ow-dark-gray);
+        font-size: 18px;
+        font-weight: 600;
+        border-bottom: 2px solid var(--ow-green);
+        padding-bottom: 10px;
+    }
+    
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+    }
+    
+    .summary-item {
+        display: flex;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .summary-label {
+        font-weight: 500;
+        color: var(--ow-gray);
+        min-width: 140px;
+        font-size: 14px;
+    }
+    
+    .summary-value {
+        color: var(--ow-dark-gray);
+        font-weight: 600;
+        font-size: 14px;
+    }
+    
+    /* Status Badges */
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 3px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .status-success { 
+        background: var(--ow-green); 
+        color: white; 
+    }
+    
+    .status-failed { 
+        background: var(--ow-red); 
+        color: white; 
+    }
+    
+    .status-pending { 
+        background: var(--ow-orange); 
+        color: white; 
+    }
+    
+    .status-running { 
+        background: var(--ow-blue); 
+        color: white; 
+    }
+    
+    /* Device Section */
+    .device-section {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 25px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    }
+    
+    .device-header {
+        background: #f8f9fa;
+        padding: 15px 20px;
+        border-bottom: 1px solid #e9ecef;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .device-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--ow-dark-gray);
+        margin: 0;
+    }
+    
+    .device-status {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    
+    .progress-info {
+        font-size: 14px;
+        color: var(--ow-gray);
+    }
+    
+    .progress-bar {
+        width: 120px;
+        height: 8px;
+        background: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: var(--ow-green);
+        transition: width 0.3s ease;
+    }
+    
+    .progress-fill.failed {
+        background: var(--ow-red);
+    }
+    
+    /* Test Results Table */
+    .test-results {
+        padding: 20px;
+    }
+    
+    .test-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .test-table th {
+        background: #f8f9fa;
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--ow-dark-gray);
+        border-bottom: 2px solid #dee2e6;
+    }
+    
+    .test-table td {
+        padding: 12px;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 13px;
+    }
+    
+    .test-table tr:hover {
+        background: #f8f9fa;
+    }
+    
+    .test-id {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        color: var(--ow-gray);
+        background: #f8f9fa;
+        padding: 2px 6px;
+        border-radius: 3px;
+    }
+    
+    /* Action Buttons */
+    .action-buttons {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+    
+    .btn {
+        padding: 4px 10px;
+        border: none;
+        border-radius: 3px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-download {
+        background: var(--ow-blue);
+        color: white;
+    }
+    
+    .btn-download:hover {
+        background: #2980b9;
+    }
+    
+    .btn-retry {
+        background: var(--ow-orange);
+        color: white;
+    }
+    
+    .btn-retry:hover {
+        background: #e67e22;
+    }
+    
+    .btn[disabled] {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    /* Device Error Section */
+    .device-error {
+        background: #fef5f5;
+        border-top: 1px solid #fee;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .error-message {
+        color: var(--ow-red);
+        font-size: 13px;
+        font-weight: 500;
+    }
+    
+    /* Icons */
+    .icon {
+        width: 14px;
+        height: 14px;
+        vertical-align: middle;
+    }
+    
+    /* Loading spinner */
+    .spinner {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid #f3f3f3;
+        border-top: 2px solid var(--ow-blue);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    .spinner.large {
+        width: 40px;
+        height: 40px;
+        border-width: 4px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    /* No results message */
+    .no-results {
+        text-align: center;
+        padding: 40px;
+        color: var(--ow-gray);
+        font-style: italic;
+    }
+    
+    /* Section heading */
+    .section-heading {
+        margin: 30px 0 20px 0;
+        color: var(--ow-dark-gray);
+        font-size: 18px;
+        font-weight: 600;
+        border-bottom: 2px solid var(--ow-green);
+        padding-bottom: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block title %}Test Execution History{% endblock %}
+
+{% block content %}
+<h1 id="page-title">Test Execution History</h1>
+
+<!-- Loading indicator -->
+<div id="loading" style="text-align: center; padding: 40px;">
+    <div class="spinner large"></div>
+    <p>Loading execution history...</p>
+</div>
+
+<!-- Main content (hidden initially) -->
+<div id="main-content" style="display: none;">
+    <!-- Execution Summary -->
+    <div class="execution-summary">
+        <h2>Execution Summary</h2>
+        <div class="summary-grid" id="summary-grid">
+            <!-- Will be populated via JavaScript -->
+        </div>
+    </div>
+
+    <!-- Device Execution Details -->
+    <h2 class="section-heading">Device Execution Details</h2>
+    <div id="device-executions">
+        <!-- Will be populated via JavaScript -->
+    </div>
+</div>
+
+<script>
+// CSRF token for AJAX requests
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+const csrftoken = getCookie('csrftoken');
+const executionId = '{{ execution_id }}';
+
+// Load execution history data
+// Update loadExecutionHistory to use setTimeout
+function loadExecutionHistory() {
+    console.log('Starting to load execution history...');
+    console.log('Execution ID:', executionId);
+    
+    fetch(`/api/v1/test-management/execution/${executionId}/history/`, {
+        headers: {
+            'X-CSRFToken': csrftoken,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('API Response:', data);
+        
+        if (data.success) {
+            // First update the content
+            displayExecutionData(data.data);
+            
+            // Then show/hide with a small delay to ensure DOM is updated
+            setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('main-content').style.display = 'block';
+                
+                // Force browser to recalculate styles
+                document.getElementById('main-content').offsetHeight;
+                
+                console.log('Content should now be visible');
+            }, 50);
+        } else {
+            throw new Error(data.error || 'Unknown error');
+        }
+    })
+    .catch(error => {
+        console.error('Fetch Error:', error);
+        document.getElementById('loading').innerHTML = `
+            <div style="color: #df5d43; padding: 20px;">
+                <h3>Error Loading Data</h3>
+                <p>${error.message}</p>
+                <button onclick="location.reload()" style="padding: 8px 16px; background: #f39c12; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Reload Page
+                </button>
+            </div>
+        `;
+    });
+}
+
+// Display execution data
+// Display execution data - FIXED VERSION
+// Display execution data - FIXED VERSION
+function displayExecutionData(data) {
+    console.log('displayExecutionData called with:', data);
+    
+    // Update page title
+    document.getElementById('page-title').textContent = `Test Execution History - ${data.test_suite_name}`;
+    
+    // Update summary grid
+    const summaryGrid = document.getElementById('summary-grid');
+    summaryGrid.innerHTML = `
+        <div class="summary-item">
+            <span class="summary-label">Test Group Name:</span>
+            <span class="summary-value">
+                <a href="/admin/test_management/testsuite/${data.test_suite_id}/change/">
+                    ${data.test_suite_name}
+                </a>
+            </span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Category:</span>
+            <span class="summary-value">${data.category_name}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Total Devices:</span>
+            <span class="summary-value">${data.total_devices}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Total Test Cases:</span>
+            <span class="summary-value">${data.total_test_cases}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Is Executed:</span>
+            <span class="summary-value">
+                <span class="status-badge status-${data.is_executed ? 'success' : 'pending'}">
+                    ${data.is_executed ? 'Yes' : 'No'}
+                </span>
+            </span>
+        </div>
+    `;
+    
+    // Display device executions
+    const deviceExecutionsDiv = document.getElementById('device-executions');
+    
+    if (data.devices && data.devices.length > 0) {
+        let devicesHtml = '';
+        
+        data.devices.forEach(device => {
+            // Build device status HTML
+            let deviceStatusHtml = '';
+            if (device.statistics && device.statistics.total > 0 && device.statistics.completed > 0) {
+                deviceStatusHtml = `
+                    <span class="progress-info">
+                        ${device.statistics.success}/${device.statistics.total} Passed (${device.statistics.percentage.toFixed(0)}%)
+                    </span>
+                    <div class="progress-bar">
+                        <div class="progress-fill ${device.statistics.percentage < 100 ? 'failed' : ''}" 
+                             style="width: ${device.statistics.percentage}%"></div>
+                    </div>
+                    <span class="status-badge status-${device.statistics.overall_status}">
+                        ${device.statistics.overall_status.toUpperCase()}
+                    </span>
+                `;
+            } else {
+                deviceStatusHtml = '<span class="status-badge status-pending">PENDING</span>';
+            }
+            
+            // Build test cases HTML
+            let testCasesHtml = '';
+            if (device.test_cases && device.test_cases.length > 0) {
+                let testRows = '';
+                
+                device.test_cases.forEach(test => {
+                    // Build action buttons for each test
+                    let actionButtons = '';
+                    
+                    // Add download button if log is available
+                    if (test.has_log && (test.status === 'success' || test.status === 'failed')) {
+                        actionButtons += `
+                            <a href="/api/v1/test-management/test-case-execution/${test.id}/download-log/" 
+                               class="btn btn-download" 
+                               title="Download execution log">
+                                <svg class="icon" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M10 12L6 8h3V4h2v4h3l-4 4zm-5 4v-2h10v2H5z"/>
+                                </svg>
+                                Log
+                            </a>
+                        `;
+                    }
+                    
+                    // Add retry button if test can be retried
+                    if (test.can_retry) {
+                        actionButtons += `
+                            <button class="btn btn-retry" 
+                                    onclick="retryTest('${test.id}')" 
+                                    title="Retry this test">
+                                <svg class="icon" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M10 4V1L5 6l5 5V8c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+                                </svg>
+                                Retry
+                            </button>
+                        `;
+                    }
+                    
+                    testRows += `
+                        <tr>
+                            <td><span class="test-id">#${test.id}</span></td>
+                            <td>${test.test_case_name || 'N/A'}</td>
+                            <td><span class="test-id">${test.test_case_id || 'N/A'}</span></td>
+                            <td>${test.test_type || 'N/A'}</td>
+                            <td>
+                                <span class="status-badge status-${test.status}">
+                                    ${test.status_display || test.status.toUpperCase()}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="action-buttons">
+                                    ${actionButtons}
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                testCasesHtml = `
+                    <table class="test-table">
+                        <thead>
+                            <tr>
+                                <th>Execution ID</th>
+                                <th>Test Case Name</th>
+                                <th>Test Case ID</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${testRows}
+                        </tbody>
+                    </table>
+                `;
+            } else {
+                testCasesHtml = '<div class="no-results">No test case executions found for this device.</div>';
+            }
+            
+            // Build device error section if needed
+            let deviceErrorHtml = '';
+            if (device.device_execution_status === 'failed' && device.error_message) {
+                // Escape newlines and special characters in error message
+                const escapedError = device.error_message.replace(/\n/g, ' ').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                const truncatedError = escapedError.split(' ').slice(0, 20).join(' ');
+                deviceErrorHtml = `
+                    <div class="device-error">
+                        <span class="error-message">
+                            <strong>Error:</strong> ${truncatedError}...
+                        </span>
+                        <button class="btn btn-retry" 
+                                onclick="retryDeviceTests('${device.device_execution_id}')" 
+                                title="Retry all tests for this device">
+                            <svg class="icon" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M10 4V1L5 6l5 5V8c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+                            </svg>
+                            Retry All
+                        </button>
+                    </div>
+                `;
+            }
+            
+            // Build complete device section
+            devicesHtml += `
+                <div class="device-section">
+                    <div class="device-header">
+                        <h3 class="device-name">${device.device_name || 'Unknown Device'}</h3>
+                        <div class="device-status">
+                            ${deviceStatusHtml}
+                        </div>
+                    </div>
+                    <div class="test-results">
+                        ${testCasesHtml}
+                    </div>
+                    ${deviceErrorHtml}
+                </div>
+            `;
+        });
+        
+        deviceExecutionsDiv.innerHTML = devicesHtml;
+    } else {
+        deviceExecutionsDiv.innerHTML = '<div class="no-results">No device executions found.</div>';
+    }
+}
+
+// Add the missing retryTest function
+function retryTest(executionId) {
+    if (!confirm('Are you sure you want to retry this test?')) {
+        return;
+    }
+    
+    const button = event.target.closest('button');
+    const originalHtml = button.innerHTML;
+    button.innerHTML = '<span class="spinner"></span> Retrying...';
+    button.disabled = true;
+    
+    fetch(`/api/v1/test-management/test-case-execution/${executionId}/retry/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message || 'Test retry initiated successfully!');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            alert('Error: ' + (data.error || 'Failed to retry test'));
+            button.innerHTML = originalHtml;
+            button.disabled = false;
+        }
+    })
+    .catch(error => {
+        alert('Error: Failed to retry test');
+        button.innerHTML = originalHtml;
+        button.disabled = false;
+        console.error('Error:', error);
+    });
+}
+// Retry all tests for a device
+function retryDeviceTests(deviceExecutionId) {
+    if (!confirm('Are you sure you want to retry all tests for this device?')) {
+        return;
+    }
+    
+    const button = event.target.closest('button');
+    const originalHtml = button.innerHTML;
+    button.innerHTML = '<span class="spinner"></span> Retrying...';
+    button.disabled = true;
+    
+    fetch(`/api/v1/test-management/device-execution/${deviceExecutionId}/retry-all/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message || 'Device tests retry initiated successfully!');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            alert('Error: ' + (data.error || 'Failed to retry device tests'));
+            button.innerHTML = originalHtml;
+            button.disabled = false;
+        }
+    })
+    .catch(error => {
+        alert('Error: Failed to retry device tests');
+        button.innerHTML = originalHtml;
+        button.disabled = false;
+        console.error('Error:', error);
+    });
+}
+
+// Auto-refresh functionality (optional)
+let refreshInterval = null;
+function toggleAutoRefresh() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+    } else {
+        refreshInterval = setInterval(() => {
+            loadExecutionHistory();
+        }, 30000); // Refresh every 30 seconds
+    }
+}
+
+// Load data when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadExecutionHistory();
+    
+    // Optional: Enable auto-refresh if there are pending tests
+    // You can uncomment this if you want auto-refresh functionality
+    setTimeout(() => {
+        const pendingTests = document.querySelectorAll('.status-pending').length;
+        if (pendingTests > 0) {
+            toggleAutoRefresh();
+        }
+    }, 2000);
+});
+
+// Handle page visibility change to pause/resume auto-refresh
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden && refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+    }
+});
+</script>
+{% endblock %}
+
+{% block submit_buttons_bottom %}{% endblock %}

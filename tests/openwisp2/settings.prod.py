@@ -496,10 +496,10 @@ CELERY_BEAT_SCHEDULE = {
         'relative': True,
     },
 
-        'timeout-stuck-tests': {
-        'task': 'openwisp_test_management.tasks.timeout_stuck_tests',
-        'schedule': crontab(minute='*/5'),  # Run every 5 minutes
-    },
+    #     'timeout-stuck-tests': {
+    #     'task': 'openwisp_test_management.tasks.timeout_stuck_tests',
+    #     'schedule': crontab(minute='*/5'),  # Run every 5 minutes
+    # },
 }
 
 CELERY_EMAIL_BACKEND = EMAIL_BACKEND

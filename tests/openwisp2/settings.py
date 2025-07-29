@@ -30,12 +30,12 @@ SHELL = "shell" in sys.argv or "shell_plus" in sys.argv
 REDIS_URL = "redis://localhost:6379"
 
 # ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "controller","10.10.10.10" ,'192.168.122.1', '54.234.248.241' ,'10.8.12.123' ]
-ALLOWED_HOSTS = ["*" ]
-
+ALLOWED_HOSTS = ["*"]
 
 # radius
 # OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = ["127.0.0.1","10.10.10.10" ,'192.168.122.1', '54.234.248.241' ,'10.8.12.123' ]
 OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = []
+
 OPENWISP_RADIUS_COA_ENABLED = True
 OPENWISP_RADIUS_ALLOWED_MOBILE_PREFIXES = ["+44", "+39", "+237", "+595"]
 
@@ -211,6 +211,7 @@ AUTH_PASSWORD_VALIDATORS = []
 # INTERNAL_IPS = ['127.0.0.1' , '10.10.10.10',
 # '54.234.248.241' ,'10.8.12.123'
 #                 ]
+
 INTERNAL_IPS = []
 
 ROOT_URLCONF = "openwisp2.urls"
@@ -248,17 +249,23 @@ USE_I18N = True
 USE_L10N = False
 STATIC_URL = "/static/"
 MEDIA_URL = "/media/"
-MEDIA_ROOT = "/opt/openwisp/media/"  # Absolute path in container
+MEDIA_ROOT = f"{os.path.dirname(BASE_DIR)}/media/"
 
 CORS_ORIGIN_ALLOW_ALL = True
 
 # firmware
-PRIVATE_STORAGE_ROOT = "/opt/openwisp/private/firmware"
+# PRIVATE_STORAGE_ROOT = "/opt/openwisp/private/firmware"
+# PRIVATE_STORAGE_ROOT = f"{os.path.dirname(BASE_DIR)}/private/firmware/"
+PRIVATE_STORAGE_ROOT = os.path.join(BASE_DIR, "private", "firmware")
+
+
 
 
 
 # additional statics 
-STATIC_ROOT = "/opt/openwisp/static_collected/"  # Absolute path in container
+# STATIC_ROOT = "/opt/openwisp/static_collected/"  # Absolute path in container
+STATIC_ROOT = f"{os.path.dirname(BASE_DIR)}/static_collected/"
+
 
 # Dynamic static files discovery
 STATICFILES_DIRS = []
@@ -425,7 +432,7 @@ AUTHENTICATION_BACKENDS = [
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
-CSRF_TRUSTED_ORIGINS = []
+# CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://0.0.0.0:8000']
 # CSRF_TRUSTED_ORIGINS = [
 #     'http://localhost:8000', 
 #     'http://127.0.0.1:8000', 
@@ -435,6 +442,8 @@ CSRF_TRUSTED_ORIGINS = []
 #     'http://54.234.248.241',
 #     # Keep your ngrok URL if needed
 # ]
+
+CSRF_TRUSTED_ORIGINS = []
 
 
 SESSION_CACHE_ALIAS = "default"
@@ -479,10 +488,10 @@ CELERY_BEAT_SCHEDULE = {
         'relative': True,
     },
 
-        'timeout-stuck-tests': {
-        'task': 'openwisp_test_management.tasks.timeout_stuck_tests',
-        'schedule': crontab(minute='*/5'),  # Run every 5 minutes
-    },
+    #     'timeout-stuck-tests': {
+    #     'task': 'openwisp_test_management.tasks.timeout_stuck_tests',
+    #     'schedule': crontab(minute='*/5'),  # Run every 5 minutes
+    # },
 }
 
 CELERY_EMAIL_BACKEND = EMAIL_BACKEND

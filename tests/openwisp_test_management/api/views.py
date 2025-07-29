@@ -1,8 +1,11 @@
 from django.core.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, generics, status
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.authentication import SessionAuthentication
 
-from rest_framework.decorators import api_view
+
+from rest_framework.decorators import api_view ,authentication_classes, permission_classes
 from rest_framework.views import APIView
 from django.utils import timezone
 from datetime import timedelta
@@ -15,6 +18,7 @@ from rest_framework.decorators import permission_classes
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 
+from django.http.response import HttpResponse, HttpResponseNotFound
 
 
 from rest_framework.decorators import action
@@ -66,6 +70,9 @@ TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestCaseExecution = load_model("TestCaseExecution")
 
 
+class CsrfExemptSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        return  # To not perform the csrf check previously happening
 
 
 class ProtectedAPIMixin(BaseProtectedAPIMixin):
@@ -3054,6 +3061,277 @@ def get_available_devices(request):
             'error': 'Failed to retrieve available devices',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+
+
+
+@api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+def test_execution_history(request, execution_id):
+    """
+    API endpoint to get test execution history with enhanced statistics
+    """
+    try:
+        execution = TestSuiteExecution.objects.get(pk=execution_id)
+        
+        # Get all execution devices
+        execution_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device').order_by('device__name')
+        
+        # Get all test case executions
+        test_case_executions = TestCaseExecution.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device', 'test_case', 'test_case__category').order_by(
+            'device__name', 'execution_order'
+        )
+        
+        # Build response data
+        devices_data = []
+        for device_exec in execution_devices:
+            device = device_exec.device
+            device_test_cases = test_case_executions.filter(device=device)
+            
+            # Calculate statistics
+            total = device_test_cases.count()
+            success = device_test_cases.filter(status='success').count()
+            failed = device_test_cases.filter(status='failed').count()
+            completed = success + failed
+            
+            # Determine overall status
+            if total == 0:
+                overall_status = 'pending'
+                percentage = 0
+            elif completed == 0:
+                overall_status = 'pending'
+                percentage = 0
+            elif failed == 0 and success == total:
+                overall_status = 'success'
+                percentage = 100
+            else:
+                overall_status = 'failed'
+                percentage = (success / total * 100) if total > 0 else 0
+            
+            # Build test cases data
+            test_cases_data = []
+            for test_exec in device_test_cases:
+                test_cases_data.append({
+                    'id': str(test_exec.pk),
+                    'test_case_name': test_exec.test_case.name,
+                    'test_case_id': test_exec.test_case.test_case_id,
+                    'test_type': test_exec.test_case.get_test_type_display(),
+                    'status': test_exec.status,
+                    'status_display': test_exec.get_status_display(),
+                    'has_log': bool(test_exec.stdout),
+                    'can_retry': test_exec.status == 'failed',
+                    'started_at': test_exec.started_at.isoformat() if test_exec.started_at else None,
+                    'completed_at': test_exec.completed_at.isoformat() if test_exec.completed_at else None,
+                    # 'duration': test_exec.formatted_duration,
+                })
+            
+            device_data = {
+                'device_id': str(device.id),
+                'device_name': device.name,
+                'device_execution_id': str(device_exec.pk),
+                'device_execution_status': device_exec.status,
+                'error_message': device_exec.output if device_exec.status == 'failed' else None,
+                'started_at': device_exec.started_at.isoformat() if device_exec.started_at else None,
+                'completed_at': device_exec.completed_at.isoformat() if device_exec.completed_at else None,
+                'statistics': {
+                    'total': total,
+                    'success': success,
+                    'failed': failed,
+                    'completed': completed,
+                    'percentage': percentage,
+                    'overall_status': overall_status
+                },
+                'test_cases': test_cases_data
+            }
+            
+            devices_data.append(device_data)
+        
+        # Build execution summary
+        execution_data = {
+            'execution_id': str(execution.pk),
+            'test_suite_name': execution.test_suite.name,
+            'test_suite_id': str(execution.test_suite.pk),
+            'category_name': execution.test_suite.category.name,
+            'category_id': str(execution.test_suite.category.pk),
+            'total_devices': execution.device_count,
+            'total_test_cases': execution.test_suite.test_case_count,
+            'is_executed': execution.is_executed,
+            'created': execution.created.isoformat() if execution.created else None,
+            'devices': devices_data
+        }
+        
+        return Response({
+            'success': True,
+            'data': execution_data
+        }, status=status.HTTP_200_OK)
+        
+    except TestSuiteExecution.DoesNotExist:
+        return Response({
+            'success': False,
+            'error': 'Test execution not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error getting execution history: {str(e)}")
+        return Response({
+            'success': False,
+            'error': 'Failed to retrieve execution history',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def download_test_log(request, execution_id):
+    """
+    Download test execution log as text file
+    """
+    try:
+        test_execution = TestCaseExecution.objects.get(pk=execution_id)
+        
+        # Simple format - just stdout and stderr
+        content = []
+        
+        # Add header
+        content.append(f"Test Log: {test_execution.test_case.name} on {test_execution.device.name}")
+        content.append(f"Execution ID: {str(execution_id)}")  # Convert UUID to string
+        content.append("=" * 60)
+        content.append("")
+        
+        # Add stdout
+        if test_execution.stdout:
+            content.append("=== STANDARD OUTPUT ===")
+            content.append(test_execution.stdout.strip())
+            content.append("")
+        
+        # Add stderr
+        if test_execution.stderr:
+            content.append("=== STANDARD ERROR ===")
+            content.append(test_execution.stderr.strip())
+            content.append("")
+        
+        # If no output
+        if not test_execution.stdout and not test_execution.stderr:
+            content.append("No output available for this test execution.")
+        
+        # Join content
+        final_content = '\n'.join(content)
+        
+        # Create plain text response
+        response = HttpResponse(final_content, content_type='text/plain; charset=utf-8')
+        
+        # Set download filename - convert UUID to string before slicing
+        filename = f"log_{test_execution.test_case.test_case_id}_{str(execution_id)[:8]}.txt"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        return response
+        
+    except TestCaseExecution.DoesNotExist:
+        return HttpResponse("Test execution not found", content_type='text/plain', status=404)
+    except Exception as e:
+        logger.error(f"Error downloading test log: {str(e)}")
+        return HttpResponse(f"Error: {str(e)}", content_type='text/plain', status=500)
+
+
+
+@api_view(['POST'])
+@authentication_classes([CsrfExemptSessionAuthentication])
+@permission_classes([IsAuthenticated])  # Disable CSRF requirement
+def retry_test_execution(request, execution_id):
+    """
+    Retry a single test execution
+    """
+    try:
+        test_execution = TestCaseExecution.objects.get(pk=execution_id)
+        
+        # Check if test is in a retryable state
+        if test_execution.status != 'failed':
+            
+            return Response({
+                'success': False,
+                'error': 'Only failed tests can be retried'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Import and call the Celery task
+        from ..tasks import retry_test_execution as retry_task
+        retry_task.delay(str(execution_id))
+        
+        return Response({
+            'success': True,
+            'message': 'Test retry initiated successfully',
+            'execution_id': str(execution_id)
+        }, status=status.HTTP_200_OK)
+        
+    except TestCaseExecution.DoesNotExist:
+        return Response({
+            'success': False,
+            'error': 'Test execution not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error retrying test: {str(e)}")
+        return Response({
+            'success': False,
+            'error': 'Failed to retry test',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@authentication_classes([CsrfExemptSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def retry_device_tests(request, device_execution_id):
+    """
+    Retry all failed tests for a device
+    """
+    try:
+        # Get the device execution
+        device_execution = TestSuiteExecutionDevice.objects.get(pk=device_execution_id)
+        
+        # Get all failed test executions for this device
+        failed_tests = TestCaseExecution.objects.filter(
+            test_suite_execution=device_execution.test_suite_execution,
+            device=device_execution.device,
+            status='failed'
+        )
+        
+        if not failed_tests.exists():
+            return Response({
+                'success': False,
+                'error': 'No failed tests found for this device'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Import and call the Celery task for each failed test
+        from ..tasks import retry_test_execution as retry_task
+        retried_count = 0
+        
+        for test in failed_tests:
+            retry_task.delay(str(test.pk))
+            retried_count += 1
+        
+        return Response({
+            'success': True,
+            'message': f'Retrying {retried_count} failed tests',
+            'device_execution_id': str(device_execution_id),
+            'retried_count': retried_count
+        }, status=status.HTTP_200_OK)
+        
+    except TestSuiteExecutionDevice.DoesNotExist:
+        return Response({
+            'success': False,
+            'error': 'Device execution not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error retrying device tests: {str(e)}")
+        return Response({
+            'success': False,
+            'error': 'Failed to retry device tests',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 # Create view instances
 test_category_list = TestCategoryListCreateView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()

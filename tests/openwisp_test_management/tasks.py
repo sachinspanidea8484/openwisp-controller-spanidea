@@ -429,7 +429,8 @@ def execute_single_test_case(test_execution_id, ssh_params, device_ip, device_ex
             
             # Determine test status based on exit code
             # if exit_code == 0:
-            if exit_code == 0 or exit_code == 2:
+            # if exit_code == 0 or exit_code == 2:
+            if exit_code == 0 :
                 test_execution.status = TestExecutionStatus.SUCCESS
                 logger.info(f"Test {test_case.test_case_id} PASSED")
                 print(f"[TASK] execute_single_test_case - Test {test_case.test_case_id} PASSED")
@@ -666,258 +667,11 @@ def check_device_execution_completion(device_execution_id, retry_count=0):
         print(f"[ERROR] check_device_execution_completion - {error_msg}")
 
 
-@shared_task
-def check_suite_execution_completion(suite_execution_id):
-    """
-    Check if all devices have completed execution for a test suite.
-    
-    This task:
-    1. Counts devices still in pending/running state
-    2. If all devices are complete, logs completion and can trigger notifications
-    3. Provides a central point for suite-level completion handling
-    
-    Args:
-        suite_execution_id (int): Primary key of the TestSuiteExecution record
-        
-    Returns:
-        None
-        
-    Side Effects:
-        - Logs completion status
-        - Can be extended to send notifications, generate reports, etc.
-    """
-    logger.info(f"Checking suite execution completion for ID: {suite_execution_id}")
-    print(f"[TASK] check_suite_execution_completion - Suite execution ID: {suite_execution_id}")
-    
-    try:
-        # Retrieve suite execution record
-        suite_execution = TestSuiteExecution.objects.get(pk=suite_execution_id)
-        logger.info(f"Retrieved suite execution: {suite_execution.test_suite.name}")
-        print(f"[TASK] check_suite_execution_completion - Suite: {suite_execution.test_suite.name}")
-        
-        # Count devices still running
-        total_devices = TestSuiteExecutionDevice.objects.filter(
-            test_suite_execution_id=suite_execution_id
-        ).count()
-        
-        pending_devices = TestSuiteExecutionDevice.objects.filter(
-            test_suite_execution_id=suite_execution_id,
-            status__in=['pending', 'running']
-        ).count()
-        
-        completed_devices = total_devices - pending_devices
-        
-        logger.info(f"Suite progress: {completed_devices}/{total_devices} devices completed")
-        print(f"[TASK] check_suite_execution_completion - Progress: {completed_devices}/{total_devices} devices completed")
-        
-        if pending_devices == 0:
-            logger.info(f"Test suite execution {suite_execution_id} completed on all devices")
-            print(f"[TASK] check_suite_execution_completion - All devices completed!")
-            
-            # Get completion statistics
-            completed_device_executions = TestSuiteExecutionDevice.objects.filter(
-                test_suite_execution_id=suite_execution_id,
-                status='completed'
-            ).count()
-            
-            failed_device_executions = TestSuiteExecutionDevice.objects.filter(
-                test_suite_execution_id=suite_execution_id,
-                status='failed'
-            ).count()
-            
-            logger.info(f"Suite completion stats - Completed: {completed_device_executions}, Failed: {failed_device_executions}")
-            print(f"[TASK] check_suite_execution_completion - Stats: {completed_device_executions} completed, {failed_device_executions} failed")
-            
-            # Here you could send notifications, generate reports, etc.
-            # For example:
-            # send_suite_completion_notification.delay(suite_execution_id)
-            # generate_suite_report.delay(suite_execution_id)
-            
-        else:
-            logger.info(f"Suite execution still in progress: {pending_devices} devices pending")
-            print(f"[TASK] check_suite_execution_completion - Still in progress: {pending_devices} devices pending")
-            
-    except TestSuiteExecution.DoesNotExist:
-        error_msg = f"Test suite execution with ID {suite_execution_id} not found"
-        logger.error(error_msg)
-        print(f"[ERROR] check_suite_execution_completion - {error_msg}")
-        
-    except Exception as e:
-        error_msg = f"Error checking suite completion: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        print(f"[ERROR] check_suite_execution_completion - {error_msg}")
 
 
-@shared_task
-def timeout_stuck_tests():
-    """
-    Run periodically to timeout tests that are stuck in running state.
-    
-    This maintenance task:
-    1. Finds tests that have been running longer than the timeout threshold
-    2. Marks them as failed with timeout error
-    3. Triggers completion checking for affected devices
-    
-    This should be scheduled to run every few minutes as a periodic task.
-    
-    Returns:
-        None
-        
-    Side Effects:
-        - Updates stuck test executions with timeout status
-        - Triggers device completion checking for affected devices
-    """
-    from datetime import timedelta
-    
-    # timeout_threshold = timezone.now() - timedelta(minutes=30)  # 30 minute timeout
-    timeout_threshold = timezone.now() - timedelta(days=1)  # 1 day timeout
-
-    
-    logger.info("Starting timeout check for stuck tests")
-    print(f"[TASK] timeout_stuck_tests - Starting timeout check")
-    print(f"[TASK] timeout_stuck_tests - Timeout threshold: {timeout_threshold}")
-    
-    try:
-        # Find stuck tests
-        # stuck_tests = TestCaseExecution.objects.filter(
-        #     status=TestExecutionStatus.RUNNING,
-        #     started_at__lt=timeout_threshold
-        # ).select_related('test_case', 'device', 'test_suite_execution')
-        stuck_tests = TestCaseExecution.objects.filter(
-            status=TestExecutionStatus.RUNNING,
-            started_at__lt=timeout_threshold,
-            test_case__test_type=2  # Only timeout Device Agent tests
-        ).select_related('test_case', 'device', 'test_suite_execution')
-        
-        stuck_count = stuck_tests.count()
-        logger.info(f"Found {stuck_count} stuck tests")
-        print(f"[TASK] timeout_stuck_tests - Found {stuck_count} stuck tests")
-        
-        # Process each stuck test
-        for test_exec in stuck_tests:
-            logger.warning(f"Timing out stuck test: {test_exec.test_case.test_case_id} on {test_exec.device.name}")
-            print(f"[WARNING] timeout_stuck_tests - Timing out: {test_exec.test_case.test_case_id} on {test_exec.device.name}")
-            
-            # Mark test as failed due to timeout
-            test_exec.status = TestExecutionStatus.FAILED
-            test_exec.error_message = "Test execution exceeded 30 minute timeout"
-            test_exec.completed_at = timezone.now()
-            test_exec.save()
-            
-            logger.info(f"Marked test {test_exec.test_case.test_case_id} as timed out")
-            print(f"[TASK] timeout_stuck_tests - Marked as timed out: {test_exec.test_case.test_case_id}")
-            
-            # Check if device execution should be updated
-            try:
-                device_execution = test_exec.device.testsuitexecutiondevice_set.filter(
-                    test_suite_execution=test_exec.test_suite_execution
-                ).first()
-                
-                if device_execution:
-                    logger.info(f"Triggering completion check for device execution {device_execution.id}")
-                    print(f"[TASK] timeout_stuck_tests - Triggering completion check for device execution {device_execution.id}")
-                    
-                    check_device_execution_completion.delay(device_execution.id)
-                else:
-                    logger.warning(f"No device execution found for test {test_exec.id}")
-                    print(f"[WARNING] timeout_stuck_tests - No device execution found for test {test_exec.id}")
-                    
-            except Exception as device_error:
-                logger.error(f"Error finding device execution for test {test_exec.id}: {device_error}")
-                print(f"[ERROR] timeout_stuck_tests - Error finding device execution: {device_error}")
-        
-        if stuck_count > 0:
-            logger.info(f"Successfully processed {stuck_count} stuck tests")
-            print(f"[TASK] timeout_stuck_tests - Successfully processed {stuck_count} stuck tests")
-        else:
-            logger.info("No stuck tests found")
-            print(f"[TASK] timeout_stuck_tests - No stuck tests found")
-            
-    except Exception as e:
-        error_msg = f"Error in timeout_stuck_tests: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        print(f"[ERROR] timeout_stuck_tests - {error_msg}")
 
 
 # Additional helper task for debugging
-@shared_task
-def debug_test_execution_status(execution_id=None, device_id=None):
-    """
-    Debug task to print current status of test executions.
-    
-    This is a utility task for debugging purposes that can be called manually
-    to get current status of test executions.
-    
-    Args:
-        execution_id (int, optional): Specific test suite execution ID to debug
-        device_id (int, optional): Specific device ID to debug
-        
-    Returns:
-        None
-        
-    Side Effects:
-        - Prints detailed status information to logs and console
-    """
-    logger.info("Starting debug status check")
-    print(f"[DEBUG] debug_test_execution_status - Starting debug check")
-    
-    try:
-        # Build filter conditions
-        filters = {}
-        if execution_id:
-            filters['test_suite_execution_id'] = execution_id
-        if device_id:
-            filters['device_id'] = device_id
-            
-        # Get test case executions
-        test_executions = TestCaseExecution.objects.filter(**filters).select_related(
-            'test_case', 'device', 'test_suite_execution'
-        )
-        
-        total_count = test_executions.count()
-        logger.info(f"Found {total_count} test executions matching criteria")
-        print(f"[DEBUG] debug_test_execution_status - Found {total_count} test executions")
-        
-        # Group by status
-        status_counts = {}
-        for status in [TestExecutionStatus.PENDING, TestExecutionStatus.RUNNING, 
-                      TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED]:
-            count = test_executions.filter(status=status).count()
-            status_counts[status] = count
-            logger.info(f"Status {status}: {count} tests")
-            print(f"[DEBUG] debug_test_execution_status - Status {status}: {count} tests")
-        
-        # Show detailed info for running tests
-        running_tests = test_executions.filter(status=TestExecutionStatus.RUNNING)
-        logger.info(f"Detailed info for {running_tests.count()} running tests:")
-        print(f"[DEBUG] debug_test_execution_status - Detailed running tests:")
-        
-        for test_exec in running_tests:
-            runtime = ""
-            if test_exec.started_at:
-                runtime = f" (running for {timezone.now() - test_exec.started_at})"
-            
-            logger.info(f"  - {test_exec.test_case.name} on {test_exec.device.name}{runtime}")
-            print(f"[DEBUG] debug_test_execution_status - Running: {test_exec.test_case.name} on {test_exec.device.name}{runtime}")
-        
-        # Show device execution status if available
-        if execution_id:
-            device_executions = TestSuiteExecutionDevice.objects.filter(
-                test_suite_execution_id=execution_id
-            ).select_related('device')
-            
-            logger.info(f"Device execution status for suite {execution_id}:")
-            print(f"[DEBUG] debug_test_execution_status - Device executions for suite {execution_id}:")
-            
-            for device_exec in device_executions:
-                logger.info(f"  - {device_exec.device.name}: {device_exec.status}")
-                print(f"[DEBUG] debug_test_execution_status - Device {device_exec.device.name}: {device_exec.status}")
-        
-    except Exception as e:
-        error_msg = f"Error in debug task: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        print(f"[ERROR] debug_test_execution_status - {error_msg}")
-
 
 @shared_task
 def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_data):
@@ -1146,3 +900,41 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     
     print(f"\n[DEBUG] Robot Framework test execution task completed")
     print(f"{'='*80}\n")
+
+
+@shared_task
+def retry_test_execution(test_execution_id):
+    """
+    Retry a single test execution
+    """
+    from .swapper import load_model
+    TestCaseExecution = load_model("TestCaseExecution")
+    
+    try:
+        test_execution = TestCaseExecution.objects.get(pk=test_execution_id)
+        
+        # Reset the test execution status
+        test_execution.status = 'running'
+        test_execution.started_at = None
+        test_execution.completed_at = None
+        test_execution.stdout = ''
+        test_execution.stderr = ''
+        test_execution.exit_code = None
+        test_execution.error_message = ''
+        test_execution.retry_count += 1
+        test_execution.save()
+        
+        # Re-execute the test
+        # Add your test execution logic here
+        # This should call your existing test execution mechanism
+        
+        logger.info(f"Retrying test execution {test_execution_id}")
+        
+        # You might want to call your existing execution task here
+        # For example:
+        # @execute_single_test.delay(test_execution_id)
+        
+    except TestCaseExecution.DoesNotExist:
+        logger.error(f"Test execution {test_execution_id} not found")
+    except Exception as e:
+        logger.error(f"Error retrying test execution {test_execution_id}: {str(e)}")
