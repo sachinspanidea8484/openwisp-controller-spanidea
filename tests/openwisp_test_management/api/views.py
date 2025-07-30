@@ -3502,14 +3502,14 @@ def download_test_log(request, execution_id):
         content = []
         
         # Add header
-        content.append(f"Test Log: {test_execution.test_case.name} on {test_execution.device.name}")
-        content.append(f"Execution ID: {str(execution_id)}")  # Convert UUID to string
-        content.append("=" * 60)
-        content.append("")
+        # content.append(f"Test Log: {test_execution.test_case.name} on {test_execution.device.name}")
+        # content.append(f"Execution ID: {str(execution_id)}")  # Convert UUID to string
+        # content.append("=" * 60)
+        # content.append("")
         
         # Add stdout
         if test_execution.stdout:
-            content.append("=== STANDARD OUTPUT ===")
+            # content.append("=== STANDARD OUTPUT ===")
             content.append(test_execution.stdout.strip())
             content.append("")
         
