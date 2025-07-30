@@ -113,6 +113,11 @@ path(
     views.RobotTestResultView.as_view(),
     name="api_robot_test_result",
 ),
+path(
+    "device-test-result/",
+    views.DeviceTestResultView.as_view(),
+    name="api_device_test_result",
+),
 
 
 

@@ -2365,7 +2365,312 @@ class RobotTestResultView(APIView):
             logger.error(f"Error checking overall suite completion: {e}")
 
 
+class DeviceTestResultView(APIView):
+    """
+    API endpoint to receive test results from Robot Framework server
+    No serializer - direct processing of payload
+    """
+    authentication_classes = []  # Disable auth for now, enable as needed
+    permission_classes = []  # Disable permissions for now
+    
+    def post(self, request, *args, **kwargs):
+        """
+        Accept test results from Robot Framework server
+        Expected payload:
+        {
+            "execution_id": "uuid",
+            "status": "running|success|failed|timeout|cancelled",
+            "exit_code": 0,
+            "stdout": "output",
+            "stderr": "error",
+            "started_at": "ISO datetime",
+            "completed_at": "ISO datetime"
+        }
+        """
+        try:
+            data = request.data
+            logger.info(f"Received Robot Framework test result: {data}")
+            print(f"📨 Robot Framework Result API called with data: {data}")
+            
+            # Extract execution_id
+            execution_id = data.get('execution_id')
+            if not execution_id:
+                return Response({
+                    "error": "execution_id is required"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Find the TestCaseExecution record
+            try:
+                execution = TestCaseExecution.objects.get(id=execution_id)
+                print(f"✅ Found TestCaseExecution: {execution}")
+                print(f"📊 Current DB status: {execution.status}")
+            except TestCaseExecution.DoesNotExist:
+                print(f"❌ TestCaseExecution with id {execution_id} not found")
+                return Response({
+                    "error": f"TestCaseExecution with id {execution_id} not found"
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Extract status
+            new_status = data.get('status')
+            exit_code = data.get('exit_code')
+            
+            # Status icons mapping
+            status_icons = {
+                'running': '🏃‍♂️',
+                'success': '✅',
+                'failed': '❌',
+                'timeout': '⏰',
+                'cancelled': '🚫'
+            }
+            
+            # Print status with icon
+            icon = status_icons.get(new_status, '❓')
+            print(f"{icon} Received status: {new_status}")
+            
+            # Print exit code with icon
+            if exit_code is not None:
+                exit_icon = '✓' if exit_code == 0 else '✗'
+                print(f"{exit_icon} Exit code: {exit_code}")
 
+            if not new_status:
+                return Response({
+                    "error": "status is required"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Map status to TestExecutionStatus
+            status_mapping = {
+                'running': TestExecutionStatus.RUNNING,
+                'success': TestExecutionStatus.SUCCESS,
+                'failed': TestExecutionStatus.FAILED,
+                'timeout': TestExecutionStatus.TIMEOUT,
+                'cancelled': TestExecutionStatus.CANCELLED
+            }
+            
+            if new_status not in status_mapping:
+                print(f"⚠️ Invalid status received: {new_status}")
+                return Response({
+                    "error": f"Invalid status: {new_status}. Must be one of {list(status_mapping.keys())}"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            execution_status = status_mapping[new_status]
+            print(f"🔄 Mapped '{new_status}' to TestExecutionStatus: {execution_status}")
+            
+            # ===== STATUS UPDATE LOGIC COMMENTED OUT =====
+            """
+            # Update execution based on status
+            if execution_status == TestExecutionStatus.RUNNING:
+                execution.status = execution_status
+                if data.get('started_at'):
+                    print("⏱️ Using provided started_at timestamp")
+                else:
+                    execution.started_at = timezone.now()
+                    print("⏱️ Setting started_at to current time")
+                execution.save(update_fields=['status', 'started_at'])
+                print(f"🏃‍♂️ Updated to RUNNING status")
+                
+            elif execution_status in [TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED]:
+                # Debug print before update
+                print(f"🔍 Before update - execution.status: {execution.status}")
+                print(f"🔍 Setting execution.status to: {execution_status}")
+                
+                execution.status = execution_status
+                
+                # Set completion time
+                if data.get('completed_at'):
+                    print("⏱️ Using provided completed_at timestamp")
+                else:
+                    execution.completed_at = timezone.now()
+                    print("⏱️ Setting completed_at to current time")
+                
+                # Set other fields
+                execution.exit_code = data.get('exit_code')
+                execution.stdout = data.get('stdout', '')
+                execution.stderr = data.get('stderr', '')
+                
+                # Debug: Print what we're about to save
+                print(f"📝 About to save:")
+                print(f"   - status: {execution.status}")
+                print(f"   - exit_code: {execution.exit_code}")
+                print(f"   - stdout length: {len(execution.stdout)} chars")
+                print(f"   - stderr length: {len(execution.stderr)} chars")
+                
+                # Set error message for failed status
+                if execution_status == TestExecutionStatus.FAILED:
+                    # Use stderr if available, otherwise extract error from stdout
+                    if data.get('stderr'):
+                        execution.error_message = data.get('stderr')
+                    else:
+                        # Extract error from stdout if present
+                        stdout = data.get('stdout', '')
+                        if '[ERROR]' in stdout:
+                            error_lines = [line for line in stdout.split('\n') if '[ERROR]' in line]
+                            execution.error_message = '\n'.join(error_lines) if error_lines else 'Test failed'
+                        else:
+                            execution.error_message = 'Test failed'
+                    print(f"❌ Test FAILED with error: {execution.error_message[:100]}...")
+                else:
+                    print(f"✅ Test SUCCEEDED")
+                
+                # Save with explicit field list
+                fields_to_update = [
+                    'status', 'completed_at', 'exit_code', 'stdout', 
+                    'stderr', 'error_message'
+                ]
+                
+                # Only update duration if we have both timestamps
+                if execution.started_at and execution.completed_at:
+                    execution.execution_duration = execution.completed_at - execution.started_at
+                    fields_to_update.append('execution_duration')
+                
+                execution.save(update_fields=fields_to_update)
+                
+                # Verify the save worked
+                execution.refresh_from_db()
+                print(f"🔍 After save - execution.status from DB: {execution.status}")
+                
+                status_icon = '✅' if execution_status == TestExecutionStatus.SUCCESS else '❌'
+                print(f"{status_icon} Updated to {execution_status} status (verified from DB: {execution.status})")
+                
+            elif execution_status == TestExecutionStatus.TIMEOUT:
+                execution.status = execution_status
+                if data.get('completed_at'):
+                    print("⏱️ Using provided completed_at timestamp")
+                else:
+                    execution.completed_at = timezone.now()
+                    print("⏱️ Setting completed_at to current time")
+                execution.error_message = data.get('error_message', 'Test execution timed out')
+                
+                if execution.started_at:
+                    execution.execution_duration = execution.completed_at - execution.started_at
+                    print(f"⏱️ Execution duration: {execution.execution_duration}")
+                
+                execution.save(update_fields=[
+                    'status', 'completed_at', 'error_message', 'execution_duration'
+                ])
+                print(f"⏰ Updated to TIMEOUT status")
+                
+            elif execution_status == TestExecutionStatus.CANCELLED:
+                execution.status = execution_status
+                if data.get('completed_at'):
+                    print("⏱️ Using provided completed_at timestamp")
+                else:
+                    execution.completed_at = timezone.now()
+                    print("⏱️ Setting completed_at to current time")
+                execution.error_message = data.get('error_message', 'Test execution was cancelled')
+                
+                if execution.started_at:
+                    execution.execution_duration = execution.completed_at - execution.started_at
+                    print(f"⏱️ Execution duration: {execution.execution_duration}")
+                
+                execution.save(update_fields=[
+                    'status', 'completed_at', 'error_message', 'execution_duration'
+                ])
+                print(f"🚫 Updated to CANCELLED status")
+            """
+            # ===== END OF COMMENTED STATUS UPDATE LOGIC =====
+            
+            print(f"⚠️ STATUS UPDATE LOGIC IS COMMENTED OUT - NO DATABASE CHANGES MADE")
+            
+            # Check if all test cases are completed for this suite execution
+            # ALSO COMMENTING THIS OUT SINCE IT DEPENDS ON STATUS
+            # self._check_suite_execution_completion(execution.test_suite_execution, execution.device)
+            
+            # Prepare response
+            response_data = {
+                "success": True,
+                "message": f"Test case execution would be updated to {new_status} (but update is commented out)",
+                "data": {
+                    "execution_id": str(execution.id),
+                    "test_case_id": str(execution.test_case.test_case_id),
+                    "test_case_name": execution.test_case.name,
+                    "device_id": str(execution.device.id),
+                    "device_name": execution.device.name,
+                    "status": execution.status,  # This will show the current DB value
+                    "requested_status": new_status,  # Show what was requested
+                    "started_at": execution.started_at.isoformat() if execution.started_at else None,
+                    "completed_at": execution.completed_at.isoformat() if execution.completed_at else None,
+                    "exit_code": execution.exit_code,
+                    "duration": str(execution.execution_duration) if execution.execution_duration else None
+                }
+            }
+            
+            print(f"✉️ Sending response: Status update SKIPPED (current DB status: {execution.status})")
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error updating robot test result: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            print(f"💥 Error occurred: {str(e)}")
+            
+            return Response({
+                "error": "Failed to update test case execution",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _check_suite_execution_completion(self, test_suite_execution, device):
+        """Check if all test cases for a device in suite execution are completed"""
+        try:
+            # Get all test case executions for this suite and device
+            all_executions = TestCaseExecution.objects.filter(
+                test_suite_execution=test_suite_execution,
+                device=device
+            )
+            
+            # Check if all are completed
+            incomplete_count = all_executions.filter(
+                status__in=[TestExecutionStatus.PENDING, TestExecutionStatus.RUNNING]
+            ).count()
+            
+            if incomplete_count == 0:
+                # All test cases completed for this device
+                # Update the TestSuiteExecutionDevice status
+                suite_device = TestSuiteExecutionDevice.objects.get(
+                    test_suite_execution=test_suite_execution,
+                    device=device
+                )
+                
+                # Check if any test case failed
+                failed_count = all_executions.filter(
+                    status__in=[TestExecutionStatus.FAILED, TestExecutionStatus.TIMEOUT]
+                ).count()
+                
+                if failed_count > 0:
+                    suite_device.status = 'failed'
+                    print(f"❌ TestSuiteExecutionDevice marked as FAILED (failed tests: {failed_count})")
+                else:
+                    suite_device.status = 'completed'
+                    print(f"✅ TestSuiteExecutionDevice marked as COMPLETED (all tests passed)")
+                
+                suite_device.completed_at = timezone.now()
+                suite_device.save(update_fields=['status', 'completed_at'])
+                
+                print(f"📊 Updated TestSuiteExecutionDevice status to: {suite_device.status}")
+                
+                # Check if all devices are completed for the suite execution
+                self._check_overall_suite_completion(test_suite_execution)
+                
+        except Exception as e:
+            logger.error(f"Error checking suite execution completion: {e}")
+            print(f"⚠️ Error in _check_suite_execution_completion: {e}")
+    
+    def _check_overall_suite_completion(self, test_suite_execution):
+        """Check if all devices have completed the suite execution"""
+        try:
+            incomplete_devices = TestSuiteExecutionDevice.objects.filter(
+                test_suite_execution=test_suite_execution,
+                status__in=['pending', 'running']
+            ).count()
+            
+            if incomplete_devices == 0:
+                # All devices completed - don't set is_executed here as it's controlled by admin action
+                print(f"🎉 All devices completed for test suite execution: {test_suite_execution}")
+            else:
+                print(f"⏳ Still waiting for {incomplete_devices} device(s) to complete")
+                
+        except Exception as e:
+            logger.error(f"Error checking overall suite completion: {e}")
+            print(f"⚠️ Error in _check_overall_suite_completion: {e}")
 # views.py
 class TestSuiteExecutionDeleteView(ProtectedAPIMixin, generics.DestroyAPIView):
     """
