@@ -1,0 +1,298 @@
+/* Test Management - Test Suite Form Styles */
+
+/* Test Cases Container */
+#test-cases-container {
+    margin-top: 20px;
+    padding: 15px;
+}
+
+#test-cases-container.hidden {
+    display: none;
+}
+
+.test-cases-header {
+    font-weight: bold;
+    margin-bottom: 15px;
+    font-size: 14px;
+    color: #666;
+}
+
+/* Table Styles */
+.test-cases-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 4px;
+    overflow: hidden;
+    max-height: 400px;
+    overflow-y: auto;
+    display: block;
+}
+
+.test-cases-table thead {
+    background: #f9f9f9;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: table-header-group;
+}
+
+.test-cases-table thead tr {
+    display: table-row;
+}
+
+.test-cases-table th,
+.test-cases-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+    vertical-align: middle;
+}
+
+.test-cases-table th {
+    font-weight: 600;
+    color: #555;
+    background: #eaf2fa;
+    border-bottom: 2px solid #ddd;
+    font-size: 13px;
+    text-transform: uppercase;
+}
+
+.test-cases-table tbody {
+    display: table-row-group;
+    width: 100%;
+}
+
+.test-cases-table tbody tr {
+    display: table-row;
+    border-bottom: 1px solid #eee;
+}
+
+.test-cases-table tbody tr:hover {
+    background: #f7f9fc;
+}
+
+.test-cases-table tbody tr.selected {
+    background: #f7f9fc;
+}
+
+/* Column widths */
+.checkbox-col { 
+    width: 40px; 
+    text-align: center;
+}
+
+.name-col { 
+    width: 40%; 
+    padding-left: 15px;
+}
+
+.id-col { 
+    width: 35%; 
+    padding-left: 15px;
+}
+
+.type-col { 
+    width: 25%; 
+    text-align: center;
+}
+
+/* Test case name styling */
+.test-case-name {
+    font-weight: 500;
+    color: #0073aa;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.test-case-name:hover {
+    text-decoration: underline;
+}
+
+/* Test case ID styling */
+.test-case-id {
+    font-family: 'Courier New', monospace;
+    color: #666;
+    font-size: 13px;
+}
+
+/* Test type badges */
+.test-type-badge {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    display: inline-block;
+}
+
+.test-type-robot {
+    background: #e3f2fd;
+    color: #1976d2;
+    border: 1px solid #bbdefb;
+}
+
+.test-type-agent {
+    background: #f3e5f5;
+    color: #7b1fa2;
+    border: 1px solid #e1bee7;
+}
+
+/* Selection count */
+.selection-count {
+    margin-top: 15px;
+    padding: 10px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-weight: 500;
+    color: #666;
+    font-size: 14px;
+}
+
+.selection-count .count {
+    color: #0073aa;
+    font-weight: bold;
+}
+
+/* Loading and empty states */
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(0,0,0,.1);
+    border-radius: 50%;
+    border-top-color: #666;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.no-test-cases {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+/* Checkbox styling */
+.test-case-checkbox {
+    cursor: pointer;
+    transform: scale(1.2);
+}
+
+#select-all-test-cases {
+    cursor: pointer;
+    transform: scale(1.2);
+}
+
+/* Select all container */
+.select-all-container {
+    margin-bottom: 15px;
+    padding: 12px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.select-all-container label {
+    cursor: pointer;
+    font-weight: 500;
+    margin: 0;
+    font-size: 14px;
+}
+
+.select-all-container input[type="checkbox"] {
+    margin-right: 8px;
+    transform: scale(1.2);
+}
+
+/* Error message styling */
+.test-case-validation-error {
+    color: #ca2c3c;
+    padding: 12px;
+    margin: 10px 0;
+    display: none;
+    font-weight: 500;
+}
+
+.test-case-validation-error .error-icon {
+    margin-right: 8px;
+    font-weight: bold;
+}
+
+.test-case-validation-success {
+    color: #155724;
+    padding: 12px;
+    border-radius: 4px;
+    margin: 10px 0;
+    display: none;
+    font-weight: 500;
+}
+
+.test-case-validation-success .success-icon {
+    margin-right: 8px;
+    font-weight: bold;
+}
+
+/* Highlight category field when error */
+.field-category.has-error .form-row {
+    background-color: #ffeaea;
+    border-left: 4px solid #dc3545;
+    padding-left: 15px;
+}
+
+.field-category.has-error label {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+/* Selection count styling when error */
+.selection-count.error {
+    background-color: #ffeaea;
+    border: 1px solid #dc3545;
+    color: #721c24;
+}
+
+.selection-count.success {
+    background-color: #d4edda;
+    border: 1px solid #28a745;
+    color: #155724;
+}
+
+/* Table container */
+.table-container {
+    overflow-x: auto;
+}
+
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .test-cases-table {
+        font-size: 12px;
+    }
+    
+    .test-cases-table th,
+    .test-cases-table td {
+        padding: 8px;
+    }
+    
+    .name-col,
+    .id-col {
+        padding-left: 8px;
+    }
+    
+    .test-case-name {
+        font-size: 13px;
+    }
+    
+    .test-case-id {
+        font-size: 12px;
+    }
+    
+    .test-type-badge {
+        font-size: 12px;
+    }
+} 

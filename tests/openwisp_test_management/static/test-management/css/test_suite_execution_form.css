@@ -1,0 +1,255 @@
+
+    /* Test Cases Display Section */
+    #test-cases-display {
+        margin-top: 20px;
+        padding: 15px;
+        /* border: 1px solid #ddd;
+        background: #f9f9f9; */
+        /* border-radius: 4px; */
+        display: none;
+    }
+    
+    .section-header {
+        font-weight: bold;
+        margin-bottom: 15px;
+        font-size: 14px;
+        color: #666;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 8px;
+    }
+    
+    /* Test Cases Table */
+    .test-cases-readonly-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        /* border: 1px solid #ddd;
+        border-radius: 4px; */
+        margin-bottom: 20px;
+    }
+    
+    .test-cases-readonly-table th,
+    .test-cases-readonly-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+        vertical-align: middle;
+    }
+    
+    .test-cases-readonly-table th {
+        font-weight: 600;
+        color: #555;
+        background: #eaf2fa;
+        border-bottom: 2px solid #ddd;
+        font-size: 13px;
+        text-transform: uppercase;
+    }
+    
+    /* .test-cases-readonly-table tbody tr:hover {
+         background: #f7f9fc;
+    } */
+    
+    /* Column widths */
+    .readonly-name-col { width: 30%; }
+    .readonly-id-col { width: 25%; }
+    .readonly-category-col { width: 25%; }
+    .readonly-type-col { width: 20%; }
+    
+    /* Test case styling */
+    .readonly-test-case-name {
+        font-weight: 500;
+        color: #333;
+    }
+    
+    .readonly-test-case-id {
+        font-family: 'Courier New', monospace;
+        color: #666;
+        font-size: 13px;
+    }
+    
+    .readonly-test-type-badge {
+        font-size: 13px;
+        /* padding: 4px 8px; */
+        /* border-radius: 4px; */
+        font-weight: 500;
+        white-space: nowrap;
+        display: inline-block;
+    }
+    
+    .readonly-test-type-robot {
+        background: #e3f2fd;
+        color: #1976d2;
+        border: 1px solid #bbdefb;
+    }
+    
+    .readonly-test-type-agent {
+        background: #f3e5f5;
+        color: #7b1fa2;
+        border: 1px solid #e1bee7;
+    }
+    
+    /* Device Selection Section */
+    #device-selection {
+        margin-top: 20px;
+        padding: 15px;
+        /* border: 1px solid #ddd; */
+        /* background: #f9f9f9; */
+        /* border-radius: 4px; */
+        display: none;
+    }
+    
+    .device-selector-container {
+        margin-bottom: 15px;
+    }
+    
+    .device-selector {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    
+    .device-dropdown {
+        flex: 1;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .add-device-btn {
+        background: #007cba;
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    
+    .add-device-btn:hover {
+        background: #005a87;
+    }
+    
+    .add-device-btn:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+    }
+    
+    /* Selected Devices List */
+    .selected-devices-list {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        min-height: 100px;
+        padding: 15px;
+    }
+    
+    .selected-device-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        margin-bottom: 8px;
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 4px;
+    }
+    
+    .device-info {
+        flex: 1;
+    }
+    
+    .device-name {
+        font-weight: 500;
+        color: #333;
+    }
+    
+    .device-details {
+        font-size: 12px;
+        color: #666;
+        margin-top: 2px;
+    }
+    
+    .remove-device-btn {
+        background: #dc3545;
+        color: white;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 12px;
+    }
+    
+    .remove-device-btn:hover {
+        background: #c82333;
+    }
+    
+    .no-devices-selected {
+        text-align: center;
+        color: #999;
+        font-style: italic;
+        padding: 20px;
+    }
+    
+    .device-count-info {
+        margin-top: 1px;
+        padding: 10px;
+        background: white;
+        /* border: 1px solid #ddd; */
+        /* border-radius: 4px; */
+        font-weight: 500;
+        color: #666;
+    }
+    
+    .device-count-info .count {
+        color: #007cba;
+        font-weight: bold;
+    }
+    
+    /* Loading spinner */
+    .loading-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(0,0,0,.1);
+        border-radius: 50%;
+        border-top-color: #666;
+        animation: spin 1s ease-in-out infinite;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    /* Error styling */
+    .error-message {
+        background-color: #ffeaea;
+        border: 1px solid #dc3545;
+        color: #721c24;
+        padding: 12px;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-weight: 500;
+    }
+    
+        .error-icon {
+        margin-right: 8px;
+        font-weight: bold;
+    }
+    
+    /* Success styling */
+    .success-message {
+        background-color: #d4edda;
+        border: 1px solid #28a745;
+        color: #155724;
+        padding: 12px;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-weight: 500;
+    }
+    
+    .success-icon {
+        margin-right: 8px;
+        font-weight: bold;
+    }
