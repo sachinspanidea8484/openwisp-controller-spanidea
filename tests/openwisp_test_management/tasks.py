@@ -473,7 +473,17 @@ def execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_exe
         
         # Construct API URL
         api_url = f"http://{device_ip}/cgi-bin/test_script.py?test_id={test_case.test_case_id}&execution_id={test_execution_id}"
-        # curl "http://10.10.10.20/cgi-bin/test_script.py?test_id=TestCase_001&execution_id=1001"
+
+
+        try:
+             print(f"🔄 [DEBUG] Checking if API is reachable...")
+             base_url = api_url.rsplit('/', 2)[0]  # Get base URL
+            #  test_response = requests.get(base_url, timeout=60)
+             print(f"✅✅✅✅✅✅✅✅✅✅✅✅         ✅✅✅✅✅✅✅✅✅✅✅✅ [DEBUG] API server is reachable at {base_url}")
+        except Exception as e:
+             print(f"❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌ [ERROR] Cannot reach API server: {e}")
+             print(f"⚠️  [ERROR] Make sure the server at {api_url} is running")
+         # curl "http://10.10.10.20/cgi-bin/test_script.py?test_id=TestCase_001&execution_id=1001"
 
         logger.info(f"NB_API URL: {api_url}")
         print(f"[TASK] execute_test_via_nb_api - Calling API: {api_url}")
