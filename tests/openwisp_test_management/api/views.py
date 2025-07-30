@@ -2389,8 +2389,8 @@ class DeviceTestResultView(APIView):
         """
         try:
             data = request.data
-            logger.info(f"Received Robot Framework test result: {data}")
-            print(f"📨 Robot Framework Result API called with data: {data}")
+            logger.info(f"Received Robot Framework test result✅✅✅✅✅✅✅✅✅✅✅✅✅: {data}")
+  
             
             # Extract execution_id
             execution_id = data.get('execution_id')
@@ -2456,7 +2456,6 @@ class DeviceTestResultView(APIView):
             print(f"🔄 Mapped '{new_status}' to TestExecutionStatus: {execution_status}")
             
             # ===== STATUS UPDATE LOGIC COMMENTED OUT =====
-            """
             # Update execution based on status
             if execution_status == TestExecutionStatus.RUNNING:
                 execution.status = execution_status
@@ -2566,7 +2565,6 @@ class DeviceTestResultView(APIView):
                     'status', 'completed_at', 'error_message', 'execution_duration'
                 ])
                 print(f"🚫 Updated to CANCELLED status")
-            """
             # ===== END OF COMMENTED STATUS UPDATE LOGIC =====
             
             print(f"⚠️ STATUS UPDATE LOGIC IS COMMENTED OUT - NO DATABASE CHANGES MADE")
@@ -3502,14 +3500,14 @@ def download_test_log(request, execution_id):
         content = []
         
         # Add header
-        # content.append(f"Test Log: {test_execution.test_case.name} on {test_execution.device.name}")
-        # content.append(f"Execution ID: {str(execution_id)}")  # Convert UUID to string
-        # content.append("=" * 60)
-        # content.append("")
+        content.append(f"Test Log: {test_execution.test_case.name} on {test_execution.device.name}")
+        content.append(f"Execution ID: {str(execution_id)}")  # Convert UUID to string
+        content.append("=" * 60)
+        content.append("")
         
         # Add stdout
         if test_execution.stdout:
-            # content.append("=== STANDARD OUTPUT ===")
+            content.append("=== STANDARD OUTPUT ===")
             content.append(test_execution.stdout.strip())
             content.append("")
         

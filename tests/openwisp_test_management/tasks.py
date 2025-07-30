@@ -494,21 +494,21 @@ def execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_exe
             print(f"[TASK] execute_test_via_nb_api - Response status: {response.status_code}")
             
             # Process response
-            test_execution.stdout = response.text
-            test_execution.completed_at = timezone.now()
+            # test_execution.stdout = response.text
+            # test_execution.completed_at = timezone.now()
             
             # Determine success based on HTTP status code
-            if response.status_code == 200:
-                test_execution.status = TestExecutionStatus.SUCCESS
-                test_execution.exit_code = 0
-                logger.info(f"Test {test_case.test_case_id} PASSED via NB_API")
-                print(f"[TASK] execute_test_via_nb_api - Test PASSED")
-            else:
-                test_execution.status = TestExecutionStatus.FAILED
-                test_execution.exit_code = response.status_code
-                test_execution.error_message = f"HTTP {response.status_code}: {response.reason}"
-                logger.warning(f"Test {test_case.test_case_id} FAILED with HTTP {response.status_code}")
-                print(f"[TASK] execute_test_via_nb_api - Test FAILED with HTTP {response.status_code}")
+            # if response.status_code == 200:
+            #     test_execution.status = TestExecutionStatus.SUCCESS
+            #     test_execution.exit_code = 0
+            #     logger.info(f"Test {test_case.test_case_id} PASSED via NB_API")
+            #     print(f"[TASK] execute_test_via_nb_api - Test PASSED")
+            # else:
+            #     test_execution.status = TestExecutionStatus.FAILED
+            #     test_execution.exit_code = response.status_code
+            #     test_execution.error_message = f"HTTP {response.status_code}: {response.reason}"
+            #     logger.warning(f"Test {test_case.test_case_id} FAILED with HTTP {response.status_code}")
+            #     print(f"[TASK] execute_test_via_nb_api - Test FAILED with HTTP {response.status_code}")
             
             # Log response details
             if response.text:
@@ -516,7 +516,7 @@ def execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_exe
                 logger.debug(f"Response preview: {output_preview}")
                 print(f"[DEBUG] execute_test_via_nb_api - Response preview: {output_preview}")
             
-            test_execution.save()
+            # test_execution.save()
             logger.info("Test execution results saved to database")
             print(f"[TASK] execute_test_via_nb_api - Results saved")
             
@@ -538,7 +538,8 @@ def execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_exe
             logger.error(error_msg)
             print(f"[ERROR] execute_test_via_nb_api - Timeout: {error_msg}")
             
-            test_execution.status = TestExecutionStatus.TIMEOUT
+            # test_execution.status = TestExecutionStatus.TIMEOUT
+            test_execution.status = TestExecutionStatus.FAILED
             test_execution.error_message = error_msg
             test_execution.stdout = "Request timed out"
             test_execution.exit_code = -2
