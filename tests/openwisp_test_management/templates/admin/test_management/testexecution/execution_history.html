@@ -9,7 +9,9 @@
         font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
         color: #333;
     }
-
+    .test-execution-history .main-content-1{
+        margin-left: 10rem;
+    }
     /* OpenWISP Standard Module Section */
     .module {
         background: #fff;
@@ -22,18 +24,18 @@
     .module h2 {
         margin: 0;
         padding: 12px 20px;
-        background: #f8f8f8;
+        background: #3c7492;
         border-bottom: 1px solid #e3e3e3;
         font-size: 13px;
         text-transform: uppercase;
         font-weight: 500;
-        color: #666;
+        color: #000;
         letter-spacing: 0.5px;
     }
 
     /* Summary Card - OpenWISP Style */
     .summary-content {
-        padding: 20px;
+        padding: 10px 20px 0px;
     }
 
     .summary-row {
@@ -259,14 +261,14 @@
     }
 
     .btn-action.warning {
-        background: #f0ad4e;
+        background: #ad8232;
         color: #fff;
         border-color: #f0ad4e;
     }
 
     .btn-action.warning:hover {
-        background: #ec971f;
-        border-color: #ec971f;
+        background: #e69500;
+        border-color: #e69500;
     }
 
     .btn-action[disabled] {
@@ -311,7 +313,7 @@
         border-top: 3px solid #0066cc;
         border-radius: 50%;
         animation: spin 1s linear infinite;
-        margin-bottom: 20px;
+        /* margin-bottom: 20px; */
     }
 
     @keyframes spin {
@@ -350,7 +352,15 @@
             justify-content: space-between;
         }
     }
-
+    .retry-loading {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .retry-text{
+        font-size: 10px;
+        vertical-align: middle;
+    }
     /* Additional OpenWISP alignments */
     h1 {
         font-size: 24px;
@@ -383,7 +393,7 @@
     </div>
 
     <!-- Main Content -->
-    <div id="main-content" style="">
+    <div id="main-content-1">
         <!-- Execution Summary Module -->
         <div class="module">
             <h2>{% trans 'Execution Summary' %}</h2>
@@ -397,7 +407,7 @@
         <!-- Device Executions Module -->
         <div class="module">
             <h2>{% trans 'Device Execution Details' %}</h2>
-            <div id="device-executions" style="padding: 20px;">
+            <div id="device-executions" style="padding: 12px;">
                 <!-- Populated by JavaScript -->
             </div>
         </div>
@@ -616,8 +626,9 @@ function retryTest(executionId) {
     
     const button = event.target.closest('button');
     const originalContent = button.innerHTML;
-    button.innerHTML = '<span class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></span> Retrying...';
+    button.innerHTML = '<span class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></span> <span class="retry-text">Retrying...</span>';
     button.disabled = true;
+    button.classList.add('retry-loading')
     
     fetch(`/api/v1/test-management/test-case-execution/${executionId}/retry/`, {
         method: 'POST',
