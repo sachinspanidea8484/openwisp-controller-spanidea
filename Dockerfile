@@ -78,6 +78,9 @@ USER openwisp
 
 WORKDIR /opt/openwisp/tests/
 
+RUN chmod +x docker-entrypoint.sh
+
+
 ENV NAME=openwisp-controller \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
