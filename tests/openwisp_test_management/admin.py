@@ -1030,7 +1030,6 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     class Meta:
         verbose_name = _("Test Execution")  # Change from "Test Suite Execution"
         verbose_name_plural = _("Test Executions")  # Change from "Test Suite Executions"
-    
     def changelist_view(self, request, extra_context=None):
         """Override to add custom title"""
         extra_context = extra_context or {}
@@ -1207,7 +1206,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             return False
         return super().has_delete_permission(request, obj)
     
-    @admin.action(description=_("Execute selected test suites"))
+    @admin.action(description=_("Execute selected Test Groups"))
     def execute_test_suite(self, request, queryset):
         """Execute test suites using Celery tasks"""
         from .tasks import execute_test_suite
