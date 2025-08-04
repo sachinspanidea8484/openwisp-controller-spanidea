@@ -111,7 +111,7 @@ def main():
 
 
     try:
-        time.sleep(25)
+        time.sleep(10)
         verify_logread()
         print("[✓] Step 1 passed: logread check")
         

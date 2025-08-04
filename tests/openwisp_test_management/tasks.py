@@ -958,9 +958,9 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     # Call Robot Framework API
     # robot_api_url = "http://0.0.0.0:8080/run-robot/"
     # robot_api_url = "http://10.8.12.123:8080/run-robot/"
-    # robot_api_url = "http://192.168.122.1:8080/api/v1/run-robot/" # sachin
+    robot_api_url = "http://192.168.122.1:8080/api/v1/run-robot/" # sachin
     # robot_api_url = "http://192.168.201.37:8080/api/v1/run-robot/" # kalyani
-    robot_api_url = "http://54.234.248.241:8080/api/v1/run-robot/" # sachin
+    # robot_api_url = "http://54.234.248.241:8080/api/v1/run-robot/" # sachin
 
 
 
@@ -1126,13 +1126,15 @@ def retry_test_execution(test_execution_id):
         # Get device connection if exists
         device_conn = None
         ssh_params = {}
-        try:
+
+        if DEVICE_EXECUTION_TYPE==1:
+         try:
             device_conn = DeviceConnection.objects.get(
                 device=device,
                 enabled=True
             )
             ssh_params = device_conn.credentials.params
-        except DeviceConnection.DoesNotExist:
+         except DeviceConnection.DoesNotExist:
             logger.warning(f"No working connection found for device {device.name} during retry")
             # Mark as failed if no connection
             test_execution.status = TestExecutionStatus.FAILED
@@ -1162,12 +1164,23 @@ def retry_test_execution(test_execution_id):
         if test_execution.test_case.test_type == 2:
             # Device agent test - use execute_single_test_case
             logger.info(f"Retrying device agent test: {test_execution.test_case.name}")
-            execute_single_test_case.delay(
-                test_execution_id,
-                ssh_params,
-                device.management_ip,
-                device_execution_id
-            )
+
+                # Route to appropriate execution method based on DEVICE_EXECUTION_TYPE
+        if DEVICE_EXECUTION_TYPE == 1:
+             # SSH execution
+             execute_test_via_ssh(test_execution_id, ssh_params, device.management_ip, device_execution_id)
+        elif DEVICE_EXECUTION_TYPE == 2:
+            # NB_API execution
+            execute_test_via_nb_api(test_execution_id, ssh_params, device.management_ip, device_execution_id)
+
+
+
+            # execute_single_test_case.delay(
+            #     test_execution_id,
+            #     ssh_params,
+            #     device.management_ip,
+            #     device_execution_id
+            # )
         else:
             # Robot framework test - needs different handling
             logger.info(f"Retrying robot framework test: {test_execution.test_case.name}")
