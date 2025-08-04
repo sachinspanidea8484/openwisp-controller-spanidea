@@ -1207,7 +1207,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             return False
         return super().has_delete_permission(request, obj)
     
-    @admin.action(description=_("Execute selected test suites"))
+    @admin.action(description=_("Execute Selected Test Groups"))
     def execute_test_suite(self, request, queryset):
         """Execute test suites using Celery tasks"""
         from .tasks import execute_test_suite

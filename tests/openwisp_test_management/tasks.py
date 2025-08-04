@@ -120,20 +120,21 @@ def execute_tests_on_device(device_execution_id):
         # Check device connection
         device_conn = None
         has_connection = False
-        try:
-            device_conn = DeviceConnection.objects.get(
-                device=device,
-                enabled=True
-            )
-            has_connection = True
-            logger.info(f"Found working device connection: {device_conn}")
-            print(f"[TASK] execute_tests_on_device - Found working connection: {device_conn}")
-            
-        except DeviceConnection.DoesNotExist:
-            has_connection = False
-            error_msg = f"No working connection found for device {device.name}"
-            logger.warning(error_msg)
-            print(f"[WARNING] execute_tests_on_device - {error_msg}")
+        if DEVICE_EXECUTION_TYPE==1:
+            try:
+                device_conn = DeviceConnection.objects.get(
+                    device=device,
+                    enabled=True
+                )
+                has_connection = True
+                logger.info(f"Found working device connection: {device_conn}")
+                print(f"[TASK] execute_tests_on_device - Found working connection: {device_conn}")
+                
+            except DeviceConnection.DoesNotExist:
+                has_connection = False
+                error_msg = f"No working connection found for device {device.name}"
+                logger.warning(error_msg)
+                print(f"[WARNING] execute_tests_on_device - {error_msg}")
         
         # Get ordered test cases from the test suite
         test_cases = test_suite_execution.test_suite.get_ordered_test_cases()
@@ -178,7 +179,7 @@ def execute_tests_on_device(device_execution_id):
                 logger.info(f"Creating execution record for device agent test: {test_case.name}")
                 print(f"[TASK] execute_tests_on_device - Creating execution record for: {test_case.name}")
                 
-                if has_connection:
+                if has_connection or DEVICE_EXECUTION_TYPE==2:
                     # Normal execution record for devices with connection
                     test_execution = TestCaseExecution.objects.create(
                         test_suite_execution=test_suite_execution,
@@ -230,8 +231,8 @@ def execute_tests_on_device(device_execution_id):
         logger.info(f"Created {len(test_execution_ids)} device agent test execution records out of {total_test_cases} total tests")
         print(f"[TASK] execute_tests_on_device - Created {len(test_execution_ids)} device agent tests out of {total_test_cases} total")
         
-        # Only proceed with execution if device has connection
-        if has_connection:
+        # Only proceed with execution if device has connection (Connection is not requied for case when DEVICE_EXECUTION_TYPE==2)
+        if has_connection or DEVICE_EXECUTION_TYPE==2:
             logger.info(f"Created {len(robot_framework_tests)} Robot Framework and {len(device_agent_tests)} Device Agent test execution records")
             
             if robot_framework_tests:
@@ -256,7 +257,7 @@ def execute_tests_on_device(device_execution_id):
                     
                     execute_single_test_case.delay(
                         test_execution_id,
-                        device_conn.credentials.params,
+                        device_conn.credentials.params if DEVICE_EXECUTION_TYPE==1 else {},
                         device.management_ip,
                         device_execution_id
                     )
