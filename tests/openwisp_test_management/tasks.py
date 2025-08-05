@@ -956,11 +956,12 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     # print(f"[DEBUG] Full payload: {json.dumps(api_payload, indent=2)}")
     
     # Call Robot Framework API
-    # robot_api_url = "http://0.0.0.0:8080/run-robot/"
-    # robot_api_url = "http://10.8.12.123:8080/run-robot/"
     # robot_api_url = "http://192.168.122.1:8080/api/v1/run-robot/" # sachin
     # robot_api_url = "http://192.168.201.37:8080/api/v1/run-robot/" # kalyani
-    robot_api_url = "http://54.234.248.241:8080/api/v1/run-robot/" # aws
+    # robot_api_url = "http://54.234.248.241:8080/api/v1/run-robot/" # aws
+    robot_api_url = "http://172.17.0.1:8080/api/v1/run-robot/" # docker
+
+
 
 
 
