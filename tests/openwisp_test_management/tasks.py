@@ -120,8 +120,8 @@ def execute_tests_on_device(device_execution_id):
         # Check device connection
         device_conn = None
         has_connection = False
-        if DEVICE_EXECUTION_TYPE==1:
-            try:
+        # if DEVICE_EXECUTION_TYPE==1:
+        try:
                 device_conn = DeviceConnection.objects.get(
                     device=device,
                     enabled=True
@@ -130,11 +130,14 @@ def execute_tests_on_device(device_execution_id):
                 logger.info(f"Found working device connection: {device_conn}")
                 print(f"[TASK] execute_tests_on_device - Found working connection: {device_conn}")
                 
-            except DeviceConnection.DoesNotExist:
+        except DeviceConnection.DoesNotExist:
                 has_connection = False
                 error_msg = f"No working connection found for device {device.name}"
                 logger.warning(error_msg)
                 print(f"[WARNING] execute_tests_on_device - {error_msg}")
+
+        print(f"[TASK] execute_tests_on_device - Found working connection: {device_conn}")
+         
         
         # Get ordered test cases from the test suite
         test_cases = test_suite_execution.test_suite.get_ordered_test_cases()
@@ -163,6 +166,8 @@ def execute_tests_on_device(device_execution_id):
                 "password": device_conn.credentials.params.get('password', '') if has_connection else ''
             }
         }
+
+        print("device_data>>>>>>>>",device_data)
         
         test_suite_data = {
             "test_suite_name": test_suite_execution.test_suite.name,
