@@ -149,8 +149,6 @@ class AbstractTestCase(TimeStampedEditableModel):
         help_text=_("Optional parameters for test case execution in JSON format. "
                     "These parameters can be used to customize test case behavior.")
     )
-
-
     class Meta:
         abstract = True
         verbose_name = _("Test Case")
@@ -268,13 +266,13 @@ class AbstractTestSuite(TimeStampedEditableModel):
         default=True,
         help_text=_("Whether this test group is currently active")  # Changed help text
     )
-    category = models.ForeignKey(
-        'test_management.TestCategory',
-        on_delete=models.PROTECT,
-        related_name='test_suites',  # Keep model relation name same
-        verbose_name=_("Select Test Category"),  # Changed label
-        help_text=_("Category this test group belongs to")  # Changed help text
-    )
+    # category = models.ForeignKey(
+    #     'test_management.TestCategory',
+    #     on_delete=models.PROTECT,
+    #     related_name='test_suites',  # Keep model relation name same
+    #     verbose_name=_("Select Test Category"),  # Changed label
+    #     help_text=_("Category this test group belongs to")  # Changed help text
+    # )
     test_cases = models.ManyToManyField(
         'test_management.TestCase',
         through='test_management.TestSuiteCase',
@@ -287,11 +285,11 @@ class AbstractTestSuite(TimeStampedEditableModel):
         abstract = True
         verbose_name = _("Test Group")  # Changed from "Test Suite"
         verbose_name_plural = _("Test Groups")  # Changed from "Test Suites"
-        unique_together = ("category", "name")
-        ordering = ["category", "name"]
+        # unique_together = ( "name")
+        ordering = [ "name"]
 
     def __str__(self):
-        return f"{self.category.name} - {self.name}"
+        return f"{self.name}"
 
     def clean(self):
         """Validate the test group"""
@@ -301,19 +299,19 @@ class AbstractTestSuite(TimeStampedEditableModel):
             raise ValidationError({"name": _("Name is required")})
         
         # Check for duplicate name within the same category
-        if self.category_id:
-            qs = self.__class__.objects.filter(
-                category=self.category,
-                name__iexact=self.name
-            ).exclude(pk=self.pk)
+        # if self.category_id:
+        #     qs = self.__class__.objects.filter(
+        #         category=self.category,
+        #         name__iexact=self.name
+        #     ).exclude(pk=self.pk)
             
-            if qs.exists():
-                raise ValidationError({
-                    "name": _(
-                        f"A test group with this name already exists "
-                        f"in category '{self.category.name}'"
-                    )
-                })
+        #     if qs.exists():
+        #         raise ValidationError({
+        #             "name": _(
+        #                 f"A test group with this name already exists "
+        #                 f"in category '{self.category.name}'"
+        #             )
+        #         })
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -381,14 +379,14 @@ class AbstractTestSuiteCase(TimeStampedEditableModel):
         """Validate test group case"""
         super().clean()
         
-        # Ensure test case belongs to the same category as the group
-        if self.test_case and self.test_suite:
-            if self.test_case.category != self.test_suite.category:
-                raise ValidationError({
-                    "test_case": _(
-                        "Test case must belong to the same category as the test group"
-                    )
-                })
+        # # Ensure test case belongs to the same category as the group
+        # if self.test_case and self.test_suite:
+        #     if self.test_case.category != self.test_suite.category:
+        #         raise ValidationError({
+        #             "test_case": _(
+        #                 "Test case must belong to the same category as the test group"
+        #             )
+        #         })
 
     def save(self, *args, **kwargs):
         # Auto-assign order if not specified
@@ -400,16 +398,6 @@ class AbstractTestSuiteCase(TimeStampedEditableModel):
         
         self.full_clean()
         super().save(*args, **kwargs)
-
-
-
-
-
-
-
-
-
-
 
 
 class AbstractTestSuiteExecution(TimeStampedEditableModel):

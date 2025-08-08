@@ -212,7 +212,7 @@ class TestSuiteListCreateView(ProtectedAPIMixin, generics.ListCreateAPIView):
     GET: Returns list of test suites with filtering and search
     POST: Creates a new test suite
     """
-    queryset = TestSuite.objects.all().select_related("category")
+    queryset = TestSuite.objects.all()
     serializer_class = TestSuiteSerializer
     # filterset_class = []
     filterset_class = TestSuiteFilter
@@ -223,8 +223,8 @@ class TestSuiteListCreateView(ProtectedAPIMixin, generics.ListCreateAPIView):
         filters.OrderingFilter,
     ]
     search_fields = ["name", "description"]
-    ordering_fields = ["name", "category__name", "created", "modified"]
-    ordering = ["category__name", "name"]
+    ordering_fields = ["name", "created", "modified"]
+    ordering = [ "name"]
 
     def get_serializer_class(self):
         """Use lightweight serializer for list view"""
@@ -243,7 +243,7 @@ class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVi
     PUT/PATCH: Updates test suite
     DELETE: Deletes test suite (if not executed)
     """
-    queryset = TestSuite.objects.all().select_related("category")
+    queryset = TestSuite.objects.all()
     serializer_class = TestSuiteSerializer
     lookup_field = "pk"
 
@@ -3136,9 +3136,61 @@ def get_category_test_cases(request, category_id):
 
 
 
+from uuid import UUID
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_categories_test_cases(request):
+    """
+    API endpoint to get test cases for multiple categories (UUIDs)
+    Example: /api/get_category_test_cases/?category_ids=uuid1,uuid2
+    """
+    try:
+        category_ids_param = request.GET.get('category_ids', '')
+        category_ids = [cid.strip() for cid in category_ids_param.split(',') if cid.strip()]
+        
+        # Validate UUIDs
+        valid_category_ids = []
+        for cid in category_ids:
+            try:
+                valid_category_ids.append(UUID(cid))  # Will raise ValueError if not a valid UUID
+            except ValueError:
+                return Response(
+                    {"error": f"Invalid UUID: {cid}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
+        # Fetch test cases for all these categories
+        test_cases = TestCase.objects.filter(
+            category_id__in=valid_category_ids,
+            is_active=True
+        ).order_by('name')
 
+        # Serialize
+        test_cases_data = [
+            {
+                'id': str(tc.id),
+                'name': tc.name,
+                'test_case_id': tc.test_case_id,
+                'test_type': tc.test_type,
+                'test_type_display': tc.get_test_type_display()
+            }
+            for tc in test_cases
+        ]
+
+        return Response({
+            'success': True,
+            'category_ids': category_ids,
+            'test_cases': test_cases_data,
+            'count': len(test_cases_data)
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting test cases for categories {category_ids_param}: {str(e)}")
+        return Response(
+            {"error": "Failed to retrieve test cases", "details": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 
@@ -3163,7 +3215,7 @@ def get_test_suite_details(request, suite_id):
         # Get test cases with their order
         test_suite_cases = TestSuiteCase.objects.filter(
             test_suite=test_suite
-        ).select_related('test_case', 'test_case__category').order_by('order')
+        ).select_related('test_case').order_by('order')
 
         # Serialize test cases data
         test_cases_data = []
@@ -3173,7 +3225,7 @@ def get_test_suite_details(request, suite_id):
                 'id': str(tc.id),
                 'name': tc.name,
                 'test_case_id': tc.test_case_id,
-                'category': tc.category.name,
+                # 'category': tc.category.name,
                 'test_type': tc.test_type,
                 'test_type_display': tc.get_test_type_display(),
                 'order': suite_case.order,
@@ -3184,8 +3236,8 @@ def get_test_suite_details(request, suite_id):
         test_suite_data = {
             'id': str(test_suite.id),
             'name': test_suite.name,
-            'category': test_suite.category.name,
-            'category_id': str(test_suite.category.id),
+            # 'category': test_suite.category.name,
+            # 'category_id': str(test_suite.category.id),
             'description': test_suite.description or '',
             'is_active': test_suite.is_active,
             'test_case_count': len(test_cases_data),
@@ -3386,7 +3438,7 @@ def test_execution_history(request, execution_id):
         # Get all test case executions
         test_case_executions = TestCaseExecution.objects.filter(
             test_suite_execution=execution
-        ).select_related('device', 'test_case', 'test_case__category').order_by(
+        ).select_related('device', 'test_case').order_by(
             'device__name', 'execution_order'
         )
         
@@ -3459,8 +3511,8 @@ def test_execution_history(request, execution_id):
             'execution_id': str(execution.pk),
             'test_suite_name': execution.test_suite.name,
             'test_suite_id': str(execution.test_suite.pk),
-            'category_name': execution.test_suite.category.name,
-            'category_id': str(execution.test_suite.category.pk),
+            # 'category_name': execution.test_suite.category.name,
+            # 'category_id': str(execution.test_suite.category.pk),
             'total_devices': execution.device_count,
             'total_test_cases': execution.test_suite.test_case_count,
             'is_executed': execution.is_executed,

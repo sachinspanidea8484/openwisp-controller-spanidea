@@ -37,7 +37,7 @@ class FloorPlanInline(AbstractFloorPlanInline):
 class FloorPlanAdmin(MultitenantAdminMixin, AbstractFloorPlanAdmin):
     form = FloorPlanForm
     list_filter = [MultitenantOrgFilter, "created"]
-
+    list_per_page=10
 
 FloorPlanAdmin.list_display.insert(1, "organization")
 
@@ -98,6 +98,7 @@ class LocationAdmin(MultitenantAdminMixin, AbstractLocationAdmin):
     form = LocationForm
     inlines = [FloorPlanInline]
     list_select_related = ("organization",)
+    list_per_page=10
 
 
 LocationAdmin.list_display.insert(1, "organization")

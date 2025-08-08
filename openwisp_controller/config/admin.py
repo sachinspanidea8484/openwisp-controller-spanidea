@@ -76,6 +76,7 @@ class SystemDefinedVariableMixin(object):
 
 class BaseAdmin(TimeReadonlyAdminMixin, ModelAdmin):
     history_latest_first = True
+    list_per_page=10
 
 
 class DeactivatedDeviceReadOnlyMixin(object):

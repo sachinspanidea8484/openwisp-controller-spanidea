@@ -52,6 +52,7 @@ class MetricAdmin(TimeReadonlyAdminMixin, VersionAdmin):
             {'classes': ('collapse',), 'fields': ('key', 'field_name')},
         ),
     ]
+    list_per_page=10
 
     class Media:
         css = {'all': ('monitoring/css/monitoring.css', 'monitoring/css/chart.css')}
