@@ -172,7 +172,7 @@ def execute_tests_on_device(device_execution_id):
         test_suite_data = {
             "test_suite_name": test_suite_execution.test_suite.name,
             "test_suite_id": test_suite_execution.test_suite.id,
-            "test_suite_category": test_suite_execution.test_suite.category.name,
+            # "test_suite_category": test_suite_execution.test_suite.category.name,
             "test_cases": []
         }
         
@@ -897,7 +897,7 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     test_suite_data_fixed = {
         "test_suite_name": test_suite_data.get('test_suite_name', 'N/A'),
         "test_suite_id": str(test_suite_data.get('test_suite_id', '')),  # Convert UUID to string
-        "test_suite_category": test_suite_data.get('test_suite_category', 'N/A'),
+        # "test_suite_category": test_suite_data.get('test_suite_category', 'N/A'),
         "test_cases": []
     }
     
@@ -932,7 +932,7 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     print(f"\n[DEBUG] Test Suite Data:")
     print(f"  - Suite Name: {test_suite_data_fixed.get('test_suite_name', 'N/A')}")
     print(f"  - Suite ID: {test_suite_data_fixed.get('test_suite_id', 'N/A')}")
-    print(f"  - Suite Category: {test_suite_data_fixed.get('test_suite_category', 'N/A')}")
+    # print(f"  - Suite Category: {test_suite_data_fixed.get('test_suite_category', 'N/A')}")
     print(f"  - Device Execution ID: {device_execution_id}")
     print(f"  - Number of test cases: {len(test_suite_data_fixed.get('test_cases', []))}")
     
@@ -948,7 +948,7 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
         "test_suites": {
             "test_suite_name": test_suite_data_fixed.get('test_suite_name'),
             "test_suite_id": test_suite_data_fixed.get('test_suite_id'),
-            "test_suite_category": test_suite_data_fixed.get('test_suite_category'),
+            # "test_suite_category": test_suite_data_fixed.get('test_suite_category'),
             "test_cases": test_suite_data_fixed.get('test_cases', [])
         },
         "execution_metadata": {
@@ -1206,7 +1206,7 @@ def retry_test_execution(test_execution_id):
             test_suite_data = {
                 "test_suite_name": test_suite_execution.test_suite.name,
                 "test_suite_id": test_suite_execution.test_suite.id,
-                "test_suite_category": test_suite_execution.test_suite.category.name,
+                # "test_suite_category": test_suite_execution.test_suite.category.name,
                 "test_cases": [{
                     "test_case_id": test_execution.test_case.test_case_id,
                     "test_case_name": test_execution.test_case.name,
