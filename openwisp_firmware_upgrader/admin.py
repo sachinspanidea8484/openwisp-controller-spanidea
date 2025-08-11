@@ -47,11 +47,12 @@ DeviceConnection = swapper.load_model("connection", "DeviceConnection")
 
 class BaseAdmin(MultitenantAdminMixin, TimeReadonlyAdminMixin, admin.ModelAdmin):
     save_on_top = True
-
+    list_per_page=10
 
 class BaseVersionAdmin(MultitenantAdminMixin, TimeReadonlyAdminMixin, VersionAdmin):
     history_latest_first = True
     save_on_top = True
+    list_per_page=10
 
 
 @admin.register(load_model("Category"))

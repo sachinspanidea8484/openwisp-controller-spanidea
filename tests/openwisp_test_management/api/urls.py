@@ -26,6 +26,11 @@ urlpatterns = [
             ),
             # Test Case endpoints
             path(
+                "category/get-test-cases/",
+                views.get_categories_test_cases,
+                name="api_cateogries_test_cases",
+            ),
+            path(
                 "test-case/",
                 views.test_case_list,
                 name="api_test_case_list",

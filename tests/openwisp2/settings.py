@@ -251,7 +251,7 @@ if TESTING:
     OPENWISP_MONITORING_AUTO_IPERF3 = True
 
 
-TIME_ZONE = "Europe/Rome"
+TIME_ZONE = "UTC"
 LANGUAGE_CODE = "en-gb"
 USE_TZ = True
 USE_I18N = True

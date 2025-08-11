@@ -35,7 +35,7 @@
                             <tr>
                                 <th class="readonly-name-col">NAME</th>
                                 <th class="readonly-id-col">TEST CASE ID</th>
-                                <th class="readonly-category-col">CATEGORY</th>
+                                
                                 <th class="readonly-type-col">TEST TYPE</th>
                             </tr>
                         </thead>
@@ -183,7 +183,6 @@
         
         testCases.forEach(function(testCase) {
             const typeClass = testCase.test_type === 1 ? 'readonly-test-type-robot' : 'readonly-test-type-agent';
-            
             const row = $(`
                 <tr>
                     <td class="readonly-name-col">
@@ -192,7 +191,7 @@
                     <td class="readonly-id-col">
                         <div class="readonly-test-case-id">${testCase.test_case_id}</div>
                     </td>
-                    <td class="readonly-category-col">${testCase.category}</td>
+                   
                     <td class="readonly-type-col">
                         <span class="readonly-test-type-badge ">${testCase.test_type_display}</span>
                     </td>

@@ -178,7 +178,7 @@ class TestSuiteCaseSerializer(serializers.ModelSerializer):
 
 class TestSuiteSerializer(ValidatedModelSerializer):
     """Serializer for TestSuite model"""
-    category_detail = TestCategoryRelationSerializer(source="category", read_only=True)
+    # category_detail = TestCategoryRelationSerializer(source="category", read_only=True)
     test_case_count = serializers.IntegerField(read_only=True)
     execution_count = serializers.IntegerField(read_only=True)
     test_cases = TestSuiteCaseSerializer(
@@ -201,8 +201,8 @@ class TestSuiteSerializer(ValidatedModelSerializer):
             "name",
             "description",
             "is_active",
-            "category",
-            "category_detail",
+            # "category",
+            # "category_detail",
             "test_cases",
             "test_case_ids",
             "test_case_count",
@@ -229,22 +229,22 @@ class TestSuiteSerializer(ValidatedModelSerializer):
             return value
         
         # Get category from instance or data
-        category = None
-        if self.instance:
-            category = self.instance.category
-        elif 'category' in self.initial_data:
-            try:
-                category = TestCategory.objects.get(pk=self.initial_data['category'])
-            except TestCategory.DoesNotExist:
-                raise serializers.ValidationError(_("Invalid category"))
+        # category = None
+        # if self.instance:
+        #     category = self.instance.category
+        # elif 'category' in self.initial_data:
+        #     try:
+        #         category = TestCategory.objects.get(pk=self.initial_data['category'])
+        #     except TestCategory.DoesNotExist:
+        #         raise serializers.ValidationError(_("Invalid category"))
         
-        if not category:
-            raise serializers.ValidationError(_("Category must be specified"))
+        # if not category:
+        #     raise serializers.ValidationError(_("Category must be specified"))
         
         # Build test case queryset
         test_cases_qs = TestCase.objects.filter(
             id__in=value,
-            category=category,
+            # category=category,
             is_active=True
         )
         
@@ -296,15 +296,15 @@ class TestSuiteSerializer(ValidatedModelSerializer):
 
 class TestSuiteListSerializer(TestSuiteSerializer):
     """Lightweight serializer for list views"""
-    category_name = serializers.CharField(source="category.name", read_only=True)
+    # category_name = serializers.CharField(source="category.name", read_only=True)
     
     class Meta(BaseMeta):
         model = TestSuite
         fields = [
             "id",
             "name",
-            "category",
-            "category_name",
+            # "category",
+            # "category_name",
             "is_active",
             "test_case_count",
             "execution_count",
@@ -314,7 +314,7 @@ class TestSuiteListSerializer(TestSuiteSerializer):
         read_only_fields = BaseMeta.read_only_fields + [
             "test_case_count",
             "execution_count",
-            "category_name",
+            # "category_name",
         ]        
 
 

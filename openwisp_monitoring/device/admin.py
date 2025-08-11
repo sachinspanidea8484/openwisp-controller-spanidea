@@ -535,6 +535,7 @@ class WifiSessionAdmin(
         'start_time',
         'stop_time',
     ]
+    list_per_page=10
 
     def get_readonly_fields(self, request, obj=None):
         fields = super().get_readonly_fields(request, obj)

@@ -33,7 +33,7 @@
     background: #f9f9f9;
     position: sticky;
     top: 0;
-    z-index: 10;
+    /* z-index: 5; */
     display: table-header-group;
 }
 
@@ -296,3 +296,148 @@
         font-size: 12px;
     }
 } 
+/* Styling for the custom category filter section */
+.custom-category-filter {
+    background-color: #ffffff; /* White background for a clean look */
+    border: 1px solid #e0e0e0; /* Light gray border for subtle separation */
+    border-radius: 8px; /* Rounded corners for a modern feel */
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); /* Subtle shadow for depth */
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px; /* Space between elements */
+}
+
+/* Styling for the category filter input wrapper */
+.category-filter-input {
+    display: flex;
+    /* flex: 1; */
+    min-width: 40%; /* Ensure it doesn't get too narrow */
+    align-items: center;
+}
+
+/* Label styling */
+.category-filter-input label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333; /* Dark gray for text to match admin themes */
+    margin-bottom: 8px;
+    /* display: block; */
+    width: 40%;
+}
+
+/* Styling for the Choices.js select element (multi-select dropdown) */
+.choices {
+    width: 100%;
+    border-radius: 6px; /* Rounded corners */
+    border: 1px solid #ced4da; /* Bootstrap-like border color */
+    overflow: hidden;
+    padding: 0;
+   height: 2.5rem;
+}
+
+.choices__inner {
+    background-color: white !important;
+    border: none;
+    /* padding: 10px 15px; */
+    font-size: 14px;
+    color: #495057; /* Darker text for readability */
+    min-height: 40px;
+    border-radius: 6px;
+    width: auto;
+}
+.choices__input{
+    background-color: white !important;
+}
+
+.choices__list--multiple .choices__item {
+    background-color: #007bff; /* Primary blue for selected items */
+    color: #ffffff;
+    border: none;
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin-right: 5px;
+    font-size: 13px;
+    z-index: 10;
+}
+
+.choices__list--multiple .choices__item.is-highlighted {
+    background-color: #0069d9; /* Slightly darker blue on hover */
+}
+
+.choices__button {
+    border-left: none !important;
+    background-color: transparent !important;
+    color: #ffffff !important;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.choices__button:hover {
+    opacity: 1;
+    background-color: transparent !important;
+}
+
+.choices[data-type*="select-multiple"] .choices__inner {
+    /* width: fit-content; */
+    cursor: pointer;
+}
+
+/* Dropdown list styling */
+.choices__list--dropdown {
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    margin-top: 5px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff;
+}
+
+.choices__list--dropdown .choices__item {
+    padding: 10px 15px;
+    font-size: 14px;
+    color: #495057;
+    transition: background-color 0.2s ease;
+}
+
+.choices__list--dropdown .choices__item--selectable.is-highlighted {
+    background-color: #f8f9fa; /*Light gray hover effect*/
+}
+
+/* Apply button styling */
+#apply-category-filter {
+    background-color: black; /* Primary blue to match admin theme */
+    color: #ffffff;
+    border: none;
+    padding: 8px 15px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+    height: 30px; /* Match height with input field */
+}
+
+#apply-category-filter:hover {
+    background-color: rgba(51, 51, 51, 0.7); /* Darker blue on hover */
+    box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3); /* Subtle hover shadow */
+}
+
+#apply-category-filter:active {
+    background-color: rgba(51, 51, 51, 0.7); /* Even darker blue on click */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .custom-category-filter {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    #apply-category-filter {
+        width: 100%;
+        margin-top: 10px;
+    }
+}

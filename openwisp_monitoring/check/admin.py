@@ -12,3 +12,4 @@ class CheckAdmin(TimeReadonlyAdminMixin, admin.ModelAdmin):
     search_fields = ['name', 'object_id']
     # TODO: filters
     save_on_top = True
+    list_per_page=10

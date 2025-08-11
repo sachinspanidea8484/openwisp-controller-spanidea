@@ -48,13 +48,13 @@ class TestCaseFilter(filters.FilterSet):
 class TestSuiteFilter(filters.FilterSet):
     """API filter for test suites"""
     name = filters.CharFilter(field_name="name", lookup_expr="icontains")
-    category = filters.UUIDFilter(field_name="category")
+    # category = filters.UUIDFilter(field_name="category")
     is_active = filters.BooleanFilter(field_name="is_active")
     
     class Meta:
         model = TestSuite
         fields = [
-            "category",
+            # "category",
             "name",
             "is_active",
         ]

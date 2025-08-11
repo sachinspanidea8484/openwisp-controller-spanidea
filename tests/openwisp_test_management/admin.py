@@ -19,6 +19,8 @@ from django.urls import path
 from django.shortcuts import get_object_or_404, render
 import traceback
 
+import json
+from django.utils.translation import gettext_lazy as _
 
 
 
@@ -65,6 +67,7 @@ class BaseAdmin(TimeReadonlyAdminMixin, admin.ModelAdmin):
 class BaseVersionAdmin(TimeReadonlyAdminMixin, VersionAdmin):
     history_latest_first = True
     save_on_top = True
+    list_per_page= 10
 
 
 @admin.register(TestCategory)
@@ -198,13 +201,80 @@ def delete_selected(self, request, queryset):
     
     delete_selected.short_description = _("Delete selected test categories")
 
+class FormattedJSONField(forms.CharField):
+    """Custom field that formats JSON for display"""
+    
+    def prepare_value(self, value):
+        """Format JSON value before displaying in the widget"""
+        if value is None or value == '':
+            return ''
+        
+        try:
+            if isinstance(value, (dict, list)):
+                parsed = value
+            elif isinstance(value, str):
+                parsed = json.loads(value)
+            else:
+                parsed = value
+            
+            # Format with proper indentation
+            return json.dumps(parsed, indent=4, ensure_ascii=False, sort_keys=True)
+        except (json.JSONDecodeError, TypeError):
+            return value
 
 
-
-
+class TestCaseAdminForm(forms.ModelForm):
+    params = FormattedJSONField(
+        required=False,
+        widget=forms.Textarea(attrs={
+            'rows': 15,
+            'cols': 80,
+            'placeholder': _('Enter Parameters in JSON format'),
+            'id': 'id_params',
+            'style': 'font-family: monospace; font-size: 13px;'
+        })
+    )
+    
+    json_file = forms.FileField(
+        required=False,
+        help_text=_("Upload a JSON file to populate parameters"),
+        widget=forms.FileInput(attrs={
+            'accept': '.json',
+            'id': 'json-file-input',
+            'style': 'display: none;'
+        })
+    )
+    
+    class Meta:
+        model = TestCase
+        fields = '__all__'
+    
+    def clean_params(self):
+        params = self.cleaned_data.get('params')
+        if params and params.strip():
+            try:
+                # Validate and minify JSON for storage
+                return json.loads(params.strip())
+                # return json.dumps(parsed, separators=(',', ':'))
+                # return params
+            except json.JSONDecodeError as e:
+                raise forms.ValidationError(_("Invalid JSON format: {}".format(str(e))))
+        return {}
+    
+    # def clean_json_file(self):
+    #     json_file = self.cleaned_data.get('json_file')
+    #     if json_file:
+    #         try:
+    #             content = json_file.read().decode('utf-8')
+    #             json.loads(content)
+    #             return json_file
+    #         except (UnicodeDecodeError, json.JSONDecodeError) as e:
+    #             raise forms.ValidationError(_("Invalid JSON file: {}".format(str(e))))
+    #     return json_file
 
 @admin.register(TestCase)
 class TestCaseAdmin(BaseVersionAdmin):
+    form = TestCaseAdminForm
     list_display = [
         "name",              # 1st - Test Case Name
         "test_case_id",      # 2nd - Test Case ID  
@@ -229,6 +299,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         "test_case_id",
         "test_type",  # ADD THIS
         "params",  # ADD THIS - NEW FIELD
+        "json_file",
         "description",
         "is_active",
         # "created",
@@ -285,64 +356,76 @@ class TestCaseAdmin(BaseVersionAdmin):
             return False
         return True
     def get_form(self, request, obj=None, **kwargs):
-     form = super().get_form(request, obj, **kwargs)
-    
-     # Category field
-     if "category" in form.base_fields:
-        form.base_fields["category"].help_text = _(
-            "Select the category this test case belongs to"
-        )
-    
-     # Test Case Name field
-     if "name" in form.base_fields:
-        form.base_fields["name"].widget.attrs.update({
-            'placeholder': _('Enter Test Case Name')
-        })
-        form.base_fields["name"].help_text = _(
-            "Enter a descriptive name for this test case"
-        )
+        form = super().get_form(request, obj, **kwargs)
         
-     # Test Case ID field
-     if "test_case_id" in form.base_fields:
-        form.base_fields["test_case_id"].widget.attrs.update({
-            'placeholder': _('Enter Test Case ID')
-        })
-        form.base_fields["test_case_id"].help_text = _(
-            "Enter a unique identifier for this test case"
-        )
+        # Category field
+        if "category" in form.base_fields:
+            form.base_fields["category"].help_text = _(
+                "Select the category this test case belongs to"
+            )
         
-     # Test Type field
-     if "test_type" in form.base_fields:
-        form.base_fields["test_type"].help_text = _(
-            "Select the type of test to run"
-        )
-        
-     # Parameters field
-     if "params" in form.base_fields:
-        form.base_fields["params"].widget.attrs.update({
-            'placeholder': _('Enter Parameters')
-        })
-        form.base_fields["params"].help_text = _(
-            "Optional parameters in JSON format. Leave empty if not needed"
-        )
-        
-     # Description field
-     if "description" in form.base_fields:
-        form.base_fields["description"].widget.attrs.update({
-            'placeholder': _('Enter Description'),
-            'rows': 4
-        })
-        form.base_fields["description"].help_text = _(
-            "Describe what this test case does"
-        )
-        
-     # Is Active field
-     if "is_active" in form.base_fields:
-        form.base_fields["is_active"].help_text = _(
-            "Check to make this test case active"
-        )
-        
-     return form
+        # Test Case Name field
+        if "name" in form.base_fields:
+            form.base_fields["name"].widget.attrs.update({
+                'placeholder': _('Enter Test Case Name')
+            })
+            form.base_fields["name"].help_text = _(
+                "Enter a descriptive name for this test case"
+            )
+            
+        # Test Case ID field
+        if "test_case_id" in form.base_fields:
+            form.base_fields["test_case_id"].widget.attrs.update({
+                'placeholder': _('Enter Test Case ID')
+            })
+            form.base_fields["test_case_id"].help_text = _(
+                "Enter a unique identifier for this test case"
+            )
+            
+        # Test Type field
+        if "test_type" in form.base_fields:
+            form.base_fields["test_type"].help_text = _(
+                "Select the type of test to run"
+            )
+            
+        # Parameters field
+        if "params" in form.base_fields:
+            form.base_fields["params"].widget.attrs.update({
+                'placeholder': _('Enter Parameters')
+            })
+            form.base_fields["params"].help_text = _(
+                "Optional parameters in JSON format. Leave empty if not needed"
+            )
+            
+        # Description field
+        if "description" in form.base_fields:
+            form.base_fields["description"].widget.attrs.update({
+                'placeholder': _('Enter Description'),
+                'rows': 4
+            })
+            form.base_fields["description"].help_text = _(
+                "Describe what this test case does"
+            )
+            
+        # Is Active field
+        if "is_active" in form.base_fields:
+            form.base_fields["is_active"].help_text = _(
+                "Check to make this test case active"
+            )
+            
+        if "json_file" in form.base_fields:
+            form.base_fields["json_file"].widget.attrs.update({
+                'id': 'json-file-input',  # Make sure this ID matches
+                'accept': '.json',
+                'style': 'display: none;'
+            })
+        return form
+
+    class Media:
+        js = ('test-management/js/json_file_handler.js',)  # Add custom JavaScript
+        css = {
+            'all': ('test-management/css/json_file_handler.css',)  # Optional custom CSS
+        }
 
 def delete_selected(self, request, queryset):
     """
@@ -430,39 +513,30 @@ class TestSuiteAdminForm(forms.ModelForm):
     
     class Meta:
         model = TestSuite
-        fields = ['name', 'description', 'category', 'is_active']
+        fields = ['name', 'description', 'is_active']
         labels = {
             'name': _('Test Group Name'),
             'description': _('Description'),
-            'category': _('Select Test Category'),
             'is_active': _('Is Active'),
         }
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
-        # Store the request data for later use
+
         self.request_data = kwargs.get('data', {})
-        
-        # If editing existing instance, get current test cases
+
+        # Load current test cases (if editing existing suite)
         if self.instance and self.instance.pk:
             current_test_cases = self.instance.test_cases.all().values_list('id', flat=True)
             self.initial['selected_test_cases_data'] = json.dumps(
                 [str(tc_id) for tc_id in current_test_cases]
             )
-    
+
     def clean(self):
-        """Custom validation with better error messages"""
         cleaned_data = super().clean()
-        category = cleaned_data.get('category')
         
-        if not category:
-            return cleaned_data
-        
-        # Get selected test cases data
         selected_test_cases_data = self.data.get('selected_test_cases_data', '')
-        
-        # Validate that at least one test case is selected
+
         selected_count = 0
         if selected_test_cases_data:
             try:
@@ -472,95 +546,50 @@ class TestSuiteAdminForm(forms.ModelForm):
                 raise forms.ValidationError({
                     '__all__': _('Invalid test case selection data. Please try again.')
                 })
-        
+
         if selected_count == 0:
             raise forms.ValidationError({
-                'category': _('At least one test case must be selected for this test group.')
+                '__all__': _('At least one test case must be selected for this test group.')
             })
-        
-        # If this is an edit and category is being changed
-        if self.instance and self.instance.pk and category:
-            if self.instance.category_id != category.id and selected_count > 0:
-                # Category is being changed - validate selected test cases belong to new category
-                try:
-                    selected_ids = json.loads(selected_test_cases_data)
-                    
-                    if selected_ids:
-                        # Check if all selected test cases belong to the new category
-                        valid_test_cases = TestCase.objects.filter(
-                            id__in=selected_ids,
-                            category=category,
-                            is_active=True
-                        ).count()
-                        
-                        if valid_test_cases != len([id for id in selected_ids if id]):
-                            raise forms.ValidationError({
-                                'category': _(
-                                    'Some selected test cases do not belong to the new category. '
-                                    'Please reselect test cases after changing the category.'
-                                )
-                            })
-                except (json.JSONDecodeError, ValueError):
-                    raise forms.ValidationError({
-                        'category': _('Please reselect test cases for the new category.')
-                    })
-        
+
         return cleaned_data
-    
+
     def save(self, commit=True):
         instance = super().save(commit=False)
-        
+
         if commit:
             instance.save()
-            
-            # Process selected test cases
+
             selected_test_cases_data = self.data.get('selected_test_cases_data', '')
             logger.info(f"Received selected_test_cases_data: {selected_test_cases_data}")
             
             if selected_test_cases_data:
                 try:
-                    # Parse the JSON data
                     selected_ids = json.loads(selected_test_cases_data)
-                    logger.info(f"Parsed test case IDs: {selected_ids}")
-                    
-                    # Filter out empty strings/None values
                     valid_ids = [id for id in selected_ids if id]
-                    
+
                     if not valid_ids:
                         raise forms.ValidationError(_('At least one test case must be selected.'))
-                    
-                    # Clear existing test cases for this suite
+
+                    # Clear old entries
                     TestSuiteCase.objects.filter(test_suite=instance).delete()
-                    logger.info(f"Cleared existing test cases for suite: {instance.id}")
-                    
-                    # Create new TestSuiteCase entries
-                    created_count = 0
+
+                    # Create new suite-case links
                     for order, test_case_id in enumerate(valid_ids, start=1):
                         try:
-                            # Verify test case exists and belongs to the same category
-                            test_case = TestCase.objects.get(
-                                id=test_case_id,
-                                category=instance.category
-                            )
-                            
-                            # Create the relationship
-                            suite_case = TestSuiteCase.objects.create(
+                            test_case = TestCase.objects.get(id=test_case_id)
+
+                            TestSuiteCase.objects.create(
                                 test_suite=instance,
                                 test_case=test_case,
                                 order=order
                             )
-                            created_count += 1
-                            logger.info(f"Created TestSuiteCase: {suite_case}")
-                            
+
                         except TestCase.DoesNotExist:
-                            logger.error(
-                                f"Test case not found or doesn't belong to category: {test_case_id}"
-                            )
+                            logger.error(f"Test case not found: {test_case_id}")
                         except Exception as e:
                             logger.error(f"Error creating TestSuiteCase: {e}")
-                    
-                    logger.info(f"Created {created_count} TestSuiteCase entries")
-                    
+
                 except json.JSONDecodeError as e:
                     logger.error(f"Error parsing selected test cases JSON: {e}")
                     raise forms.ValidationError(_('Error processing selected test cases.'))
@@ -568,11 +597,9 @@ class TestSuiteAdminForm(forms.ModelForm):
                     logger.error(f"Unexpected error saving test cases: {e}")
                     raise forms.ValidationError(f'Error saving test cases: {str(e)}')
             else:
-                # No test cases selected - this should be caught by clean() method
                 raise forms.ValidationError(_('At least one test case must be selected.'))
-        
+
         return instance
-    
 
 @admin.register(TestSuite)
 class TestSuiteAdmin(BaseVersionAdmin):
@@ -581,7 +608,7 @@ class TestSuiteAdmin(BaseVersionAdmin):
     
     list_display = [
         "name",
-        "category_link", 
+        # "category_link", 
         "test_case_count",
         "is_active",
         "created",
@@ -589,11 +616,11 @@ class TestSuiteAdmin(BaseVersionAdmin):
     ]
     
     list_filter = [
-        TestSuiteCategoryFilter,
+        # TestSuiteCategoryFilter,
         TestSuiteActiveFilter,
     ]
     
-    list_select_related = ["category"]
+    # list_select_related = ["category"]
     search_fields = ["name", "description"]
     # ordering = ["category__name", "name"]
     ordering = ["-created"]
@@ -603,11 +630,11 @@ class TestSuiteAdmin(BaseVersionAdmin):
         "name",
         "description",
         "is_active",
-        "category",
+        # "category",
     ]
     
     readonly_fields = ["created", "modified"]
-    autocomplete_fields = ["category"]
+    # autocomplete_fields = ["category"]
     
     # Enable history button
     object_history_template = "reversion/object_history.html"
@@ -638,10 +665,6 @@ class TestSuiteAdmin(BaseVersionAdmin):
                 "Describe what this test group does"
             )
             
-        if "category" in form.base_fields:
-            form.base_fields["category"].help_text = _(
-                "Select a category to see available test cases"
-            )
             
         if "is_active" in form.base_fields:
             form.base_fields["is_active"].help_text = _(
@@ -650,17 +673,17 @@ class TestSuiteAdmin(BaseVersionAdmin):
         
         return form
 
-    def category_link(self, obj):
-        """Display category as a link"""
-        if obj.category:
-            return format_html(
-                '<a href="../testcategory/{}/change/">{}</a>',
-                obj.category.pk,
-                obj.category.name
-            )
-        return "-"
-    category_link.short_description = _("Category")
-    category_link.admin_order_field = "category__name"
+    # def category_link(self, obj):
+    #     """Display category as a link"""
+    #     if obj.category:
+    #         return format_html(
+    #             '<a href="../testcategory/{}/change/">{}</a>',
+    #             obj.category.pk,
+    #             obj.category.name
+    #         )
+    #     return "-"
+    # category_link.short_description = _("Category")
+    # category_link.admin_order_field = "category__name"
 
     def test_case_count(self, obj):
         """Display count of test cases in this suite"""
@@ -679,7 +702,7 @@ class TestSuiteAdmin(BaseVersionAdmin):
             "name",
             "description", 
             "is_active",
-            "category",
+            # "category",
         ]
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
@@ -699,13 +722,20 @@ class TestSuiteAdmin(BaseVersionAdmin):
                     'id': str(suite_case.test_case.id),
                     'name': suite_case.test_case.name,
                     'test_case_id': suite_case.test_case.test_case_id,
-                    'order': suite_case.order
+                    'order': suite_case.order,
                 })
             
             extra_context['selected_test_cases_with_order'] = json.dumps(test_cases_with_order)
+        extra_context['categories']= TestCategory.objects.all()
+
         
         return super().change_view(request, object_id, form_url, extra_context)
-
+    
+    def add_view(self, request, form_url='', extra_context=None):
+        """Override add view to add categories to context"""
+        extra_context = extra_context or {}
+        extra_context['categories'] = TestCategory.objects.all()
+        return super().add_view(request, form_url, extra_context)
     def save_model(self, request, obj, form, change):
         """Save the model and handle test case relationships"""
         super().save_model(request, obj, form, change)
@@ -713,7 +743,6 @@ class TestSuiteAdmin(BaseVersionAdmin):
         # Handle test cases after the model is saved
         selected_test_cases_data = request.POST.get('selected_test_cases_data', '')
         logger.info(f"save_model - selected_test_cases_data: {selected_test_cases_data}")
-        
         if selected_test_cases_data:
             try:
                 # Parse the JSON data
@@ -728,8 +757,8 @@ class TestSuiteAdmin(BaseVersionAdmin):
                     if test_case_id:
                         try:
                             test_case = TestCase.objects.get(
-                                id=test_case_id,
-                                category=obj.category  # Ensure test case belongs to same category
+                                id=test_case_id
+                                
                             )
                             TestSuiteCase.objects.create(
                                 test_suite=obj,
@@ -840,7 +869,7 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
             )
             self.fields["test_suite"].queryset = TestSuite.objects.filter(
                 is_active=True
-            ).select_related('category')
+            )
     
     def clean(self):
         """Custom validation"""
@@ -1012,7 +1041,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         "created",
         ("test_suite", admin.RelatedOnlyFieldListFilter),
     ]
-    list_select_related = ["test_suite", "test_suite__category"]
+    list_select_related = ["test_suite"]
     search_fields = ["test_suite__name"]
     ordering = ["-created"]
     
@@ -1030,7 +1059,6 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     class Meta:
         verbose_name = _("Test Execution")  # Change from "Test Suite Execution"
         verbose_name_plural = _("Test Executions")  # Change from "Test Suite Executions"
-    
     def changelist_view(self, request, extra_context=None):
         """Override to add custom title"""
         extra_context = extra_context or {}
@@ -1077,7 +1105,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         # Get all test case executions
         test_case_executions = TestCaseExecution.objects.filter(
             test_suite_execution=execution
-        ).select_related('device', 'test_case', 'test_case__category').order_by(
+        ).select_related('device', 'test_case').order_by(
             'device__name', 'execution_order'
         )
         
