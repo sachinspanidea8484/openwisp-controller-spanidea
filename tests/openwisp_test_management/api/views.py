@@ -3161,10 +3161,16 @@ def get_categories_test_cases(request):
                 )
 
         # Fetch test cases for all these categories
-        test_cases = TestCase.objects.filter(
-            category_id__in=valid_category_ids,
-            is_active=True
-        ).order_by('name')
+        if len(category_ids) ==0:
+            test_cases = TestCase.objects.filter(
+                is_active=True
+            ).order_by('name')
+        else:
+            test_cases = TestCase.objects.filter(
+                category_id__in=valid_category_ids,
+                is_active=True
+            ).order_by('name')
+      
 
         # Serialize
         test_cases_data = [

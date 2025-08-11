@@ -28,6 +28,7 @@
   const globalState = {
     selectedTestCases: new Map(), // test_case_id -> { testCaseData, order }
     currentApiTestCases: [], // Current API response
+    cachedTestCases: new Map(),
 
     // Add test case to global state
     addTestCase: function (testCase, order = null) {
@@ -43,6 +44,17 @@
       }
 
       this.selectedTestCases.set(testCaseId, {
+        testCaseData: {
+          id: testCase.id,
+          name: testCase.name,
+          test_case_id: testCase.test_case_id,
+          test_type: testCase.test_type || 1,
+          test_type_display: testCase.test_type_display,
+        },
+        order: order,
+        selected_at: Date.now(),
+      });
+      this.cachedTestCases.set(testCaseId, {
         testCaseData: {
           id: testCase.id,
           name: testCase.name,
@@ -72,6 +84,10 @@
         this.reorderTestCases();
         this.logState();
       }
+    },
+
+    getFromCache(testCaseId) {
+      return this.cachedTestCases.get(String(testCaseId))?.testCaseData || null;
     },
 
     // Check if test case is selected
@@ -461,9 +477,9 @@
         // If not in current API, get from global state
         if (
           !testCaseData &&
-          globalState.selectedTestCases.has(String(testCaseId))
+          globalState.cachedTestCases.has(String(testCaseId))
         ) {
-          testCaseData = globalState.selectedTestCases.get(
+          testCaseData = globalState.cachedTestCases.get(
             String(testCaseId)
           ).testCaseData;
         }
@@ -596,14 +612,14 @@
         const errorDiv = getElement("#test-case-error");
         const successDiv = getElement("#test-case-success");
 
-        if (categoryId.length === 0) {
-          console.log("No categories selected, hiding container");
-          container.addClass("hidden");
-          errorDiv.hide();
-          successDiv.hide();
-          getElement(".field-category").removeClass("has-error");
-          return;
-        }
+        // if (categoryId.length === 0) {
+        //   console.log("No categories selected, hiding container");
+        //   container.addClass("hidden");
+        //   errorDiv.hide();
+        //   successDiv.hide();
+        //   getElement(".field-category").removeClass("has-error");
+        //   return;
+        // }
 
         // Show loading
         tbody.html(
