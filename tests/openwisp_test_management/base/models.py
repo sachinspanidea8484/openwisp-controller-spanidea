@@ -87,18 +87,18 @@ class AbstractTestCategory(TimeStampedEditableModel):
         TestCase = load_model("TestCase")
         return TestCase.objects.filter(category=self).count()
 
-    @property
-    def test_suite_count(self):
-        """Return count of test suites in this category"""
-        from ..swapper import load_model
-        TestSuite = load_model("TestSuite")
-        return TestSuite.objects.filter(category=self).count()
+    # @property
+    # def test_suite_count(self):
+    #     """Return count of test suites in this category"""
+    #     from ..swapper import load_model
+    #     TestSuite = load_model("TestSuite")
+    #     return TestSuite.objects.filter(category=self).count()
 
     @property
     def is_deletable(self):
         """Check if category can be deleted"""
         # Categories with test cases or test suites cannot be deleted
-        return self.test_case_count == 0 and self.test_suite_count == 0
+        return self.test_case_count == 0 
 
 
 class AbstractTestCase(TimeStampedEditableModel):

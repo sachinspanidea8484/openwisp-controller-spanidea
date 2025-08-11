@@ -101,13 +101,13 @@
 .test-case-name {
     font-weight: 500;
     color: #0073aa;
-    cursor: pointer;
+    /* cursor: pointer; */
     font-size: 14px;
 }
-
+/* 
 .test-case-name:hover {
     text-decoration: underline;
-}
+} */
 
 /* Test case ID styling */
 .test-case-id {
