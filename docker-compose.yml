@@ -2,18 +2,17 @@
 
 services:
   controller:
+    build:
+      context: .
     image: openwisp/controller-production:latest
     environment:
       - REDIS_URL=redis://redis:6379
-    build:
-      context: .
     ports:
       - 8000:8000
     depends_on:
       - redis
       - postgres
       - influxdb
-    # Override the command to only run Django server
     command: |
       sh -c "
       python manage.py migrate --no-input &&
@@ -27,12 +26,8 @@ services:
       EOF
       python manage.py runserver 0.0.0.0:8000
       "
-          # No ports needed for worker
     volumes:
       - logs:/opt/openwisp/tests/openwisp2
-      # Mount Django project for hot reload
-      - ./:/opt/openwisp
-      # Add firmware and media volumes (in case beat tasks need access)
       - media_data:/opt/openwisp/media
       - firmware_data:/opt/openwisp/private/firmware
 
@@ -40,44 +35,31 @@ services:
     image: openwisp/controller-production:latest
     environment:
       - REDIS_URL=redis://redis:6379
-    build:
-      context: .
     depends_on:
       - redis
       - postgres
       - influxdb
-      - controller  # Wait for migrations to complete
+      - controller
     command: celery -A openwisp2 worker -l info
-
-    # No ports needed for worker
     volumes:
-      - ./:/opt/openwisp  # Share the same code volume if needed
       - logs:/opt/openwisp/tests/openwisp2
-      # Add firmware and media volumes (in case beat tasks need access)
       - media_data:/opt/openwisp/media
       - firmware_data:/opt/openwisp/private/firmware
-      
 
   celery-beat:
     image: openwisp/controller-production:latest
     environment:
       - REDIS_URL=redis://redis:6379
-    build:
-      context: .
     depends_on:
       - redis
       - postgres
       - influxdb
-      - controller  # Wait for migrations to complete
+      - controller
     command: celery -A openwisp2 beat -l info --schedule /opt/openwisp/tests/openwisp2/celerybeat-schedule
-    # No ports needed for beat
     volumes:
-      - ./:/opt/openwisp  # Share the same code volume if needed
       - logs:/opt/openwisp/tests/openwisp2
-      # Add firmware and media volumes (in case beat tasks need access)
       - media_data:/opt/openwisp/media
       - firmware_data:/opt/openwisp/private/firmware
-      
 
   redis:
     image: redis:alpine
@@ -98,7 +80,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  # monitoring
   influxdb:
     image: influxdb:1.8-alpine
     volumes:
@@ -118,10 +99,7 @@ services:
 volumes:
   redis_data:
   postgres_data:
-  influxdb-data: {}
-  logs: {}
-  # Add new volumes for firmware and media storage
-  media_data: {}
-  firmware_data: {}
-
-#
+  influxdb-data:
+  logs:
+  media_data:
+  firmware_data:
