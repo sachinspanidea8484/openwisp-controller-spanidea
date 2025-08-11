@@ -173,6 +173,7 @@ def execute_tests_on_device(device_execution_id):
             "test_suite_name": test_suite_execution.test_suite.name,
             "test_suite_id": test_suite_execution.test_suite.id,
             # "test_suite_category": test_suite_execution.test_suite.category.name,
+            "test_suite_execution_id": test_suite_execution.id,
             "test_cases": []
         }
         
@@ -898,6 +899,7 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
         "test_suite_name": test_suite_data.get('test_suite_name', 'N/A'),
         "test_suite_id": str(test_suite_data.get('test_suite_id', '')),  # Convert UUID to string
         # "test_suite_category": test_suite_data.get('test_suite_category', 'N/A'),
+        "test_suite_execution_id": str(test_suite_data.get('test_suite_execution_id', '')),
         "test_cases": []
     }
     
@@ -949,6 +951,7 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
             "test_suite_name": test_suite_data_fixed.get('test_suite_name'),
             "test_suite_id": test_suite_data_fixed.get('test_suite_id'),
             # "test_suite_category": test_suite_data_fixed.get('test_suite_category'),
+            "test_suite_execution_id": test_suite_data_fixed.get('test_suite_execution_id'),
             "test_cases": test_suite_data_fixed.get('test_cases', [])
         },
         "execution_metadata": {
