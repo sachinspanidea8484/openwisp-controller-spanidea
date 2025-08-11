@@ -37,7 +37,7 @@ class AbstractTestCategory(TimeStampedEditableModel):
         help_text=_("Category name to group related test cases")
     )
     code = models.CharField(
-        _("code"),
+        _("category Code"),
         max_length=50,
         blank=False,  # Changed from blank=True to blank=False
         help_text=_("Required code for this category")  # Updated help text
@@ -45,6 +45,7 @@ class AbstractTestCategory(TimeStampedEditableModel):
     description = models.TextField(
         _("description"),
         blank=True,
+        max_length=1000,
         help_text=_("Detailed description of what tests in this category do")
     )
 
@@ -60,10 +61,10 @@ class AbstractTestCategory(TimeStampedEditableModel):
     def clean(self):
         """Validate the test category"""
         super().clean()
-        if not self.name:
-            raise ValidationError({"name": _("Category Name is required")})
-        if not self.code:
-            raise ValidationError({"code": _("Category Code is required")})
+        # if not self.name:
+        #     raise ValidationError({"name": _("Category Name is required")})
+        # if not self.code:
+        #     raise ValidationError({"code": _("Category Code is required")})
         
         # Check for duplicate names
         qs = self.__class__.objects.filter(
@@ -128,6 +129,7 @@ class AbstractTestCase(TimeStampedEditableModel):
     description = models.TextField(
         _("Description"),
         blank=True,
+        max_length=1000,
         help_text=_("Detailed description of what this test does")
     )
     # Additional fields for future use
@@ -168,12 +170,12 @@ class AbstractTestCase(TimeStampedEditableModel):
      """Validate the test case"""
      super().clean()
     
-    # Validate required fields
-     if not self.name:
-        raise ValidationError({"name": _("Test case name is required")})
+    # # Validate required fields
+    #  if not self.name:
+    #     raise ValidationError({"name": _("Test case name is required")})
     
-     if not self.test_case_id:
-        raise ValidationError({"test_case_id": _("Test case ID is required")})
+    #  if not self.test_case_id:
+    #     raise ValidationError({"test_case_id": _("Test case ID is required")})
     
      # Handle empty params - set to empty dict if None or empty
      if not self.params:
@@ -259,6 +261,7 @@ class AbstractTestSuite(TimeStampedEditableModel):
     description = models.TextField(
         _("Description"),
         blank=True,
+        max_length=1000,
         help_text=_("Detailed description of what this test group does")  # Changed help text
     )
     is_active = models.BooleanField(
@@ -295,8 +298,8 @@ class AbstractTestSuite(TimeStampedEditableModel):
         """Validate the test group"""
         super().clean()
         
-        if not self.name:
-            raise ValidationError({"name": _("Name is required")})
+        # if not self.name:
+        #     raise ValidationError({"name": _("Name is required")})
         
         # Check for duplicate name within the same category
         # if self.category_id:
