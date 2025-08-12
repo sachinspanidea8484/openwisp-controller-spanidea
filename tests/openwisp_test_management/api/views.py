@@ -3587,7 +3587,7 @@ def download_test_log(request, execution_id):
         
         # Set download filename - convert UUID to string before slicing
         filename = f"log_{test_execution.test_case.test_case_id}_{str(execution_id)[:8]}.txt"
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
         
         return response
         

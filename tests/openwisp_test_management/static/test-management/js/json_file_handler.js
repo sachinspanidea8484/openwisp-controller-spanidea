@@ -36,7 +36,7 @@
               var jsonContent = e.target.result;
 
               // Validate JSON
-              JSON.parse(jsonContent);
+              // JSON.parse(jsonContent);
               console.log("jsonContent:", jsonContent);
 
               // Populate the params field

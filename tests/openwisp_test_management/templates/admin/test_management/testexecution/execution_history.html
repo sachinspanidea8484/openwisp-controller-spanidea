@@ -498,11 +498,27 @@ function displayExecutionData(data) {
                         actions += `
                             <a href="/api/v1/test-management/test-case-execution/${test.id}/download-log/" 
                                class="btn-action" 
-                               title="Download log">
+                               title="Download log" 
+                               download>
                                 <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
                                     <path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/>
                                 </svg>
                                 Log
+                            </a>
+                        `;
+                    }
+                    if (test.has_log && (test.status === 'success' || test.status === 'failed')) {
+                        actions += `
+                            <a href="/api/v1/test-management/test-case-execution/${test.id}/download-log/" 
+                               class="btn-action" 
+                               title="View log"
+                               target="_blank"
+                               rel="noopener noreferrer">
+                                <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M10 3C5 3 1.73 7.11 1 10c.73 2.89 4 7 9 7s8.27-4.11 9-7c-.73-2.89-4-7-9-7zm0 12c-2.76 0-5-2.24-5-5
+                                            s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8a3 3 0 100 6 3 3 0 000-6z"/>
+                                </svg>
+                                View Log
                             </a>
                         `;
                     }
