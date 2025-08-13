@@ -356,7 +356,9 @@
 .choices__input{
     background-color: white !important;
 }
-
+.choices__list{
+    z-index: 20 !important;
+}
 .choices__list--multiple .choices__item {
     background-color: #007bff; /* Primary blue for selected items */
     color: #ffffff;
@@ -365,7 +367,7 @@
     border-radius: 4px;
     margin-right: 5px;
     font-size: 13px;
-    z-index: 10;
+    /* z-index: 1000; */
 }
 
 .choices__list--multiple .choices__item.is-highlighted {

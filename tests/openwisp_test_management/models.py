@@ -1,5 +1,6 @@
 from swapper import swappable_setting
-
+import reversion
+from reversion import revisions as reversion
 from .base.models import (
     AbstractTestCategory,
     AbstractTestCase,
@@ -29,7 +30,7 @@ class TestCase(AbstractTestCase):
         abstract = False
         swappable = swappable_setting("test_management", "TestCase")
 
-
+@reversion.register(follow=["suite_cases"])
 class TestSuite(AbstractTestSuite):
     """
     Concrete model for Test Suites
@@ -38,7 +39,7 @@ class TestSuite(AbstractTestSuite):
         abstract = False
         swappable = swappable_setting("test_management", "TestSuite")
 
-
+@reversion.register()
 class TestSuiteCase(AbstractTestSuiteCase):
     """
     Concrete model for Test Suite Cases

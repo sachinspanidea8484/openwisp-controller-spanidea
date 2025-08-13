@@ -354,6 +354,7 @@ class AbstractTestSuiteCase(TimeStampedEditableModel):
     """
     test_suite = models.ForeignKey(
         'test_management.TestSuite',
+        related_name='suite_cases',
         on_delete=models.CASCADE,
         verbose_name=_("Test Group")  # Changed label
     )
