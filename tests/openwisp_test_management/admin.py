@@ -714,7 +714,7 @@ class TestSuiteAdmin(BaseVersionAdmin):
             # Get test cases with their order
             test_suite_cases = TestSuiteCase.objects.filter(
                 test_suite=obj
-            ).select_related('test_case').order_by('order')
+            ).select_related('test_case','test_case__category').order_by('order')
             
             test_cases_with_order = []
             for suite_case in test_suite_cases:
@@ -723,6 +723,8 @@ class TestSuiteAdmin(BaseVersionAdmin):
                     'name': suite_case.test_case.name,
                     'test_case_id': suite_case.test_case.test_case_id,
                     'order': suite_case.order,
+                    'test_type_display': suite_case.test_case.get_test_type_display(),
+                    'category': suite_case.test_case.category.name
                 })
             
             extra_context['selected_test_cases_with_order'] = json.dumps(test_cases_with_order)

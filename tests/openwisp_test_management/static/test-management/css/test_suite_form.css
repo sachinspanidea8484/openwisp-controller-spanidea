@@ -33,7 +33,7 @@
     background: #f9f9f9;
     position: sticky;
     top: 0;
-    /* z-index: 5; */
+    z-index: 5;
     display: table-header-group;
 }
 
@@ -83,17 +83,21 @@
 }
 
 .name-col { 
-    width: 40%; 
+    width: 30%; 
     padding-left: 15px;
 }
 
 .id-col { 
-    width: 35%; 
+    width: 30%; 
     padding-left: 15px;
 }
 
 .type-col { 
-    width: 25%; 
+    width: 20%; 
+    text-align: center;
+}
+.category-col{
+    width: 20%; 
     text-align: center;
 }
 
@@ -315,7 +319,7 @@
 .category-filter-input {
     display: flex;
     /* flex: 1; */
-    min-width: 40%; /* Ensure it doesn't get too narrow */
+    width: 80%; /* Ensure it doesn't get too narrow */
     align-items: center;
 }
 
@@ -326,7 +330,7 @@
     color: #333; /* Dark gray for text to match admin themes */
     margin-bottom: 8px;
     /* display: block; */
-    width: 40%;
+    /* width: 40%; */
 }
 
 /* Styling for the Choices.js select element (multi-select dropdown) */
@@ -336,7 +340,7 @@
     border: 1px solid #ced4da; /* Bootstrap-like border color */
     overflow: hidden;
     padding: 0;
-   height: 2.5rem;
+   height: auto;
 }
 
 .choices__inner {
@@ -411,7 +415,7 @@
     background-color: black; /* Primary blue to match admin theme */
     color: #ffffff;
     border: none;
-    padding: 8px 15px;
+    padding: 0px 15px;
     font-size: 14px;
     font-weight: 500;
     border-radius: 4px;
