@@ -471,9 +471,9 @@ def execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_exe
         print(f"[TASK] execute_test_via_nb_api - Device: {test_execution.device.name}")
         
         # Update status to running
-        test_execution.status = TestExecutionStatus.RUNNING
-        test_execution.started_at = timezone.now()
-        test_execution.save()
+        # test_execution.status = TestExecutionStatus.RUNNING
+        # test_execution.started_at = timezone.now()
+        # test_execution.save()
         
         logger.info(f"Updated test execution status to 'running' at {test_execution.started_at}")
         print(f"[TASK] execute_test_via_nb_api - Updated status to 'running'")

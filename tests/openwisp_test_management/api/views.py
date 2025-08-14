@@ -42,7 +42,9 @@ from .serializers import (
     TestCaseExecutionResultSerializer,
     TestSuiteExecutionDeleteSerializer,
     TestSuiteExecutionDeleteAllSerializer,
-    BulkTestDataCreationSerializer
+    BulkTestDataCreationSerializer,
+    AllureReportUploadSerializer,
+    AllureReportResponseSerializer
 )
 
 
@@ -2389,11 +2391,22 @@ class DeviceTestResultView(APIView):
         """
         try:
             data = request.data
-            logger.info(f"Received Robot Framework test result✅✅✅✅✅✅✅✅✅✅✅✅✅: {data}")
+            logger.info(f"Received NB test result✅✅✅✅✅✅✅✅✅✅✅✅✅result✅✅✅✅✅✅✅✅✅✅✅✅✅: {data}")
+
+
+
+            # started_at
+            # completed_at
   
             
             # Extract execution_id
             execution_id = data.get('execution_id')
+            started_at = data.get('started_at')
+            completed_at = data.get('completed_at')
+     
+
+
+
             if not execution_id:
                 return Response({
                     "error": "execution_id is required"
@@ -2460,7 +2473,8 @@ class DeviceTestResultView(APIView):
             if execution_status == TestExecutionStatus.RUNNING:
                 execution.status = execution_status
                 if data.get('started_at'):
-                    print("⏱️ Using provided started_at timestamp")
+                    print("⏱️ Using provided started_at timestamp",data.get('started_at'))
+                    # execution.started_at = data.get('started_at')
                 else:
                     execution.started_at = timezone.now()
                     print("⏱️ Setting started_at to current time")
@@ -2468,15 +2482,35 @@ class DeviceTestResultView(APIView):
                 print(f"🏃‍♂️ Updated to RUNNING status")
                 
             elif execution_status in [TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED]:
+                   # Check if status is success but completed_at is None
+                if execution_status == TestExecutionStatus.SUCCESS and not data.get('completed_at'):
+                    print(f"⚠️ Received SUCCESS status but completed_at is None - keeping status as PENDING")
+                    return Response({
+                       "success": True,
+                       "message": "Success status received but completed_at is missing - keeping as pending",
+                       "data": {
+                       "execution_id": str(execution.id),
+                       "test_case_id": str(execution.test_case.test_case_id),
+                       "test_case_name": execution.test_case.name,
+                       "device_id": str(execution.device.id),
+                       "device_name": execution.device.name,
+                       "status": execution.status,  # Will remain as current status (likely PENDING)
+                       "requested_status": new_status,
+                       "note": "Status update skipped due to missing completed_at"
+                             }
+                      }, status=status.HTTP_200_OK)
+    
+                      # Continue with normal update if not the above case
                 # Debug print before update
                 print(f"🔍 Before update - execution.status: {execution.status}")
                 print(f"🔍 Setting execution.status to: {execution_status}")
                 
                 execution.status = execution_status
-                
+    
                 # Set completion time
                 if data.get('completed_at'):
-                    print("⏱️ Using provided completed_at timestamp")
+                    # execution.completed_at = data.get('completed_at')
+                    print("⏱️ Using provided completed_at timestamp", data.get('completed_at'))
                 else:
                     execution.completed_at = timezone.now()
                     print("⏱️ Setting completed_at to current time")
@@ -3429,7 +3463,7 @@ def get_available_devices(request):
 
 @api_view(['GET'])
 # @permission_classes([IsAuthenticated])
-def test_execution_history(request, execution_id):
+def test_execution_historys(request, execution_id):
     """
     API endpoint to get test execution history with enhanced statistics
     """
@@ -3447,6 +3481,7 @@ def test_execution_history(request, execution_id):
         ).select_related('device', 'test_case').order_by(
             'device__name', 'execution_order'
         )
+        print("<<<test_case_executions>>>",test_case_executions)
         
         # Build response data
         devices_data = []
@@ -3485,11 +3520,17 @@ def test_execution_history(request, execution_id):
                     'status': test_exec.status,
                     'status_display': test_exec.get_status_display(),
                     'has_log': bool(test_exec.stdout),
+                    # 'stdout': test_exec.stdout,
+                    # 'stderr': test_exec.stderr,
+
+                    
+                    
                     'can_retry': test_exec.status == 'failed',
                     'started_at': test_exec.started_at.isoformat() if test_exec.started_at else None,
                     'completed_at': test_exec.completed_at.isoformat() if test_exec.completed_at else None,
                     # 'duration': test_exec.formatted_duration,
                 })
+                
             
             device_data = {
                 'device_id': str(device.id),
@@ -3544,6 +3585,252 @@ def test_execution_history(request, execution_id):
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+
+@api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+def test_execution_history(request, execution_id):
+    """
+    API endpoint to get test execution history with enhanced statistics
+    """
+    try:
+        execution = TestSuiteExecution.objects.get(pk=execution_id)
+        
+        # Get all execution devices
+        execution_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device').order_by('device__name')
+        
+        # Get all test case executions
+        test_case_executions = TestCaseExecution.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device', 'test_case').order_by(
+            'device__name', 'execution_order'
+        )
+        print("<<<test_case_executions>>>",test_case_executions)
+        
+        # Build response data
+        devices_data = []
+        for device_exec in execution_devices:
+            device = device_exec.device
+            device_test_cases = test_case_executions.filter(device=device)
+            
+            # Calculate statistics
+            total = device_test_cases.count()
+            success = device_test_cases.filter(status='success').count()
+            failed = device_test_cases.filter(status='failed').count()
+            completed = success + failed
+            
+            # Determine overall status
+            if total == 0:
+                overall_status = 'pending'
+                percentage = 0
+            elif completed == 0:
+                overall_status = 'pending'
+                percentage = 0
+            elif failed == 0 and success == total:
+                overall_status = 'success'
+                percentage = 100
+            else:
+                overall_status = 'failed'
+                percentage = (success / total * 100) if total > 0 else 0
+            
+            # Build test cases data
+            test_cases_data = []
+            for test_exec in device_test_cases:
+                # Calculate execution duration
+                execution_duration = None
+                execution_duration_seconds = None
+                execution_duration_formatted = None
+                
+                if test_exec.started_at and test_exec.completed_at:
+                    duration = test_exec.completed_at - test_exec.started_at
+                    execution_duration_seconds = duration.total_seconds()
+                    
+                    # Format duration as human-readable string
+                    hours, remainder = divmod(int(execution_duration_seconds), 3600)
+                    minutes, seconds = divmod(remainder, 60)
+                    
+                    if hours > 0:
+                        execution_duration_formatted = f"{hours}h {minutes}m {seconds}s"
+                    elif minutes > 0:
+                        execution_duration_formatted = f"{minutes}m {seconds}s"
+                    else:
+                        execution_duration_formatted = f"{seconds}s"
+                
+                test_cases_data.append({
+                    'id': str(test_exec.pk),
+                    'test_case_name': test_exec.test_case.name,
+                    'test_case_id': test_exec.test_case.test_case_id,
+                    'test_type': test_exec.test_case.get_test_type_display(),
+                    'status': test_exec.status,
+                    'status_display': test_exec.get_status_display(),
+                    'has_log': bool(test_exec.stdout),
+                                        # 'stdout': test_exec.stdout,
+                    # 'stderr': test_exec.stderr,
+                    'can_retry': test_exec.status == 'failed',
+                    'started_at': test_exec.started_at.isoformat() if test_exec.started_at else None,
+                    'completed_at': test_exec.completed_at.isoformat() if test_exec.completed_at else None,
+                    'execution_duration': {
+                        'seconds': execution_duration_seconds,
+                        'formatted': execution_duration_formatted
+                    } if execution_duration_seconds else None,
+                    'error_message': test_exec.error_message if test_exec.status == 'failed' else None,
+                    'exit_code': test_exec.exit_code,
+                    'retry_count': test_exec.retry_count,
+                })
+            
+            # Calculate device execution duration
+            device_duration = None
+            device_duration_seconds = None
+            device_duration_formatted = None
+            
+            if device_exec.started_at and device_exec.completed_at:
+                duration = device_exec.completed_at - device_exec.started_at
+                device_duration_seconds = duration.total_seconds()
+                
+                # Format duration as human-readable string
+                hours, remainder = divmod(int(device_duration_seconds), 3600)
+                minutes, seconds = divmod(remainder, 60)
+                
+                if hours > 0:
+                    device_duration_formatted = f"{hours}h {minutes}m {seconds}s"
+                elif minutes > 0:
+                    device_duration_formatted = f"{minutes}m {seconds}s"
+                else:
+                    device_duration_formatted = f"{seconds}s"
+            
+            device_data = {
+                'device_id': str(device.id),
+                'device_name': device.name,
+                'device_execution_id': str(device_exec.pk),
+                'device_execution_status': device_exec.status,
+                'error_message': device_exec.output if device_exec.status == 'failed' else None,
+                'started_at': device_exec.started_at.isoformat() if device_exec.started_at else None,
+                'completed_at': device_exec.completed_at.isoformat() if device_exec.completed_at else None,
+                'execution_duration': {
+                    'seconds': device_duration_seconds,
+                    'formatted': device_duration_formatted
+                } if device_duration_seconds else None,
+                'statistics': {
+                    'total': total,
+                    'success': success,
+                    'failed': failed,
+                    'completed': completed,
+                    'percentage': round(percentage, 2),
+                    'overall_status': overall_status
+                },
+                'test_cases': test_cases_data
+            }
+            
+            devices_data.append(device_data)
+        
+        # Calculate overall execution duration
+        overall_start = None
+        overall_end = None
+        
+        # Get earliest start time from all device executions
+        for device_exec in execution_devices:
+            if device_exec.started_at:
+                if overall_start is None or device_exec.started_at < overall_start:
+                    overall_start = device_exec.started_at
+        
+        # Get latest completion time from all device executions
+        for device_exec in execution_devices:
+            if device_exec.completed_at:
+                if overall_end is None or device_exec.completed_at > overall_end:
+                    overall_end = device_exec.completed_at
+        
+        overall_duration = None
+        overall_duration_seconds = None
+        overall_duration_formatted = None
+        
+        if overall_start and overall_end:
+            duration = overall_end - overall_start
+            overall_duration_seconds = duration.total_seconds()
+            
+            # Format duration as human-readable string
+            hours, remainder = divmod(int(overall_duration_seconds), 3600)
+            minutes, seconds = divmod(remainder, 60)
+            
+            if hours > 0:
+                overall_duration_formatted = f"{hours}h {minutes}m {seconds}s"
+            elif minutes > 0:
+                overall_duration_formatted = f"{minutes}m {seconds}s"
+            else:
+                overall_duration_formatted = f"{seconds}s"
+        
+        # Build execution
+                # Build execution summary
+        execution_data = {
+            'execution_id': str(execution.pk),
+            'test_suite_name': execution.test_suite.name,
+            'test_suite_id': str(execution.test_suite.pk),
+            # 'category_name': execution.test_suite.category.name,
+            # 'category_id': str(execution.test_suite.category.pk),
+            'total_devices': execution.device_count,
+            'total_test_cases': execution.test_suite.test_case_count,
+            'is_executed': execution.is_executed,
+            'created': execution.created.isoformat() if execution.created else None,
+            'started_at': overall_start.isoformat() if overall_start else None,
+            'completed_at': overall_end.isoformat() if overall_end else None,
+            'overall_execution_duration': {
+                'seconds': overall_duration_seconds,
+                'formatted': overall_duration_formatted
+            } if overall_duration_seconds else None,
+            'summary_statistics': {
+                'total_test_runs': sum(d['statistics']['total'] for d in devices_data),
+                'total_success': sum(d['statistics']['success'] for d in devices_data),
+                'total_failed': sum(d['statistics']['failed'] for d in devices_data),
+                'total_completed': sum(d['statistics']['completed'] for d in devices_data),
+                'devices_success': sum(1 for d in devices_data if d['statistics']['overall_status'] == 'success'),
+                'devices_failed': sum(1 for d in devices_data if d['statistics']['overall_status'] == 'failed'),
+                'devices_pending': sum(1 for d in devices_data if d['statistics']['overall_status'] == 'pending'),
+            },
+            'devices': devices_data
+        }
+        
+        # Add average execution time for test cases
+        all_durations = []
+        for device_data in devices_data:
+            for test_case in device_data['test_cases']:
+                if test_case.get('execution_duration') and test_case['execution_duration'].get('seconds'):
+                    all_durations.append(test_case['execution_duration']['seconds'])
+        
+        if all_durations:
+            avg_duration = sum(all_durations) / len(all_durations)
+            hours, remainder = divmod(int(avg_duration), 3600)
+            minutes, seconds = divmod(remainder, 60)
+            
+            if hours > 0:
+                avg_duration_formatted = f"{hours}h {minutes}m {seconds}s"
+            elif minutes > 0:
+                avg_duration_formatted = f"{minutes}m {seconds}s"
+            else:
+                avg_duration_formatted = f"{seconds}s"
+                
+            execution_data['average_test_duration'] = {
+                'seconds': round(avg_duration, 2),
+                'formatted': avg_duration_formatted
+            }
+        
+        return Response({
+            'success': True,
+            'data': execution_data
+        }, status=status.HTTP_200_OK)
+        
+    except TestSuiteExecution.DoesNotExist:
+        return Response({
+            'success': False,
+            'error': 'Test execution not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error getting execution history: {str(e)}")
+        return Response({
+            'success': False,
+            'error': 'Failed to retrieve execution history',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -3690,6 +3977,132 @@ def retry_device_tests(request, device_execution_id):
         return Response({
             'success': False,
             'error': 'Failed to retry device tests',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+
+@api_view(['POST'])
+# @authentication_classes([CsrfExemptSessionAuthentication])
+# @permission_classes([IsAuthenticated])
+def upload_allure_report(request, test_group_execution_id, dev_id):
+    """
+    Upload Allure report HTML file for a device execution
+    
+    This endpoint:
+    1. Accepts an HTML file upload for a specific device execution
+    2. Validates the device execution exists and is in completed/failed state
+    3. Saves the file to media/allure_report/ directory
+    4. Updates the database with the file path
+    """
+    print(f"\n=== UPLOAD ALLURE REPORT START ===")
+    print(f"Device Execution ID: {dev_id}")
+    print(f"Device Execution ID: {test_group_execution_id}")
+
+    print(f"Request Files: {request.FILES}")
+    
+    try:
+               
+ 
+        # Step 1: Get the device execution record from database
+        # device_execution = TestSuiteExecutionDevice.objects.get(pk=device_execution_id)
+        device_execution = TestSuiteExecutionDevice.objects.get(
+                test_suite_execution=test_group_execution_id,
+                device=dev_id
+            )
+        print(f"Found device execution: {device_execution}")
+        print(f"Device: {device_execution.device.name}")
+        print(f"Status: {device_execution.status}")
+        
+        # Step 2: Check if execution is in a valid state for report upload
+        # Reports should only be uploaded for completed or failed executions
+        # if device_execution.status not in ['completed', 'failed']:
+        #     print(f"ERROR: Invalid status '{device_execution.status}' for report upload")
+        #     return Response({
+        #         'success': False,
+        #         'error': f"Cannot upload report for execution in '{device_execution.status}' status. "
+        #                  "Execution must be completed or failed."
+        #     }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Step 3: Validate the uploaded file using serializer
+        print(f"Validating uploaded file...")
+        serializer = AllureReportUploadSerializer(data=request.data)
+        if not serializer.is_valid():
+            print(f"ERROR: Validation failed - {serializer.errors}")
+            return Response({
+                'success': False,
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Step 4: Get the validated file
+        report_file = serializer.validated_data['report_file']
+        print(f"File validated successfully: {report_file.name}")
+        print(f"File size: {report_file.size} bytes")
+ 
+        # Step 5: Generate a unique filename
+        # Format: allure_report_<suite>_<device>_<timestamp>.html
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        # Replace spaces and slashes with underscores for safe filenames
+        device_name = device_execution.device.name.replace(' ', '_').replace('/', '_')
+        suite_name = device_execution.test_suite_execution.test_suite.name.replace(' ', '_').replace('/', '_')
+        filename = f"allure_report_{suite_name}_{device_name}_{timestamp}.html"
+        print(f"Generated filename: {filename}")
+        
+        # Step 6: Define the save path (FIXED: using allure_report without 's')
+        save_path = f"allure_report/{filename}"  # Changed from allure_reports to allure_report
+        print(f"Save path: {save_path}")
+        
+        # Step 7: Save the file to media storage
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+        
+        # Read the entire file content into memory
+        file_content = report_file.read()
+        print(f"Read {len(file_content)} bytes from uploaded file")
+        
+        # Save to storage (this will create media/allure_report/ directory if it doesn't exist)
+        actual_path = default_storage.save(save_path, ContentFile(file_content))
+        print(f"File saved to: {actual_path}")
+        print(f"Full path: {default_storage.path(actual_path)}")
+        
+        # Step 8: Update database with the file path
+        device_execution.allure_report_path = actual_path
+        device_execution.save(update_fields=['allure_report_path', 'modified'])
+        print(f"Database updated with report path: {actual_path}")
+ 
+        
+        
+        # Step 9: Prepare response with serializer
+        response_serializer = AllureReportResponseSerializer(
+            device_execution, 
+            context={'request': request}
+        )
+        
+        print(f"Report uploaded successfully!")
+        print(f"=== UPLOAD ALLURE REPORT END ===\n")
+        
+        return Response({
+            'success': True,
+            'message': 'Allure report uploaded successfully',
+            'data': response_serializer.data
+        }, status=status.HTTP_200_OK)
+        
+    except TestSuiteExecutionDevice.DoesNotExist:
+        # print(f"ERROR: Device execution not found with ID: {device_execution_id}")
+        return Response({
+            'success': False,
+            'error': 'Device execution not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+        
+    except Exception as e:
+        print(f"ERROR: Unexpected error - {str(e)}")
+        import traceback
+        traceback.print_exc()  # Print full stack trace for debugging
+        
+        logger.error(f"Error uploading Allure report: {str(e)}")
+        return Response({
+            'success': False,
+            'error': 'Failed to upload Allure report',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

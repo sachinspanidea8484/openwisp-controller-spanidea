@@ -753,3 +753,69 @@ class BulkTestDataCreationSerializer(serializers.Serializer):
             )
         
         return value
+
+
+
+
+
+
+class AllureReportUploadSerializer(serializers.Serializer):
+    """Serializer for uploading Allure report file"""
+    report_file = serializers.FileField(
+        required=True,
+        help_text=_("Allure report HTML file")
+    )
+    
+    def validate_report_file(self, value):
+        """Validate the uploaded file"""
+        # Check file extension
+        if not value.name.endswith('.html'):
+            raise serializers.ValidationError(
+                _("Only HTML files are allowed for Allure reports")
+            )
+        
+        # Check file size (limit to 50MB)
+        if value.size > 50 * 1024 * 1024:
+            raise serializers.ValidationError(
+                _("File size must not exceed 50MB")
+            )
+        
+        return value
+
+
+class AllureReportResponseSerializer(BaseSerializer):
+    """Serializer for Allure report response"""
+    device_name = serializers.CharField(source='device.name', read_only=True)
+    device_id = serializers.UUIDField(source='device.id', read_only=True)
+    test_suite_name = serializers.CharField(
+        source='test_suite_execution.test_suite.name', 
+        read_only=True
+    )
+    execution_id = serializers.UUIDField(
+        source='test_suite_execution.id', 
+        read_only=True
+    )
+    report_url = serializers.SerializerMethodField()
+    
+    class Meta(BaseMeta):
+        model = TestSuiteExecutionDevice
+        fields = [
+            'id',
+            'device_id',
+            'device_name',
+            'test_suite_name',
+            'execution_id',
+            'status',
+            'allure_report_path',
+            'report_url',
+            'created',
+            'modified'
+        ]
+    
+    def get_report_url(self, obj):
+        """Get full URL for the report"""
+        if obj.allure_report_path:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(f'/media/{obj.allure_report_path}')
+        return None

@@ -504,7 +504,7 @@ def execution_time(self):
     return None
 
 
-class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
+class AbstractTestSuiteExecutionDevices(TimeStampedEditableModel):
     """
     Abstract model for Test Suite Execution Devices
     Links devices to test executions
@@ -562,6 +562,98 @@ class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
         return f"{self.test_suite_execution} - {self.device.name}"
     
 
+class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
+    """
+    Abstract model for Test Suite Execution Devices
+    Links devices to test executions
+    """
+    test_suite_execution = models.ForeignKey(
+        'test_management.TestSuiteExecution',
+        on_delete=models.CASCADE,
+        related_name='devices',
+        verbose_name=_("test suite execution")
+    )
+    device = models.ForeignKey(
+        'config.Device',
+        on_delete=models.CASCADE,
+        related_name='test_executions',
+        verbose_name=_("device")
+    )
+    status = models.CharField(
+        _("status"),
+        max_length=20,
+        choices=[
+            ('pending', _('Pending')),
+            ('running', _('Running')),
+            ('completed', _('Completed')),
+            ('failed', _('Failed')),
+        ],
+        default='pending',
+        help_text=_("Execution status on this device")
+    )
+    started_at = models.DateTimeField(
+        _("started at"),
+        null=True,
+        blank=True,
+        help_text=_("When execution started on this device")
+    )
+    completed_at = models.DateTimeField(
+        _("completed at"),
+        null=True,
+        blank=True,
+        help_text=_("When execution completed on this device")
+    )
+    output = models.TextField(
+        _("output"),
+        blank=True,
+        help_text=_("Execution output/logs")
+    )
+    
+    # ADD THIS NEW FIELD FOR ALLURE REPORT
+    allure_report_path = models.CharField(
+        _("allure report path"),
+        max_length=255,
+        blank=True,
+        help_text=_("Path to the Allure report HTML file for this device execution")
+    )
+    
+    class Meta:
+        abstract = True
+        verbose_name = _("Test Suite Execution Device")
+        verbose_name_plural = _("Test Suite Execution Devices")
+        unique_together = ("test_suite_execution", "device")
+        ordering = ["test_suite_execution", "device"]
+    
+    def __str__(self):
+        return f"{self.test_suite_execution} - {self.device.name}"
+    
+    # ADD THESE HELPER METHODS
+    @property
+    def has_report(self):
+        """Check if Allure report exists for this execution"""
+        return bool(self.allure_report_path)
+    
+    def get_report_filename(self):
+        """Generate report filename"""
+        if not self.pk:
+            return None
+        timestamp = self.created.strftime('%Y%m%d_%H%M%S')
+        device_name = self.device.name.replace(' ', '_').replace('/', '_')
+        suite_name = self.test_suite_execution.test_suite.name.replace(' ', '_').replace('/', '_')
+        return f"allure_report_{suite_name}_{device_name}_{timestamp}.html"
+    
+    def set_report_path(self, filename):
+        """Set the report path"""
+        self.allure_report_path = f"allure_reports/{filename}"
+        self.save(update_fields=['allure_report_path'])
+    
+    def get_report_url(self):
+        """Get the full URL for the report"""
+        from django.conf import settings
+        if self.allure_report_path:
+            return f"{settings.MEDIA_URL}{self.allure_report_path}"
+        return None
+    
 
 class AbstractTestCaseExecution(TimeStampedEditableModel):
     """

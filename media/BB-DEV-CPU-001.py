@@ -61,7 +61,7 @@ def verify_cpu_temperature():
                 print(f"[{i+1}] [ERROR] SA56004_HWMON8 section not found.\n")
                 all_success = False
 
-        time.sleep(2)
+        time.sleep(120)
 
     # Final test result
     if all_success:
