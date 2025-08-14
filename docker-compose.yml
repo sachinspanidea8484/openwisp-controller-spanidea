@@ -27,7 +27,7 @@ services:
       python manage.py runserver 0.0.0.0:8000
       "
     volumes:
-      - logs:/opt/openwisp/tests/openwisp2
+      - /var/log/openwisp:/var/log/openwisp
       - media_data:/opt/openwisp/media
       - firmware_data:/opt/openwisp/private/firmware
 
@@ -42,7 +42,7 @@ services:
       - controller
     command: celery -A openwisp2 worker -l info
     volumes:
-      - logs:/opt/openwisp/tests/openwisp2
+      - /var/log/openwisp:/var/log/openwisp
       - media_data:/opt/openwisp/media
       - firmware_data:/opt/openwisp/private/firmware
 
@@ -57,7 +57,7 @@ services:
       - controller
     command: celery -A openwisp2 beat -l info --schedule /opt/openwisp/tests/openwisp2/celerybeat-schedule
     volumes:
-      - logs:/opt/openwisp/tests/openwisp2
+      - /var/log/openwisp:/var/log/openwisp
       - media_data:/opt/openwisp/media
       - firmware_data:/opt/openwisp/private/firmware
 
