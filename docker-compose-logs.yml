@@ -16,11 +16,12 @@ services:
     # Override the command to only run Django server
     command: sh /opt/openwisp/tests/docker-entrypoint.sh
     volumes:
-      - ./:/opt/openwisp
-      - ./logs:/opt/openwisp/logs
+      - logs:/opt/openwisp/tests/openwisp2
       # Mount Django project for hot reload
+      - ./:/opt/openwisp
       # Add firmware and media volumes (in case beat tasks need access)
       - ./media:/opt/openwisp/media:rw
+      - /var/log/openwisp:/var/log/openwisp
       - firmware_data:/opt/openwisp/private/firmware
 
   celery-worker:
@@ -38,11 +39,11 @@ services:
 
     # No ports needed for worker
     volumes:
-
       - ./:/opt/openwisp  # Share the same code volume if needed
-      - ./logs:/opt/openwisp/logs
+      - logs:/opt/openwisp/tests/openwisp2
       # Add firmware and media volumes (in case beat tasks need access)
       - ./media:/opt/openwisp/media:rw
+      - /var/log/openwisp:/var/log/openwisp
       - firmware_data:/opt/openwisp/private/firmware
       
 
@@ -61,9 +62,10 @@ services:
     # No ports needed for beat
     volumes:
       - ./:/opt/openwisp  # Share the same code volume if needed
-      - ./logs:/opt/openwisp/logs
+      - logs:/opt/openwisp/tests/openwisp2
       # Add firmware and media volumes (in case beat tasks need access)
       - ./media:/opt/openwisp/media:rw
+      - /var/log/openwisp:/var/log/openwisp
       - firmware_data:/opt/openwisp/private/firmware
       
 
@@ -111,4 +113,5 @@ volumes:
   # Add new volumes for firmware and media storage
   media_data: {}
   firmware_data: {}
+
 

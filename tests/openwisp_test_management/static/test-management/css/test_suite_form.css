@@ -33,7 +33,7 @@
     background: #f9f9f9;
     position: sticky;
     top: 0;
-    /* z-index: 5; */
+    z-index: 5;
     display: table-header-group;
 }
 
@@ -83,17 +83,21 @@
 }
 
 .name-col { 
-    width: 40%; 
+    width: 30%; 
     padding-left: 15px;
 }
 
 .id-col { 
-    width: 35%; 
+    width: 30%; 
     padding-left: 15px;
 }
 
 .type-col { 
-    width: 25%; 
+    width: 20%; 
+    text-align: center;
+}
+.category-col{
+    width: 20%; 
     text-align: center;
 }
 
@@ -101,13 +105,13 @@
 .test-case-name {
     font-weight: 500;
     color: #0073aa;
-    cursor: pointer;
+    /* cursor: pointer; */
     font-size: 14px;
 }
-
+/* 
 .test-case-name:hover {
     text-decoration: underline;
-}
+} */
 
 /* Test case ID styling */
 .test-case-id {
@@ -315,7 +319,7 @@
 .category-filter-input {
     display: flex;
     /* flex: 1; */
-    min-width: 40%; /* Ensure it doesn't get too narrow */
+    width: 80%; /* Ensure it doesn't get too narrow */
     align-items: center;
 }
 
@@ -326,7 +330,7 @@
     color: #333; /* Dark gray for text to match admin themes */
     margin-bottom: 8px;
     /* display: block; */
-    width: 40%;
+    /* width: 40%; */
 }
 
 /* Styling for the Choices.js select element (multi-select dropdown) */
@@ -336,7 +340,7 @@
     border: 1px solid #ced4da; /* Bootstrap-like border color */
     overflow: hidden;
     padding: 0;
-   height: 2.5rem;
+   height: auto;
 }
 
 .choices__inner {
@@ -352,7 +356,9 @@
 .choices__input{
     background-color: white !important;
 }
-
+.choices__list{
+    z-index: 20 !important;
+}
 .choices__list--multiple .choices__item {
     background-color: #007bff; /* Primary blue for selected items */
     color: #ffffff;
@@ -361,7 +367,7 @@
     border-radius: 4px;
     margin-right: 5px;
     font-size: 13px;
-    z-index: 10;
+    /* z-index: 1000; */
 }
 
 .choices__list--multiple .choices__item.is-highlighted {
@@ -411,7 +417,7 @@
     background-color: black; /* Primary blue to match admin theme */
     color: #ffffff;
     border: none;
-    padding: 8px 15px;
+    padding: 0px 15px;
     font-size: 14px;
     font-weight: 500;
     border-radius: 4px;

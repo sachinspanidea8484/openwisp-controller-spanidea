@@ -87,18 +87,18 @@ class AbstractTestCategory(TimeStampedEditableModel):
         TestCase = load_model("TestCase")
         return TestCase.objects.filter(category=self).count()
 
-    @property
-    def test_suite_count(self):
-        """Return count of test suites in this category"""
-        from ..swapper import load_model
-        TestSuite = load_model("TestSuite")
-        return TestSuite.objects.filter(category=self).count()
+    # @property
+    # def test_suite_count(self):
+    #     """Return count of test suites in this category"""
+    #     from ..swapper import load_model
+    #     TestSuite = load_model("TestSuite")
+    #     return TestSuite.objects.filter(category=self).count()
 
     @property
     def is_deletable(self):
         """Check if category can be deleted"""
         # Categories with test cases or test suites cannot be deleted
-        return self.test_case_count == 0 and self.test_suite_count == 0
+        return self.test_case_count == 0 
 
 
 class AbstractTestCase(TimeStampedEditableModel):
@@ -354,6 +354,7 @@ class AbstractTestSuiteCase(TimeStampedEditableModel):
     """
     test_suite = models.ForeignKey(
         'test_management.TestSuite',
+        related_name='suite_cases',
         on_delete=models.CASCADE,
         verbose_name=_("Test Group")  # Changed label
     )
@@ -471,40 +472,40 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         'has_devices': True
     }
 
-@property
-def execution_time(self):
-    """Calculate total execution time"""
-    from ..swapper import load_model
-    TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
-    
-    devices = TestSuiteExecutionDevice.objects.filter(
-        test_suite_execution=self
-    ).exclude(
-        started_at__isnull=True
-    )
-    
-    if not devices.exists():
+    @property
+    def execution_time(self):
+        """Calculate total execution time"""
+        from ..swapper import load_model
+        TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+        
+        devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=self
+        ).exclude(
+            started_at__isnull=True
+        )
+        
+        if not devices.exists():
+            return None
+        
+        # Get earliest start time and latest completion time
+        start_time = devices.aggregate(
+            min_start=models.Min('started_at')
+        )['min_start']
+        
+        end_time = devices.filter(
+            completed_at__isnull=False
+        ).aggregate(
+            max_end=models.Max('completed_at')
+        )['max_end']
+        
+        if start_time and end_time:
+            duration = end_time - start_time
+            return duration
+        
         return None
-    
-    # Get earliest start time and latest completion time
-    start_time = devices.aggregate(
-        min_start=models.Min('started_at')
-    )['min_start']
-    
-    end_time = devices.filter(
-        completed_at__isnull=False
-    ).aggregate(
-        max_end=models.Max('completed_at')
-    )['max_end']
-    
-    if start_time and end_time:
-        duration = end_time - start_time
-        return duration
-    
-    return None
 
 
-class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
+class AbstractTestSuiteExecutionDevices(TimeStampedEditableModel):
     """
     Abstract model for Test Suite Execution Devices
     Links devices to test executions
@@ -562,6 +563,98 @@ class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
         return f"{self.test_suite_execution} - {self.device.name}"
     
 
+class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
+    """
+    Abstract model for Test Suite Execution Devices
+    Links devices to test executions
+    """
+    test_suite_execution = models.ForeignKey(
+        'test_management.TestSuiteExecution',
+        on_delete=models.CASCADE,
+        related_name='devices',
+        verbose_name=_("test suite execution")
+    )
+    device = models.ForeignKey(
+        'config.Device',
+        on_delete=models.CASCADE,
+        related_name='test_executions',
+        verbose_name=_("device")
+    )
+    status = models.CharField(
+        _("status"),
+        max_length=20,
+        choices=[
+            ('pending', _('Pending')),
+            ('running', _('Running')),
+            ('completed', _('Completed')),
+            ('failed', _('Failed')),
+        ],
+        default='pending',
+        help_text=_("Execution status on this device")
+    )
+    started_at = models.DateTimeField(
+        _("started at"),
+        null=True,
+        blank=True,
+        help_text=_("When execution started on this device")
+    )
+    completed_at = models.DateTimeField(
+        _("completed at"),
+        null=True,
+        blank=True,
+        help_text=_("When execution completed on this device")
+    )
+    output = models.TextField(
+        _("output"),
+        blank=True,
+        help_text=_("Execution output/logs")
+    )
+    
+    # ADD THIS NEW FIELD FOR ALLURE REPORT
+    allure_report_path = models.CharField(
+        _("allure report path"),
+        max_length=255,
+        blank=True,
+        help_text=_("Path to the Allure report HTML file for this device execution")
+    )
+    
+    class Meta:
+        abstract = True
+        verbose_name = _("Test Suite Execution Device")
+        verbose_name_plural = _("Test Suite Execution Devices")
+        unique_together = ("test_suite_execution", "device")
+        ordering = ["test_suite_execution", "device"]
+    
+    def __str__(self):
+        return f"{self.test_suite_execution} - {self.device.name}"
+    
+    # ADD THESE HELPER METHODS
+    @property
+    def has_report(self):
+        """Check if Allure report exists for this execution"""
+        return bool(self.allure_report_path)
+    
+    def get_report_filename(self):
+        """Generate report filename"""
+        if not self.pk:
+            return None
+        timestamp = self.created.strftime('%Y%m%d_%H%M%S')
+        device_name = self.device.name.replace(' ', '_').replace('/', '_')
+        suite_name = self.test_suite_execution.test_suite.name.replace(' ', '_').replace('/', '_')
+        return f"allure_report_{suite_name}_{device_name}_{timestamp}.html"
+    
+    def set_report_path(self, filename):
+        """Set the report path"""
+        self.allure_report_path = f"allure_reports/{filename}"
+        self.save(update_fields=['allure_report_path'])
+    
+    def get_report_url(self):
+        """Get the full URL for the report"""
+        from django.conf import settings
+        if self.allure_report_path:
+            return f"{settings.MEDIA_URL}{self.allure_report_path}"
+        return None
+    
 
 class AbstractTestCaseExecution(TimeStampedEditableModel):
     """
@@ -709,106 +802,106 @@ class AbstractTestCaseExecution(TimeStampedEditableModel):
                 "completed_at": _("Completion time cannot be before start time")
             })
 
-def save(self, *args, **kwargs):
-    # Calculate duration if both timestamps are available
-    if self.started_at and self.completed_at:
-        self.execution_duration = self.completed_at - self.started_at
-    
-    # Just call super().save() without validation for now
-    super().save(*args, **kwargs)  # ← This is essential!
+    def save(self, *args, **kwargs):
+        # Calculate duration if both timestamps are available
+        if self.started_at and self.completed_at:
+            self.execution_duration = self.completed_at - self.started_at
+        
+        # Just call super().save() without validation for now
+        super().save(*args, **kwargs)  # ← This is essential!
 
-    @property
-    def is_completed(self):
-        """Check if execution is completed (success or failed)"""
-        return self.status in [
-            TestExecutionStatus.SUCCESS,
-            TestExecutionStatus.FAILED,
-            TestExecutionStatus.TIMEOUT,
-            TestExecutionStatus.CANCELLED
-        ]
+        @property
+        def is_completed(self):
+            """Check if execution is completed (success or failed)"""
+            return self.status in [
+                TestExecutionStatus.SUCCESS,
+                TestExecutionStatus.FAILED,
+                TestExecutionStatus.TIMEOUT,
+                TestExecutionStatus.CANCELLED
+            ]
 
-    @property
-    def is_successful(self):
-        """Check if execution was successful"""
-        return self.status == TestExecutionStatus.SUCCESS
+        @property
+        def is_successful(self):
+            """Check if execution was successful"""
+            return self.status == TestExecutionStatus.SUCCESS
 
-    @property
-    def duration_seconds(self):
-        """Return duration in seconds"""
-        if self.execution_duration:
-            return self.execution_duration.total_seconds()
-        return None
+        @property
+        def duration_seconds(self):
+            """Return duration in seconds"""
+            if self.execution_duration:
+                return self.execution_duration.total_seconds()
+            return None
 
-    @property
-    def formatted_duration(self):
-        """Return human-readable duration"""
-        if self.execution_duration:
-            total_seconds = int(self.execution_duration.total_seconds())
-            hours, remainder = divmod(total_seconds, 3600)
-            minutes, seconds = divmod(remainder, 60)
+        @property
+        def formatted_duration(self):
+            """Return human-readable duration"""
+            if self.execution_duration:
+                total_seconds = int(self.execution_duration.total_seconds())
+                hours, remainder = divmod(total_seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                
+                if hours > 0:
+                    return f"{hours}h {minutes}m {seconds}s"
+                elif minutes > 0:
+                    return f"{minutes}m {seconds}s"
+                else:
+                    return f"{seconds}s"
+            return None
+
+        def start_execution(self):
+            """Mark execution as started"""
+            self.status = TestExecutionStatus.RUNNING
+            self.started_at = timezone.now()
+            self.save(update_fields=['status', 'started_at'])
+
+        def complete_execution(self, success=True, exit_code=None, stdout="", stderr="", error_message=""):
+            """Mark execution as completed"""
+            self.status = TestExecutionStatus.SUCCESS if success else TestExecutionStatus.FAILED
+            self.completed_at = timezone.now()
+            self.exit_code = exit_code
+            self.stdout = stdout
+            self.stderr = stderr
+            self.error_message = error_message
             
-            if hours > 0:
-                return f"{hours}h {minutes}m {seconds}s"
-            elif minutes > 0:
-                return f"{minutes}m {seconds}s"
-            else:
-                return f"{seconds}s"
-        return None
+            if self.started_at:
+                self.execution_duration = self.completed_at - self.started_at
+            
+            self.save(update_fields=[
+                'status', 'completed_at', 'exit_code', 'stdout', 
+                'stderr', 'error_message', 'execution_duration'
+            ])
 
-    def start_execution(self):
-        """Mark execution as started"""
-        self.status = TestExecutionStatus.RUNNING
-        self.started_at = timezone.now()
-        self.save(update_fields=['status', 'started_at'])
+        def fail_execution(self, error_message, exit_code=None, stderr=""):
+            """Mark execution as failed"""
+            self.complete_execution(
+                success=False,
+                exit_code=exit_code,
+                stderr=stderr,
+                error_message=error_message
+            )
 
-    def complete_execution(self, success=True, exit_code=None, stdout="", stderr="", error_message=""):
-        """Mark execution as completed"""
-        self.status = TestExecutionStatus.SUCCESS if success else TestExecutionStatus.FAILED
-        self.completed_at = timezone.now()
-        self.exit_code = exit_code
-        self.stdout = stdout
-        self.stderr = stderr
-        self.error_message = error_message
-        
-        if self.started_at:
-            self.execution_duration = self.completed_at - self.started_at
-        
-        self.save(update_fields=[
-            'status', 'completed_at', 'exit_code', 'stdout', 
-            'stderr', 'error_message', 'execution_duration'
-        ])
+        def timeout_execution(self, timeout_message="Execution timed out"):
+            """Mark execution as timed out"""
+            self.status = TestExecutionStatus.TIMEOUT
+            self.completed_at = timezone.now()
+            self.error_message = timeout_message
+            
+            if self.started_at:
+                self.execution_duration = self.completed_at - self.started_at
+            
+            self.save(update_fields=[
+                'status', 'completed_at', 'error_message', 'execution_duration'
+            ])
 
-    def fail_execution(self, error_message, exit_code=None, stderr=""):
-        """Mark execution as failed"""
-        self.complete_execution(
-            success=False,
-            exit_code=exit_code,
-            stderr=stderr,
-            error_message=error_message
-        )
-
-    def timeout_execution(self, timeout_message="Execution timed out"):
-        """Mark execution as timed out"""
-        self.status = TestExecutionStatus.TIMEOUT
-        self.completed_at = timezone.now()
-        self.error_message = timeout_message
-        
-        if self.started_at:
-            self.execution_duration = self.completed_at - self.started_at
-        
-        self.save(update_fields=[
-            'status', 'completed_at', 'error_message', 'execution_duration'
-        ])
-
-    def cancel_execution(self, cancel_message="Execution cancelled"):
-        """Mark execution as cancelled"""
-        self.status = TestExecutionStatus.CANCELLED
-        self.completed_at = timezone.now()
-        self.error_message = cancel_message
-        
-        if self.started_at:
-            self.execution_duration = self.completed_at - self.started_at
-        
-        self.save(update_fields=[
-            'status', 'completed_at', 'error_message', 'execution_duration'
-        ])
+        def cancel_execution(self, cancel_message="Execution cancelled"):
+            """Mark execution as cancelled"""
+            self.status = TestExecutionStatus.CANCELLED
+            self.completed_at = timezone.now()
+            self.error_message = cancel_message
+            
+            if self.started_at:
+                self.execution_duration = self.completed_at - self.started_at
+            
+            self.save(update_fields=[
+                'status', 'completed_at', 'error_message', 'execution_duration'
+            ])

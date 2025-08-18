@@ -1,5 +1,13 @@
 (function ($) {
   $(document).ready(function () {
+
+    // adding regex to test case id field
+    document
+      .getElementById("id_test_case_id")
+      .addEventListener("input", function () {
+        this.value = this.value.replace(/[^A-Za-z0-9_\-.:/]/g, "");
+      });
+
     // Create a custom button for file upload
     var $jsonFileInput = $("#json-file-input");
     var $paramsField = $("#id_params");
@@ -36,7 +44,7 @@
               var jsonContent = e.target.result;
 
               // Validate JSON
-              JSON.parse(jsonContent);
+              // JSON.parse(jsonContent);
               console.log("jsonContent:", jsonContent);
 
               // Populate the params field

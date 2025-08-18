@@ -178,6 +178,11 @@ path(
     views.AddFireWallGDeviceTestDataView.as_view(),    
     name="api_add_firewall_test_data", 
 ),
+path(
+    "device-execution/<uuid:test_group_execution_id>/<uuid:dev_id>/upload-allure-report/",
+    views.upload_allure_report,
+    name="api_upload_allure_report",
+),
 
 
 # urls.py

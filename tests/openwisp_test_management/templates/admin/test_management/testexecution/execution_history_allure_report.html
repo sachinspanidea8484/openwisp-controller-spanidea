@@ -498,27 +498,11 @@ function displayExecutionData(data) {
                         actions += `
                             <a href="/api/v1/test-management/test-case-execution/${test.id}/download-log/" 
                                class="btn-action" 
-                               title="Download log" 
-                               download>
+                               title="Download log">
                                 <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
                                     <path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/>
                                 </svg>
                                 Log
-                            </a>
-                        `;
-                    }
-                    if (test.has_log && (test.status === 'success' || test.status === 'failed')) {
-                        actions += `
-                            <a href="/api/v1/test-management/test-case-execution/${test.id}/download-log/" 
-                               class="btn-action" 
-                               title="View log"
-                               target="_blank"
-                               rel="noopener noreferrer">
-                                <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M10 3C5 3 1.73 7.11 1 10c.73 2.89 4 7 9 7s8.27-4.11 9-7c-.73-2.89-4-7-9-7zm0 12c-2.76 0-5-2.24-5-5
-                                            s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8a3 3 0 100 6 3 3 0 000-6z"/>
-                                </svg>
-                                View Log
                             </a>
                         `;
                     }
@@ -600,42 +584,28 @@ function displayExecutionData(data) {
             }
             
             // Build device card
-// Build device card
-devicesHtml += `
-    <div class="device-card">
-        <div class="device-header">
-            <h3 class="device-title">${device.device_name || 'Unknown Device'}has_allure_report</h3>
-            <div class="device-stats">
-                <div class="progress-container">
-                    <span class="progress-text">${stats.success}/${stats.total} passed</span>
-                    <div class="progress-bar">
-                        <div class="progress-fill ${progressClass}" style="width: ${progressPercentage}%"></div>
+            devicesHtml += `
+                <div class="device-card">
+                    <div class="device-header">
+                        <h3 class="device-title">${device.device_name || 'Unknown Device'}</h3>
+                        <div class="device-stats">
+                            <div class="progress-container">
+                                <span class="progress-text">${stats.success}/${stats.total} passed</span>
+                                <div class="progress-bar">
+                                    <div class="progress-fill ${progressClass}" style="width: ${progressPercentage}%"></div>
+                                </div>
+                            </div>
+                            <span class="status-indicator ${stats.overall_status}">
+                                ${stats.overall_status}
+                            </span>
+                        </div>
                     </div>
+                    <div style="padding: 20px;">
+                        ${testResultsHtml}
+                    </div>
+                     ${errorHtml}
                 </div>
-                <span class="status-indicator ${stats.overall_status}">
-                    ${stats.overall_status}
-                </span>
-                ${device.has_allure_report && device.allure_report_full_path  ? `
-                   <a href="${device.allure_report_full_path}"
-                       target="_blank"
-                       class="btn-action primary" 
-                       title="View Allure Report"
-                       style="margin-left: 10px;">
-                        <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
-                            <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
-                        </svg>
-                        Allure Report
-                    </a>
-                ` : ''}
-            </div>
-        </div>
-        <div style="padding: 20px;">
-            ${testResultsHtml}
-        </div>
-         ${errorHtml}
-    </div>
-`;
+            `;
         });
         
         deviceExecutionsDiv.innerHTML = devicesHtml;

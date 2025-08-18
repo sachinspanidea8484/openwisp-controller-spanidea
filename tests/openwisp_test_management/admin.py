@@ -23,11 +23,11 @@ import json
 from django.utils.translation import gettext_lazy as _
 
 
-
+from django.core.validators import RegexValidator
 from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Device
 
-
+from reversion.models import Version
 
 from openwisp_utils.admin import TimeReadonlyAdminMixin
 
@@ -222,8 +222,20 @@ class FormattedJSONField(forms.CharField):
         except (json.JSONDecodeError, TypeError):
             return value
 
+allowed_test_case_id = RegexValidator(
+    regex=r'^[A-Za-z0-9_\-.:/]+$',
+    message=_("Only letters, numbers, underscores (_), hyphens (-), dots (.), colons (:), and slashes (/) are allowed.")
+)
 
 class TestCaseAdminForm(forms.ModelForm):
+    test_case_id = forms.CharField(
+        validators=[allowed_test_case_id],
+        widget=forms.TextInput(attrs={
+            'pattern': r'[A-Za-z0-9_\-.:/]+',
+            'title': _("Only letters, numbers, _, -, ., :, / are allowed")
+        })
+    )
+
     params = FormattedJSONField(
         required=False,
         widget=forms.Textarea(attrs={
@@ -231,7 +243,7 @@ class TestCaseAdminForm(forms.ModelForm):
             'cols': 80,
             'placeholder': _('Enter Parameters in JSON format'),
             'id': 'id_params',
-            'style': 'font-family: monospace; font-size: 13px;'
+            
         })
     )
     
@@ -379,7 +391,7 @@ class TestCaseAdmin(BaseVersionAdmin):
                 'placeholder': _('Enter Test Case ID')
             })
             form.base_fields["test_case_id"].help_text = _(
-                "Enter a unique identifier for this test case"
+                "Only letters, numbers, _, -, ., :, / are allowed."
             )
             
         # Test Type field
@@ -427,84 +439,84 @@ class TestCaseAdmin(BaseVersionAdmin):
             'all': ('test-management/css/json_file_handler.css',)  # Optional custom CSS
         }
 
-def delete_selected(self, request, queryset):
-    """
-    Custom delete action that checks if test cases can be deleted
-    """
-    # Check permissions
-    if not self.has_delete_permission(request):
-        raise PermissionDenied
+    def delete_selected(self, request, queryset):
+        """
+        Custom delete action that checks if test cases can be deleted
+        """
+        # Check permissions
+        if not self.has_delete_permission(request):
+            raise PermissionDenied
 
-    # Check for undeletable test cases
-    undeletable = [obj for obj in queryset if not obj.is_deletable]
+        # Check for undeletable test cases
+        undeletable = [obj for obj in queryset if not obj.is_deletable]
 
-    if undeletable:
-        msg = _("Cannot delete test cases that are in use: %s") % (
-            ", ".join([str(obj) for obj in undeletable])
-        )
-        self.message_user(request, msg, messages.ERROR)
-        return
+        if undeletable:
+            msg = _("Cannot delete test cases that are in use: %s") % (
+                ", ".join([str(obj) for obj in undeletable])
+            )
+            self.message_user(request, msg, messages.ERROR)
+            return
 
-    # Count before deletion
-    count = queryset.count()
+        # Count before deletion
+        count = queryset.count()
 
-    # Perform deletion
-     # Perform deletion
-    self.delete_queryset(request, queryset)
+        # Perform deletion
+        # Perform deletion
+        self.delete_queryset(request, queryset)
 
-    self.message_user(
-        request,
-        ngettext(
-            "Successfully deleted %(count)d test case.",
-            "Successfully deleted %(count)d test cases.",
-            count,
-        ) % {"count": count},
-        messages.SUCCESS,
-    )
-
-    delete_selected.short_description = _("Delete selected test cases")
-
-     
-
-    @admin.action(description=_("Recover deleted test cases"))
-    def recover_deleted(self, request, queryset):
-        """Action to recover soft-deleted test cases"""
-        # This is a placeholder for future soft-delete functionality
-        self.message_user(
-            request,
-            _("Recovery functionality will be implemented in a future version"),
-            messages.INFO
-        )
-
-    @admin.action(description=_("Activate selected test cases"))
-    def activate_cases(self, request, queryset):
-        """Activate selected test cases"""
-        updated = queryset.update(is_active=True)
         self.message_user(
             request,
             ngettext(
-                "%d test case was successfully activated.",
-                "%d test cases were successfully activated.",
-                updated,
-            ) % updated,
+                "Successfully deleted %(count)d test case.",
+                "Successfully deleted %(count)d test cases.",
+                count,
+            ) % {"count": count},
             messages.SUCCESS,
         )
 
-    @admin.action(description=_("Deactivate selected test cases"))
-    def deactivate_cases(self, request, queryset):
-        """Deactivate selected test cases"""
-        updated = queryset.update(is_active=False)
-        self.message_user(
-            request,
-            ngettext(
-                "%d test case was successfully deactivated.",
-                "%d test cases were successfully deactivated.",
-                updated,
-            ) % updated,
-            messages.SUCCESS,
-        )
+        delete_selected.short_description = _("Delete selected test cases")
 
-   
+        
+
+        @admin.action(description=_("Recover deleted test cases"))
+        def recover_deleted(self, request, queryset):
+            """Action to recover soft-deleted test cases"""
+            # This is a placeholder for future soft-delete functionality
+            self.message_user(
+                request,
+                _("Recovery functionality will be implemented in a future version"),
+                messages.INFO
+            )
+
+        @admin.action(description=_("Activate selected test cases"))
+        def activate_cases(self, request, queryset):
+            """Activate selected test cases"""
+            updated = queryset.update(is_active=True)
+            self.message_user(
+                request,
+                ngettext(
+                    "%d test case was successfully activated.",
+                    "%d test cases were successfully activated.",
+                    updated,
+                ) % updated,
+                messages.SUCCESS,
+            )
+
+        @admin.action(description=_("Deactivate selected test cases"))
+        def deactivate_cases(self, request, queryset):
+            """Deactivate selected test cases"""
+            updated = queryset.update(is_active=False)
+            self.message_user(
+                request,
+                ngettext(
+                    "%d test case was successfully deactivated.",
+                    "%d test cases were successfully deactivated.",
+                    updated,
+                ) % updated,
+                messages.SUCCESS,
+            )
+
+    
 
 
 
@@ -714,7 +726,7 @@ class TestSuiteAdmin(BaseVersionAdmin):
             # Get test cases with their order
             test_suite_cases = TestSuiteCase.objects.filter(
                 test_suite=obj
-            ).select_related('test_case').order_by('order')
+            ).select_related('test_case','test_case__category').order_by('order')
             
             test_cases_with_order = []
             for suite_case in test_suite_cases:
@@ -723,6 +735,8 @@ class TestSuiteAdmin(BaseVersionAdmin):
                     'name': suite_case.test_case.name,
                     'test_case_id': suite_case.test_case.test_case_id,
                     'order': suite_case.order,
+                    'test_type_display': suite_case.test_case.get_test_type_display(),
+                    'category': suite_case.test_case.category.name
                 })
             
             extra_context['selected_test_cases_with_order'] = json.dumps(test_cases_with_order)
@@ -825,6 +839,47 @@ class TestSuiteAdmin(BaseVersionAdmin):
         extra_context = extra_context or {}
         extra_context['title'] = _("Test Groups")
         return super().changelist_view(request, extra_context)
+    def recover_view(self, request, version_id, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context["categories"] = list(TestCategory.objects.values("id", "name"))
+
+        version = self._get_version_object(version_id)
+        obj = version._object_version.object
+
+        # Get all related TestSuiteCase versions from the SAME revision
+        related_versions = Version.objects.get_for_model(TestSuiteCase).filter(
+            revision=version.revision
+        )
+
+        test_cases_with_order = []
+        
+        for related_version in related_versions:
+            suite_case = related_version._object_version.object
+            test_cases_with_order.append({
+                'id': str(suite_case.test_case.id),
+                'name': suite_case.test_case.name,
+                'test_case_id': suite_case.test_case.test_case_id,
+                'order': suite_case.order,
+                'test_type_display': suite_case.test_case.get_test_type_display(),
+                'category': suite_case.test_case.category.name
+            })
+        
+        extra_context['selected_test_cases_with_order'] = json.dumps(test_cases_with_order)
+        extra_context['show_category_filter']= True
+
+        return super().recover_view(request, version_id, extra_context=extra_context)
+    
+    def _get_version_object(self, version_id):
+        """
+        Utility to fetch the Version object for the given version_id.
+        This avoids duplicating queryset logic from reversion's internal code.
+        """
+        from reversion.models import Version
+        try:
+            return Version.objects.get(pk=version_id)
+        except Version.DoesNotExist:
+            return None
+
 # Add inline for execution devices
 class TestSuiteExecutionDeviceInline(admin.TabularInline):
     """Inline admin for devices in a test execution"""  # Changed comment
@@ -857,7 +912,7 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>M<<<<<<<<<<<<<<<")
+        
         
         # Store selected devices data for later use
         self._selected_devices_data = None
@@ -1288,12 +1343,65 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         )
 
     
-        
-        
+    
+
+    def recover_view(self, request, version_id, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context['show_execution_device_details'] = True
+
+        version = self._get_version_object(version_id)
+
+        if version:
+            execution_obj = version._object_version.object
+            
+            # Now get related devices (live DB, not historical)
+            related_versions = version.revision.version_set.filter(
+            content_type__model="testsuiteexecutiondevice"
+            )
+
+            recovered_device_ids = [str(v._object_version.object.device_id) for v in related_versions]
+
+            # 🔹 Re-use logic from get_available_devices
+            devices_query = Device.objects.filter(id__in=recovered_device_ids).select_related("organization")
+            print("devices_query>>>>>>>>>>>>",devices_query)
+            devices_data = []
+            for device in devices_query:
+                devices_data.append({
+                    'id': str(device.id),
+                    'name': device.name,
+                    'organization': device.organization.name if device.organization else 'No Organization',
+                    'organization_id': str(device.organization.id) if device.organization else None,
+                    'last_ip': getattr(device, 'last_ip', None) or 'N/A',
+                    'management_ip': getattr(device, 'management_ip', None) or 'N/A',
+                    'mac_address': getattr(device, 'mac_address', None) or 'N/A',
+                    'status': 'Online' if getattr(device, 'last_ip', None) else 'Offline',
+                    'connection_status': 'Unknown',  # you can expand this to match get_available_devices
+                    'has_connection': False,          # or compute properly like in API
+                    'is_active': True,
+                    'model': getattr(device, 'model', None) or 'Unknown',
+                    'os': getattr(device, 'os', None) or 'Unknown',
+                    'hardware_id': getattr(device, 'hardware_id', None) or 'N/A',
+                    'created': device.created.isoformat() if hasattr(device, 'created') and device.created else None,
+                })
+            
+
+            extra_context['execution_devices_json'] = json.dumps(devices_data)
+
+        return super().recover_view(request, version_id, extra_context=extra_context)
 
 
 
-        
+    def _get_version_object(self, version_id):
+        """
+        Utility to fetch the Version object for the given version_id.
+        This avoids duplicating queryset logic from reversion's internal code.
+        """
+        from reversion.models import Version
+        try:
+            return Version.objects.get(pk=version_id)
+        except Version.DoesNotExist:
+            return None
+  
 
 
 # Register models with reversion for history tracking
@@ -1313,3 +1421,5 @@ if not reversion.is_registered(TestSuite):
 
 if not reversion.is_registered(TestSuiteExecution):
     reversion.register(TestSuiteExecution)
+
+
