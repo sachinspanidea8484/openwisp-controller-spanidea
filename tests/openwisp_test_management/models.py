@@ -51,7 +51,7 @@ class TestSuiteCase(AbstractTestSuiteCase):
 
 
 
-
+@reversion.register(follow=["devices"])
 class TestSuiteExecution(AbstractTestSuiteExecution):
     """
     Concrete model for Test Suite Executions
@@ -60,7 +60,7 @@ class TestSuiteExecution(AbstractTestSuiteExecution):
         abstract = False
         swappable = swappable_setting("test_management", "TestSuiteExecution")
 
-
+@reversion.register()
 class TestSuiteExecutionDevice(AbstractTestSuiteExecutionDevice):
     """
     Concrete model for Test Suite Execution Devices

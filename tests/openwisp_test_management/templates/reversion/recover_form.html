@@ -3,6 +3,9 @@
 
 {% block extrahead %}
   {{ block.super }}
+  {%if show_execution_device_details|default:False %}
+    <link rel="stylesheet" type="text/css" href="{% static 'test-management/css/test_suite_execution_form.css' %}">
+  {% endif %}
    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
   <link rel="stylesheet" type="text/css" href="{% static 'test-management/css/test_suite_form.css' %}">
 {% endblock %}
@@ -40,13 +43,19 @@
     });
   </script>
   
-
+  <!-- inject recieved devices if any in recover mode for visibility -->
+  {% if execution_devices_json %}
+    <script>
+        window.recoveredDevices = {{ execution_devices_json|safe }}; 
+    </script>
+  {% endif %}
 
   <script src="{% static 'test-management/js/test_suite_form.js' %}"></script>
 {% endblock %}
 
 {% block after_field_sets %}
     {{ block.super }}
+    {% if show_category_filter|default:False %}
     <div class="custom-category-filter">
         <div class="category-filter-input">
             <label>Filter by Category:</label>
@@ -59,4 +68,9 @@
         <button type="button" id="apply-category-filter" class="button btn btn-primary">Apply</button>
     </div>
     <div class="field-category"></div>
+    {% endif %}
+
+    {% if show_execution_device_details|default:False %}
+      <script src="{% static 'test-management/js/test_suite_execution_form.js' %}"></script>
+    {% endif %}
 {% endblock %}

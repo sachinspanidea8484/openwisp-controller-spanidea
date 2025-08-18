@@ -865,6 +865,7 @@ class TestSuiteAdmin(BaseVersionAdmin):
             })
         
         extra_context['selected_test_cases_with_order'] = json.dumps(test_cases_with_order)
+        extra_context['show_category_filter']= True
 
         return super().recover_view(request, version_id, extra_context=extra_context)
     
@@ -911,7 +912,7 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>M<<<<<<<<<<<<<<<")
+        
         
         # Store selected devices data for later use
         self._selected_devices_data = None
@@ -1342,12 +1343,62 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         )
 
     
-        
-        
+    
+
+    def recover_view(self, request, version_id, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context['show_execution_device_details'] = True
+
+        version = self._get_version_object(version_id)
+
+        if version:
+            execution_obj = version._object_version.object
+            
+            # Now get related devices (live DB, not historical)
+            related_versions = version.revision.version_set.filter(
+            content_type__model="testsuiteexecutiondevice"
+            )
+
+            recovered_device_ids = [str(v._object_version.object.device_id) for v in related_versions]
+
+            # 🔹 Re-use logic from get_available_devices
+            devices_query = Device.objects.filter(id__in=recovered_device_ids).select_related("organization")
+            devices_data = []
+            for device in devices_query:
+                devices_data.append({
+                    'id': str(device.id),
+                    'name': device.name,
+                    'organization': device.organization.name if device.organization else 'No Organization',
+                    'organization_id': str(device.organization.id) if device.organization else None,
+                    'last_ip': getattr(device, 'last_ip', None) or 'N/A',
+                    'management_ip': getattr(device, 'management_ip', None) or 'N/A',
+                    'mac_address': getattr(device, 'mac_address', None) or 'N/A',
+                    'status': 'Online' if getattr(device, 'last_ip', None) else 'Offline',
+                    'connection_status': 'Unknown',  # you can expand this to match get_available_devices
+                    'has_connection': False,          # or compute properly like in API
+                    'is_active': True,
+                    'model': getattr(device, 'model', None) or 'Unknown',
+                    'os': getattr(device, 'os', None) or 'Unknown',
+                    'hardware_id': getattr(device, 'hardware_id', None) or 'N/A',
+                    'created': device.created.isoformat() if hasattr(device, 'created') and device.created else None,
+                })
+            extra_context['execution_devices_json'] = json.dumps(devices_data)
+
+        return super().recover_view(request, version_id, extra_context=extra_context)
 
 
 
-        
+    def _get_version_object(self, version_id):
+        """
+        Utility to fetch the Version object for the given version_id.
+        This avoids duplicating queryset logic from reversion's internal code.
+        """
+        from reversion.models import Version
+        try:
+            return Version.objects.get(pk=version_id)
+        except Version.DoesNotExist:
+            return None
+  
 
 
 # Register models with reversion for history tracking

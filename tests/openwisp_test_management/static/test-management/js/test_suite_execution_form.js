@@ -201,7 +201,19 @@
             tbody.append(row);
         });
     }
-    
+    $(document).ready(function () {
+      if (window.recoveredDevices && window.recoveredDevices.length > 0) {
+        window.recoveredDevices.forEach((device) => {
+          selectedDevices.set(String(device.id), device);
+        });
+
+        // Sync UI after preload
+        updateSelectedDevicesList();
+        updateDeviceDropdown();
+        updateDeviceCount();
+        updateHiddenInput();
+      }
+    });
     // Handle add device button click
     $('#add-device-btn').on('click', function() {
         const deviceId = $('#device-dropdown').val();
