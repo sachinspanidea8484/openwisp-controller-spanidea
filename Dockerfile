@@ -54,15 +54,17 @@ RUN pip install --no-cache-dir sendsms==0.2.0 django-sendsms==0.5 twilio==6.63.2
 # Copy entire project including local modules
 COPY --chown=openwisp:openwisp . /opt/openwisp/
 
-# Create necessary directories with proper permissions
+# Create necessary directories with proper permissions INCLUDING logs
 RUN mkdir -p /opt/openwisp/media \
     /opt/openwisp/private/firmware \
     /opt/openwisp/static_collected \
     /opt/openwisp/tests/openwisp2 \
+    /opt/openwisp/logs \
     && chown -R openwisp:openwisp /opt/openwisp/media \
     /opt/openwisp/private \
     /opt/openwisp/static_collected \
     /opt/openwisp/tests \
+    /opt/openwisp/logs \
     && chmod -R 755 /opt/openwisp/media \
     /opt/openwisp/private \
     /opt/openwisp/static_collected \
