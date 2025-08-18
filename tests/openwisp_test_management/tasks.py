@@ -7,11 +7,22 @@ from openwisp_controller.connection.models import DeviceConnection
 from .swapper import load_model
 from .base.models import TestExecutionStatus
 import requests
+import os
 
 
-
+LOG_FILE_PATH = "/var/log/openwisp/openwisp_test_management.log"
 # Configure logger for this module
+os.makedirs(os.path.dirname(LOG_FILE_PATH), exist_ok=True)
+
+# Create logger
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)  # Capture all levels
+
+# File handler
+file_handler = logging.FileHandler(LOG_FILE_PATH, mode='a')
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+logger.addHandler(file_handler)
 
 # Load models using swapper pattern for better modularity
 TestSuiteExecution = load_model("TestSuiteExecution")
@@ -1215,6 +1226,7 @@ def retry_test_execution(test_execution_id):
                 "test_suite_name": test_suite_execution.test_suite.name,
                 "test_suite_id": test_suite_execution.test_suite.id,
                 # "test_suite_category": test_suite_execution.test_suite.category.name,
+                "test_suite_execution_id": test_suite_execution.id,
                 "test_cases": [{
                     "test_case_id": test_execution.test_case.test_case_id,
                     "test_case_name": test_execution.test_case.name,
