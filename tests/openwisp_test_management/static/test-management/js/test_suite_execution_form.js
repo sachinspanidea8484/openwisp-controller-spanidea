@@ -202,6 +202,8 @@
         });
     }
     $(document).ready(function () {
+        console.log("recoveredDevices>>>>>",window?.recoveredDevices)
+
       if (window.recoveredDevices && window.recoveredDevices.length > 0) {
         window.recoveredDevices.forEach((device) => {
           selectedDevices.set(String(device.id), device);

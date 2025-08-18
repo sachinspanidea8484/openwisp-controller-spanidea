@@ -1363,6 +1363,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
             # 🔹 Re-use logic from get_available_devices
             devices_query = Device.objects.filter(id__in=recovered_device_ids).select_related("organization")
+            print("devices_query>>>>>>>>>>>>",devices_query)
             devices_data = []
             for device in devices_query:
                 devices_data.append({
@@ -1382,6 +1383,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     'hardware_id': getattr(device, 'hardware_id', None) or 'N/A',
                     'created': device.created.isoformat() if hasattr(device, 'created') and device.created else None,
                 })
+            
+
             extra_context['execution_devices_json'] = json.dumps(devices_data)
 
         return super().recover_view(request, version_id, extra_context=extra_context)

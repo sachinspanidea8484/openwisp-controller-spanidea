@@ -65,7 +65,8 @@ RUN mkdir -p /opt/openwisp/media \
     /opt/openwisp/tests \
     && chmod -R 755 /opt/openwisp/media \
     /opt/openwisp/private \
-    /opt/openwisp/static_collected
+    /opt/openwisp/static_collected \
+    /opt/openwisp/logs
 
 # Ensure the local modules are in Python path
 ENV PYTHONPATH=/opt/openwisp:$PYTHONPATH

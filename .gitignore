@@ -81,7 +81,7 @@ Pipfile.lock
 # docker-compose.yml
 
 # private
-!media/allure_report/
+media/allure_report/
 
 
 
