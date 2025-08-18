@@ -3195,25 +3195,22 @@ def get_categories_test_cases(request):
                 )
 
         # Fetch test cases for all these categories
-        if len(category_ids) ==0:
-            test_cases = TestCase.objects.filter(
-                is_active=True
-            ).order_by('name')
+        if not category_ids:
+            test_cases = TestCase.objects.filter(is_active=True).select_related('category').order_by('name')
         else:
             test_cases = TestCase.objects.filter(
                 category_id__in=valid_category_ids,
                 is_active=True
-            ).order_by('name')
-      
+            ).select_related('category').order_by('name')
 
-        # Serialize
         test_cases_data = [
             {
                 'id': str(tc.id),
                 'name': tc.name,
                 'test_case_id': tc.test_case_id,
                 'test_type': tc.test_type,
-                'test_type_display': tc.get_test_type_display()
+                'test_type_display': tc.get_test_type_display(),
+                'category': tc.category.name
             }
             for tc in test_cases
         ]
@@ -3889,7 +3886,7 @@ def download_test_log(request, execution_id):
         
         # Set download filename - convert UUID to string before slicing
         filename = f"log_{test_execution.test_case.test_case_id}_{str(execution_id)[:8]}.txt"
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
         
         return response
         

@@ -301,8 +301,9 @@
         <thead>
           <tr>
             <th class="checkbox-col"><input type="checkbox" id="select-all-test-cases"></th>
-            <th class="name-col">NAME</th>
+            <th class="name-col">TEST NAME</th>
             <th class="id-col">TEST CASE ID</th>
+            <th class="category-col">TEST CATEGORY</th>
             <th class="type-col">TEST TYPE</th>
           </tr>
         </thead>
@@ -355,15 +356,13 @@
           <td class="name-col">
             <label for="test_case_${testCase.id}" class="test-case-name">
               ${testCase.name}
-              ${
-                isFromGlobalState
-                  ? '<span class="global-state-indicator" title="Selected from another category">★</span>'
-                  : ""
-              }
             </label>
           </td>
           <td class="id-col">
             <span class="test-case-id">${testCase.test_case_id}</span>
+          </td>
+           <td class="category-col">
+            <span class="test-category">${testCase.category}</span>
           </td>
           <td class="type-col">
             <span class="test-type-badge">${testCase.test_type_display}</span>
@@ -807,6 +806,7 @@
         test_case_id: tc.test_case_id,
         test_type: tc.test_type || 1,
         test_type_display: tc.test_type_display || "Robot",
+        category: tc.category,
       }));
 
       // Set current API test cases and display

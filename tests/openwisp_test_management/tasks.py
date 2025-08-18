@@ -7,11 +7,22 @@ from openwisp_controller.connection.models import DeviceConnection
 from .swapper import load_model
 from .base.models import TestExecutionStatus
 import requests
+import os
 
 
-
+LOG_FILE_PATH = "/var/log/openwisp/openwisp_test_management.log"
 # Configure logger for this module
+os.makedirs(os.path.dirname(LOG_FILE_PATH), exist_ok=True)
+
+# Create logger
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)  # Capture all levels
+
+# File handler
+file_handler = logging.FileHandler(LOG_FILE_PATH, mode='a')
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+logger.addHandler(file_handler)
 
 # Load models using swapper pattern for better modularity
 TestSuiteExecution = load_model("TestSuiteExecution")
@@ -120,7 +131,6 @@ def execute_tests_on_device(device_execution_id):
         # Check device connection
         device_conn = None
         has_connection = False
-        # if DEVICE_EXECUTION_TYPE==1:
         try:
                 device_conn = DeviceConnection.objects.get(
                     device=device,
@@ -241,15 +251,19 @@ def execute_tests_on_device(device_execution_id):
         if has_connection or DEVICE_EXECUTION_TYPE==2:
             logger.info(f"Created {len(robot_framework_tests)} Robot Framework and {len(device_agent_tests)} Device Agent test execution records")
             
-            if robot_framework_tests:
-                logger.info(f"Sending {len(robot_framework_tests)} Robot Framework tests to API")
-                print(f"[TASK] Sending {len(robot_framework_tests)} Robot Framework tests to external API")
-                
-                execute_robot_framework_tests.delay(
-                    robot_framework_tests,
-                    device_data,
-                    test_suite_data,
-                )
+            if has_connection:
+                if robot_framework_tests:
+                    logger.info(f"Sending {len(robot_framework_tests)} Robot Framework tests to API")
+                    print(f"[TASK] Sending {len(robot_framework_tests)} Robot Framework tests to external API")
+
+                    execute_robot_framework_tests.delay(
+                        robot_framework_tests,
+                        device_data,
+                        test_suite_data,
+                    )
+            else:
+                logger.info("Device has no connection, all Robot Framework tests marked as failed")
+                print(f"[TASK] execute_tests_on_device - Device has no connection, all Robot Framework tests marked as failed")
             
             # Launch device agent test cases in parallel
             if test_execution_ids:
@@ -1138,7 +1152,7 @@ def retry_test_execution(test_execution_id):
         device_conn = None
         ssh_params = {}
 
-        if DEVICE_EXECUTION_TYPE==1:
+        if test_execution.test_case.test_type == 1 or DEVICE_EXECUTION_TYPE==1:
          try:
             device_conn = DeviceConnection.objects.get(
                 device=device,
@@ -1177,12 +1191,12 @@ def retry_test_execution(test_execution_id):
             logger.info(f"Retrying device agent test: {test_execution.test_case.name}")
 
                 # Route to appropriate execution method based on DEVICE_EXECUTION_TYPE
-        if DEVICE_EXECUTION_TYPE == 1:
-             # SSH execution
-             execute_test_via_ssh(test_execution_id, ssh_params, device.management_ip, device_execution_id)
-        elif DEVICE_EXECUTION_TYPE == 2:
-            # NB_API execution
-            execute_test_via_nb_api(test_execution_id, ssh_params, device.management_ip, device_execution_id)
+            if DEVICE_EXECUTION_TYPE == 1:
+                # SSH execution
+                execute_test_via_ssh(test_execution_id, ssh_params, device.management_ip, device_execution_id)
+            elif DEVICE_EXECUTION_TYPE == 2:
+                # NB_API execution
+                execute_test_via_nb_api(test_execution_id, ssh_params, device.management_ip, device_execution_id)
 
 
 
@@ -1212,6 +1226,7 @@ def retry_test_execution(test_execution_id):
                 "test_suite_name": test_suite_execution.test_suite.name,
                 "test_suite_id": test_suite_execution.test_suite.id,
                 # "test_suite_category": test_suite_execution.test_suite.category.name,
+                "test_suite_execution_id": test_suite_execution.id,
                 "test_cases": [{
                     "test_case_id": test_execution.test_case.test_case_id,
                     "test_case_name": test_execution.test_case.name,
