@@ -3596,10 +3596,13 @@ def test_execution_history(request, execution_id):
     try:
         execution = TestSuiteExecution.objects.get(pk=execution_id)
         
+        
         # Get all execution devices
         execution_devices = TestSuiteExecutionDevice.objects.filter(
             test_suite_execution=execution
         ).select_related('device').order_by('device__name')
+        
+        print("device_exec>>>>>",execution_devices)
         
         # Get all test case executions
         test_case_executions = TestCaseExecution.objects.filter(
@@ -3666,7 +3669,7 @@ def test_execution_history(request, execution_id):
                     'status': test_exec.status,
                     'status_display': test_exec.get_status_display(),
                     'has_log': bool(test_exec.stdout),
-                                        # 'stdout': test_exec.stdout,
+                    # 'stdout': test_exec.stdout,
                     # 'stderr': test_exec.stderr,
                     'can_retry': test_exec.status == 'failed',
                     'started_at': test_exec.started_at.isoformat() if test_exec.started_at else None,
@@ -3699,11 +3702,23 @@ def test_execution_history(request, execution_id):
                     device_duration_formatted = f"{minutes}m {seconds}s"
                 else:
                     device_duration_formatted = f"{seconds}s"
+
+            openwisp_base_url = f"http://172.17.0.1:8000"
+            has_allure_report = bool(device_exec.allure_report_path)    
+            allure_report_full_path = f"{openwisp_base_url}/media/{device_exec.allure_report_path}"
+
+
             
             device_data = {
                 'device_id': str(device.id),
                 'device_name': device.name,
                 'device_execution_id': str(device_exec.pk),
+                'allure_report_path': device_exec.allure_report_path,
+                'has_allure_report': has_allure_report,
+                'allure_report_full_path': allure_report_full_path,
+
+
+
                 'device_execution_status': device_exec.status,
                 'error_message': device_exec.output if device_exec.status == 'failed' else None,
                 'started_at': device_exec.started_at.isoformat() if device_exec.started_at else None,

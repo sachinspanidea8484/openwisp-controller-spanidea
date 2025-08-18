@@ -584,42 +584,28 @@ function displayExecutionData(data) {
             }
             
             // Build device card
-// Build device card
-devicesHtml += `
-    <div class="device-card">
-        <div class="device-header">
-            <h3 class="device-title">${device.device_name || 'Unknown Device'}has_allure_report</h3>
-            <div class="device-stats">
-                <div class="progress-container">
-                    <span class="progress-text">${stats.success}/${stats.total} passed</span>
-                    <div class="progress-bar">
-                        <div class="progress-fill ${progressClass}" style="width: ${progressPercentage}%"></div>
+            devicesHtml += `
+                <div class="device-card">
+                    <div class="device-header">
+                        <h3 class="device-title">${device.device_name || 'Unknown Device'}</h3>
+                        <div class="device-stats">
+                            <div class="progress-container">
+                                <span class="progress-text">${stats.success}/${stats.total} passed</span>
+                                <div class="progress-bar">
+                                    <div class="progress-fill ${progressClass}" style="width: ${progressPercentage}%"></div>
+                                </div>
+                            </div>
+                            <span class="status-indicator ${stats.overall_status}">
+                                ${stats.overall_status}
+                            </span>
+                        </div>
                     </div>
+                    <div style="padding: 20px;">
+                        ${testResultsHtml}
+                    </div>
+                     ${errorHtml}
                 </div>
-                <span class="status-indicator ${stats.overall_status}">
-                    ${stats.overall_status}
-                </span>
-                ${device.has_allure_report && device.allure_report_full_path  ? `
-                   <a href="${device.allure_report_full_path}"
-                       target="_blank"
-                       class="btn-action primary" 
-                       title="View Allure Report"
-                       style="margin-left: 10px;">
-                        <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
-                            <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
-                        </svg>
-                        Allure Report
-                    </a>
-                ` : ''}
-            </div>
-        </div>
-        <div style="padding: 20px;">
-            ${testResultsHtml}
-        </div>
-         ${errorHtml}
-    </div>
-`;
+            `;
         });
         
         deviceExecutionsDiv.innerHTML = devicesHtml;

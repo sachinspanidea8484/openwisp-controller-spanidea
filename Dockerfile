@@ -70,6 +70,13 @@ RUN mkdir -p /opt/openwisp/media \
 # Ensure the local modules are in Python path
 ENV PYTHONPATH=/opt/openwisp:$PYTHONPATH
 
+
+# Copy entire project including local modules
+COPY --chown=openwisp:openwisp . /opt/openwisp/
+
+# Make entrypoint executable BEFORE switching user
+RUN chmod +x /opt/openwisp/tests/docker-entrypoint.sh
+
 # Install the application in development mode to use local modules
 RUN pip install --no-cache-dir -e /opt/openwisp
 
@@ -78,7 +85,6 @@ USER openwisp
 
 WORKDIR /opt/openwisp/tests/
 
-RUN chmod +x docker-entrypoint.sh
 
 
 ENV NAME=openwisp-controller \
