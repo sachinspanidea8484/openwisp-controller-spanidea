@@ -2,6 +2,7 @@ import subprocess
 import time
 import re
 import sys
+import os
 
 def run_command(command):
     """
@@ -19,9 +20,8 @@ def extract_hwmon8_section(output):
 
 def parse_and_format(section):
     """
-    Parses the SA56004_HWMON8 block and returns formatted string.
+    Parses the SA56004_HWMON8 block and returns dictionary + formatted string.
     """
-    # Note: I²C has the Unicode superscript 2 character
     i2c_bus_match = re.search(r"I²C\s+Bus\s*:\s*(\S+)", section)
     i2c_addr_match = re.search(r"I²C\s+Address\s*:\s*(\S+)", section)
     local_temp_match = re.search(r"Local\s+Temp.*?:\s*([\d\.]+)", section)
@@ -29,47 +29,77 @@ def parse_and_format(section):
 
     i2c_bus = i2c_bus_match.group(1) if i2c_bus_match else "N/A"
     i2c_addr = i2c_addr_match.group(1) if i2c_addr_match else "N/A"
-    local_temp = local_temp_match.group(1) if local_temp_match else "N/A"
-    remote_temp = remote_temp_match.group(1) if remote_temp_match else "N/A"
+    local_temp = float(local_temp_match.group(1)) if local_temp_match else None
+    remote_temp = float(remote_temp_match.group(1)) if remote_temp_match else None
 
-    return (
+    formatted = (
         f"  I²C Bus               : {i2c_bus}\n"
         f"  I²C Address           : {i2c_addr}\n"
-        f"  Local Temp (°C)        : {local_temp}\n"
-        f"  Remote Temp (°C)       : {remote_temp}\n"
+        f"  Local Temp (°C)       : {local_temp if local_temp is not None else 'N/A'}\n"
+        f"  Remote Temp (°C)      : {remote_temp if remote_temp is not None else 'N/A'}\n"
     )
+
+    return {"local": local_temp, "remote": remote_temp}, formatted
 
 def verify_cpu_temperature():
     sensor_script = "/usr/bin/sensor_monitor.py"
 
+    # STEP 0: Check script presence
+    if not os.path.exists(sensor_script):
+        print(f"[ERROR] Sensor script not found at {sensor_script}")
+        print("[RESULT] FAILURE – Missing sensor script.")
+        sys.exit(1)
+
     print("[STEP 1] Fetching only SA56004_HWMON8 readings locally...\n")
 
-    all_success = True  # Track if all readings succeed
+    readings = []  # Store tuples of (local, remote)
 
     for i in range(5):
         output, error = run_command(f"python3 {sensor_script}")
 
         if error:
             print(f"[{i+1}] [ERROR] Sensor command STDERR: {error}\n")
-            all_success = False
-        else:
-            section = extract_hwmon8_section(output)
-            if section:
-                print(f"[{i+1}] SA56004_HWMON8")
-                print(parse_and_format(section))
-            else:
-                print(f"[{i+1}] [ERROR] SA56004_HWMON8 section not found.\n")
-                all_success = False
+            print("[RESULT] FAILURE – One or more SA56004_HWMON8 checks failed.")
+            sys.exit(1)
 
-        time.sleep(120)
+        section = extract_hwmon8_section(output)
+        if section:
+            temps, formatted = parse_and_format(section)
+            print(f"[{i+1}] SA56004_HWMON8")
+            print(formatted)
+
+            if temps["local"] is not None and temps["remote"] is not None:
+                readings.append((temps["local"], temps["remote"]))
+                # Range check
+                if not (-45 <= temps["local"] <= 80):
+                    print(f"[{i+1}] [ERROR] Local temperature {temps['local']}°C out of range (-45 to 80).")
+                    print("[RESULT] FAILURE – One or more SA56004_HWMON8 checks failed.")
+                    sys.exit(1)
+                if not (-45 <= temps["remote"] <= 80):
+                    print(f"[{i+1}] [ERROR] Remote temperature {temps['remote']}°C out of range (-45 to 80).")
+                    print("[RESULT] FAILURE – One or more SA56004_HWMON8 checks failed.")
+                    sys.exit(1)
+            else:
+                print(f"[{i+1}] [ERROR] Could not parse temperatures.\n")
+                print("[RESULT] FAILURE – One or more SA56004_HWMON8 checks failed.")
+                sys.exit(1)
+        else:
+            print(f"[{i+1}] [ERROR] SA56004_HWMON8 section not found.\n")
+            print("[RESULT] FAILURE – One or more SA56004_HWMON8 checks failed.")
+            sys.exit(1)
+
+        time.sleep(2)
+
+    # STEP 2: Identical values check (only if we collected 5 valid readings)
+    if len(readings) == 5:
+        if all(r == readings[0] for r in readings):
+            print("[ERROR] All 5 readings are identical. Possible hard-coded values, not live sensor data.")
+            print("[RESULT] FAILURE – One or more SA56004_HWMON8 checks failed.")
+            sys.exit(1)
 
     # Final test result
-    if all_success:
-        print("[RESULT] SUCCESS – All SA56004_HWMON8 readings retrieved successfully.")
-        sys.exit(0)
-    else:
-        print("[RESULT] FAILURE – One or more readings failed to retrieve SA56004_HWMON8 data.")
-        sys.exit(1)
+    print("[RESULT] SUCCESS – All SA56004_HWMON8 checks passed.")
+    sys.exit(0)
 
 if __name__ == "__main__":
     verify_cpu_temperature()

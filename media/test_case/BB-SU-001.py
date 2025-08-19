@@ -1,7 +1,7 @@
 import subprocess
 import sys
+import time
 from datetime import datetime
-
 
 def log(message):
     timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
@@ -14,36 +14,48 @@ def run_local_command(command):
     except Exception as e:
         return "", str(e)
 
-def verify_gpio_state(chip, line, expected_state, led_name):
+def get_gpio_state(chip, line):
+    """
+    Reads the GPIO state (returns value as string '0' or '1').
+    """
     command = f"gpioget gpiochip{chip} {line}"
-    log(f"[INFO] Checking GPIO for {led_name} via command: {command}")
     stdout, stderr = run_local_command(command)
-
     if stderr:
-        log(f"[ERROR] Command failed: {stderr}")
-        return False
-
-    if stdout == expected_state:
-        log(f"[PASS] {led_name} state is correct ('{expected_state}').")
-        return True
-    else:
-        log(f"[FAIL] {led_name} state is NOT '{expected_state}'. Actual: '{stdout}'")
-        return False
+        return None
+    return stdout
 
 def main():
-    log("[STEP 1] Verifying GPIO for Solid Green LED (Startup Completion)...")
+    log("[STEP 1] Verifying GPIO states for Solid Green LED startup sequence (100 samples)...")
 
-    # Ensure only line 10 is ON (0), and 9 and 11 are OFF (1)
-    green_ok = verify_gpio_state("8", "10", "0", "Solid Green Power LED")
-    red_off = verify_gpio_state("8", "9", "1", "Panel4 Red LED (should be OFF)")
-    blue_off = verify_gpio_state("8", "11", "1", "Panel4 Blue LED (should be OFF)")
+    chip = "8"
+    success = True
 
-    if green_ok and red_off and blue_off:
-        log("[PASS] CDM-BB has successfully completed startup (Solid Green only).")
-        sys.exit(0)  
+    for i in range(1, 101):  # 100 iterations
+        green = get_gpio_state(chip, "10")  # Solid Green
+        red   = get_gpio_state(chip, "9")   # Red
+        blue  = get_gpio_state(chip, "11")  # Blue
+
+        if green is None or red is None or blue is None:
+            log(f"[ITER {i}] [ERROR] Failed to read GPIO values.")
+            success = False
+            break
+
+        log(f"[ITER {i}] Green={green}, Red={red}, Blue={blue}")
+
+        if not (green == "0" and red == "1" and blue == "1"):
+            log(f"[FAIL] Condition mismatch at iteration {i}/100. "
+                f"Expected: Green=0, Red=1, Blue=1 | Got: Green={green}, Red={red}, Blue={blue}")
+            success = False
+            break
+
+        time.sleep(0.1)  # 100 ms delay
+
+    if success:
+        log("[PASS] CDM-BB startup verified: Solid Green LED always ON, Red & Blue always OFF (100/100 checks).")
+        sys.exit(0)
     else:
-        log("[FAIL] CDM-BB startup sequence failed or still in progress.")
-        sys.exit(1) 
+        log("[FAIL] CDM-BB startup verification failed.")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

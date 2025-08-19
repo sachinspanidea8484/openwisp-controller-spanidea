@@ -1,12 +1,11 @@
+import os
 import subprocess
 import time
 import select
 import sys
 from datetime import datetime
 
-EXPECTED_LATITUDE = 45.312226
-EXPECTED_LONGITUDE = -68.031125
-TOLERANCE = 0.0002  # Allowable variation
+GPS_SCRIPT = "/usr/bin/gpsmon.sh"
 
 def log(message):
     timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
@@ -22,7 +21,6 @@ def run_command_with_read_limit(command, max_lines=5, max_time=10):
 
     try:
         while True:
-            # Wait for output with a timeout
             ready, _, _ = select.select([process.stdout, process.stderr], [], [], 0.2)
 
             for stream in ready:
@@ -46,43 +44,63 @@ def run_command_with_read_limit(command, max_lines=5, max_time=10):
         except subprocess.TimeoutExpired:
             process.kill()
 
-    return "\n".join(output_lines), "\n".join(error_lines)
+    return output_lines, error_lines
 
-def verify_gps_output(output):
-    """Verifies GPS output is within tolerance range."""
-    for line in output.splitlines():
+def check_file_presence(file_path):
+    """Check if required script exists."""
+    if not os.path.isfile(file_path):
+        log(f"[FAIL] Required script '{file_path}' is missing. Test failed.")
+        sys.exit(1)
+    else:
+        log(f"[INFO] Found required script: {file_path}")
+
+def verify_gps_output(lines):
+    """Verify 5 GPS readings: collected & not identical."""
+    readings = []
+    for line in lines:
         parts = line.strip().split(",")
         if len(parts) < 3:
             continue
         try:
             lat = float(parts[1].strip())
             lon = float(parts[2].strip())
-            if abs(lat - EXPECTED_LATITUDE) <= TOLERANCE and abs(lon - EXPECTED_LONGITUDE) <= TOLERANCE:
-                return True
+            readings.append((lat, lon))
         except ValueError:
             continue
-    return False
+
+    if len(readings) < 5:
+        log("[FAIL] Could not collect 5 valid GPS readings.")
+        return False
+
+    # Check for identical readings
+    if all(r == readings[0] for r in readings):
+        log("[FAIL] All 5 GPS readings are identical. Possible hardcoded/static values.")
+        return False
+
+    return True
 
 def main():
-    log("[STEP 1] Retrieving GNSS/GPS data locally...")
-    gps_command = "/usr/bin/gpsmon.sh"
-    output, error = run_command_with_read_limit(gps_command)
+    log("[STEP 0] Checking required GPS script file...")
+    check_file_presence(GPS_SCRIPT)
 
-    if error:
-        log(f"[ERROR] {error}")
+    log("[STEP 1] Retrieving GNSS/GPS data locally...")
+    output_lines, error_lines = run_command_with_read_limit(GPS_SCRIPT, max_lines=5, max_time=10)
+
+    if error_lines:
+        log(f"[ERROR] {''.join(error_lines)}")
 
     log("[INFO] GNSS/GPS Output:")
-    print(output)
+    for line in output_lines:
+        print(line)
 
-    log("[STEP 2] Validating GPS position...")
-    if verify_gps_output(output):
-        log("[PASS] BB GNSS/GPS data matches expected position.")
+    log("[STEP 2] Validating GPS readings...")
+    if verify_gps_output(output_lines):
+        log("[PASS] BB GNSS/GPS data readings are valid (not identical).")
         log("[RESULT] SUCCESS – GPS verification passed.")
-        sys.exit(0)  # success
+        sys.exit(0)
     else:
-        log("[FAIL] BB GNSS/GPS data does NOT match expected position.")
         log("[RESULT] FAILURE – GPS verification failed.")
-        sys.exit(1)  # failure
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

@@ -74,6 +74,7 @@ RUN mkdir -p /opt/openwisp/media \
 # Make entrypoint executable BEFORE switching user
 RUN chmod +x /opt/openwisp/tests/docker-entrypoint.sh
 
+
 # Install the application in development mode to use local modules
 RUN pip install --no-cache-dir -e /opt/openwisp
 
