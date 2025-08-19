@@ -34,15 +34,17 @@ class SubnetFilter(SimpleInputFilter):
     title = _("subnet")
 
     def queryset(self, request, queryset):
-        if self.value() is not None:
-            master_subnet_key = (
-                "config__subnetdivisionindex__subnet__master_subnet__subnet"
-            )
-            return queryset.filter(
-                Q(**{master_subnet_key: self.value()})
-                | Q(config__subnetdivisionindex__subnet__subnet=self.value())
-            ).distinct()
-
+        try:
+            if self.value() is not None:
+                master_subnet_key = (
+                    "config__subnetdivisionindex__subnet__master_subnet__subnet"
+                )
+                return queryset.filter(
+                    Q(**{master_subnet_key: self.value()})
+                    | Q(config__subnetdivisionindex__subnet__subnet=self.value())
+                ).distinct()
+        except Exception as e:
+            print("exception occured filtering by subnet in devices",e)
 
 class DeviceFilter(SimpleInputFilter):
     """

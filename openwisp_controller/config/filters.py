@@ -7,7 +7,15 @@ from openwisp_users.multitenancy import MultitenantRelatedOrgFilter
 
 Config = load_model("config", "Config")
 
+from django.contrib.admin.filters import RelatedFieldListFilter
 
+class NoEmptyRelatedFieldListFilter(RelatedFieldListFilter):
+    def choices(self, changelist):
+        for choice in super().choices(changelist):
+            if choice['display'] == '-':
+                continue  # skip the "no group" option
+            yield choice
+            
 class TemplatesFilter(MultitenantRelatedOrgFilter):
     title = _("template")
     field_name = "templates"
@@ -15,7 +23,7 @@ class TemplatesFilter(MultitenantRelatedOrgFilter):
     rel_model = Config
 
 
-class GroupFilter(MultitenantRelatedOrgFilter):
+class GroupFilter(MultitenantRelatedOrgFilter, admin.SimpleListFilter):
     title = _("group")
     field_name = "group"
     parameter_name = "group_id"
