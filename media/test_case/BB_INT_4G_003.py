@@ -6,6 +6,7 @@ from datetime import datetime
 
 # === CONFIGURATION ===
 BB_AT_PORT = "/dev/ttyUSB3"
+BB_QMI_DEVICE = "/dev/cdc-wdm0"
 LOG_FILE = "BB_INT_4G_003_LOCK.log"
 
 # === EXIT CODES ===
@@ -24,13 +25,28 @@ def log(msg):
     with open(LOG_FILE, "a") as f:
         f.write(line + "\n")
 
+# === Local command execution ===
+def run_local_cmd(command):
+    log(f"Executing local command: {command}")
+    try:
+        output = subprocess.check_output(
+            command, shell=True, stderr=subprocess.STDOUT
+        ).decode().strip()
+        if output:
+            log(f"Output: {output}")
+        return output
+    except subprocess.CalledProcessError as e:
+        log(f"Error: {e.output.decode().strip()}")
+        return ""
+
 # === AT Command Execution ===
 def run_at_command(cmd):
     log(f"[CMD] {cmd}")
     try:
         full_cmd = f"echo -e '{cmd}\\r' | socat - {BB_AT_PORT},raw,echo=0,crnl"
-        log(f"Executing command: {full_cmd}")
-        output = subprocess.check_output(full_cmd, shell=True, stderr=subprocess.STDOUT, timeout=20).decode().strip()
+        output = subprocess.check_output(
+            full_cmd, shell=True, stderr=subprocess.STDOUT, timeout=20
+        ).decode().strip()
         log(f"[OUT] {output}")
         time.sleep(1)
         return output
@@ -71,15 +87,20 @@ def parse_cereg(output):
         return int(match.group(1))
     return None
 
-def parse_csurv_neighbors(output, current_earfcn, current_cellid, current_pci):
-    neighbors = []
-    for match in re.finditer(r"earfcn:\s*(\d+).*?cellId:\s*(\d+).*?phyCellId:\s*(\d+)", output, re.DOTALL):
-        earfcn = int(match.group(1))
-        cellid = int(match.group(2))
-        pci = int(match.group(3))
-        if earfcn != current_earfcn or cellid != current_cellid or pci != current_pci:
-            neighbors.append({"earfcn": earfcn, "cellid": cellid, "pci": pci})
-    return neighbors
+# === Ensure modem connection ===
+def ensure_modem_connected():
+    log("Checking modem connection status...")
+    status_out = run_local_cmd(f"uqmi -d {BB_QMI_DEVICE} --get-data-status")
+    if "disconnected" in status_out:
+        log("Modem disconnected. Bringing up interface...")
+        run_local_cmd("ifup Modem1")
+        time.sleep(15)
+        status_out = run_local_cmd(f"uqmi -d {BB_QMI_DEVICE} --get-data-status")
+        if "disconnected" in status_out:
+            log("Failed to connect modem.")
+            return False
+    log("Modem is connected.")
+    return True
 
 # === Main Script ===
 def main():
@@ -98,11 +119,15 @@ def main():
     else:
         log(f"Unknown SIM state: {sim_status}")
         sys.exit(EXIT_PRECONDITION_FAILED)
-    
-     # Step 2: PDP context
-    pdp_output = run_at_command("AT+CGDCONT?")
-    log("PDP Context Info:")
-    log(pdp_output or " No PDP context configured.")
+
+    # Step 2: Ensure modem is connected (loop until success)
+    while True:
+        if ensure_modem_connected():
+            log("Modem connection established successfully.")
+            break
+        else:
+            log("Retrying modem connection in 30 seconds...")
+            time.sleep(30)
 
     # Step 3: Packet domain attach
     cgatt_output = run_at_command("AT+CGATT?")
@@ -112,7 +137,7 @@ def main():
         log("Not attached to packet domain.")
         sys.exit(EXIT_PRECONDITION_FAILED)
 
-    # Step 3: Check 4G Registration
+    # Step 4: Check 4G Registration
     nw_status_output = run_at_command("AT+CEREG?")
     reg_status = parse_cereg(nw_status_output)
     if reg_status in [1, 5]:
@@ -121,7 +146,12 @@ def main():
         log(f"Not registered to 4G network. CEREG status: {reg_status}")
         sys.exit(EXIT_PRECONDITION_FAILED)
 
-    # Step 4: Check PCI Lock
+    # Step 5: PDP context
+    pdp_output = run_at_command("AT+CGCONTRDP")
+    log("PDP Context Info:")
+    log(pdp_output or " No PDP context configured.")
+
+    # Step 6: Check PCI Lock state
     bcchlock_status_output = run_at_command("AT#BCCHLOCK?")
     bcch_status = parse_bcchlock(bcchlock_status_output)
     if bcch_status:
@@ -134,7 +164,7 @@ def main():
         log("Could not parse BCCHLOCK response.")
         sys.exit(EXIT_PRECONDITION_FAILED)
 
-    # Step 4: Get current LTE cell
+    # Step 7: Get current LTE serving cell
     lteds_output = run_at_command("AT#LTEDS")
     current = parse_lteds(lteds_output)
     if not current:
@@ -143,68 +173,30 @@ def main():
 
     log(f"Current LTE: EARFCN={current['earfcn']}, CELLID={current['cellid']} (0x{current['cellid']:X}), PCI={current['pci']} (0x{current['pci']:X})")
 
-    # Step 5: Scan neighbors with retry
-    log("Scanning neighbors...")
-    neighbors = []
-    max_retries = 3
-    for attempt in range(1, max_retries + 1):
-        csurv_output = run_at_command("AT#CSURV")
-        time.sleep(30)
-        neighbors = parse_csurv_neighbors(csurv_output, current['earfcn'], current['cellid'], current['pci'])
-
-        if neighbors:
-            log(f"Found {len(neighbors)} neighbor cells on attempt {attempt}")
-            break
-        else:
-            log(f"No neighbor cells found on attempt {attempt}. Retrying in 10s...")
-            time.sleep(10)
-
-    if not neighbors:
-        log("No neighbor cells found after retries. Aborting.")
-        sys.exit(EXIT_CMDS_NON_RESPONSIVE)
-
-    # Step 6: Pick neighbor
-    chosen = next((n for n in neighbors if n['earfcn'] < current['earfcn'] or n['cellid'] < current['cellid']), None)
-    if not chosen:
-        log("No suitable neighbor found.")
-        sys.exit(EXIT_CMDS_NON_RESPONSIVE)
-
-    log(f"Chosen Neighbor: EARFCN={chosen['earfcn']}, CELLID={chosen['cellid']} (0x{chosen['cellid']:X}), PCI={chosen['pci']} (0x{chosen['pci']:X})")
-
-    # Step 7: Lock to chosen neighbor
-    bcch_cmd = f"AT#BCCHLOCK=1024,0,65535,{chosen['earfcn']},{chosen['pci']:X}"
+    # Step 8: Apply PCI Lock
+    bcch_cmd = f"AT#BCCHLOCK=1024,0,65535,{current['earfcn']},{current['pci']:X}"
     run_at_command(bcch_cmd)
 
-    # Step 8: Reboot BB
-    run_at_command("AT#ENHRST=1,0")
-    log("Rebooting... Waiting 90s")
-    time.sleep(90)
-
-    # Step 9: Confirm PCI Lock after reboot
+    # Step 9: Verify lock settings
     bcchlock_status_output = run_at_command("AT#BCCHLOCK?")
     bcch_status = parse_bcchlock(bcchlock_status_output)
-    if bcch_status and bcch_status["lock_enabled"]:
-        log(f"PCI Lock after reboot: EARFCN={bcch_status['earfcn']}, PCI={bcch_status['pci']} (0x{bcch_status['pci']:X})")
+    if bcch_status and bcch_status["lock_enabled"] and \
+       bcch_status["earfcn"] == current["earfcn"] and bcch_status["pci"] == current["pci"]:
+        log(f"PCI Lock successfully set: EARFCN={bcch_status['earfcn']}, PCI={bcch_status['pci']} (0x{bcch_status['pci']:X})")
     else:
-        log("PCI Lock not active after reboot.")
-
-    # Step 10: Final cell validation
-    lteds_output_post = run_at_command("AT#LTEDS")
-    locked = parse_lteds(lteds_output_post)
-    if locked and locked['earfcn'] == chosen['earfcn'] and locked['cellid'] == chosen['cellid'] and locked['pci'] == chosen['pci']:
-        log(f"Lock Verified: EARFCN={locked['earfcn']}, CELLID={locked['cellid']} (0x{locked['cellid']:X}), PCI={locked['pci']} (0x{locked['pci']:X})")
-        log(f"TEST PASSED!!!!!")
-        sys.exit(EXIT_SUCCESS)
-
-    else:
-        log("PCI Lock Mismatch after reboot.")
-        if locked:
-            log(f"Post-reboot LTE: EARFCN={locked['earfcn']}, CELLID={locked['cellid']}, PCI={locked['pci']}")
-        log("TEST FAILED!!!!!")
+        log("PCI Lock settings do not match after setting. TEST FAILED.")
         sys.exit(EXIT_FAILED)
 
-    log("4G PCI LOCK TEST COMPLETE.")
+    # Step 10: Final LTE serving cell check
+    lteds_output_post = run_at_command("AT#LTEDS")
+    locked = parse_lteds(lteds_output_post)
+    if locked and locked["earfcn"] == current["earfcn"] and locked["pci"] == current["pci"]:
+        log(f"Lock Verified on network: EARFCN={locked['earfcn']}, PCI={locked['pci']} (0x{locked['pci']:X})")
+        log("TEST PASSED !!!!")
+        sys.exit(EXIT_SUCCESS)
+    else:
+        log("Network serving cell does not match locked EARFCN/PCI.")
+        sys.exit(EXIT_FAILED)
 
 if __name__ == "__main__":
     main()
-

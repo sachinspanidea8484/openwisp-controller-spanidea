@@ -81,7 +81,8 @@ Pipfile.lock
 # docker-compose.yml
 
 # private
-media/allure_report/
+# media/allure_report/
+media/allure_report/**/*.html
 
 
-
+tests/openwisp2/celerybeat-schedule
