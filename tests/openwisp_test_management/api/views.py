@@ -3700,7 +3700,9 @@ def test_execution_history(request, execution_id):
                 else:
                     device_duration_formatted = f"{seconds}s"
 
-            openwisp_base_url = f"http://172.17.0.1:8000"
+            # openwisp_base_url = f"http://172.17.0.1:8000" # docker 
+            openwisp_base_url = f"http://54.234.248.241" # aws 
+
             has_allure_report = bool(device_exec.allure_report_path)    
             allure_report_full_path = f"{openwisp_base_url}/media/{device_exec.allure_report_path}"
 
