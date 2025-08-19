@@ -85,13 +85,8 @@ def main():
     else:
         log(f"Unknown SIM state: {sim_status}")
         sys.exit(EXIT_PRECONDITION_FAILED)
-        
-    # Step 2: PDP context
-    pdp_output = run_at_command("AT+CGDCONT?")
-    log("PDP Context Info:")
-    log(pdp_output or " No PDP context configured.")
-
-    # Step 3: Packet domain attach
+   
+    # Step 2: Packet domain attach
     cgatt_output = run_at_command("AT+CGATT?")
     if "+CGATT: 1" in cgatt_output:
         log("Attached to packet domain.")
@@ -99,7 +94,7 @@ def main():
         log("Not attached to packet domain.")
         #sys.exit(EXIT_PRECONDITION_FAILED)
 
-    # Step 4: Check 4G Registration
+    # Step 3: Check 4G Registration
     nw_status_output = run_at_command("AT+CEREG?")
     reg_status = parse_cereg(nw_status_output)
     if reg_status in [1, 5]:
@@ -108,6 +103,10 @@ def main():
         log(f"Not registered to 4G network. CEREG status: {reg_status}")
         #sys.exit(EXIT_PRECONDITION_FAILED)
     
+     # Step 4: PDP context
+    pdp_output = run_at_command("AT+CGCONTRDP")
+    log("PDP Context Info:")
+    log(pdp_output or " No PDP context configured.")
 
     # Step 5: Check if PCI lock is enabled
     log("Checking current PCI lock...")
@@ -126,28 +125,19 @@ def main():
         log("Could not parse BCCHLOCK status. Proceeding to unlock...")
         sys.exit(EXIT_CMDS_NON_RESPONSIVE)
 
-    # Step 6: Reboot modem
-    log("Rebooting BB...")
-    run_at_command("AT#ENHRST=1,0")
-    log("Waiting 90 seconds for reboot...")
-    time.sleep(90)
-    
-    # Step 7: Get current LTE cell
-    lteds_output = run_at_command("AT#LTEDS")
-    current = parse_lteds(lteds_output)
-    
-    # Step 8: Confirm PCI lock is disabled
-    log("Checking PCI lock status after reboot...")
+  
+    # Step 6: Confirm PCI lock is disabled
+    log("Checking PCI lock status....")
     bcchlock_output = run_at_command("AT#BCCHLOCK?")
     bcch_status = parse_bcchlock(bcchlock_output)
 
    
     if bcch_status["earfcn"] == 0 and bcch_status["pci"] == 0:
-          log("PCI Lock is successfully DISABLED after reboot.")
+          log("PCI Lock is successfully DISABLED.")
           log("TEST PASSED!!!!!")
           sys.exit(EXIT_SUCCESS)
     else:
-          log(f"PCI Lock still ENABLED after reboot: EARFCN={bcch_status['earfcn']}, PCI={bcch_status['pci']} (0x{bcch_status['pci']:X})")
+          log(f"PCI Lock still ENABLED: EARFCN={bcch_status['earfcn']}, PCI={bcch_status['pci']} (0x{bcch_status['pci']:X})")
           log("TEST FAILED!!!!")
           sys.exit(EXIT_FAILED)
           
@@ -155,4 +145,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

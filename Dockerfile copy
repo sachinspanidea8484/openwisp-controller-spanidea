@@ -55,7 +55,6 @@ RUN pip install --no-cache-dir sendsms==0.2.0 django-sendsms==0.5 twilio==6.63.2
 COPY --chown=openwisp:openwisp . /opt/openwisp/
 
 # Create necessary directories with proper permissions INCLUDING logs
-# Create necessary directories with proper permissions INCLUDING logs
 RUN mkdir -p /opt/openwisp/media \
     /opt/openwisp/private/firmware \
     /opt/openwisp/static_collected \
@@ -71,22 +70,25 @@ RUN mkdir -p /opt/openwisp/media \
     /opt/openwisp/static_collected \
     /opt/openwisp/logs
 
+# Ensure the local modules are in Python path
+ENV PYTHONPATH=/opt/openwisp:$PYTHONPATH
+
+
+# Copy entire project including local modules
+COPY --chown=openwisp:openwisp . /opt/openwisp/
+
 # Make entrypoint executable BEFORE switching user
 RUN chmod +x /opt/openwisp/tests/docker-entrypoint.sh
 
 # Install the application in development mode to use local modules
 RUN pip install --no-cache-dir -e /opt/openwisp
 
-# Fix: Ensure proper ownership after pip install
-RUN chown -R openwisp:openwisp /opt/openwisp
-
-# Ensure the local modules are in Python path
-ENV PYTHONPATH=/opt/openwisp:$PYTHONPATH
-
 # Switch to non-root user
 USER openwisp
 
 WORKDIR /opt/openwisp/tests/
+
+
 
 ENV NAME=openwisp-controller \
     PYTHONUNBUFFERED=1 \
