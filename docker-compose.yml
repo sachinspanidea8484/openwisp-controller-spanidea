@@ -38,6 +38,7 @@ services:
 
     # No ports needed for worker
     volumes:
+
       - ./:/opt/openwisp  # Share the same code volume if needed
       - ./logs:/opt/openwisp/logs
       # Add firmware and media volumes (in case beat tasks need access)
