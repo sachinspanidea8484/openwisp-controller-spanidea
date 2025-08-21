@@ -118,7 +118,7 @@
         
         availableDevices.forEach(function(device) {
             // Don't show already selected devices
-            if (!selectedDevices.has(String(device.id))) {
+            if (!selectedDevices.has(String(device.id)) && device.status!=="Deactivated") {
                 dropdown.append(`
                     <option value="${device.id}">
                         ${device.name} (${device.organization}) - ${device.status}
@@ -206,7 +206,9 @@
 
       if (window.recoveredDevices && window.recoveredDevices.length > 0) {
         window.recoveredDevices.forEach((device) => {
-          selectedDevices.set(String(device.id), device);
+            if(device.status!== "Deactivated"){
+                selectedDevices.set(String(device.id), device);
+            }
         });
 
         // Sync UI after preload
@@ -220,10 +222,10 @@
     $('#add-device-btn').on('click', function() {
         const deviceId = $('#device-dropdown').val();
         
-        if (!deviceId) {
-            alert('Please select a device first');
-            return;
-        }
+        // if (!deviceId) {
+        //     alert('Please select a device first');
+        //     return;
+        // }
         
         // Find device in available devices
         const device = availableDevices.find(d => String(d.id) === String(deviceId));
@@ -260,13 +262,15 @@
                 <div class="selected-device-item" data-device-id="${deviceId}">
                     <div class="device-info">
                         <div class="device-name">${device.name}</div>
-                        <div class="device-details">${device.organization} - ${device.last_ip} - ${device.status}</div>
+                        <div class="device-details">${device.organization} - ${device.management_ip} - ${device.status}</div>
                     </div>
                     <button type="button" class="remove-device-btn" data-device-id="${deviceId}">Remove</button>
                 </div>
             `);
+            if(device?.status!=="Deactivated"){
+                container.append(deviceItem);
+            }
             
-            container.append(deviceItem);
         });
     }
     
@@ -319,18 +323,18 @@
         updateHiddenInput();
         
         // Validate test suite selection
-        if (!$('#id_test_suite').val()) {
-            alert('Please select a test group');
-            e.preventDefault();
-            return false;
-        }
+        // if (!$('#id_test_suite').val()) {
+        //     alert('Please select a test group');
+        //     e.preventDefault();
+        //     return false;
+        // }
         
         // Validate device selection
-        if (selectedDevices.size === 0) {
-            alert('Please select at least one device');
-            e.preventDefault();
-            return false;
-        }
+        // if (selectedDevices.size === 0) {
+        //     alert('Please select at least one device');
+        //     e.preventDefault();
+        //     return false;
+        // }
         
         console.log('Form submitted with devices:', Array.from(selectedDevices.keys()));
     });

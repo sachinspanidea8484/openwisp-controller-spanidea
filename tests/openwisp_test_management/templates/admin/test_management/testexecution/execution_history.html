@@ -372,6 +372,23 @@
     .breadcrumbs {
         margin-bottom: 20px;
     }
+
+    .refresh-btn {
+    background: black;
+    color: white;
+    border: none;
+    padding: 6px 6px;
+    border-radius: 5px;  
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
 </style>
 {% endblock %}
 
@@ -392,6 +409,18 @@
         <p>{% trans 'Loading execution history...' %}</p>
     </div>
 
+    <div style="display : flex; justify-content: end; margin-bottom: 10px;">
+        <button onclick="location.reload()" class="refresh-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" 
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" 
+                width="18" height="18">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                    d="M4 4v6h6M20 20v-6h-6M5.64 18.36A9 9 0 1118.36 5.64
+                        9 9 0 015.64 18.36z"/>
+            </svg>
+            
+        </button>
+    </div>
     <!-- Main Content -->
     <div id="main-content-1">
         <!-- Execution Summary Module -->

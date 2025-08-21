@@ -86,4 +86,26 @@
       }, 3000);
     }
   });
+  document.addEventListener("DOMContentLoaded", function () {
+    const testTypeField = document.querySelector("#id_test_type");
+    const helpText = testTypeField.closest(".form-row").querySelector(".help");
+    function updateHelpText() {
+      if (testTypeField.value === "2") {
+        helpText.textContent = "Runs tests using Device Agent.";
+      } else if (testTypeField.value === "1") {
+        helpText.textContent = "Runs tests using Robot Framework.";
+      } else {
+        helpText.textContent = "Select the type of testshahshs.";
+      }
+    }
+
+    // On page load
+    updateHelpText();
+
+    // On change
+    testTypeField.addEventListener("change", updateHelpText);
+  });
 })(django.jQuery || jQuery || $); // Try multiple jQuery sources
+
+
+

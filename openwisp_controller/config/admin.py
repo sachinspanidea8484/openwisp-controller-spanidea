@@ -43,7 +43,7 @@ from ..admin import MultitenantAdminMixin
 from . import settings as app_settings
 from .base.vpn import AbstractVpn
 from .exportable import DeviceResource
-from .filters import DeviceGroupFilter, GroupFilter, TemplatesFilter
+from .filters import DeviceGroupFilter, GroupFilter, TemplatesFilter, NoEmptyRelatedFieldListFilter
 from .utils import send_file
 from .widgets import DeviceGroupJsonSchemaWidget, JsonSchemaWidget
 
@@ -106,7 +106,7 @@ class DeactivatedDeviceReadOnlyMixin(object):
 class BaseConfigAdmin(BaseAdmin):
     change_form_template = "admin/config/change_form.html"
     preview_template = None
-    actions_on_bottom = True
+    actions_on_bottom = False
     save_on_top = True
     ordering = ["name"]
 
@@ -508,7 +508,8 @@ class DeviceAdmin(MultitenantAdminMixin, BaseConfigAdmin, UUIDAdmin):
         "config__status",
         MultitenantOrgFilter,
         TemplatesFilter,
-        GroupFilter,
+        ("group", NoEmptyRelatedFieldListFilter),
+        # GroupFilter,
         "created",
     ]
     search_fields = [

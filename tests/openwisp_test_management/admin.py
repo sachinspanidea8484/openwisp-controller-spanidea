@@ -1366,6 +1366,16 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             print("devices_query>>>>>>>>>>>>",devices_query)
             devices_data = []
             for device in devices_query:
+
+                device_status = 'Offline'
+                is_deactivated = getattr(device, '_is_deactivated', False)
+                
+                if is_deactivated:
+                    device_status = 'Deactivated'
+                elif getattr(device, 'last_ip', None) and getattr(device, 'management_ip', None):
+                    device_status = 'Online'
+                elif getattr(device, 'last_ip', None):
+                    device_status = 'Reachable'
                 devices_data.append({
                     'id': str(device.id),
                     'name': device.name,
@@ -1374,7 +1384,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     'last_ip': getattr(device, 'last_ip', None) or 'N/A',
                     'management_ip': getattr(device, 'management_ip', None) or 'N/A',
                     'mac_address': getattr(device, 'mac_address', None) or 'N/A',
-                    'status': 'Online' if getattr(device, 'last_ip', None) else 'Offline',
+                    'status': device_status,
                     'connection_status': 'Unknown',  # you can expand this to match get_available_devices
                     'has_connection': False,          # or compute properly like in API
                     'is_active': True,

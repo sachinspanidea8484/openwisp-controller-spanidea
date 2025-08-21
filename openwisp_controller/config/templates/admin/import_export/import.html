@@ -1,7 +1,42 @@
 {% extends "admin/import_export/import.html" %}
-{% load static %}
+{% load i18n static %}
 
 {% block extrastyle %}
 {{ block.super }}
 <link rel="stylesheet" type="text/css" href="{% static 'import_export/import-openwisp.css' %}" />
+{% endblock %}
+
+{% block preview %}
+<h2>{% trans "Preview" %}</h2>
+
+<div class="import-preview-wrapper">
+  <table class="import-preview">
+    <thead>
+      <tr>
+        <th></th>
+        {% for field in result.diff_headers %}
+          <th>{{ field }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    {% for row in result.valid_rows %}
+      <tr class="{{ row.import_type }}">
+        <td class="import-type">
+          {% if row.import_type == 'new' %}
+            {% translate "New" %}
+          {% elif row.import_type == 'skip' %}
+            {% translate "Skipped" %}
+          {% elif row.import_type == 'delete' %}
+            {% translate "Delete" %}
+          {% elif row.import_type == 'update' %}
+            {% translate "Update" %}
+          {% endif %}
+        </td>
+        {% for field in row.diff %}
+          <td>{{ field }}</td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+  </table>
+</div>
 {% endblock %}
