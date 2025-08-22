@@ -366,7 +366,7 @@ class TestSuiteExecutionSerializer(ValidatedModelSerializer):
         help_text=_("List of device IDs to execute the test suite on")
     )
     device_count = serializers.IntegerField(read_only=True)
-    status_summary = serializers.SerializerMethodField()
+    # status_summary = serializers.SerializerMethodField()
     
     class Meta(BaseMeta):
         model = TestSuiteExecution
@@ -378,19 +378,19 @@ class TestSuiteExecutionSerializer(ValidatedModelSerializer):
             "device_ids",
             "device_count",
             "is_executed",
-            "status_summary",
+            # "status_summary",
             "created",
             "modified",
         ]
         read_only_fields = BaseMeta.read_only_fields + [
             "is_executed",
             "device_count",
-            "status_summary",
+            # "status_summary",
         ]
     
-    def get_status_summary(self, obj):
-        """Return status summary"""
-        return obj.status_summary
+    # def get_status_summary(self, obj):
+    #     """Return status summary"""
+    #     return obj.status_summary
     
     def validate_device_ids(self, value):
         """Validate device IDs have working SSH connections"""
@@ -447,14 +447,14 @@ class TestSuiteExecutionListSerializer(TestSuiteExecutionSerializer):
             "test_suite",
             "test_suite_name",
             "device_count",
-            "is_executed",
-            "status_summary",
+            # "is_executed",
+            # "status_summary",
             "created",
         ]
         read_only_fields = BaseMeta.read_only_fields + [
             "is_executed",
             "device_count",
-            "status_summary",
+            # "status_summary",
             "test_suite_name",
         ]
 

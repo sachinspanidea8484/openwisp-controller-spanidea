@@ -411,6 +411,12 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
     Abstract model for Test Suite Executions
     Tracks execution of a test suite on multiple devices
     """
+    # Device selection choices
+    DEVICE_SELECTION_CHOICES = (
+        (0, _('Single Device Selection')),
+        (1, _('Device Group Selection')),
+    )
+    
     test_suite = models.ForeignKey(
         'test_management.TestSuite',
         on_delete=models.PROTECT,
@@ -423,90 +429,179 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         default=False,
         help_text=_("Whether the execution has completed")
     )
+
+    # NEW FIELDS
+    device_count = models.PositiveIntegerField(
+        _("device count"),
+        default=0,
+        help_text=_("Number of devices in this execution")
+    )
     
+    testcase_count = models.PositiveIntegerField(
+        _("test case count"),
+        default=0,
+        help_text=_("Number of test cases in this execution")
+    )
+
+    device_selection = models.IntegerField(
+        _("device selection type"),
+        choices=DEVICE_SELECTION_CHOICES,
+        default=0,
+        help_text=_("Type of device selection: Single or Device Group")
+    )
+
+    device_group = models.ForeignKey(
+        'test_management.TestDeviceGroup',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='test_executions',
+        verbose_name=_("device group"),
+        help_text=_("Device group for execution (required if device selection is 'Device Group')")
+    )
+
     class Meta:
         abstract = True
         verbose_name = _("Test Group Execution")
         verbose_name_plural = _("Test Executions")
         ordering = ["-created"]
-    
-    def __str__(self):
-        return f"{self.test_suite.name} - {self.created.strftime('%Y-%m-%d %H:%M')}"
-    
-    @property
-    def device_count(self):
-        """Return count of devices in this execution"""
-        from ..swapper import load_model
-        TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
-        return TestSuiteExecutionDevice.objects.filter(test_suite_execution=self).count()
-    
-    @property
-    def status_summary(self):
-     """Return summary of execution status"""
+
+    def clean(self):
+        """Validate the test suite execution"""
+        super().clean()
+
+        # Validate device group requirement
+        if self.device_selection == 1 and not self.device_group_id:
+            raise ValidationError({
+                "device_group": _("Device group is required when device selection type is 'Device Group'")
+            })
+
+        # Ensure device group belongs to same organization
+        if self.device_group and hasattr(self, 'test_suite') and hasattr(self.test_suite, 'organization'):
+            if self.device_group.organization_id != self.test_suite.organization_id:
+                raise ValidationError({
+                    "device_group": _("Device group must belong to the same organization")
+                })
+
+    def save(self, *args, **kwargs):
+     is_new = self.pk is None  # check if new execution
+      
+     # Pre-calc testcase count from suite
+     if self.test_suite_id:
+          self.testcase_count = self.test_suite.test_case_count
+
+     self.full_clean()
+     super().save(*args, **kwargs)
+
      from ..swapper import load_model
      TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
-    
-     devices = TestSuiteExecutionDevice.objects.filter(test_suite_execution=self)
-     total = devices.count()
-    
-    # Always return a dictionary, not a string
-     if total == 0:
-        return {
-            'total': 0,
-            'completed': 0,
-            'failed': 0,
-            'pending': 0,
-            'running': 0,
-            'has_devices': False
-        }
-    
-     completed = devices.filter(status='completed').count()
-     failed = devices.filter(status='failed').count()
-     pending = devices.filter(status='pending').count()
-     running = devices.filter(status='running').count()
-    
-     return {
-        'total': total,
-        'completed': completed,
-        'failed': failed,
-        'pending': pending,
-        'running': running,
-        'has_devices': True
-    }
+     TestCaseExecution = load_model("TestCaseExecution")
+
+
+  
+
+
+     # ⚡ Only run auto-population for new executions with device group
+     if is_new and self.device_selection == 1 and self.device_group_id:
+          for group_device in self.device_group.devices.select_related("device"):
+               device = group_device.device
+
+               # Create TestSuiteExecutionDevice
+               execution_device, _ = TestSuiteExecutionDevice.objects.get_or_create(
+                    test_suite_execution=self,
+                    device=device,
+                    defaults={"status": "pending"}
+               )
+
+               # Create TestCaseExecution per TestCase per Device
+               order = 1
+               for tcase in self.test_suite.test_cases.all():
+                    TestCaseExecution.objects.get_or_create(
+                         test_suite_execution=self,
+                         device=device,
+                         test_case=tcase,
+                         defaults={
+                              "execution_order": order,
+                              "status": "pending"
+                         }
+                    )
+                    order += 1
+
+     # 🔄 Update device_count ALWAYS (single or group)
+     self.device_count = TestSuiteExecutionDevice.objects.filter(
+          test_suite_execution=self
+     ).count()
+
+     print(">>>>>>>>>>>>>>>>>>11111111111111",self.device_selection)
+     print(">>>>>>>>>>>>>>>>>>22222222222222",self)
+     print(">>>>>>>>>>>>>>>>>>22222222222222",self.device_count)
+
+     
+     # Save again only updating counts to persist them
+     super().save(update_fields=["device_count", "testcase_count"])
+
+
+    def execute_tests(self):
+        print("⚡ EXECUTING tests for:", self.pk)
+        # Example async call:
+        # from .tasks import run_testsuite_task
+        # run_testsuite_task.delay(self.pk)
+        self.is_executed = True
+        self.save(update_fields=["is_executed"])
+        
 
     @property
-    def execution_time(self):
-        """Calculate total execution time"""
+    def status(self):
+        """
+        Dynamic status based on execution state
+        0 = CREATED (not executed)
+        1 = EXECUTION PROGRESS (started but in progress)
+        2 = PARTIALLY COMPLETED (mix of done + running/pending)
+        3 = COMPLETED (all success/failed)
+        """
+        if not self.is_executed:
+            return 0  # CREATED
+
         from ..swapper import load_model
-        TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+        TestCaseExecution = load_model("TestCaseExecution")
+
+        executions = TestCaseExecution.objects.filter(test_suite_execution=self)
+        if not executions.exists():
+            return 1  # EXECUTION PROGRESS but no tests yet
+
+        total = executions.count()
+        completed_statuses = [TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED]
+        incomplete_statuses = [
+            TestExecutionStatus.PENDING,
+            TestExecutionStatus.RUNNING,
+            TestExecutionStatus.TIMEOUT,
+            TestExecutionStatus.CANCELLED,
+        ]
+
+        completed_count = executions.filter(status__in=completed_statuses).count()
+        incomplete_count = executions.filter(status__in=incomplete_statuses).count()
+
+        if completed_count == total:
+            return 3  # COMPLETED
+        elif completed_count > 0 and incomplete_count > 0:
+            return 2  # PARTIALLY COMPLETED
+        else:
+            return 1  # EXECUTION PROGRESS
         
-        devices = TestSuiteExecutionDevice.objects.filter(
-            test_suite_execution=self
-        ).exclude(
-            started_at__isnull=True
-        )
-        
-        if not devices.exists():
-            return None
-        
-        # Get earliest start time and latest completion time
-        start_time = devices.aggregate(
-            min_start=models.Min('started_at')
-        )['min_start']
-        
-        end_time = devices.filter(
-            completed_at__isnull=False
-        ).aggregate(
-            max_end=models.Max('completed_at')
-        )['max_end']
-        
-        if start_time and end_time:
-            duration = end_time - start_time
-            return duration
-        
-        return None
+    @property
+    def status_display(self):
+        """Human-readable label for execution status"""
+        status_map = {
+            0: _("CREATED"),
+            1: _("EXECUTION PROGRESS"),
+            2: _("PARTIALLY COMPLETED"),
+            3: _("COMPLETED"),
+        }
+        return status_map.get(self.status, _("UNKNOWN"))
 
 
+
+        
 class AbstractTestSuiteExecutionDevices(TimeStampedEditableModel):
     """
     Abstract model for Test Suite Execution Devices

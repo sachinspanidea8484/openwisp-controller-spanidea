@@ -19,10 +19,20 @@
     }
     
     const csrftoken = getCookie('csrftoken');
+
+    
     
     // Store available devices and selected devices
     let availableDevices = [];
     let selectedDevices = new Map(); // Map of device_id -> device_data
+
+
+
+
+
+
+
+    
     
     // Create test cases display section
     function createTestCasesDisplay() {

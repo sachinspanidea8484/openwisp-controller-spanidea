@@ -118,22 +118,23 @@ class TestSuiteActiveFilter(admin.SimpleListFilter):
 # Add this new filter class at the top with other filters
 class TestExecutionStatusFilter(admin.SimpleListFilter):
     title = _('execution status')
-    parameter_name = 'is_executed'
+    parameter_name = 'status'
     
     def lookups(self, request, model_admin):
         return (
-            ('true', _('Executed')),
-            ('false', _('Pending')),
+            ('0', _('Created')),
+            ('1', _('Execution in Progress')),
+            ('2', _('Partially Completed')),
+            ('3', _('Completed')),
         )
     
     def queryset(self, request, queryset):
-        if self.value() == 'true':
-            return queryset.filter(is_executed=True)
-        elif self.value() == 'false':
-            return queryset.filter(is_executed=False)
+        value = self.value()
+        if value is not None:
+            # Iterate queryset and filter based on status property
+            ids = [obj.id for obj in queryset if str(obj.status) == value]
+            return queryset.filter(id__in=ids)
         return queryset
-
-
 
 
 
