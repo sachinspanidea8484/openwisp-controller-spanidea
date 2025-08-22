@@ -1138,7 +1138,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
           print("=== Save and Execute button PRESSED ===")
           obj.execute_tests()
           self.message_user(request, "Execution started ✅")
-          return redirect(".")
+        #   return redirect(".")
 
      return super().response_change(request, obj)
 
