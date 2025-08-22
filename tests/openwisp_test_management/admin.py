@@ -1460,6 +1460,28 @@ class TestDeviceGroupAdminForm(forms.ModelForm):
             raise forms.ValidationError(_("Description cannot exceed 500 characters"))
         return description
     
+    def clean(self):
+        cleaned_data = super().clean()
+        
+        selected_devices_data = self.data.get('selected_devices_data', '')
+
+        selected_count = 0
+        if selected_devices_data:
+            try:
+                selected_ids = json.loads(selected_devices_data)
+                selected_count = len([id for id in selected_ids if id])
+            except json.JSONDecodeError:
+                raise forms.ValidationError({
+                    '__all__': _('Invalid test Device selection data. Please try again.')
+                })
+
+        if selected_count == 0:
+            raise forms.ValidationError({
+                '__all__': _('At least one test Device must be selected for this Device group.')
+            })
+
+        return cleaned_data
+    
     def save(self, commit=True):
         instance = super().save(commit=False)
         
@@ -1506,7 +1528,7 @@ class TestDeviceGroupAdminForm(forms.ModelForm):
 
 # Admin Classes
 @admin.register(TestDeviceGroup)
-class TestDeviceGroupAdmin(BaseAdmin):
+class TestDeviceGroupAdmin(BaseVersionAdmin):
     form = TestDeviceGroupAdminForm
     change_form_template = 'admin/test_management/testdevicegroup/change_form.html'
     
@@ -1675,11 +1697,11 @@ class TestDeviceGroupAdmin(BaseAdmin):
                             logger.error(f"Error adding device: {e}")
                 
                 # Show appropriate message
-                if success_count > 0:
-                    messages.success(
-                        request,
-                        f"Device group saved with {success_count} device(s)."
-                    )
+                # if success_count > 0:
+                    # messages.success(
+                    #     request,
+                    #     f"Device group saved with {success_count} device(s)."
+                    # )
                 
                 if error_count > 0:
                     messages.warning(
@@ -1700,15 +1722,15 @@ class TestDeviceGroupAdmin(BaseAdmin):
         # Relationships will be cascade deleted automatically
         count = queryset.count()
         queryset.delete()
-        self.message_user(
-            request,
-            ngettext(
-                                "Successfully deleted %d device group.",
-                "Successfully deleted %d device groups.",
-                count
-            ) % count,
-            messages.SUCCESS
-        )
+        # self.message_user(
+        #     request,
+        #     ngettext(
+        #         "Successfully deleted %d device group.",
+        #         "Successfully deleted %d device groups.",
+        #         count
+        #     ) % count,
+        #     messages.SUCCESS
+        # )
     
     def changelist_view(self, request, extra_context=None):
         """Override to add custom title"""
@@ -1769,6 +1791,55 @@ class TestDeviceGroupAdmin(BaseAdmin):
             logger.error(f"Error fetching organization devices: {e}")
             return JsonResponse({'error': str(e)}, status=500)
 
+    def recover_view(self, request, version_id, extra_context=None):
+        extra_context = extra_context or {}
+        # extra_context["categories"] = list(TestCategory.objects.values("id", "name"))
+        version = self._get_version_object(version_id)
+
+        if version:
+            execution_obj = version._object_version.object
+            
+            # Now get related devices (live DB, not historical)
+            related_versions = version.revision.version_set.filter(
+            content_type__model="testdevicegroupdevice"
+            )
+
+            recovered_device_ids = [str(v._object_version.object.device_id) for v in related_versions]
+
+            # 🔹 Re-use logic from get_available_devices
+            devices_query = Device.objects.filter(id__in=recovered_device_ids).select_related("organization")
+            devices_data = []
+            for device in devices_query:
+                is_deactivated = getattr(device, '_is_deactivated', False)
+                
+                devices_data.append({
+                    'id': str(device.id),
+                    'name': device.name,
+                    'mac_address': getattr(device, 'mac_address', None) or 'N/A',
+                    'last_ip': getattr(device, 'last_ip', None) or 'N/A',
+                    'model': getattr(device, 'model', None) or 'Unknown',
+                    'management_ip': getattr(device, 'management_ip', None) or 'N/A',
+                    'is_active': not is_deactivated,
+                })
+            
+            extra_context['recovered_devices_for_group'] = json.dumps(devices_data)
+
+      
+        extra_context['show_device_group_devices']= True
+
+        return super().recover_view(request, version_id, extra_context=extra_context)
+    
+    def _get_version_object(self, version_id):
+        """
+        Utility to fetch the Version object for the given version_id.
+        This avoids duplicating queryset logic from reversion's internal code.
+        """
+        from reversion.models import Version
+        try:
+            return Version.objects.get(pk=version_id)
+        except Version.DoesNotExist:
+            return None
+
 
 # Inline admin for viewing devices in a group (optional)
 class TestDeviceGroupDeviceInline(admin.TabularInline):
@@ -1801,25 +1872,6 @@ class TestDeviceGroupDeviceInline(admin.TabularInline):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Register models with reversion for history tracking
 if not reversion.is_registered(TestCategory):
     reversion.register(TestCategory)
@@ -1839,8 +1891,13 @@ if not reversion.is_registered(TestSuiteExecution):
     reversion.register(TestSuiteExecution)
 
 
-# if not reversion.is_registered(TestDeviceGroupAdmin):
-#     reversion.register(TestDeviceGroupAdmin)
+if not reversion.is_registered(TestDeviceGroup):
+    reversion.register(TestDeviceGroup)
+
+
+
+if not reversion.is_registered(TestDeviceGroupDevice):
+    reversion.register(TestDeviceGroupDevice)
 
 
 

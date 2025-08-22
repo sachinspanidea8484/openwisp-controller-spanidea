@@ -4,7 +4,13 @@
     let allDevices = [];
     let selectedDeviceIds = new Set();
     let organizationDevices = [];
-    
+    $(document).ready(function () {
+      if (window.recoveredDevicesForGroups && window.recoveredDevicesForGroups.length > 0) {
+        window.recoveredDevicesForGroups.forEach((device) => {
+            selectedDeviceIds.add(device.id);
+        });
+      }
+    });
     function initializeDeviceSelection() {
         // Load existing selected devices
         const existingData = document.getElementById('existing-devices-data');
@@ -25,7 +31,11 @@
         // Watch for organization changes
         const orgField = document.getElementById('id_organization');
         if (orgField) {
-            orgField.addEventListener('change', handleOrganizationChange);
+            $(document).on(
+              "change",
+              "#id_organization",
+              handleOrganizationChange
+            );
             // Load devices if organization is already selected
             if (orgField.value) {
                 loadOrganizationDevices(orgField.value);

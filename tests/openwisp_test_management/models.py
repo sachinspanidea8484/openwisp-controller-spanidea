@@ -84,7 +84,7 @@ class TestCaseExecution(AbstractTestCaseExecution):
 
 
 
-
+@reversion.register(follow=["devices"])
 class TestDeviceGroup(AbstractTestDeviceGroup):
     """
     Concrete model for Test Device Groups
@@ -93,7 +93,7 @@ class TestDeviceGroup(AbstractTestDeviceGroup):
         abstract = False
         swappable = swappable_setting("test_management", "TestDeviceGroup")
 
-
+@reversion.register()
 class TestDeviceGroupDevice(AbstractTestDeviceGroupDevice):
     """
     Concrete model for Test Device Group Devices
