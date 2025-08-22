@@ -10,6 +10,7 @@ import requests
 import os
 
 
+
 # LOG_FILE_PATH = "/var/log/openwisp/openwisp_test_management.log"
 LOG_FILE_PATH = "/opt/openwisp/logs/openwisp_test_management.log"
 

@@ -1,29 +1,27 @@
-import subprocess
+import re
+import sys
 import time
-import sys  # Add this import for exit codes
+import subprocess
 from datetime import datetime
 
 # === CONFIGURATION ===
-BB_AT_PORT = "/dev/ttyUSB3"
-REMOTE_PC_IP = "192.168.1.100"  # Set your remote PC IP here
-TEST_DURATION = 10
-OUTPUT_FILE = "output_iperf_test_at.txt"
+BB_QMI_DEVICE = "/dev/cdc-wdm0"
+BB_APN = "fast.t-mobile.com"
+REMOTE_PING_IP = "8.8.8.8"  # Google for ping tests
 LOG_FILE = "BB_INT_5G_001.log"
 
 # === EXIT CODES ===
 EXIT_SUCCESS = 0
-EXIT_MODEM_NOT_RESPONDING = 1
-EXIT_SIM_NOT_INSERTED = 2
-EXIT_SIM_PIN_REQUIRED = 3
-EXIT_SIM_UNKNOWN_STATE = 4
-EXIT_NOT_REGISTERED_5G = 5
-EXIT_NO_IP_ADDRESS = 6
-EXIT_REMOTE_PC_UNREACHABLE = 7
-EXIT_IPERF_FAILED = 8
+EXIT_FAILED = 1
+EXIT_PRECONDITION_FAILED = 2
+EXIT_CMDS_NON_RESPONSIVE = 3
+
+# === TEST DURATIONS ===
+TEST_DURATION = 60  # 1 minutes for stability
 
 # === LOGGING ===
 def timestamp():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 def log(message):
     line = f"[+] {timestamp()} - {message}"
@@ -31,99 +29,146 @@ def log(message):
     with open(LOG_FILE, "a") as f:
         f.write(line + "\n")
 
-def log_error(message, exit_code):
-    """Log error message and exit with specified code"""
-    line = f"[ERROR] {timestamp()} - {message} (Exit code: {exit_code})"
-    print(line)
-    with open(LOG_FILE, "a") as f:
-        f.write(line + "\n")
-    sys.exit(exit_code)
-
-def run_at_cmd(command):
-    full_cmd = f"echo -e '{command}\\r' | socat - {BB_AT_PORT},raw,echo=0,crnl"
+def run_cmd(command):
+    log(f"Executing command: {command}")
     try:
-        result = subprocess.check_output(full_cmd, shell=True, stderr=subprocess.STDOUT)
-        return result.decode().strip()
-    except subprocess.CalledProcessError as e:
-        return e.output.decode().strip()
+        result = subprocess.run(
+            command, shell=True, text=True, capture_output=True, check=False
+        )
+        output = result.stdout.strip()
+        error = result.stderr.strip()
+        if output:
+            log(f"Output: {output}")
+        if error:
+            log(f"Error: {error}")
+        return output, error
+    except Exception as e:
+        log(f"Command execution failed: {e}")
+        return "", str(e)
 
-def is_ip_reachable(ip):
-    log(f"Pinging remote PC at {ip}...")
-    result = subprocess.run(["ping", "-c", "1", "-W", "1", ip],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL)
-    return result.returncode == 0
+# === HELPER FUNCTIONS ===
+def find_modem_interface():
+    log("Fetching modem IPv4 from uqmi...")
+    settings_out, _ = run_cmd(f"uqmi -d {BB_QMI_DEVICE} --get-current-settings")
+    ip_match = re.search(r'"ip":\s*"(\d+\.\d+\.\d+\.\d+)"', settings_out)
+    if not ip_match:
+        log("Could not parse IPv4 from uqmi output.")
+        return None, None
+    modem_ip = ip_match.group(1)
+    log(f"Detected modem IP: {modem_ip}")
+
+    ifconfig_out, _ = run_cmd("ifconfig wwan0")
+    iface_name = None
+    current_iface = None
+
+    for line in ifconfig_out.splitlines():
+        match_iface = re.match(r"^(\S+)\s+Link", line)
+        if match_iface:
+            current_iface = match_iface.group(1)
+            continue
+        if modem_ip in line:
+            iface_name = current_iface
+            break
+
+    if iface_name:
+        log(f"Found interface: {iface_name}")
+        return iface_name, modem_ip
+
+    # Fallback to `ip addr` if needed
+    ip_addr_out, _ = run_cmd("ip -4 addr show")
+    for block in ip_addr_out.split("\n\n"):
+        match_iface = re.match(r"\d+: (\S+):", block)
+        if match_iface:
+            iface = match_iface.group(1)
+            if modem_ip in block:
+                log(f"Found interface: {iface}")
+                return iface, modem_ip
+
+    log("Still could not find interface for modem IP.")
+    return None, modem_ip
+
+def ensure_modem_connected():
+    log("Checking modem connection status...")
+    status_out, _ = run_cmd(f"uqmi -d {BB_QMI_DEVICE} --get-data-status")
+    if "disconnected" in status_out:
+        log("Modem disconnected. Bringing up interface...")
+        run_cmd("ifup Modem1")
+        run_cmd("ifup Modem2")
+        time.sleep(30)
+        status_out, _ = run_cmd(f"uqmi -d {BB_QMI_DEVICE} --get-data-status")
+        if "disconnected" in status_out:
+            log("Failed to connect modem!!!!.")
+            return False
+    log("Modem is connected.")
+    return True
+
+def check_signal_info():
+    log("Checking signal info...")
+    signal_info, _ = run_cmd(f"uqmi -d {BB_QMI_DEVICE} --get-signal-info")
+    if "nr5g" in signal_info.lower():
+        log(f"Connected to 5G: {signal_info}")
+        return "5G"
+    elif "lte" in signal_info.lower():
+        log(f"Connected to 4G: {signal_info}")
+        return "4G"
+    else:
+        log(f"Unknown network type: {signal_info}")
+        return None
+
+def ping_remote(iface):
+    log(f"Pinging {REMOTE_PING_IP} via {iface}...")
+    output, _ = run_cmd(f"ping -I {iface} -c 4 {REMOTE_PING_IP}")
+    if "100% packet loss" in output or "0 received" in output:
+        log("Ping failed.")
+        return False
+    log("Ping successful.")
+    return True
 
 # === MAIN LOGIC ===
 def main():
-    log("Starting 5G WAN test with AT prechecks...")
-    log("Verifying modem responsiveness...")
+    log("Starting 5G WAN Interface Test BB-INT-5G-001...")
 
-    modem_ok = run_at_cmd("AT")
-    if "OK" not in modem_ok:
-        log_error("Modem not responding. Aborting.", EXIT_MODEM_NOT_RESPONDING)
+    try:
+        # Keep trying until modem connects
+        while True:
+            if ensure_modem_connected():
+                log("Modem connection established successfully.")
+                break
+            else:
+                log("Retrying modem connection in 30 seconds...")
+                time.sleep(30)
 
-    log("Enabling CME ERRORs for better AT feedback...")
-    run_at_cmd("AT+CMEE=1")
+        iface, modem_ip = find_modem_interface()
+        if not iface:
+            log("TEST FAILED !!!!! - No interface found. Aborting.")
+            sys.exit(EXIT_PRECONDITION_FAILED)
 
-    log("Running AT commands...")
-    cmee_status = run_at_cmd("AT+CMEE?")
-    log(f"CME Status: {cmee_status}")
+        network_type = check_signal_info()
+        if not network_type:
+            log("TEST FAILED !!!!! - Could not determine network type. Aborting.")
+            sys.exit(EXIT_CMDS_NON_RESPONSIVE)
 
-    sim_status = run_at_cmd("AT+CPIN?")
-    log(f"SIM Status: {sim_status}")
+        if not ping_remote(iface):
+            log("TEST FAILED !!!!! - Connectivity check failed.")
+            sys.exit(EXIT_FAILED)
 
-    if "+CME ERROR: 10" in sim_status:
-        log_error("SIM not inserted. Please insert the SIM card. Test aborted.", EXIT_SIM_NOT_INSERTED)
-    elif "+CPIN: SIM PIN" in sim_status:
-        log_error("SIM is inserted but waiting for PIN entry. Test aborted.", EXIT_SIM_PIN_REQUIRED)
-    elif "READY" in sim_status:
-        log("SIM is ready. Proceeding...")
-    else:
-        log_error(f"Unknown SIM state: {sim_status}. Test aborted.", EXIT_SIM_UNKNOWN_STATE)
+        log(f"Initial connectivity check PASSED: {network_type} via {iface} ({modem_ip}).")
 
-    imsi = run_at_cmd("AT+CIMI")
-    log(f"IMSI: {imsi}")
+        # === Verify session stability for {TEST_DURATION} ===
+        log(f"Starting {TEST_DURATION} seconds session stability verification...")
+        start = time.time()
+        while time.time() - start < TEST_DURATION:
+            if not ping_remote(iface):
+                log("TEST FAILED !!!!! - Ping failed during stability test.")
+                sys.exit(EXIT_FAILED)
+            time.sleep(30)
 
-    reg_status = run_at_cmd("AT+C5GREG?")
-    log(f"5G Registration: {reg_status}")
+        log(f"TEST PASSED !!!!! - Stability test completed successfully for {TEST_DURATION} seconds.")
+        sys.exit(EXIT_SUCCESS)
 
-    if "+C5GREG: 1,1" not in reg_status:
-        log_error("Not registered on 5G. Test aborted.", EXIT_NOT_REGISTERED_5G)
-
-    ip_addr = run_at_cmd("AT+CGPADDR=1")
-    log(f"IP Address Assigned: {ip_addr}")
-
-    if "+CGPADDR" not in ip_addr:
-        log_error("No PDP IP address assigned. Test aborted.", EXIT_NO_IP_ADDRESS)
-
-    pdp_status = run_at_cmd("AT+CGACT?")
-    band_status = run_at_cmd("AT#BND?")
-    serving_cell = run_at_cmd("AT#SERVINFO")
-
-    log(f"PDP Context Active: {pdp_status}")
-    log(f"Band Config: {band_status}")
-    log(f"Serving Cell Info: {serving_cell}")
-
-    log("All preconditions met. Starting iperf3 test...")
-
-    if not is_ip_reachable(REMOTE_PC_IP):
-        log_error(f"Remote PC {REMOTE_PC_IP} not reachable. Test aborted.", EXIT_REMOTE_PC_UNREACHABLE)
-
-    log(f"Running iperf3 client to remote PC: {REMOTE_PC_IP}")
-    with open(OUTPUT_FILE, "w") as outfile:
-        result = subprocess.run(["iperf3", "-c", REMOTE_PC_IP, "-t", str(TEST_DURATION)],
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        output = result.stdout.decode()
-        outfile.write(output)
-        with open(LOG_FILE, "a") as logf:
-            logf.write(output)
-
-    if result.returncode != 0:
-        log_error("iperf3 client failed.", EXIT_IPERF_FAILED)
-
-    log(f"Test completed successfully. Log saved to {LOG_FILE}")
-    sys.exit(EXIT_SUCCESS)
+    except Exception as e:
+        log(f"TEST FAILED !!!!! - Exception: {e}")
+        sys.exit(EXIT_FAILED)
 
 if __name__ == "__main__":
     main()

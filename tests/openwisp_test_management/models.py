@@ -8,7 +8,9 @@ from .base.models import (
     AbstractTestSuiteCase,
     AbstractTestSuiteExecution,
     AbstractTestSuiteExecutionDevice,
-    AbstractTestCaseExecution
+    AbstractTestCaseExecution,
+    AbstractTestDeviceGroup,
+    AbstractTestDeviceGroupDevice
 
 )
 
@@ -80,3 +82,23 @@ class TestCaseExecution(AbstractTestCaseExecution):
         swappable = swappable_setting("test_management", "TestCaseExecution")
         default_permissions = ()  # ← This disables default permissions
 
+
+
+
+class TestDeviceGroup(AbstractTestDeviceGroup):
+    """
+    Concrete model for Test Device Groups
+    """
+    class Meta(AbstractTestDeviceGroup.Meta):
+        abstract = False
+        swappable = swappable_setting("test_management", "TestDeviceGroup")
+
+
+class TestDeviceGroupDevice(AbstractTestDeviceGroupDevice):
+    """
+    Concrete model for Test Device Group Devices
+    """
+    class Meta(AbstractTestDeviceGroupDevice.Meta):
+        abstract = False
+        swappable = swappable_setting("test_management", "TestDeviceGroupDevice")
+        default_permissions = ()  # Disable default permissions

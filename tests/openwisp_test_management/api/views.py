@@ -4119,6 +4119,68 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
             'error': 'Failed to upload Allure report',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_organization_devices(request):
+    """
+    API endpoint to get devices for a specific organization
+    Used by the TestDeviceGroup admin interface
+    """
+    org_id = request.GET.get('organization_id')
+    
+    if not org_id:
+        return Response({
+            'error': 'Organization ID is required'
+        }, status=400)
+    
+    try:
+        # Get devices for the specified organization
+        devices = Device.objects.filter(
+            organization_id=org_id,
+            _is_deactivated=False  # Only active devices
+        ).order_by('name').values(
+            'id',
+            'name', 
+            'mac_address',
+            'last_ip',
+            'model',
+            'management_ip'
+        )
+        
+        # Format device data
+        device_list = []
+        for device in devices:
+            device_list.append({
+                'id': str(device['id']),
+                'name': device['name'],
+                'mac_address': device['mac_address'],
+                'last_ip': device['last_ip'] or '-',
+                'model': device['model'] or '-',
+                'management_ip': device['management_ip'] or '-',
+                'is_active': True  # We already filtered for active devices
+            })
+        
+        return Response({
+            'devices': device_list,
+            'count': len(device_list)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching organization devices: {e}")
+        return Response({
+            'error': f'An error occurred while fetching devices: {str(e)}'
+        }, status=500)
+
+
+
+
+
+
 
 # Create view instances
 test_category_list = TestCategoryListCreateView.as_view()

@@ -50,7 +50,13 @@ class TestManagementConfig(ApiAppConfig):
                         "name": "changelist",
                         "icon": "ow-device-group",
                     },
-                      4: {
+                    4: {
+                        "label": _("Device Group"),
+                        "model": get_model_name(self.label, "TestDeviceGroup"),
+                        "name": "changelist",
+                        "icon": "ow-device-group",
+                    },
+                      5: {
                     "label": _("Test Executions"),
                     "model": get_model_name(self.label, "TestSuiteExecution"),
                     "name": "changelist",

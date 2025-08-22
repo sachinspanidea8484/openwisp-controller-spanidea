@@ -9,6 +9,8 @@ from django.contrib.admin import helpers
 from django.contrib.admin.utils import model_ngettext
 from django.core.exceptions import PermissionDenied
 from django.template.response import TemplateResponse
+from django.http import JsonResponse
+
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
@@ -38,9 +40,13 @@ from .filters import (
 
     TestSuiteCategoryFilter,
     TestSuiteActiveFilter,
-    TestExecutionStatusFilter
+    TestExecutionStatusFilter,
+    DeviceGroupOrganizationFilter,
+    DeviceGroupActiveFilter
 )
 from .swapper import load_model
+from openwisp_users.multitenancy import MultitenantOrgFilter, MultitenantRelatedOrgFilter
+
 
 logger = logging.getLogger(__name__)
 TestCategory = load_model("TestCategory")
@@ -50,6 +56,11 @@ TestSuiteCase = load_model("TestSuiteCase")
 TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestCaseExecution = load_model("TestCaseExecution")
+
+
+TestDeviceGroup = load_model("TestDeviceGroup")
+TestDeviceGroupDevice = load_model("TestDeviceGroupDevice")
+
 
 
 # Device = load_model("config", "Device")
@@ -1414,6 +1425,401 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
   
 
 
+
+
+
+
+
+# Admin Forms
+class TestDeviceGroupAdminForm(forms.ModelForm):
+    """Custom form for TestDeviceGroup admin"""
+    
+    class Meta:
+        model = TestDeviceGroup
+        fields = ['organization', 'name', 'description']
+        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Load current devices if editing existing group
+        if self.instance and self.instance.pk:
+            current_devices = self.instance.devices.all().values_list('device__id', flat=True)
+            self.initial['selected_devices_data'] = json.dumps(
+                [str(device_id) for device_id in current_devices]
+            )
+    
+    def clean_name(self):
+        name = self.cleaned_data.get('name')
+        if name and (len(name) < 3 or len(name) > 100):
+            raise forms.ValidationError(_("Group name must be between 3 and 100 characters"))
+        return name
+    
+    def clean_description(self):
+        description = self.cleaned_data.get('description')
+        if description and len(description) > 500:
+            raise forms.ValidationError(_("Description cannot exceed 500 characters"))
+        return description
+    
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        
+        if commit:
+            instance.save()
+            
+            # Handle device relationships
+            selected_devices_data = self.data.get('selected_devices_data', '')
+            
+            if selected_devices_data:
+                try:
+                    selected_ids = json.loads(selected_devices_data)
+                    valid_ids = [id for id in selected_ids if id]
+                    
+                    # Clear old devices
+                    TestDeviceGroupDevice.objects.filter(group=instance).delete()
+                    
+                    # Add new devices
+                    for device_id in valid_ids:
+                        try:
+                            device = Device.objects.get(id=device_id)
+                            TestDeviceGroupDevice.objects.create(
+                                group=instance,
+                                device=device
+                            )
+                        except Device.DoesNotExist:
+                            logger.error(f"Device not found: {device_id}")
+                        except forms.ValidationError as e:
+                            logger.error(f"Validation error adding device {device_id}: {e}")
+                        except Exception as e:
+                            logger.error(f"Error adding device to group: {e}")
+                            
+                except json.JSONDecodeError as e:
+                    logger.error(f"Error parsing selected devices JSON: {e}")
+                    raise forms.ValidationError(_('Error processing selected devices.'))
+                except Exception as e:
+                    logger.error(f"Unexpected error saving devices: {e}")
+                    raise forms.ValidationError(f'Error saving devices: {str(e)}')
+            else:
+                # Clear all devices if none selected
+                TestDeviceGroupDevice.objects.filter(group=instance).delete()
+                
+        return instance
+
+# Admin Classes
+@admin.register(TestDeviceGroup)
+class TestDeviceGroupAdmin(BaseAdmin):
+    form = TestDeviceGroupAdminForm
+    change_form_template = 'admin/test_management/testdevicegroup/change_form.html'
+    
+    list_display = [
+        "name",
+        "organization",
+        "device_count",
+        # "active_device_count",
+        "created",
+        "modified",
+    ]
+    
+    list_filter = [
+        DeviceGroupOrganizationFilter,
+        # DeviceGroupActiveFilter,
+    ]
+    
+    list_select_related = ["organization"]
+    search_fields = ["name",  "organization__name"]
+    ordering = ["-created"]
+    
+    fields = [
+        "organization",
+        "name",
+        "description",
+    ]
+    
+    readonly_fields = ["created", "modified"]
+    autocomplete_fields = ["organization"]
+    
+    actions = ["delete_selected"]
+
+
+    # Enable history button
+    object_history_template = "reversion/object_history.html"
+    
+    class Media:
+        js = ('admin/js/jquery.init.js',)
+        css = {
+            'all': ('test-management/css/device_group_form.css',)
+        }
+    
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        
+        # Customize form fields
+        if "organization" in form.base_fields:
+            form.base_fields["organization"].help_text = _(
+                "Select the organization for this device group"
+            )
+            
+        if "name" in form.base_fields:
+            form.base_fields["name"].widget.attrs.update({
+                'placeholder': _('Enter Device Group Name'),
+            })
+            form.base_fields["name"].help_text = _(
+                "Enter a name for this device group (3-100 characters)"
+            )
+        
+        if "description" in form.base_fields:
+            form.base_fields["description"].widget.attrs.update({
+                'placeholder': _('Enter Description'),
+                'rows': 4,
+            })
+            form.base_fields["description"].help_text = _(
+                "Describe the purpose of this device group (max 500 characters)"
+            )
+            
+        return form
+    
+    def device_count(self, obj):
+        """Display total device count"""
+        return obj.device_count
+    device_count.short_description = _("Total Devices")
+    
+    def active_device_count(self, obj):
+        """Display active device count"""
+        count = obj.devices.filter(device___is_deactivated=False).count()
+        if count == 0 and obj.device_count > 0:
+            return format_html(
+                '<span style="color: #dc3545;">{}</span>',
+                count
+            )
+        return count
+    active_device_count.short_description = _("Active Devices")
+    
+    def get_queryset(self, request):
+        """Filter queryset based on user permissions"""
+        qs = super().get_queryset(request)
+        # MultitenantOrgFilter will handle organization filtering
+        return qs
+    
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        """Override change view to add devices to context"""
+        extra_context = extra_context or {}
+        
+        obj = self.get_object(request, object_id)
+        if obj:
+                        # Get current devices in the group
+            group_devices = TestDeviceGroupDevice.objects.filter(
+                group=obj
+            ).select_related('device', 'device__organization').order_by('device__name')
+            
+            selected_devices = []
+            for group_device in group_devices:
+                device = group_device.device
+                selected_devices.append({
+                    'id': str(device.id),
+                    'name': device.name,
+                    'mac_address': device.mac_address,
+                    'last_ip': device.last_ip or '-',
+                    'is_active': not device._is_deactivated,
+                    'organization': device.organization.name
+                })
+            
+            extra_context['selected_devices'] = json.dumps(selected_devices)
+            extra_context['organization_id'] = str(obj.organization.id)
+        
+        return super().change_view(request, object_id, form_url, extra_context)
+    
+    def add_view(self, request, form_url='', extra_context=None):
+        """Override add view to add context"""
+        extra_context = extra_context or {}
+        # Will be populated by JavaScript based on selected organization
+        extra_context['selected_devices'] = json.dumps([])
+        return super().add_view(request, form_url, extra_context)
+    
+    def save_model(self, request, obj, form, change):
+        """Save the model and handle device relationships"""
+        super().save_model(request, obj, form, change)
+        
+        # Handle devices after the model is saved
+        selected_devices_data = request.POST.get('selected_devices_data', '')
+        
+        if selected_devices_data:
+            try:
+                selected_ids = json.loads(selected_devices_data)
+                
+                # Clear existing devices
+                TestDeviceGroupDevice.objects.filter(group=obj).delete()
+                
+                # Add new devices
+                success_count = 0
+                error_count = 0
+                
+                for device_id in selected_ids:
+                    if device_id:
+                        try:
+                            device = Device.objects.get(
+                                id=device_id,
+                                organization=obj.organization  # Ensure same org
+                            )
+                            TestDeviceGroupDevice.objects.create(
+                                group=obj,
+                                device=device
+                            )
+                            success_count += 1
+                        except Device.DoesNotExist:
+                            error_count += 1
+                            logger.error(f"Device not found or wrong org: {device_id}")
+                        except ValidationError as e:
+                            error_count += 1
+                            logger.error(f"Validation error: {e}")
+                        except Exception as e:
+                            error_count += 1
+                            logger.error(f"Error adding device: {e}")
+                
+                # Show appropriate message
+                if success_count > 0:
+                    messages.success(
+                        request,
+                        f"Device group saved with {success_count} device(s)."
+                    )
+                
+                if error_count > 0:
+                    messages.warning(
+                        request,
+                        f"{error_count} device(s) could not be added due to errors."
+                    )
+                    
+            except json.JSONDecodeError:
+                messages.error(request, "Error processing selected devices.")
+            except Exception as e:
+                messages.error(request, f"Unexpected error: {str(e)}")
+        else:
+            # Clear devices if none selected
+            TestDeviceGroupDevice.objects.filter(group=obj).delete()
+    
+    def delete_queryset(self, request, queryset):
+        """Delete device groups and their relationships"""
+        # Relationships will be cascade deleted automatically
+        count = queryset.count()
+        queryset.delete()
+        self.message_user(
+            request,
+            ngettext(
+                                "Successfully deleted %d device group.",
+                "Successfully deleted %d device groups.",
+                count
+            ) % count,
+            messages.SUCCESS
+        )
+    
+    def changelist_view(self, request, extra_context=None):
+        """Override to add custom title"""
+        extra_context = extra_context or {}
+        extra_context['title'] = _("Test Device Groups")
+        return super().changelist_view(request, extra_context)
+    
+    def has_delete_permission(self, request, obj=None):
+        """Check delete permission"""
+        if not super().has_delete_permission(request, obj):
+            return False
+        # Add any additional checks here if needed
+        return True
+    
+    def get_urls(self):
+     """Add custom URLs for AJAX endpoints"""
+     urls = super().get_urls()
+     custom_urls = [
+          path(
+               'get-organization-devices/',
+               self.admin_site.admin_view(self.get_organization_devices_view),
+               name='test_management_testdevicegroup_get_org_devices',
+          ),
+     ]
+     return custom_urls + urls
+
+    def get_organization_devices_view(self, request):
+      """Admin view wrapper for getting organization devices"""
+      from .views import get_organization_devices
+      return get_organization_devices(request)
+    
+    def get_organization_devices(self, request):
+        """AJAX endpoint to get devices for an organization"""
+        org_id = request.GET.get('organization_id')
+        if not org_id:
+            return JsonResponse({'error': 'Organization ID required'}, status=400)
+        
+        try:
+            # Get devices for the organization
+            devices = Device.objects.filter(
+                organization_id=org_id,
+                _is_deactivated=False  # Only active devices
+            ).order_by('name')
+            
+            device_list = []
+            for device in devices:
+                device_list.append({
+                    'id': str(device.id),
+                    'name': device.name,
+                    'mac_address': device.mac_address,
+                    'last_ip': device.last_ip or '-',
+                    'model': device.model or '-',
+                })
+            
+            return JsonResponse({'devices': device_list})
+            
+        except Exception as e:
+            logger.error(f"Error fetching organization devices: {e}")
+            return JsonResponse({'error': str(e)}, status=500)
+
+
+# Inline admin for viewing devices in a group (optional)
+class TestDeviceGroupDeviceInline(admin.TabularInline):
+    model = TestDeviceGroupDevice
+    extra = 0
+    fields = ['device', 'device_status', 'device_last_ip']
+    readonly_fields = ['device_status', 'device_last_ip']
+    
+    def device_status(self, obj):
+        """Show device status"""
+        if obj.device._is_deactivated:
+            return format_html(
+                '<span style="color: #dc3545;">●</span> Inactive'
+            )
+        return format_html(
+            '<span style="color: #28a745;">●</span> Active'
+        )
+    device_status.short_description = _("Status")
+    
+    def device_last_ip(self, obj):
+        """Show device last IP"""
+        return obj.device.last_ip or '-'
+    device_last_ip.short_description = _("Last IP")
+    
+    def has_add_permission(self, request, obj=None):
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Register models with reversion for history tracking
 if not reversion.is_registered(TestCategory):
     reversion.register(TestCategory)
@@ -1431,5 +1837,12 @@ if not reversion.is_registered(TestSuite):
 
 if not reversion.is_registered(TestSuiteExecution):
     reversion.register(TestSuiteExecution)
+
+
+# if not reversion.is_registered(TestDeviceGroupAdmin):
+#     reversion.register(TestDeviceGroupAdmin)
+
+
+
 
 

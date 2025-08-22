@@ -1,0 +1,86 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <link rel="stylesheet" type="text/css" href="{% static 'test-management/css/device_group_form.css' %}">
+{% endblock %}
+
+{% block admin_change_form_document_ready %}
+  {{ block.super }}
+  
+  <!-- Existing selected devices -->
+  <script id="existing-devices-data" type="application/json">
+    {% if selected_devices %}
+      {{ selected_devices|safe }}
+    {% else %}
+      []
+    {% endif %}
+  </script>
+  
+  <!-- Organization ID for filtering -->
+  <script>
+    window.currentOrganizationId = {% if organization_id %}'{{ organization_id }}'{% else %}null{% endif %};
+  </script>
+  
+  <script src="{% static 'test-management/js/device_group_form.js' %}"></script>
+{% endblock %}
+
+{% block after_field_sets %}
+  <fieldset class="module aligned">
+    <h2>{% trans "Devices" %}</h2>
+    
+    <div class="device-selection-container">
+      <div class="device-filter-section">
+        <div class="form-row">
+          <label>{% trans "Search devices:" %}</label>
+          <input type="text" id="device-search" class="vTextField" placeholder="{% trans 'Search by name or MAC address...' %}">
+        </div>
+        
+ 
+      </div>
+      
+      <div class="device-lists-container">
+        <div class="available-devices">
+          <h3>{% trans "Available Devices" %} <span class="device-count" id="available-count">(0)</span></h3>
+          <select id="available-devices" class="vLargeSelectMultiple" multiple size="10">
+            <!-- Populated by JavaScript -->
+          </select>
+        </div>
+        
+        <div class="device-controls">
+          <button type="button" id="add-devices" class="button" title="{% trans 'Add selected devices' %}">
+            →
+          </button>
+          <button type="button" id="add-all-devices" class="button" title="{% trans 'Add all devices' %}">
+            ⇉
+          </button>
+          <button type="button" id="remove-devices" class="button" title="{% trans 'Remove selected devices' %}">
+            ←
+          </button>
+          <button type="button" id="remove-all-devices" class="button" title="{% trans 'Remove all devices' %}">
+            ⇇
+          </button>
+        </div>
+        
+        <div class="selected-devices">
+          <h3>{% trans "Selected Devices" %} <span class="device-count" id="selected-count">(0)</span></h3>
+          <select id="selected-devices" class="vLargeSelectMultiple" multiple size="10">
+            <!-- Populated by JavaScript -->
+          </select>
+        </div>
+      </div>
+      
+      <div class="device-limit-info" id="device-limit-info" style="display: none;">
+        <p class="help">
+          <strong>{% trans "Organization device limit:" %}</strong> 
+          <span id="device-limit-text"></span>
+        </p>
+      </div>
+    </div>
+    
+    <!-- Hidden field to store selected devices -->
+    <input type="hidden" name="selected_devices_data" id="selected_devices_data" value="">
+  </fieldset>
+{% endblock %}
+  

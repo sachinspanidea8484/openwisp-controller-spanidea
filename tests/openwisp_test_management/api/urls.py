@@ -214,6 +214,10 @@ path(
 
 
 
+    path('get-organization-devices/', views.get_organization_devices, name='get_organization_devices'),
+
+
+
         ]),
     ),
 

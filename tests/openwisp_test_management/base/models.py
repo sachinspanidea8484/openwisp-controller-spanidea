@@ -5,6 +5,8 @@ from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from openwisp_users.mixins import OrgMixin
+
 
 from openwisp_utils.base import TimeStampedEditableModel
 
@@ -905,3 +907,133 @@ class AbstractTestCaseExecution(TimeStampedEditableModel):
             self.save(update_fields=[
                 'status', 'completed_at', 'error_message', 'execution_duration'
             ])
+
+
+
+
+
+class AbstractTestDeviceGroup(OrgMixin, TimeStampedEditableModel):
+    """
+    Abstract model for Test Device Groups
+    Groups devices for test execution purposes
+    """
+    name = models.CharField(
+        _("Group Name"),
+        max_length=100,
+        db_index=True,
+        help_text=_("Name for the test device group (3-100 characters)")
+    )
+    description = models.TextField(
+        _("Description"),
+        max_length=500,
+        blank=True,
+        help_text=_("Description of this device group (max 500 characters)")
+    )
+    
+    class Meta:
+        abstract = True
+        verbose_name = _("Test Device Group")
+        verbose_name_plural = _("Test Device Groups")
+        unique_together = ("name", "organization")
+        ordering = ["organization", "name"]
+
+    def __str__(self):
+        return f"{self.organization.name} - {self.name}"
+
+    def clean(self):
+        """Validate the test device group"""
+        super().clean()
+        
+        # Validate name length
+        if self.name and (len(self.name) < 3 or len(self.name) > 100):
+            raise ValidationError({
+                "name": _("Group name must be between 3 and 100 characters")
+            })
+        
+        # Validate description length
+        if self.description and len(self.description) > 500:
+            raise ValidationError({
+                "description": _("Description cannot exceed 500 characters")
+            })
+        
+        # Check for duplicate names within organization
+        if self.name and self.organization_id:
+            qs = self.__class__.objects.filter(
+                organization=self.organization,
+                name__iexact=self.name
+            ).exclude(pk=self.pk)
+            
+            if qs.exists():
+                raise ValidationError({
+                    "name": _("A test device group with this name already exists in this organization")
+                })
+
+    @property
+    def device_count(self):
+        """Return count of devices in this group"""
+        return self.devices.count()
+
+
+class AbstractTestDeviceGroupDevice(TimeStampedEditableModel):
+    """
+    Abstract model for Test Device Group Devices
+    Links devices to test device groups
+    """
+    group = models.ForeignKey(
+        'test_management.TestDeviceGroup',
+        on_delete=models.CASCADE,
+        related_name='devices',
+        verbose_name=_("Test Device Group")
+    )
+    device = models.ForeignKey(
+        'config.Device',
+        on_delete=models.CASCADE,
+        related_name='test_device_groups',
+        verbose_name=_("Device")
+    )
+    
+    class Meta:
+        abstract = True
+        verbose_name = _("Test Device Group Device")
+        verbose_name_plural = _("Test Device Group Devices")
+        unique_together = ("group", "device")
+        ordering = ["group", "device"]
+
+    def __str__(self):
+        return f"{self.group.name} - {self.device.name}"
+
+    def clean(self):
+        """Validate device group membership"""
+        super().clean()
+        
+        if not self.group_id or not self.device_id:
+            return
+        
+        # Ensure device belongs to same organization
+        if self.device.organization_id != self.group.organization_id:
+            raise ValidationError({
+                "device": _("Device must belong to the same organization as the group")
+            })
+        
+        # Check if already exists
+        if self.pk is None:  # Only check on creation
+            if self.__class__.objects.filter(group=self.group, device=self.device).exists():
+                raise ValidationError({
+                    "device": _("This device is already in the group")
+                })
+        
+        # Check organization device limit
+        if hasattr(self.group.organization, 'config_limits'):
+            device_limit = self.group.organization.config_limits.device_limit
+            if device_limit > 0:  # 0 means unlimited
+                current_count = self.__class__.objects.filter(group=self.group).count()
+                if self.pk is None and current_count >= device_limit:
+                                        raise ValidationError({
+                        "device": _(f"Organization device limit ({device_limit}) reached")
+                    })
+        
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
