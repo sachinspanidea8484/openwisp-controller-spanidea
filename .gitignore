@@ -86,3 +86,6 @@ media/allure_report/**/*.html
 
 
 tests/openwisp2/celerybeat-schedule
+
+
+# device groups new changes
