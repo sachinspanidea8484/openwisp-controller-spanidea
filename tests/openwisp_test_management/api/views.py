@@ -63,6 +63,9 @@ from .serializers import (
     # TestSuiteFilter
 )
 
+from ..base.models import TestExecutionStatus
+
+
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
 TestSuite = load_model("TestSuite")
@@ -71,6 +74,9 @@ TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestCaseExecution = load_model("TestCaseExecution")
 
+
+TestDeviceGroup = load_model("TestDeviceGroup")
+TestDeviceGroupDevice = load_model("TestDeviceGroupDevice")
 
 class CsrfExemptSessionAuthentication(SessionAuthentication):
     def enforce_csrf(self, request):
@@ -3788,6 +3794,12 @@ def test_execution_history(request, execution_id):
             'created': execution.created.isoformat() if execution.created else None,
             'started_at': overall_start.isoformat() if overall_start else None,
             'completed_at': overall_end.isoformat() if overall_end else None,
+            'status_display': execution.status_display,  # <-- added
+            'status': execution.status,  # <-- added
+
+            'device_count': execution.device_count,  # <-- added
+            'testcase_count': execution.testcase_count,  # <-- added
+
             'overall_execution_duration': {
                 'seconds': overall_duration_seconds,
                 'formatted': overall_duration_formatted
@@ -4176,6 +4188,67 @@ def get_organization_devices(request):
             'error': f'An error occurred while fetching devices: {str(e)}'
         }, status=500)
 
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_device_groups(request):
+    """
+    Return list of available device groups for the current user's organizations
+    """
+    try:
+        # Filter by user's organizations (multi-tenant safe)
+        qs = TestDeviceGroup.objects.all().select_related("organization").order_by("name")
+
+        # If user is limited to organizations, filter by them
+        if hasattr(request.user, 'organizations'):
+            org_ids = request.user.organizations.values_list("id", flat=True)
+            qs = qs.filter(organization_id__in=org_ids)
+
+        groups = []
+        for g in qs:
+            groups.append({
+                "id": str(g.pk),
+                "name": g.name,
+                "organization": g.organization.name if g.organization else None,
+                "device_count": g.device_count
+            })
+        
+        return Response({"groups": groups})
+    except Exception as e:
+        logger.error(f"Error fetching device groups: {e}")
+        return Response({"error": str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_device_group_devices(request, group_id):
+    """
+    Return list of devices belonging to a given device group
+    """
+    try:
+        group = get_object_or_404(TestDeviceGroup, pk=group_id)
+        
+        devices_qs = TestDeviceGroupDevice.objects.filter(group=group).select_related("device")
+        
+        devices = []
+        for gd in devices_qs:
+            d = gd.device
+            devices.append({
+                "id": str(d.pk),
+                "name": d.name,
+                "organization": d.organization.name if d.organization else None,
+                "management_ip": getattr(d, "management_ip", None) or "-",
+                "last_ip": getattr(d, "last_ip", None) or "-",
+                "mac_address": getattr(d, "mac_address", None) or "-",
+                "status": "Deactivated" if getattr(d, "_is_deactivated", False) else "Active",
+            })
+        
+        return Response({"devices": devices, "count": len(devices)})
+    except Exception as e:
+        logger.error(f"Error fetching devices for group {group_id}: {e}")
+        return Response({"error": str(e)}, status=500)
 
 
 
