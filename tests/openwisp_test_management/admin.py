@@ -144,31 +144,31 @@ class TestCategoryAdmin(BaseVersionAdmin):
         return True
     
     def get_form(self, request, obj=None, **kwargs):
-     form = super().get_form(request, obj, **kwargs)
-    
-    # Add placeholders and help text to form fields
-     if "name" in form.base_fields:
-        form.base_fields["name"].widget.attrs.update({
-            'placeholder': _('Enter category name')
-        })
-        form.base_fields["name"].help_text = _(
-            "Choose a descriptive name for this test category"
-        )
+        form = super().get_form(request, obj, **kwargs)
         
-     if "code" in form.base_fields:
-        form.base_fields["code"].widget.attrs.update({
-            'placeholder': _('Enter category code')  # Removed "Optional"
-        })
-        form.base_fields["code"].help_text = _(
-            "Enter a required category code"  # Updated to indicate required
-        )
-        
-     if "description" in form.base_fields:
-         form.base_fields["description"].widget.attrs.update({
-            'placeholder': _('Enter category description')
-        })
-        
-     return form
+        # Add placeholders and help text to form fields
+        if "name" in form.base_fields:
+            form.base_fields["name"].widget.attrs.update({
+                'placeholder': _('Enter category name')
+            })
+            form.base_fields["name"].help_text = _(
+                "Choose a descriptive name for this test category"
+            )
+            
+        if "code" in form.base_fields:
+            form.base_fields["code"].widget.attrs.update({
+                'placeholder': _('Enter category code')  # Removed "Optional"
+            })
+            form.base_fields["code"].help_text = _(
+                "Enter a required category code"  # Updated to indicate required
+            )
+            
+        if "description" in form.base_fields:
+            form.base_fields["description"].widget.attrs.update({
+                'placeholder': _('Enter category description')
+            })
+            
+        return form
 
     def changelist_view(self, request, extra_context=None):
         """Override to add custom title"""
@@ -1687,7 +1687,7 @@ class TestDeviceGroupAdmin(BaseVersionAdmin):
                             )
                             success_count += 1
                         except Device.DoesNotExist:
-                            error_count += 1
+                            # error_count += 1
                             logger.error(f"Device not found or wrong org: {device_id}")
                         except ValidationError as e:
                             error_count += 1

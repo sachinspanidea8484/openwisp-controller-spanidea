@@ -91,9 +91,11 @@
     const helpText = testTypeField.closest(".form-row").querySelector(".help");
     function updateHelpText() {
       if (testTypeField.value === "2") {
-        helpText.textContent = "Runs tests using Device Agent.";
+        helpText.textContent =
+          "The Device agent will run test cases directly on the Device.";
       } else if (testTypeField.value === "1") {
-        helpText.textContent = "Runs tests using Robot Framework.";
+        helpText.textContent =
+          "The test type Robot Framework defines the test cases that will run through Robot Framework.";
       } else {
         helpText.textContent = "Select the type of testshahshs.";
       }

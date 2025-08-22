@@ -68,7 +68,12 @@
     function handleOrganizationChange(event) {
         const orgId = event.target.value;
         if (orgId) {
+            
+            selectedDeviceIds.clear();
+            updateHiddenField();
             loadOrganizationDevices(orgId);
+
+
         } else {
             // Clear devices if no organization selected
             organizationDevices = [];
