@@ -216,7 +216,16 @@ path(
 
     path('get-organization-devices/', views.get_organization_devices, name='get_organization_devices'),
 
-
+ path(
+                "device-groups/",
+                views.get_device_groups,
+                name="api_device_groups",
+            ),
+            path(
+                "device-groups/<uuid:group_id>/devices/",
+                views.get_device_group_devices,
+                name="api_device_group_devices",
+            ),
 
         ]),
     ),

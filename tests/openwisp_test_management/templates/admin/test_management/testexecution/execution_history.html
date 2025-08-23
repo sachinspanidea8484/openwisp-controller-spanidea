@@ -389,6 +389,34 @@
     box-shadow: 0 4px 10px rgba(0,0,0,0.1);
 }
 
+.status-0 {
+  background-color: gray;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+.status-1 {
+  background-color: orange;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+.status-2 {
+  background-color: blue;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+.status-3 {
+  background-color: green;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+}
 </style>
 {% endblock %}
 
@@ -482,17 +510,22 @@ function displayExecutionData(data) {
        
         <div class="summary-row">
             <div class="summary-label">Total Devices:</div>
-            <div class="summary-value">${data.total_devices}</div>
+            <div class="summary-value">${data?.device_count}</div>
         </div>
 
-        <div class="summary-row">
-            <div class="summary-label">Execution Status:</div>
-            <div class="summary-value">
-                <span class="status-indicator ${data.is_executed ? 'success' : 'pending'}">
-                    ${data.is_executed ? 'Executed' : 'Pending'}
-                </span>
-            </div>
+         <div class="summary-row">
+            <div class="summary-label">Total Test Cases:</div>
+            <div class="summary-value">${data?.testcase_count}</div>
         </div>
+
+ <div class="summary-row">
+    <div class="summary-label">Status:</div>
+    <div class="summary-value">
+        <span class="status-indicator status-${data?.status}">
+            ${data?.status_display}
+        </span>
+    </div>
+</div>
 
     `;
     

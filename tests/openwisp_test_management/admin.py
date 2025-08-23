@@ -916,7 +916,7 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
     
     class Meta:
         model = TestSuiteExecution
-        fields = ['test_suite']
+        fields = ['test_suite', 'device_selection', 'device_group']
         labels = {
             'test_suite': _('Select Test Group'),
         }
@@ -998,6 +998,9 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
     def save_devices(self, instance):
         """Save devices for the test suite execution"""
         print(f">>> SAVE_DEVICES METHOD STARTED for instance: {instance.id} <<<")
+        if instance.device_selection == 1:
+         # Skip, because model.save() already creates devices + testcases
+         return
         
         # Use stored device data or get from form data
         selected_devices_data = self._selected_devices_data or self.data.get('selected_devices_data', '')
@@ -1094,14 +1097,13 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     
     change_form_template = 'admin/test_management/testsuitexecution/change_form.html'
     list_display = [
-        "test_suite_name",
-        "device_count",
-        # "execution_status",
-        # "status_summary_display",
-        "is_executed",
-        "created",
-        "view_history",  # Add this new column
-    ]
+    "test_suite_name",
+    "device_count",
+    "testcase_count",
+    "status_label",
+    "created",
+    "view_history",
+     ]
     list_filter = [
         TestExecutionStatusFilter,  # Add this new filter
         "created",
@@ -1112,24 +1114,45 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     ordering = ["-created"]
     
     fields = [
-        "test_suite",
+    "test_suite",
+    # "device_selection",
+    # "device_group",
     ]
     
 
-    readonly_fields = ["created", "modified"]
+    readonly_fields = ["created", "modified", "device_count", "testcase_count"]
     actions = ["execute_test_suite"]
-
     class Media:
         js = ('admin/js/jquery.init.js',)
     
     class Meta:
         verbose_name = _("Test Execution")  # Change from "Test Suite Execution"
         verbose_name_plural = _("Test Executions")  # Change from "Test Suite Executions"
+
+
+    def response_change(self, request, obj):
+     print("=== DEBUG POST DATA 111111111111111111 ===")
+     print(request.POST)
+
+     if "_save_and_execute" in request.POST:
+          print("=== Save and Execute button PRESSED ===")
+          obj.execute_tests()
+          self.message_user(request, "Execution started ✅")
+        #   return redirect(".")
+
+     return super().response_change(request, obj)
+
+
     def changelist_view(self, request, extra_context=None):
         """Override to add custom title"""
         extra_context = extra_context or {}
         extra_context['title'] = _("Test Executions")  # Change title
         return super().changelist_view(request, extra_context)
+    
+    def status_label(self, obj):
+     """Return human readable execution status"""
+     return obj.status_display
+    status_label.short_description = _("Status")
     
     def test_suite_name(self, obj):
         """Display test suite name with link"""
@@ -1249,51 +1272,43 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     view_history.short_description = _("History")
     view_history.allow_tags = True
     
-    def execution_status(self, obj):
-        """Display execution status summary"""
-        summary = obj.status_summary
-        if isinstance(summary, str):
-            return summary
+    # def execution_status(self, obj):
+    #     """Display execution status summary"""
+    #     summary = obj.status_summary
+    #     if isinstance(summary, str):
+    #         return summary
         
-        return format_html(
-            '<span title="Total: {total}, Completed: {completed}, Failed: {failed}, Running: {running}, Pending: {pending}">'
-            '✓ {completed} | ✗ {failed} | ⚡ {running} | ⏳ {pending}'
-            '</span>',
-            **summary
-        )
-    execution_status.short_description = _("Status")
+    #     return format_html(
+    #         '<span title="Total: {total}, Completed: {completed}, Failed: {failed}, Running: {running}, Pending: {pending}">'
+    #         '✓ {completed} | ✗ {failed} | ⚡ {running} | ⏳ {pending}'
+    #         '</span>',
+    #         **summary
+    #     )
     
-    def device_summary(self, obj):
-        """Display device summary in detail view"""
-        if not obj.pk:
-            return "-"
-        
-        summary = obj.status_summary
-        if isinstance(summary, str):
-            return summary
-        
-        return format_html(
-            '<div style="line-height: 1.8;">'
-            '<strong>Total Devices:</strong> {total}<br>'
-            '<strong>Completed:</strong> <span style="color: green;">✓ {completed}</span><br>'
-            '<strong>Failed:</strong> <span style="color: red;">✗ {failed}</span><br>'
-            '<strong>Running:</strong> <span style="color: orange;">⚡ {running}</span><br>'
-            '<strong>Pending:</strong> <span style="color: gray;">⏳ {pending}</span>'
-            '</div>',
-            **summary
-        )
-    device_summary.short_description = _("Execution Summary")
+
 
 
     def save_model(self, request, obj, form, change):
-        print(f">>> ADMIN save_model called. Change: {change} <<<")
-        super().save_model(request, obj, form, change)
-        print(f">>> Object saved with ID: {obj.id} <<<")
-        
-        # Ensure devices are saved
-        if hasattr(form, 'save_devices'):
-            form.save_devices(obj)
-        print(">>> ADMIN save_model completed <<<")
+     print(f">>> ADMIN save_model called. Change: {change} <<<")
+     super().save_model(request, obj, form, change)
+     print(f">>> Object saved with ID: {obj.id} <<<")
+     
+     # Ensure devices are saved
+     if hasattr(form, 'save_devices'):
+          form.save_devices(obj)
+
+     # ✅ FIX: absolute import
+     from openwisp_test_management.swapper import load_model
+     TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+
+     obj.device_count = TestSuiteExecutionDevice.objects.filter(
+          test_suite_execution=obj
+     ).count()
+     obj.testcase_count = obj.test_suite.test_case_count if obj.test_suite_id else 0
+
+     obj.save(update_fields=["device_count", "testcase_count"])
+
+     print(f">>> ADMIN save_model completed. Updated device_count={obj.device_count}, testcase_count={obj.testcase_count} <<<")
     
     def has_delete_permission(self, request, obj=None):
         """Prevent deletion of executed test suites"""
