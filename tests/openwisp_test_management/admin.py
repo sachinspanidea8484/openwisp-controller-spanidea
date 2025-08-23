@@ -30,6 +30,8 @@ from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Device
 
 from reversion.models import Version
+from django.http import HttpResponseRedirect
+from django.urls import reverse
 
 from openwisp_utils.admin import TimeReadonlyAdminMixin
 
@@ -1128,19 +1130,37 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     class Meta:
         verbose_name = _("Test Execution")  # Change from "Test Suite Execution"
         verbose_name_plural = _("Test Executions")  # Change from "Test Suite Executions"
+    #  function which trigger to show save and execute button on ui
+    def render_change_form(
+        self, request, context, *, add=False, change=False, form_url='', obj=None
+    ):
+        context['show_save_and_execute'] = True
+        return super().render_change_form(
+            request, context, add=add, change=change, form_url=form_url, obj=obj
+        )
+    #  call this function when you want to execute the test suite
+    def _start_execution(self, request, obj):
+        """
+        Internal helper so we can call the same code from
+        an admin *action* and from a change/add form.
+        """
+        # Re-use the action defined previously
+        self.execute_test_suite(request, self.model.objects.filter(pk=obj.pk))
 
+    # “Save & execute” after ADD call
+    def response_add(self, request, obj, post_url_continue=None):
+        if '_save_execute' in request.POST:
+            self._start_execution(request, obj)
+            # Send the user back to the change form of what he just created
+            return self.response_post_save_add(request, obj)
+        return super().response_add(request, obj, post_url_continue)
 
+    # “Save & execute” after CHANGE call
     def response_change(self, request, obj):
-     print("=== DEBUG POST DATA 111111111111111111 ===")
-     print(request.POST)
-
-     if "_save_and_execute" in request.POST:
-          print("=== Save and Execute button PRESSED ===")
-          obj.execute_tests()
-          self.message_user(request, "Execution started ✅")
-        #   return redirect(".")
-
-     return super().response_change(request, obj)
+        if '_save_execute' in request.POST:
+            self._start_execution(request, obj)
+            return self.response_post_save_change(request, obj)   # stay on the same page
+        return super().response_change(request, obj)
 
 
     def changelist_view(self, request, extra_context=None):
