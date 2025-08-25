@@ -69,9 +69,10 @@ services:
 
   redis:
     image: redis:alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--save", ""]
     ports:
       - "6379:6379"
-    entrypoint: redis-server --appendonly yes
+    # entrypoint: redis-server --appendonly yes
     volumes:
       - redis_data:/data
 

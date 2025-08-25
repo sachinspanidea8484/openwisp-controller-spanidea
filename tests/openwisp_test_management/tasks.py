@@ -686,7 +686,7 @@ def check_device_execution_completion(device_execution_id, retry_count=0):
                 check_device_execution_completion.apply_async(
                     args=[device_execution_id, retry_count + 1],
                     # countdown=5  # Check again in 5 seconds
-                    countdown=3600  # Check again in 1 hour (3600 seconds)
+                    countdown=30  # Check again in 1 hour (3600 seconds)
 
                 )
                 return

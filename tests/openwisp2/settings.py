@@ -46,8 +46,24 @@ OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = ["*"]
 
 OPENWISP_RADIUS_COA_ENABLED = True
 OPENWISP_RADIUS_ALLOWED_MOBILE_PREFIXES = ["+44", "+39", "+237", "+595"]
-CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
+
+
+
+
+
+
+
+
+
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "visibility_timeout": 3600,  # 1 hour per task
+    "socket_keepalive": True,    # keeps TCP alive
+    "health_check_interval": 30,
+    "retry_on_timeout": True,
+}
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_CONNECTION_MAX_RETRIES = 100
 
 
 # SQLITE
