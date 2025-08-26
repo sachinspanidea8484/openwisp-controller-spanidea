@@ -566,22 +566,21 @@
       updateHiddenInput();
       getElement(".field-category").removeClass("has-error");
       getElement("#test-case-error").hide();
+      // if (globalState.getCount() === 0 && getElement("#id_category").val()) {
+      //   e.preventDefault();
+      //   getElement("#test-case-error").show();
+      //   getElement(".field-category").addClass("has-error");
+      //   getElement(".selection-count").removeClass("success").addClass("error");
 
-      if (globalState.getCount() === 0 && getElement("#id_category").val()) {
-        e.preventDefault();
-        getElement("#test-case-error").show();
-        getElement(".field-category").addClass("has-error");
-        getElement(".selection-count").removeClass("success").addClass("error");
-
-        $("html, body").animate(
-          {
-            scrollTop: getElement("#test-cases-container").offset().top - 100,
-          },
-          500
-        );
-        getElement("#id_category").focus();
-        return false;
-      }
+      //   $("html, body").animate(
+      //     {
+      //       scrollTop: getElement("#test-cases-container").offset().top - 100,
+      //     },
+      //     500
+      //   );
+      //   getElement("#id_category").focus();
+      //   return false;
+      // }
 
       console.log(
         "Form submitted with test cases:",

@@ -300,6 +300,13 @@ class AbstractTestSuite(TimeStampedEditableModel):
         """Validate the test group"""
         super().clean()
         
+        qs = self.__class__.objects.filter(
+            name__iexact=self.name
+        ).exclude(pk=self.pk)
+        if qs.exists():
+            raise ValidationError({
+                "name": _("A test group with this name already exists")
+            })
         # if not self.name:
         #     raise ValidationError({"name": _("Name is required")})
         
