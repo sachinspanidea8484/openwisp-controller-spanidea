@@ -21,7 +21,7 @@ services:
       # Mount Django project for hot reload
       # Add firmware and media volumes (in case beat tasks need access)
       - ./media:/opt/openwisp/media:rw
-      - firmware_data:/opt/openwisp/private/firmware
+      - openwisp_private_storage:/opt/openwisp/private/firmware
 
   celery-worker:
     image: openwisp/controller-production:latest
@@ -43,7 +43,7 @@ services:
       - ./logs:/opt/openwisp/logs
       # Add firmware and media volumes (in case beat tasks need access)
       - ./media:/opt/openwisp/media:rw
-      - firmware_data:/opt/openwisp/private/firmware
+      - openwisp_private_storage:/opt/openwisp/private/firmware
       
 
   celery-beat:
@@ -64,12 +64,14 @@ services:
       - ./logs:/opt/openwisp/logs
       # Add firmware and media volumes (in case beat tasks need access)
       - ./media:/opt/openwisp/media:rw
-      - firmware_data:/opt/openwisp/private/firmware
+      - openwisp_private_storage:/opt/openwisp/private/firmware
       
 
   redis:
     image: redis:alpine
+    restart: always
     command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--save", ""]
+    # command: ["redis-server", "--replicaof", "fake-master", "6379"]
     ports:
       - "6379:6379"
     # entrypoint: redis-server --appendonly yes
@@ -78,6 +80,7 @@ services:
 
   postgres:
     image: postgis/postgis:17-3.5-alpine
+    restart: always
     environment:
       POSTGRES_PASSWORD: openwisp2
       POSTGRES_USER: openwisp2
@@ -90,8 +93,9 @@ services:
   # monitoring
   influxdb:
     image: influxdb:1.8-alpine
+    restart: always
     volumes:
-      - influxdb-data:/var/lib/influxdb
+      - influxdb_data:/var/lib/influxdb
       - ./tests/influxdb.conf:/etc/influxdb/influxdb.conf
     ports:
       - "8086:8086"
@@ -104,12 +108,14 @@ services:
       INFLUXDB_USER: openwisp
       INFLUXDB_USER_PASSWORD: openwisp
 
+
+
 volumes:
-  redis_data:
-  postgres_data:
-  influxdb-data: {}
+  redis_data: {}
+  postgres_data: {}
+  influxdb_data: {}
   logs: {}
   # Add new volumes for firmware and media storage
   media_data: {}
-  firmware_data: {}
+  openwisp_private_storage: {}
 
