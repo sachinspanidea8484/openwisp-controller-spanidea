@@ -50,6 +50,12 @@
     </script>
   {% endif %}
 
+  {% if execution_device_group %}
+    <script>
+        window.recoveredDeviceGroup = {{ execution_device_group|safe }}; 
+    </script>
+  {% endif %}
+
    {% if recovered_devices_for_group %}
     <script>
         window.recoveredDevicesForGroups = {{ recovered_devices_for_group|safe }}; 

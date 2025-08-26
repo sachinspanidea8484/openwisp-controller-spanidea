@@ -413,8 +413,8 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
     """
     # Device selection choices
     DEVICE_SELECTION_CHOICES = (
-        (0, _('Single Device Selection')),
-        (1, _('Device Group Selection')),
+        (0, _('Individual')),
+        (1, _('Device Group')),
     )
     
     test_suite = models.ForeignKey(
@@ -447,7 +447,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         _("device selection type"),
         choices=DEVICE_SELECTION_CHOICES,
         default=0,
-        help_text=_("Type of device selection: Single or Device Group")
+        help_text=_("Type of device selection: Individual or Device Group")
     )
 
     device_group = models.ForeignKey(
@@ -471,74 +471,74 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         super().clean()
 
         # Validate device group requirement
-        if self.device_selection == 1 and not self.device_group_id:
-            raise ValidationError({
-                "device_group": _("Device group is required when device selection type is 'Device Group'")
-            })
+        # if self.device_selection == 1 and not self.device_group_id:
+        #     raise ValidationError({
+        #         "device_group": _("Device group is required when device selection type is 'Device Group'")
+        #     })
 
-        # Ensure device group belongs to same organization
-        if self.device_group and hasattr(self, 'test_suite') and hasattr(self.test_suite, 'organization'):
-            if self.device_group.organization_id != self.test_suite.organization_id:
-                raise ValidationError({
-                    "device_group": _("Device group must belong to the same organization")
-                })
+        # # Ensure device group belongs to same organization
+        # if self.device_group and hasattr(self, 'test_suite') and hasattr(self.test_suite, 'organization'):
+        #     if self.device_group.organization_id != self.test_suite.organization_id:
+        #         raise ValidationError({
+        #             "device_group": _("Device group must belong to the same organization")
+        #         })
 
     def save(self, *args, **kwargs):
-     is_new = self.pk is None  # check if new execution
-      
-     # Pre-calc testcase count from suite
-     if self.test_suite_id:
-          self.testcase_count = self.test_suite.test_case_count
+        is_new = self.pk is None  # check if new execution
+        
+        # Pre-calc testcase count from suite
+        if self.test_suite_id:
+            self.testcase_count = self.test_suite.test_case_count
 
-     self.full_clean()
-     super().save(*args, **kwargs)
+        self.full_clean()
+        super().save(*args, **kwargs)
 
-     from ..swapper import load_model
-     TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
-     TestCaseExecution = load_model("TestCaseExecution")
-
-
-  
+        from ..swapper import load_model
+        TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+        TestCaseExecution = load_model("TestCaseExecution")
 
 
-     # ⚡ Only run auto-population for new executions with device group
-     if is_new and self.device_selection == 1 and self.device_group_id:
-          for group_device in self.device_group.devices.select_related("device"):
-               device = group_device.device
+    
 
-               # Create TestSuiteExecutionDevice
-               execution_device, _ = TestSuiteExecutionDevice.objects.get_or_create(
-                    test_suite_execution=self,
-                    device=device,
-                    defaults={"status": "pending"}
-               )
 
-               # Create TestCaseExecution per TestCase per Device
-               order = 1
-               for tcase in self.test_suite.test_cases.all():
-                    TestCaseExecution.objects.get_or_create(
-                         test_suite_execution=self,
-                         device=device,
-                         test_case=tcase,
-                         defaults={
-                              "execution_order": order,
-                              "status": "pending"
-                         }
-                    )
-                    order += 1
+        # ⚡ Only run auto-population for new executions with device group
+        if is_new and self.device_selection == 1 and self.device_group_id:
+            for group_device in self.device_group.devices.select_related("device"):
+                device = group_device.device
 
-     # 🔄 Update device_count ALWAYS (single or group)
-     self.device_count = TestSuiteExecutionDevice.objects.filter(
-          test_suite_execution=self
-     ).count()
+                # Create TestSuiteExecutionDevice
+                execution_device, _ = TestSuiteExecutionDevice.objects.get_or_create(
+                        test_suite_execution=self,
+                        device=device,
+                        defaults={"status": "pending"}
+                )
 
-     print(">>>>>>>>>>>>>>>>>>11111111111111",self.device_selection)
-     print(">>>>>>>>>>>>>>>>>>22222222222222",self)
-     print(">>>>>>>>>>>>>>>>>>22222222222222",self.device_count)
+                # Create TestCaseExecution per TestCase per Device
+                order = 1
+                for tcase in self.test_suite.test_cases.all():
+                        TestCaseExecution.objects.get_or_create(
+                            test_suite_execution=self,
+                            device=device,
+                            test_case=tcase,
+                            defaults={
+                                "execution_order": order,
+                                "status": "pending"
+                            }
+                        )
+                        order += 1
 
-     
-     # Save again only updating counts to persist them
-     super().save(update_fields=["device_count", "testcase_count"])
+        # 🔄 Update device_count ALWAYS (single or group)
+        self.device_count = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=self
+        ).count()
+
+        print(">>>>>>>>>>>>>>>>>>11111111111111",self.device_selection)
+        print(">>>>>>>>>>>>>>>>>>22222222222222",self)
+        print(">>>>>>>>>>>>>>>>>>22222222222222",self.device_count)
+
+        
+        # Save again only updating counts to persist them
+        super().save(update_fields=["device_count", "testcase_count"])
 
 
     def execute_tests(self):
@@ -599,6 +599,8 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         }
         return status_map.get(self.status, _("UNKNOWN"))
 
+    def __str__(self):
+        return f"{self.test_suite}- {self.device_group}"
 
 
         

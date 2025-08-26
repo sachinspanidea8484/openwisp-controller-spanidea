@@ -1,42 +1,32 @@
-
 (function($) {
-    'use strict';
-    
-    // Get CSRF token
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
+  ("use strict");
+
+  // Get CSRF token
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+      const cookies = document.cookie.split(";");
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === name + "=") {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
         }
-        return cookieValue;
+      }
     }
-    
-    const csrftoken = getCookie('csrftoken');
+    return cookieValue;
+  }
 
-    
-    
-    // Store available devices and selected devices
-    let availableDevices = [];
-    let selectedDevices = new Map(); // Map of device_id -> device_data
+  const csrftoken = getCookie("csrftoken");
 
+  // Store available devices and selected devices
+  let availableDevices = [];
+  let selectedDevices = new Map(); // Map of device_id -> device_data
+  let pendingGroupSelection = null;
 
-
-
-
-
-
-    
-    
-    // Create test cases display section
-    function createTestCasesDisplay() {
-        const container = $(`
+  // Create test cases display section
+  function createTestCasesDisplay() {
+    const container = $(`
             <div id="test-cases-display">
                 <div class="section-header">Test Cases in Selected Test Group</div>
                 <div class="test-cases-container">
@@ -55,145 +45,396 @@
                 </div>
             </div>
         `);
-        return container;
-    }
-    
-    // Create device selection section
-    function createDeviceSelection() {
-        const container = $(`
-            <div id="device-selection">
-                <div class="section-header">Select Devices</div>
-                <div class="device-selector-container">
-                    <div class="device-selector">
-                        <select class="device-dropdown" id="device-dropdown">
-                            <option value="">Loading devices...</option>
-                        </select>
-                        <button type="button" class="add-device-btn" id="add-device-btn" disabled>Add Device</button>
-                    </div>
-                </div>
-                <div class="selected-devices-list" id="selected-devices-list">
-                    <div class="no-devices-selected">No devices selected</div>
-                </div>
-                <div class="device-count-info">
-                    <span class="count">0</span> device(s) selected
+    return container;
+  }
+
+  // Create device selection section
+  function createDeviceSelection(mode = "single") {
+    const isGroupMode = mode === "group";
+    console.log(mode);
+    const container = $(`
+        <div id="device-selection">
+            <div class="section-header">Select ${
+              isGroupMode ? "Device Group" : "Devices"
+            }</div>
+            <div class="device-selector-container">
+                <div class="device-selector">
+                    <select class="device-dropdown" id="device-dropdown">
+                        <option value="">${
+                          isGroupMode
+                            ? "Loading groups..."
+                            : "Loading devices..."
+                        }</option>
+                    </select>
+                    <button type="button" 
+                        class="${
+                          isGroupMode ? "add-group-btn" : "add-device-btn"
+                        }" 
+                        id="${
+                          isGroupMode ? "add-group-btn" : "add-device-btn"
+                        }" 
+                        disabled>
+                        ${isGroupMode ? "Add Devices from Group" : "Add Device"}
+                    </button>
                 </div>
             </div>
+            <div class="selected-devices-list" id="selected-devices-list">
+                <div class="no-devices-selected">No devices selected</div>
+            </div>
+            <div class="device-count-info">
+                <span class="count">0</span> device(s) selected
+            </div>
+        </div>
+    `);
+
+    return container;
+  }
+
+  // CHANGE: Updated handleGroupSelection to properly manage selectedDevices map
+  function handleGroupSelection(groupId) {
+    // Call API to fetch devices for the group
+    $.ajax({
+      url: `/api/v1/test-management/device-groups/${groupId}/devices`, // 🔧 adjust endpoint
+      method: "GET",
+      headers: {
+        "X-CSRFToken": csrftoken,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      success: function (data) {
+        const devices = data?.devices || [];
+        const list = $("#selected-devices-list");
+        list.empty(); // clear old devices
+
+        // CHANGE: Clear previous selections in the map
+        selectedDevices.clear();
+
+        if (devices.length === 0) {
+          list.append(
+            "<div class='no-devices-selected'>No devices in this group</div>"
+          );
+        } else {
+          devices.forEach((device) => {
+            // CHANGE: Add devices to selectedDevices map
+            selectedDevices.set(String(device.id), device);
+
+            // CHANGE: Updated UI structure to match single device selection
+            list.append(`
+                <div class="selected-device-item" data-device-id="${device.id}">
+                    <div class="device-info">
+                        <div class="device-name">${device.name}</div>
+                        <div class="device-details">${
+                          device.organization || ""
+                        } - ${device.management_ip || ""} - ${
+              device.status || ""
+            }</div>
+                    </div>
+                    
+                </div>
+              `);
+          });
+
+          // Update device count
+          // CHANGE: Use updateDeviceCount function for consistency
+          updateDeviceCount();
+          // CHANGE: Update hidden input to sync form data
+          updateHiddenInput();
+          $("#device-selection select").prop("disabled", true);
+          // Swap "Add Devices from Group" with "Remove All"
+          $("#add-group-btn").replaceWith(`
+                    <button type="button" class="remove-all-btn" id="remove-all-btn">Remove All Devices</button>
+                `);
+
+          // CHANGE: Removed the click handler from here - it's now delegated
+        }
+      },
+      error: function () {
+        alert("Failed to load devices for the group.");
+      },
+    });
+  }
+
+  // CHANGE: NEW FUNCTION - Load device groups for group mode
+  function loadDeviceGroups() {
+    const dropdown = $("#device-dropdown");
+    dropdown.empty();
+    dropdown.append('<option value="">Loading groups...</option>');
+    $.ajax({
+      url: "/api/v1/test-management/device-groups", // CHANGE: Adjust this endpoint to match your API
+      method: "GET",
+      headers: {
+        "X-CSRFToken": csrftoken,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      success: function (data) {
+        dropdown.empty();
+        dropdown.append('<option value="">Select a device group...</option>');
+
+        if (data.groups && data.groups.length > 0) {
+          data.groups.forEach(function (group) {
+            dropdown.append(
+              `<option value="${group.id}">${group.name}</option>`
+            );
+          });
+           if (pendingGroupSelection) {
+             const groupId = String(pendingGroupSelection.id);
+             const groupName = pendingGroupSelection.name;
+
+             // Check if option exists
+             if (dropdown.find(`option[value='${groupId}']`).length === 0) {
+               // Add missing option
+               dropdown.append(
+                 `<option value="${groupId}">${groupName}</option>`
+               );
+             }
+
+             // Select the option
+             dropdown.val(groupId).trigger("change");
+
+             // Handle the group selection
+             handleGroupSelection(groupId);
+
+             // Clear the pending selection
+             pendingGroupSelection = null;
+           }
+        } else {
+          dropdown.append(
+            '<option value="">No device groups available</option>'
+          );
+        }
+      },
+      error: function (xhr, status, error) {
+        console.error("Error loading device groups:", error);
+        dropdown.html('<option value="">Error loading groups</option>');
+      },
+    });
+  }
+
+  // CHANGE: Completely replaced the radio button change handler with improved version
+  // Remove any existing radio button handlers first to avoid duplicates
+  $(document).off("change", "#id_device_selection input[type=radio]");
+
+  // Handle radio button changes
+  $(document).on(
+    "change",
+    "#id_device_selection input[type=radio]",
+    function () {
+      const deviceSelectionField = $(".field-device_selection");
+      const selection = $(this).val(); // "0" for single, "1" for group
+      console.log("Radio changed:", selection);
+
+      // Remove old container
+      $("#device-selection").remove();
+
+      if (selection === "0") {
+        // Single device mode
+        deviceSelectionField.after(createDeviceSelection("single"));
+        loadAvailableDevices(); // This populates the dropdown
+      } else if (selection === "1") {
+        // Group mode
+        const cont = createDeviceSelection("group");
+        deviceSelectionField.after(cont);
+
+        loadDeviceGroups(); // CHANGE: Now calling the new loadDeviceGroups function
+      }
+    }
+  );
+
+  // CHANGE: NEW - Delegated handler for device dropdown changes
+  $(document).on("change", "#device-dropdown", function () {
+    const value = $(this).val();
+
+    // Check which button exists to determine the mode
+    if ($("#add-device-btn").length > 0) {
+      // Single device mode
+      $("#add-device-btn").prop("disabled", !value);
+    } else if ($("#add-group-btn").length > 0) {
+      // Group mode
+      $("#add-group-btn").prop("disabled", !value);
+    }
+  });
+
+  // CHANGE: NEW - Delegated handler for "Add Devices from Group" button
+  $(document).on("click", "#add-group-btn", function () {
+    const groupId = $("#device-dropdown").val();
+    if (groupId) {
+      handleGroupSelection(groupId);
+    }
+  });
+
+  // CHANGE: NEW - Delegated handler for "Remove All Devices" button
+  $(document).on("click", "#remove-all-btn", function () {
+    const list = $("#selected-devices-list");
+    list
+      .empty()
+      .append("<div class='no-devices-selected'>No devices selected</div>");
+    $(".device-count-info .count").text(0);
+
+    // Clear the selectedDevices map
+    selectedDevices.clear();
+    updateHiddenInput();
+    $("#device-selection select").prop("disabled", false);
+    // Replace with "Add Devices from Group" button
+    $(this).replaceWith(`
+            <button type="button" class="add-group-btn" id="add-group-btn" disabled>
+                Add Devices from Group
+            </button>
         `);
-        return container;
-    }
-    
-    // Insert containers after test_suite field
-    const testSuiteField = $('.field-test_suite');
-    if (testSuiteField.length) {
-        const testCasesDisplay = createTestCasesDisplay();
-        const deviceSelection = createDeviceSelection();
-        testSuiteField.after(testCasesDisplay);
-        testCasesDisplay.after(deviceSelection);
-    }
-    
+
+    // Reset dropdown
+    $("#device-dropdown").val("");
+  });
+
     const apiUrl = `/api/v1/test-management/devices`;
     // Load available devices on page load
     function loadAvailableDevices() {
-        $.ajax({
-            url: apiUrl,
-            method: 'GET',
-            headers: {
-                'X-CSRFToken': csrftoken,
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            success: function(data) {
-                console.log('Available devices:', data);
-                availableDevices = data.devices || [];
-                updateDeviceDropdown();
-            },
-            error: function(xhr, status, error) {
-                console.error('Error loading devices:', error);
-                $('#device-dropdown').html('<option value="">Error loading devices</option>');
-            }
-        });
+      $.ajax({
+        url: apiUrl,
+        method: "GET",
+        headers: {
+          "X-CSRFToken": csrftoken,
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        success: function (data) {
+          console.log("Available devices:", data);
+          availableDevices = data.devices || [];
+          updateDeviceDropdown();
+        },
+        error: function (xhr, status, error) {
+          console.error("Error loading devices:", error);
+          $("#device-dropdown").html(
+            '<option value="">Error loading devices</option>'
+          );
+        },
+      });
     }
-    
-    // Update device dropdown
-    function updateDeviceDropdown() {
-        const dropdown = $('#device-dropdown');
-        dropdown.empty();
-        
-        if (availableDevices.length === 0) {
-            dropdown.append('<option value="">No devices available</option>');
-            $('#add-device-btn').prop('disabled', true);
-            return;
-        }
-        
-        dropdown.append('<option value="">Select a device...</option>');
-        
-        availableDevices.forEach(function(device) {
-            // Don't show already selected devices
-            if (!selectedDevices.has(String(device.id)) && device.status!=="Deactivated") {
-                dropdown.append(`
+
+  function initializeDeviceSelection() {
+    const selectedValue = $('input[name="device_selection"]:checked').val();
+    console.log("Initializing device selection, type:", selectedValue);
+
+    // Remove any existing container
+    $("#device-selection").remove();
+
+    const deviceSelectionField = $(".field-device_selection");
+
+    if (selectedValue === "1") {
+      // Group mode
+      const deviceSelection = createDeviceSelection("group");
+      deviceSelectionField.after(deviceSelection);
+      loadDeviceGroups();
+    } else {
+      // Single mode (default or when value is "0")
+      const deviceSelection = createDeviceSelection("single");
+      deviceSelectionField.after(deviceSelection);
+      loadAvailableDevices();
+    }
+  }
+  // Insert containers after test_suite field
+  const testSuiteField = $(".field-test_suite");
+  const deviceSelectionField = $(".field-device_selection");
+  console.log("length", testSuiteField.length);
+  if (testSuiteField.length) {
+    const testCasesDisplay = createTestCasesDisplay();
+
+    testSuiteField.after(testCasesDisplay);
+    initializeDeviceSelection();
+  }
+
+
+
+  // Update device dropdown
+
+  // Update device dropdown
+  function updateDeviceDropdown() {
+    const dropdown = $("#device-dropdown");
+    dropdown.empty();
+
+    if (availableDevices.length === 0) {
+      dropdown.append('<option value="">No devices available</option>');
+      $("#add-device-btn").prop("disabled", true);
+      return;
+    }
+
+    dropdown.append('<option value="">Select a device...</option>');
+
+    availableDevices.forEach(function (device) {
+      // Don't show already selected devices
+      if (
+        !selectedDevices.has(String(device.id)) &&
+        device.status !== "Deactivated"
+      ) {
+        dropdown.append(`
                     <option value="${device.id}">
                         ${device.name} (${device.organization}) - ${device.status}
                     </option>
                 `);
-            }
-        });
-        
-        $('#add-device-btn').prop('disabled', false);
-    }
-    
-    // Handle test suite selection change
-    $('#id_test_suite').on('change', function() {
-        const testSuiteId = $(this).val();
-        const testCasesDisplay = $('#test-cases-display');
-        const deviceSelection = $('#device-selection');
-        const tbody = testCasesDisplay.find('tbody');
-        
-        if (!testSuiteId) {
-            testCasesDisplay.hide();
-            deviceSelection.hide();
-            return;
-        }
-        
-        // Show loading
-        tbody.html('<tr><td colspan="4" style="text-align: center; padding: 20px;"><div class="loading-spinner"></div> Loading test cases...</td></tr>');
-        testCasesDisplay.show();
-        deviceSelection.show();
-        
-        const apiUrl = `/api/v1/test-management/test-suite/${testSuiteId}/details/`;
-
-        
-
-        // Fetch test suite details
-        $.ajax({
-            url: apiUrl,
-            method: 'GET',
-            headers: {
-                'X-CSRFToken': csrftoken,
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            success: function(data) {
-                console.log('Test suite details:', data);
-                displayTestCases(data.test_cases);
-            },
-            error: function(xhr, status, error) {
-                console.error('Error loading test suite details:', error);
-                tbody.html('<tr><td colspan="4" style="text-align: center; padding: 20px; color: #dc3545;">Error loading test cases</td></tr>');
-            }
-        });
+      }
     });
-    
-    // Display test cases (read-only)
-    function displayTestCases(testCases) {
-        const tbody = $('#test-cases-display tbody');
-        tbody.empty();
-        
-        if (!testCases || testCases.length === 0) {
-            tbody.html('<tr><td colspan="4" style="text-align: center; padding: 20px; color: #999;">No test cases in this test group</td></tr>');
-            return;
-        }
-        
-        testCases.forEach(function(testCase) {
-            const typeClass = testCase.test_type === 1 ? 'readonly-test-type-robot' : 'readonly-test-type-agent';
-            const row = $(`
+
+    $("#add-device-btn").prop("disabled", false);
+  }
+
+  // Handle test suite selection change
+  $(document).on("change", "#id_test_suite", function () {
+    const testSuiteId = $(this).val();
+    console.log("hi", testSuiteId);
+    const testCasesDisplay = $("#test-cases-display");
+    const deviceSelection = $("#device-selection");
+    const tbody = testCasesDisplay.find("tbody");
+    if (!testSuiteId) {
+      testCasesDisplay.hide();
+      //   deviceSelection.hide();
+      return;
+    }
+
+    // Show loading
+    tbody.html(
+      '<tr><td colspan="4" style="text-align: center; padding: 20px;"><div class="loading-spinner"></div> Loading test cases...</td></tr>'
+    );
+    testCasesDisplay.show();
+    deviceSelection.show();
+
+    const apiUrl = `/api/v1/test-management/test-suite/${testSuiteId}/details/`;
+
+    // Fetch test suite details
+    $.ajax({
+      url: apiUrl,
+      method: "GET",
+      headers: {
+        "X-CSRFToken": csrftoken,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      success: function (data) {
+        console.log("Test suite details:", data);
+        displayTestCases(data.test_cases);
+      },
+      error: function (xhr, status, error) {
+        console.error("Error loading test suite details:", error);
+        tbody.html(
+          '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #dc3545;">Error loading test cases</td></tr>'
+        );
+      },
+    });
+  });
+
+  // Display test cases (read-only)
+  function displayTestCases(testCases) {
+    const tbody = $("#test-cases-display tbody");
+    tbody.empty();
+
+    if (!testCases || testCases.length === 0) {
+      tbody.html(
+        '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #999;">No test cases in this test group</td></tr>'
+      );
+      return;
+    }
+
+    testCases.forEach(function (testCase) {
+      const typeClass =
+        testCase.test_type === 1
+          ? "readonly-test-type-robot"
+          : "readonly-test-type-agent";
+      const row = $(`
                 <tr>
                     <td class="readonly-name-col">
                         <div class="readonly-test-case-name">${testCase.name}</div>
@@ -207,68 +448,75 @@
                     </td>
                 </tr>
             `);
-            
-            tbody.append(row);
-        });
+
+      tbody.append(row);
+    });
+  }
+  $(document).ready(function () {
+    if (window.recoveredDevices && window.recoveredDevices.length > 0) {
+      window.recoveredDevices.forEach((device) => {
+        if (device.status !== "Deactivated") {
+          selectedDevices.set(String(device.id), device);
+        }
+      });
+
+      // Sync UI after preload
+      updateSelectedDevicesList();
+      updateDeviceDropdown();
+      updateDeviceCount();
+      updateHiddenInput();
+      if (window.recoveredDeviceGroup?.id) {
+        pendingGroupSelection = window.recoveredDeviceGroup;
+     }
     }
-    $(document).ready(function () {
-        console.log("recoveredDevices>>>>>",window?.recoveredDevices)
+  });
 
-      if (window.recoveredDevices && window.recoveredDevices.length > 0) {
-        window.recoveredDevices.forEach((device) => {
-            if(device.status!== "Deactivated"){
-                selectedDevices.set(String(device.id), device);
-            }
-        });
+  // CHANGE: Converted to delegated event handler for add device button
+  $(document).off("click", "#add-device-btn"); // Remove any existing direct handlers
+  $(document).on("click", "#add-device-btn", function () {
+    const deviceId = $("#device-dropdown").val();
 
-        // Sync UI after preload
-        updateSelectedDevicesList();
-        updateDeviceDropdown();
-        updateDeviceCount();
-        updateHiddenInput();
-      }
-    });
-    // Handle add device button click
-    $('#add-device-btn').on('click', function() {
-        const deviceId = $('#device-dropdown').val();
-        
-        // if (!deviceId) {
-        //     alert('Please select a device first');
-        //     return;
-        // }
-        
-        // Find device in available devices
-        const device = availableDevices.find(d => String(d.id) === String(deviceId));
-        if (!device) {
-            alert('Device not found');
-            return;
-        }
-        
-        // Add to selected devices
-        selectedDevices.set(String(deviceId), device);
-        
-        // Update displays
-        updateSelectedDevicesList();
-        updateDeviceDropdown();
-        updateDeviceCount();
-        updateHiddenInput();
-        
-        // Reset dropdown
-        $('#device-dropdown').val('');
-    });
-    
-    // Update selected devices list
-    function updateSelectedDevicesList() {
-        const container = $('#selected-devices-list');
-        container.empty();
-        
-        if (selectedDevices.size === 0) {
-            container.html('<div class="no-devices-selected">No devices selected</div>');
-            return;
-        }
-        
-        selectedDevices.forEach(function(device, deviceId) {
-            const deviceItem = $(`
+    if (!deviceId) {
+      // You might want to uncomment this for better UX
+      // alert('Please select a device first');
+      return;
+    }
+
+    // Find device in available devices
+    const device = availableDevices.find(
+      (d) => String(d.id) === String(deviceId)
+    );
+    if (!device) {
+      alert("Device not found");
+      return;
+    }
+
+    // Add to selected devices
+    selectedDevices.set(String(deviceId), device);
+
+    // Update displays
+    updateSelectedDevicesList();
+    updateDeviceDropdown();
+    updateDeviceCount();
+    updateHiddenInput();
+
+    // Reset dropdown
+    $("#device-dropdown").val("");
+  });
+  // Update selected devices list
+  function updateSelectedDevicesList() {
+    const container = $("#selected-devices-list");
+    container.empty();
+
+    if (selectedDevices.size === 0) {
+      container.html(
+        '<div class="no-devices-selected">No devices selected</div>'
+      );
+      return;
+    }
+
+    selectedDevices.forEach(function (device, deviceId) {
+      const deviceItem = $(`
                 <div class="selected-device-item" data-device-id="${deviceId}">
                     <div class="device-info">
                         <div class="device-name">${device.name}</div>
@@ -277,86 +525,107 @@
                     <button type="button" class="remove-device-btn" data-device-id="${deviceId}">Remove</button>
                 </div>
             `);
-            if(device?.status!=="Deactivated"){
-                container.append(deviceItem);
-            }
-            
-        });
-    }
-    
-    // Handle device removal
-    $(document).on('click', '.remove-device-btn', function() {
-        const deviceId = $(this).data('device-id');
-        
-        // Remove from selected devices
-        selectedDevices.delete(String(deviceId));
-        
-        // Update displays
-        updateSelectedDevicesList();
-        updateDeviceDropdown();
-        updateDeviceCount();
-        updateHiddenInput();
+      if (device?.status !== "Deactivated") {
+        container.append(deviceItem);
+      }
     });
-    
-    // Update device count
-    function updateDeviceCount() {
-        const count = selectedDevices.size;
-        const countInfo = $('.device-count-info .count');
-        countInfo.text(count);
-        
-        // Update text
-        const textSpan = $('.device-count-info');
-        if (count === 1) {
-            textSpan.html(`<span class="count">${count}</span> device selected`);
-        } else {
-            textSpan.html(`<span class="count">${count}</span> devices selected`);
-        }
+  }
+
+  // Handle device removal
+  $(document).on("click", ".remove-device-btn", function () {
+    const deviceId = $(this).data("device-id");
+
+    // Remove from selected devices
+    selectedDevices.delete(String(deviceId));
+
+    // Update displays
+    updateSelectedDevicesList();
+    updateDeviceDropdown();
+    updateDeviceCount();
+    updateHiddenInput();
+  });
+
+  // Update device count
+  function updateDeviceCount() {
+    const count = selectedDevices.size;
+    const countInfo = $(".device-count-info .count");
+    countInfo.text(count);
+
+    // Update text
+    const textSpan = $(".device-count-info");
+    if (count === 1) {
+      textSpan.html(`<span class="count">${count}</span> device selected`);
+    } else {
+      textSpan.html(`<span class="count">${count}</span> devices selected`);
     }
-    
-    // Update hidden input with selected devices
-    function updateHiddenInput() {
-        let input = $('input[name="selected_devices_data"]');
-        
-        if (!input.length) {
-            input = $('<input type="hidden" name="selected_devices_data">');
-            $('form').append(input);
-        }
-        
-        // Get device IDs
-        const deviceIds = Array.from(selectedDevices.keys());
-        input.val(JSON.stringify(deviceIds));
-        console.log('Updated selected devices:', deviceIds);
+  }
+
+  // Update hidden input with selected devices
+  function updateHiddenInput() {
+    let input = $('input[name="selected_devices_data"]');
+
+    if (!input.length) {
+      input = $('<input type="hidden" name="selected_devices_data">');
+      $("form").append(input);
     }
-    
-    // Form submission validation
-    $('form').on('submit', function(e) {
-        updateHiddenInput();
-        
-        // Validate test suite selection
-        // if (!$('#id_test_suite').val()) {
-        //     alert('Please select a test group');
-        //     e.preventDefault();
-        //     return false;
-        // }
-        
-        // Validate device selection
-        // if (selectedDevices.size === 0) {
-        //     alert('Please select at least one device');
-        //     e.preventDefault();
-        //     return false;
-        // }
-        
-        console.log('Form submitted with devices:', Array.from(selectedDevices.keys()));
-    });
-    
-    // Initialize on page load
-    loadAvailableDevices();
-    
-    // If editing existing execution, trigger test suite change to load test cases
-    if ($('#id_test_suite').val()) {
-        $('#id_test_suite').trigger('change');
+
+    // Get device IDs
+    const deviceIds = Array.from(selectedDevices.keys());
+    input.val(JSON.stringify(deviceIds));
+    console.log("Updated selected devices:", deviceIds);
+
+    // Handle device group
+    let groupInput = $('input[name="device_group"]');
+    if (!groupInput.length) {
+      groupInput = $(
+        '<input type="hidden" name="device_group" id="id_device_group">'
+      );
+      $("form").append(groupInput);
     }
-    
-    console.log('TestSuiteExecution form initialized');
-    
+
+    // If "Device Group Selection" is chosen, set the group id
+    const selectedType = $('input[name="device_selection"]:checked').val();
+    console.log("selectedType", selectedType);
+    if (selectedType === "1") {
+      const groupId = $("#device-dropdown").val(); // or however you let user pick group
+      groupInput.val(groupId);
+      console.log("Updated device_group:", groupId);
+    } else {
+      groupInput.val(""); // not needed in single mode
+    }
+  }
+
+  // Form submission validation
+  $("form").on("submit", function (e) {
+    updateHiddenInput();
+
+    // Validate test suite selection
+    // if (!$('#id_test_suite').val()) {
+    //     alert('Please select a test group');
+    //     e.preventDefault();
+    //     return false;
+    // }
+
+    // Validate device selection
+    // if (selectedDevices.size === 0) {
+    //     alert('Please select at least one device');
+    //     e.preventDefault();
+    //     return false;
+    // }
+
+    console.log(
+      "Form submitted with devices:",
+      Array.from(selectedDevices.keys())
+    );
+  });
+
+  // Initialize on page load
+  // loadAvailableDevices();
+
+  // If editing existing execution, trigger test suite change to load test cases
+  if ($("#id_test_suite").val()) {
+    $("#id_test_suite").trigger("change");
+  }
+
+  console.log("TestSuiteExecution form initialized");
 })(django.jQuery);

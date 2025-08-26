@@ -916,20 +916,15 @@ class TestSuiteExecutionDeviceInline(admin.TabularInline):
 class TestSuiteExecutionAdminForm(forms.ModelForm):
     """Custom form for TestSuiteExecution admin"""
     
-    class Meta:
-        model = TestSuiteExecution
-        fields = ['test_suite', 'device_selection', 'device_group']
-        labels = {
-            'test_suite': _('Select Test Group'),
-        }
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['device_selection'].widget = forms.RadioSelect(choices=self.fields['device_selection'].choices)
         
         
         # Store selected devices data for later use
         self._selected_devices_data = None
-        
+        self._device_group=None
         # Customize test_suite field
         if "test_suite" in self.fields:
             self.fields["test_suite"].help_text = _(
@@ -939,6 +934,13 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                 is_active=True
             )
     
+    class Meta:
+        model = TestSuiteExecution
+        fields = ['test_suite', 'device_selection','device_group']
+        labels = {
+            'test_suite': _('Select Test Group'),
+            'device_selection' :_('Device Selection Type'),
+        }
     def clean(self):
         """Custom validation"""
         print(">>> CLEAN METHOD STARTED <<<")
@@ -955,6 +957,24 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
         selected_devices_data = self.data.get('selected_devices_data', '')
         print(f">>> Selected devices data from form: {selected_devices_data} <<<")
         
+        device_selection = cleaned_data.get("device_selection")
+        device_group= self.data.get('device_group','')
+        self._device_group=device_group
+
+        if device_selection == 1:
+            if not device_group:
+                raise forms.ValidationError("Device group is required when device selection type is 'Device Group'")
+
+            # attach for later saving
+            cleaned_data["device_group"] = (device_group)
+
+            # org check
+            # from .models import 
+            # device_group = DeviceGroup.objects.filter(id=device_group).first()
+            # if device_group and test_suite and device_group.organization_id != test_suite.organization_id:
+                # raise forms.ValidationError("Device group must belong to the same organization")
+
+
         if selected_devices_data:
             try:
                 selected_device_ids = json.loads(selected_devices_data)
@@ -1000,9 +1020,9 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
     def save_devices(self, instance):
         """Save devices for the test suite execution"""
         print(f">>> SAVE_DEVICES METHOD STARTED for instance: {instance.id} <<<")
-        if instance.device_selection == 1:
-         # Skip, because model.save() already creates devices + testcases
-         return
+        # if instance.device_selection == 1:
+        #  # Skip, because model.save() already creates devices + testcases
+        #  return
         
         # Use stored device data or get from form data
         selected_devices_data = self._selected_devices_data or self.data.get('selected_devices_data', '')
@@ -1071,7 +1091,15 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
         
         instance = super().save(commit=False)
         print(f">>> Instance created/updated: {instance} (ID: {instance.id if instance.id else 'NEW'}) <<<")
-        
+        if instance.device_selection == 1 and self._device_group:
+            try:
+                device_group = TestDeviceGroup.objects.get(id=self._device_group)
+                instance.device_group = device_group
+                print(f">>> Assigned device_group_id: {instance.device_group} <<<")
+            except ValueError:
+                raise forms.ValidationError({
+                    'device_group': _('Invalid device group selected.')
+                })
         if commit:
             instance.save()
             print(f">>> Instance saved to DB. ID: {instance.id} <<<")
@@ -1096,7 +1124,6 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
 class TestSuiteExecutionAdmin(BaseVersionAdmin):
     form = TestSuiteExecutionAdminForm
     
-    
     change_form_template = 'admin/test_management/testsuitexecution/change_form.html'
     list_display = [
     "test_suite_name",
@@ -1117,7 +1144,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     
     fields = [
     "test_suite",
-    # "device_selection",
+    "device_selection",
     # "device_group",
     ]
     
@@ -1309,26 +1336,26 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
 
     def save_model(self, request, obj, form, change):
-     print(f">>> ADMIN save_model called. Change: {change} <<<")
-     super().save_model(request, obj, form, change)
-     print(f">>> Object saved with ID: {obj.id} <<<")
-     
-     # Ensure devices are saved
-     if hasattr(form, 'save_devices'):
-          form.save_devices(obj)
+        print(f">>> ADMIN save_model called. Change: {change} <<<")
+        super().save_model(request, obj, form, change)
+        print(f">>> Object saved with ID: {obj.id} <<<")
+        
+        # Ensure devices are saved
+        if hasattr(form, 'save_devices'):
+            form.save_devices(obj)
 
-     # ✅ FIX: absolute import
-     from openwisp_test_management.swapper import load_model
-     TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+        # ✅ FIX: absolute import
+        from openwisp_test_management.swapper import load_model
+        TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 
-     obj.device_count = TestSuiteExecutionDevice.objects.filter(
-          test_suite_execution=obj
-     ).count()
-     obj.testcase_count = obj.test_suite.test_case_count if obj.test_suite_id else 0
+        obj.device_count = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=obj
+        ).count()
+        obj.testcase_count = obj.test_suite.test_case_count if obj.test_suite_id else 0
 
-     obj.save(update_fields=["device_count", "testcase_count"])
+        obj.save(update_fields=["device_count", "testcase_count"])
 
-     print(f">>> ADMIN save_model completed. Updated device_count={obj.device_count}, testcase_count={obj.testcase_count} <<<")
+        print(f">>> ADMIN save_model completed. Updated device_count={obj.device_count}, testcase_count={obj.testcase_count} <<<")
     
     def has_delete_permission(self, request, obj=None):
         """Prevent deletion of executed test suites"""
@@ -1398,8 +1425,17 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         version = self._get_version_object(version_id)
 
         if version:
-            execution_obj = version._object_version.object
-            
+
+            execution_obj = version._object_version.object        
+            # 🔹 Add device_group info if it exists
+            device_group = getattr(execution_obj, "device_group", None)
+            if device_group:
+                extra_context["execution_device_group"] = {
+                    "id": str(device_group.id),
+                    "name": device_group.name,
+                }
+            else:
+                extra_context["execution_device_group"] = None
             # Now get related devices (live DB, not historical)
             related_versions = version.revision.version_set.filter(
             content_type__model="testsuiteexecutiondevice"

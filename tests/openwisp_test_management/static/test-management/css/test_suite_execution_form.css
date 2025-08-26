@@ -95,7 +95,7 @@
         /* border: 1px solid #ddd; */
         /* background: #f9f9f9; */
         /* border-radius: 4px; */
-        display: none;
+        /* display: none; */
     }
     
     .device-selector-container {
@@ -117,8 +117,17 @@
         font-size: 14px;
     }
     
-    .add-device-btn {
+    .add-device-btn, #add-group-btn {
         background: #007cba;
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    #remove-all-btn {
+        background: red;
         color: white;
         border: none;
         padding: 8px 15px;
@@ -252,4 +261,11 @@
     .success-icon {
         margin-right: 8px;
         font-weight: bold;
+    }
+
+    #device-selection select:disabled {
+    cursor:not-allowed;
+    }
+    #id_device_selection{
+        display: flex;
     }
