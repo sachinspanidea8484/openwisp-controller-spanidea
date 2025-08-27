@@ -267,7 +267,9 @@ if TESTING:
     OPENWISP_MONITORING_AUTO_IPERF3 = True
 
 
-TIME_ZONE = "UTC"
+# TIME_ZONE = "UTC"
+TIME_ZONE = 'Asia/Kolkata'
+
 LANGUAGE_CODE = "en-gb"
 USE_TZ = True
 USE_I18N = True
