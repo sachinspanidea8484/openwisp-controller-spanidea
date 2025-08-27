@@ -53,7 +53,7 @@
     <div class="category-filter-input">
         <label >Filter by Category:</label>
         <select id="category-filter" class="vSelect" multiple >
-            <option value="__all__" selected>All</option>
+            <option value="__all__">Select All</option>
             {% for cat in categories %}
             <option value="{{ cat.id }}">{{ cat.name }}</option>
             {% endfor %}
