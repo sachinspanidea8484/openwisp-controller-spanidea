@@ -4,7 +4,7 @@
  */
 
 (function ($) {
-  "use strict";
+  ("use strict");
 
   // CSRF Token Utility
   function getCookie(name) {
@@ -635,8 +635,14 @@
         globalState.logState();
 
         // Construct API URL
-        const queryString = categoryId.join(",");
-        const apiUrl = `/api/v1/test-management/category/get-test-cases/?category_ids=${queryString}`;
+        let apiUrl;
+        if (categoryId.includes("__all__")) {
+          apiUrl = `/api/v1/test-management/category/get-test-cases/`;
+        } else {
+          const queryString = categoryId.join(",");
+          apiUrl = `/api/v1/test-management/category/get-test-cases/?category_ids=${queryString}`;
+        }
+
         console.log("Calling API:", apiUrl);
 
         // Fetch test cases

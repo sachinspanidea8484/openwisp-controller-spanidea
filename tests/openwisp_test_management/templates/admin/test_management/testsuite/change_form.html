@@ -35,6 +35,7 @@
           placeholderValue: 'Select Categories',
           noResultsText: 'No categories found',
           itemSelectText: 'Select',
+          shouldSort: false,
         });
       }
     });
@@ -52,6 +53,7 @@
     <div class="category-filter-input">
         <label >Filter by Category:</label>
         <select id="category-filter" class="vSelect" multiple >
+            <option value="__all__" selected>All</option>
             {% for cat in categories %}
             <option value="{{ cat.id }}">{{ cat.name }}</option>
             {% endfor %}

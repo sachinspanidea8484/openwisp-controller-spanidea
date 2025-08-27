@@ -145,6 +145,11 @@ class TestCategoryAdmin(BaseVersionAdmin):
             return False
         return True
     
+    def recover_view(self, request, version_id, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context["is_recover_view"]= True
+        return super().recover_view(request, version_id, extra_context=extra_context)
+    
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
         
@@ -372,6 +377,11 @@ class TestCaseAdmin(BaseVersionAdmin):
         extra_context = extra_context or {}
         extra_context['title'] = _("Test Cases")
         return super().changelist_view(request, extra_context) 
+
+    def recover_view(self, request, version_id, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context["is_recover_view"]= True
+        return super().recover_view(request, version_id, extra_context=extra_context)
 
     def has_delete_permission(self, request, obj=None):
         """Check if user can delete test cases"""
@@ -855,7 +865,7 @@ class TestSuiteAdmin(BaseVersionAdmin):
     def recover_view(self, request, version_id, extra_context=None):
         extra_context = extra_context or {}
         extra_context["categories"] = list(TestCategory.objects.values("id", "name"))
-
+        extra_context["is_recover_view"]= True
         version = self._get_version_object(version_id)
         obj = version._object_version.object
 
@@ -1421,7 +1431,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     def recover_view(self, request, version_id, extra_context=None):
         extra_context = extra_context or {}
         extra_context['show_execution_device_details'] = True
-
+        extra_context["is_recover_view"]= True
         version = self._get_version_object(version_id)
 
         if version:
@@ -1897,7 +1907,7 @@ class TestDeviceGroupAdmin(BaseVersionAdmin):
 
       
         extra_context['show_device_group_devices']= True
-
+        extra_context["is_recover_view"]= True
         return super().recover_view(request, version_id, extra_context=extra_context)
     
     def _get_version_object(self, version_id):
