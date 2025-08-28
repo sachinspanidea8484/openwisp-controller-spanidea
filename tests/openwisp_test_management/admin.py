@@ -946,8 +946,9 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
     
     class Meta:
         model = TestSuiteExecution
-        fields = ['test_suite', 'device_selection','device_group']
+        fields = ['name','test_suite', 'device_selection','device_group']
         labels = {
+            'name' : _('Enter Execution Name'),
             'test_suite': _('Select Test Group'),
             'device_selection' :_('Device Selection Type'),
         }
@@ -1136,6 +1137,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     
     change_form_template = 'admin/test_management/testsuitexecution/change_form.html'
     list_display = [
+        "name",
     "test_suite_name",
     "device_count",
     "testcase_count",
@@ -1153,6 +1155,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     ordering = ["-created"]
     
     fields = [
+        "name",
     "test_suite",
     "device_selection",
     # "device_group",
@@ -1171,6 +1174,12 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     def render_change_form(
         self, request, context, *, add=False, change=False, form_url='', obj=None
     ):
+        from django.forms.models import model_to_dict
+        print("..........................status", model_to_dict(obj))
+        if obj and obj.is_executed:
+            context["hide_submit_row"] = True
+        else:
+            context["hide_submit_row"] = False
         context['show_save_and_execute'] = True
         return super().render_change_form(
             request, context, add=add, change=change, form_url=form_url, obj=obj
@@ -1426,8 +1435,62 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         )
 
     
-    
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        extra_context = extra_context or {}
+        obj = self.get_object(request, object_id)
+        if obj:
+            device_group= getattr(obj, "device_group", None)
+            if device_group:
+                extra_context["execution_device_group"] = {
+                    "id": str(device_group.id),
+                    "name": device_group.name,
+                }
+            else:
+                extra_context["execution_device_group"] = None
 
+            # check if it is in other state than created(0)
+            if obj and obj.status != "0":
+                extra_context["hide_submit_row"] = True
+            related_device_ids = TestSuiteExecutionDevice.objects.filter(
+                test_suite_execution=obj
+            ).values_list("device_id", flat=True)
+            devices_query = Device.objects.filter(
+                id__in=related_device_ids
+            ).select_related("organization")
+            devices_data = []
+            for device in devices_query:
+                device_status = "Offline"
+                is_deactivated = getattr(device, "_is_deactivated", False)
+
+                if is_deactivated:
+                    device_status = "Deactivated"
+                elif getattr(device, "last_ip", None) and getattr(device, "management_ip", None):
+                    device_status = "Online"
+                elif getattr(device, "last_ip", None):
+                    device_status = "Reachable"
+
+                devices_data.append({
+                    "id": str(device.id),
+                    "name": device.name,
+                    "organization": device.organization.name if device.organization else "No Organization",
+                    "organization_id": str(device.organization.id) if device.organization else None,
+                    "last_ip": getattr(device, "last_ip", None) or "N/A",
+                    "management_ip": getattr(device, "management_ip", None) or "N/A",
+                    "mac_address": getattr(device, "mac_address", None) or "N/A",
+                    "status": device_status,
+                    "connection_status": "Unknown",
+                    "has_connection": False,
+                    "is_active": True,
+                    "model": getattr(device, "model", None) or "Unknown",
+                    "os": getattr(device, "os", None) or "Unknown",
+                    "hardware_id": getattr(device, "hardware_id", None) or "N/A",
+                    "created": device.created.isoformat() if hasattr(device, "created") and device.created else None,
+                })
+
+            extra_context["execution_devices_json"] = json.dumps(devices_data)
+      
+        return super().change_view(request, object_id, form_url, extra_context)
+    
     def recover_view(self, request, version_id, extra_context=None):
         extra_context = extra_context or {}
         extra_context['show_execution_device_details'] = True

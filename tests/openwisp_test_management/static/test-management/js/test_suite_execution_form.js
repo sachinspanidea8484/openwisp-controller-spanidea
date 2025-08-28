@@ -465,10 +465,10 @@
       updateDeviceDropdown();
       updateDeviceCount();
       updateHiddenInput();
-      if (window.recoveredDeviceGroup?.id) {
-        pendingGroupSelection = window.recoveredDeviceGroup;
-     }
     }
+    if (window.recoveredDeviceGroup?.id) {
+      pendingGroupSelection = window.recoveredDeviceGroup;
+   }
   });
 
   // CHANGE: Converted to delegated event handler for add device button

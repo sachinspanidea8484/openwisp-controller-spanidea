@@ -1,6 +1,66 @@
 (function ($) {
   $(document).ready(function () {
+    const style = document.createElement("style");
+    style.textContent = `
+      .info-container {
+        position: relative;
+        display: inline-block;
+        margin-left: 10px;
+        align-content: center;
+      }
 
+      .info-icon {
+        width: 20px;
+        height: 20px;
+        background-color: #3a3636;
+        color: white;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 14px;
+      }
+
+      .info-content {
+        visibility: hidden;
+        opacity: 0;
+        position: absolute;
+        top: -22px;
+        left: 30px;
+        background-color: #f9f9f9;
+        min-width: 500px;
+        box-shadow: 0px 8px 16px rgba(0,0,0,0.2);
+        padding-left: 30px;
+        padding-top: 20px;
+        border-radius: 6px;
+        z-index: 1000;
+        transition: opacity 0.3s;
+        
+      }
+
+      .info-container:hover .info-content {
+        visibility: visible;
+        opacity: 1;
+      }
+
+      .info-content ol {
+        margin: 0;
+        
+      }
+      form .aligned ol{
+        margin-left :0 ;
+        padding-left:0;
+      }
+      .info-content ol li {
+        margin-bottom: 5px;
+      }
+      .form-row{
+        overflow: visible;
+      }
+    `;
+    document.head.appendChild(style);
     // adding regex to test case id field
     document
       .getElementById("id_test_case_id")
@@ -100,7 +160,20 @@
         helpText.textContent = "Select the type of testshahshs.";
       }
     }
-
+    const element = document.querySelector("#id_test_type");
+    const toadd = `
+      <div class="info-container">
+        <span class="info-icon">i</span>
+        <div class="info-content">
+          <ol>
+            <li>The test type Robot Framework defines the test cases that will run through Robot Framework.</li>
+            <li>The Device agent will run test cases directly on the Device.</li>
+           
+          </ol>
+        </div>
+      </div>
+    `;
+    element.insertAdjacentHTML("afterend",toadd)
     // On page load
     updateHelpText();
 

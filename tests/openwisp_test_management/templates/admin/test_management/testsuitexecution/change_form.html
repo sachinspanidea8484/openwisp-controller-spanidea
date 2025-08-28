@@ -11,8 +11,17 @@
 {% block admin_change_form_document_ready %}
 
 {{ block.super }}
-
-
+  {% if execution_devices_json %}
+    <script>
+        window.recoveredDevices = {{ execution_devices_json|safe }}; 
+    </script>
+  {% endif %}
+  
+  {% if execution_device_group %}
+    <script>
+        window.recoveredDeviceGroup = {{ execution_device_group|safe }}; 
+    </script>
+  {% endif %}
 
 <script src="{% static 'test-management/js/test_suite_execution_form.js' %}"></script>
 {% endblock %}
