@@ -72,8 +72,8 @@ services:
     restart: always
     command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--save", ""]
     # command: ["redis-server", "--replicaof", "fake-master", "6379"]
-    ports:
-      - "6379:6379"
+    # ports:
+    #   - "6379:6379"
     # entrypoint: redis-server --appendonly yes
     volumes:
       - redis_data:/data
