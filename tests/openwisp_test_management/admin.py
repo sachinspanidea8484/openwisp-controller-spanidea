@@ -960,9 +960,9 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
         
         if not test_suite:
             print(">>> ERROR: No test suite selected <<<")
-            raise forms.ValidationError({
-                'test_suite': _('Please select a test group to execute.')
-            })
+            # raise forms.ValidationError({
+            #     'test_suite': _('Please select a test group to execute.')
+            # })
         
         # Validate selected devices
         selected_devices_data = self.data.get('selected_devices_data', '')
@@ -1174,7 +1174,6 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     def render_change_form(
         self, request, context, *, add=False, change=False, form_url='', obj=None
     ):
-  
         if obj and obj.is_executed:
             context["hide_submit_row"] = True
         else:

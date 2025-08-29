@@ -269,3 +269,9 @@
     #id_device_selection{
         display: flex;
     }
+    #id_device_selection label{
+        display: flex !important;
+        align-items: center;
+        gap: 6px;
+    }
+    
