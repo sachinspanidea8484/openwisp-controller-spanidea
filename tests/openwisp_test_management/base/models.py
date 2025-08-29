@@ -423,7 +423,12 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         (0, _('Individual')),
         (1, _('Device Group')),
     )
-    
+    name = models.CharField(
+        _("Test Execution Name"), 
+        max_length=50,
+        db_index=True,
+        help_text=_("Descriptive name for the test Execution")  
+    )
     test_suite = models.ForeignKey(
         'test_management.TestSuite',
         on_delete=models.PROTECT,
