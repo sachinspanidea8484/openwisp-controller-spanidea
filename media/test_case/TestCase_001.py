@@ -101,11 +101,10 @@ def check_logd():
     print("[✓] logd process is running.")
 
 def induce_kernel_event():
-    run("ifconfig waneth1 down")
-    run("ifconfig waneth1 up")
+    run("ifconfig eth0 mtu 1", False)
     out, _ = run("dmesg | tail -n 5")
-    assert "waneth1" in out, "Interface state change not logged"
-    print("[✓] Interface state change logged.")
+    assert "eth0" in out, "mtu change error not logged in dmesg"
+    print("[âœ“] mtu change error logged in dmesg")
 
 def main():
 
@@ -144,5 +143,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
