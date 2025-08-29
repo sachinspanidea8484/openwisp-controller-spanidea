@@ -144,7 +144,24 @@
         background: #ccc;
         cursor: not-allowed;
     }
-    
+    .remove-device-btn:disabled{
+        background: #ccc;
+        cursor: not-allowed;
+    }
+    .add-group-btn:disabled{
+        background: #ccc;
+        cursor: not-allowed;
+    }
+    #remove-all-btn:disabled{
+        background: #ccc;
+        cursor: not-allowed;
+    }
+    #id_name:disabled{
+        cursor: not-allowed;
+    }
+    #id_test_suite:disabled{
+        cursor: not-allowed;
+    }
     /* Selected Devices List */
     .selected-devices-list {
         background: white;
@@ -190,9 +207,9 @@
         font-size: 12px;
     }
     
-    .remove-device-btn:hover {
+    /* .remove-device-btn:hover {
         background: #c82333;
-    }
+    } */
     
     .no-devices-selected {
         text-align: center;
@@ -273,5 +290,12 @@
         display: flex !important;
         align-items: center;
         gap: 6px;
+        
     }
+    #id_device_selection input{
+        cursor: pointer;
+    }
+      #id_device_selection input:disabled{
+        cursor: not-allowed;
+      }
     

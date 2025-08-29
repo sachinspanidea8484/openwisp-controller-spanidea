@@ -23,7 +23,15 @@
   let availableDevices = [];
   let selectedDevices = new Map(); // Map of device_id -> device_data
   let pendingGroupSelection = null;
-
+  function applyDisabledState() {
+    if (window.disabledViewMode) {
+      $(".device-selector select, .device-selector button").prop(
+        "disabled",
+        true
+      );
+      $(".remove-device-btn, .remove-all-btn").prop("disabled", true);
+    }
+  }
   // Create test cases display section
   function createTestCasesDisplay() {
     const container = $(`
@@ -141,7 +149,9 @@
           $("#device-selection select").prop("disabled", true);
           // Swap "Add Devices from Group" with "Remove All"
           $("#add-group-btn").replaceWith(`
-                    <button type="button" class="remove-all-btn" id="remove-all-btn">Remove All Devices</button>
+                    <button type="button" class="remove-all-btn" id="remove-all-btn" ${
+                      window.disabledViewMode ? "disabled" : ""
+                    }>Remove All Devices</button>
                 `);
 
           // CHANGE: Removed the click handler from here - it's now delegated
@@ -201,10 +211,12 @@
             '<option value="">No device groups available</option>'
           );
         }
+        applyDisabledState();
       },
       error: function (xhr, status, error) {
         console.error("Error loading device groups:", error);
         dropdown.html('<option value="">Error loading groups</option>');
+        applyDisabledState();
       },
     });
   }
@@ -298,12 +310,14 @@
           console.log("Available devices:", data);
           availableDevices = data.devices || [];
           updateDeviceDropdown();
+          applyDisabledState();
         },
         error: function (xhr, status, error) {
           console.error("Error loading devices:", error);
           $("#device-dropdown").html(
             '<option value="">Error loading devices</option>'
           );
+          applyDisabledState();
         },
       });
     }
@@ -371,7 +385,9 @@
       }
     });
 
-    $("#add-device-btn").prop("disabled", false);
+    if (!window.disabledViewMode) {
+      $("#add-device-btn").prop("disabled", false);
+    }
   }
 
   // Handle test suite selection change
@@ -520,9 +536,13 @@
                 <div class="selected-device-item" data-device-id="${deviceId}">
                     <div class="device-info">
                         <div class="device-name">${device.name}</div>
-                        <div class="device-details">${device.organization} - ${device.management_ip} - ${device.status}</div>
+                        <div class="device-details">${device.organization} - ${
+        device.management_ip
+      } - ${device.status}</div>
                     </div>
-                    <button type="button" class="remove-device-btn" data-device-id="${deviceId}">Remove</button>
+                    <button type="button" class="remove-device-btn" data-device-id="${deviceId}" ${
+        window.disabledViewMode ? "disabled" : ""
+      }>Remove</button>
                 </div>
             `);
       if (device?.status !== "Deactivated") {

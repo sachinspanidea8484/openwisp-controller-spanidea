@@ -23,5 +23,9 @@
     </script>
   {% endif %}
 
+    <script>
+        window.disabledViewMode = {{ hide_submit_row|yesno:"true,false" }}; 
+    </script>
+
 <script src="{% static 'test-management/js/test_suite_execution_form.js' %}"></script>
 {% endblock %}

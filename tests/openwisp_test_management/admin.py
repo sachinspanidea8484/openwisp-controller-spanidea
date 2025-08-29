@@ -48,7 +48,7 @@ from .filters import (
 )
 from .swapper import load_model
 from openwisp_users.multitenancy import MultitenantOrgFilter, MultitenantRelatedOrgFilter
-
+from django.contrib.admin.widgets import RelatedFieldWidgetWrapper
 
 logger = logging.getLogger(__name__)
 TestCategory = load_model("TestCategory")
@@ -930,7 +930,11 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['device_selection'].widget = forms.RadioSelect(choices=self.fields['device_selection'].choices)
-        
+        if getattr(self.instance, "status", None) != 0:
+            self.fields['device_selection'].disabled = True
+            self.fields['name'].disabled = True
+            self.fields['test_suite'].disabled = True
+
         
         # Store selected devices data for later use
         self._selected_devices_data = None
@@ -1170,6 +1174,21 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     class Meta:
         verbose_name = _("Test Execution")  # Change from "Test Suite Execution"
         verbose_name_plural = _("Test Executions")  # Change from "Test Suite Executions"
+    
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
+
+        if db_field.name == "test_suite":
+            obj_id = request.resolver_match.kwargs.get("object_id")
+            if obj_id:
+                obj = self.get_object(request, obj_id)
+                if obj and obj.status != 0:
+                    # unwrap RelatedFieldWidgetWrapper (removes the icons)
+                    if isinstance(formfield.widget, RelatedFieldWidgetWrapper):
+                        formfield.widget = formfield.widget.widget
+                        formfield.widget.attrs["disabled"] = True
+        return formfield
+   
     #  function which trigger to show save and execute button on ui
     def render_change_form(
         self, request, context, *, add=False, change=False, form_url='', obj=None
