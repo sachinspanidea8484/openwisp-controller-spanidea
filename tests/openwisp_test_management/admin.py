@@ -1174,8 +1174,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     def render_change_form(
         self, request, context, *, add=False, change=False, form_url='', obj=None
     ):
-        from django.forms.models import model_to_dict
-        print("..........................status", model_to_dict(obj))
+  
         if obj and obj.is_executed:
             context["hide_submit_row"] = True
         else:
