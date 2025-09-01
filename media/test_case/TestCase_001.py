@@ -61,6 +61,7 @@ def run(cmd, check=True, verbose=True, use_os=False):
 
 
 def verify_logread():
+    run("/etc/init.d/log restart")
     out, err = run("logread | head -n 5")
     assert "log" in out.lower() or out != "", "System logs not found!"
     print("[✓] System logs found.")

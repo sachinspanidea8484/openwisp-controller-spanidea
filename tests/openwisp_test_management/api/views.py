@@ -2373,6 +2373,160 @@ class RobotTestResultView(APIView):
             logger.error(f"Error checking overall suite completion: {e}")
 
 
+class RobotTestRunningResultView(APIView):
+    """
+    API endpoint to receive test results from Robot Framework server
+    No serializer - direct processing of payload
+    """
+    authentication_classes = []  # Disable auth for now, enable as needed
+    permission_classes = []  # Disable permissions for now
+    
+    def post(self, request, *args, **kwargs):
+        """
+        Accept test results from Robot Framework server
+        Expected payload:
+        {
+            "execution_id": "uuid",
+            "status": "running|success|failed|timeout|cancelled",
+            
+        }
+        """
+        try:
+            data = request.data
+            logger.info(f"Received Robot Framework test result: {data}")
+            print(f"✅ Robot Framework Result API called with data running>>>>>>>>>>>>>>>: {data}")
+            
+            # Extract execution_id
+            execution_id = data.get('execution_id')
+            if not execution_id:
+                return Response({
+                    "error": "execution_id is required"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Find the TestCaseExecution record
+            try:
+                execution = TestCaseExecution.objects.get(id=execution_id)
+                print(f"✅ Found TestCaseExecution: {execution}")
+            except TestCaseExecution.DoesNotExist:
+                return Response({
+                    "error": f"TestCaseExecution with id {execution_id} not found"
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Extract status
+            new_status = data.get('status')
+            if not new_status:
+                return Response({
+                    "error": "status is required"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Map status to TestExecutionStatus
+            status_mapping = {
+                'running': TestExecutionStatus.RUNNING,
+                'success': TestExecutionStatus.SUCCESS,
+                'failed': TestExecutionStatus.FAILED,
+                'timeout': TestExecutionStatus.TIMEOUT,
+                'cancelled': TestExecutionStatus.CANCELLED
+            }
+            
+            if new_status not in status_mapping:
+                return Response({
+                    "error": f"Invalid status: {new_status}. Must be one of {list(status_mapping.keys())}"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            execution_status = status_mapping[new_status]
+            if execution_status == TestExecutionStatus.RUNNING:
+                execution.status = execution_status
+                execution.started_at = timezone.now()
+            
+            execution.save(update_fields=[
+                    'status', 'started_at', 
+                ])
+            
+            # Prepare response
+            response_data = {
+                "success": True,
+                "message": f"Test case execution running updated to {new_status}",
+                "data": {
+                    "execution_id": str(execution.id),
+                    "test_case_id": str(execution.test_case.test_case_id),
+                    "test_case_name": execution.test_case.name,
+                    "device_id": str(execution.device.id),
+                    "device_name": execution.device.name,
+                    "status": execution.status,
+                }
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error updating robot test result: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            return Response({
+                "error": "Failed to update test case execution",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _check_suite_execution_completion(self, test_suite_execution, device):
+        """Check if all test cases for a device in suite execution are completed"""
+        try:
+            # Get all test case executions for this suite and device
+            all_executions = TestCaseExecution.objects.filter(
+                test_suite_execution=test_suite_execution,
+                device=device
+            )
+            
+            # Check if all are completed
+            incomplete_count = all_executions.filter(
+                status__in=[TestExecutionStatus.PENDING, TestExecutionStatus.RUNNING]
+            ).count()
+            
+            if incomplete_count == 0:
+                # All test cases completed for this device
+                # Update the TestSuiteExecutionDevice status
+                suite_device = TestSuiteExecutionDevice.objects.get(
+                    test_suite_execution=test_suite_execution,
+                    device=device
+                )
+                
+                # Check if any test case failed
+                failed_count = all_executions.filter(
+                    status__in=[TestExecutionStatus.FAILED, TestExecutionStatus.TIMEOUT]
+                ).count()
+                
+                if failed_count > 0:
+                    suite_device.status = 'failed'
+                else:
+                    suite_device.status = 'completed'
+                
+                suite_device.completed_at = timezone.now()
+                suite_device.save(update_fields=['status', 'completed_at'])
+                
+                print(f"✅ Updated TestSuiteExecutionDevice status to: {suite_device.status}")
+                
+                # Check if all devices are completed for the suite execution
+                self._check_overall_suite_completion(test_suite_execution)
+                
+        except Exception as e:
+            logger.error(f"Error checking suite execution completion: {e}")
+    
+    def _check_overall_suite_completion(self, test_suite_execution):
+        """Check if all devices have completed the suite execution"""
+        try:
+            incomplete_devices = TestSuiteExecutionDevice.objects.filter(
+                test_suite_execution=test_suite_execution,
+                status__in=['pending', 'running']
+            ).count()
+            
+            if incomplete_devices == 0:
+                # All devices completed - don't set is_executed here as it's controlled by admin action
+                print(f"✅ All devices completed for test suite execution: {test_suite_execution}")
+                
+        except Exception as e:
+            logger.error(f"Error checking overall suite completion: {e}")
+
+
 class DeviceTestResultView(APIView):
     """
     API endpoint to receive test results from Robot Framework server

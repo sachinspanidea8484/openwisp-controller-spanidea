@@ -1046,9 +1046,9 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
                     test_exec = TestCaseExecution.objects.get(pk=exec_id)
                     old_status = test_exec.status
                     
-                    test_exec.status = TestExecutionStatus.RUNNING
-                    test_exec.started_at = timezone.now()
-                    test_exec.save()
+                    # test_exec.status = TestExecutionStatus.RUNNING
+                    # test_exec.started_at = timezone.now()
+                    # test_exec.save()
                     
                     print(f"[DEBUG] ✅ Updated test execution {exec_id}: {old_status} -> {TestExecutionStatus.RUNNING}")
                     

@@ -29,8 +29,9 @@ def parse_temp_and_humidity(block):
     """                                                                     
     Parse temperature and humidity values from the block.
     """
-    temp_match = re.search(r"Temperature\s*\(..C\)\s*:\s*([\d\.\-]+)", block)
-    hum_match = re.search(r"Humidity\s*\(%RH\)\s*:\s*([\d\.\-]+)", block)
+    
+    temp_match = re.search(r"Temperature\s*\(.*C\)\s*:\s*([\d\.\-]+)", block)
+    hum_match  = re.search(r"Humidity\s*\(.*\)\s*:\s*([\d\.\-]+)", block)
                                                                         
     temp = float(temp_match.group(1)) if temp_match else None
     hum = float(hum_match.group(1)) if hum_match else None 
@@ -88,4 +89,5 @@ def main():
     sys.exit(0)                                                                                             
                                                                                                             
 if __name__ == "__main__":                                                                                  
-    main()                                         
+    main()         
+
