@@ -29,7 +29,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
 
 
 
-DEBUG = True
+DEBUG = False
 TESTING = False
 SELENIUM_HEADLESS = True
 SHELL = "shell" in sys.argv or "shell_plus" in sys.argv
