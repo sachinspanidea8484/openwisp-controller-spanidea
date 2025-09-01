@@ -29,7 +29,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
 
 
 
-DEBUG = True
+DEBUG = False
 TESTING = False
 SELENIUM_HEADLESS = True
 SHELL = "shell" in sys.argv or "shell_plus" in sys.argv
@@ -222,6 +222,10 @@ if DEBUG:
 else:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = True 
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
 
 
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
@@ -469,7 +473,7 @@ AUTHENTICATION_BACKENDS = [
 
 #     # Keep your ngrok URL if needed
 # ]
-CSRF_TRUSTED_ORIGINS = ["*"]
+CSRF_TRUSTED_ORIGINS = ["*" ,"https://54.234.248.241" ,"https://54.234.248.241:8000" ,"https://54.234.248.241:8080"  ,"http://54.234.248.241" ,"http://54.234.248.241:8000" ,"http://54.234.248.241:8080"]
 
 
 SESSION_CACHE_ALIAS = "default"
