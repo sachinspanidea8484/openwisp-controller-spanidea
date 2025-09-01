@@ -469,7 +469,7 @@ AUTHENTICATION_BACKENDS = [
 
 #     # Keep your ngrok URL if needed
 # ]
-CSRF_TRUSTED_ORIGINS = ["*"]
+CSRF_TRUSTED_ORIGINS = []
 
 
 SESSION_CACHE_ALIAS = "default"
