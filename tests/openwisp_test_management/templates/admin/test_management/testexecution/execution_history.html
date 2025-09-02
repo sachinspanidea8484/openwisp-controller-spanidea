@@ -417,6 +417,12 @@
   border-radius: 4px;
   font-weight: bold;
 }
+.section-header{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
 </style>
 {% endblock %}
 
@@ -491,7 +497,7 @@ function getCookie(name) {
 
 const csrftoken = getCookie('csrftoken');
 const executionId = '{{ execution_id }}';
-
+const agentTestStore = {};
 // Display execution data with OpenWISP styling
 function displayExecutionData(data) {
     // Update page title
@@ -547,79 +553,52 @@ function displayExecutionData(data) {
             } else {
                 progressClass = 'warning';
             }
-            
-                        // Build test results table
-            let testResultsHtml = '';
-            if (device.test_cases && device.test_cases.length > 0) {
-                let tableRows = '';
-                
-                device.test_cases.forEach(test => {
-                    let actions = '';
                     
-                    // Download log button
+            // --- Group test cases by type ---
+            const robotTests = (device.test_cases || []).filter(t => t.test_type === "Robot Framework");
+            const agentTests = (device.test_cases || []).filter(t => t.test_type === "Device Agent");
+            agentTestStore[device.device_execution_id] = agentTests;
+            // Function to build a test case table
+            const buildTable = (tests) => {
+                if (!tests.length) {
+                    return '<div class="empty-state">No test results available.</div>';
+                }
+                let rows = '';
+                tests.forEach(test => {
+                    let actions = '';
                     if (test.has_log && (test.status === 'success' || test.status === 'failed')) {
                         actions += `
                             <a href="/api/v1/test-management/test-case-execution/${test.id}/download-log/" 
-                               class="btn-action" 
-                               title="Download log" 
-                               download>
-                                <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/>
-                                </svg>
+                            class="btn-action" title="Download log" download>
+                                <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20"> <path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/> </svg>
                                 Log
                             </a>
-                        `;
-                    }
-                    if (test.has_log && (test.status === 'success' || test.status === 'failed')) {
-                        actions += `
                             <a href="/api/v1/test-management/test-case-execution/${test.id}/download-log/" 
-                               class="btn-action" 
-                               title="View log"
-                               target="_blank"
-                               rel="noopener noreferrer">
-                                <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M10 3C5 3 1.73 7.11 1 10c.73 2.89 4 7 9 7s8.27-4.11 9-7c-.73-2.89-4-7-9-7zm0 12c-2.76 0-5-2.24-5-5
-                                            s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8a3 3 0 100 6 3 3 0 000-6z"/>
-                                </svg>
+                            class="btn-action" title="View log" target="_blank" rel="noopener noreferrer">
+                                <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20"> <path d="M10 3C5 3 1.73 7.11 1 10c.73 2.89 4 7 9 7s8.27-4.11 9-7c-.73-2.89-4-7-9-7zm0 12c-2.76 0-5-2.24-5-5 s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8a3 3 0 100 6 3 3 0 000-6z"/> </svg>    
                                 View Log
                             </a>
                         `;
                     }
-                    
-                    // Retry button
                     if (test.can_retry) {
                         actions += `
-                            <button class="btn-action warning" 
-                                    onclick="retryTest('${test.id}')" 
-                                    title="Retry test">
-                                <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M10 3v2a5 5 0 0 0-3.54 8.54l-1.41 1.41A7 7 0 0 1 10 3zm4.95 2.05A7 7 0 0 1 10 17v-2a5 5 0 0 0 3.54-8.54l1.41-1.41zM10 20l-4-4 4-4v8zm0-12V0l4 4-4 4z"/>
-                                </svg>
+                            <button class="btn-action warning" onclick="retryTest('${test.id}')">
+                                <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20"> <path d="M10 3v2a5 5 0 0 0-3.54 8.54l-1.41 1.41A7 7 0 0 1 10 3zm4.95 2.05A7 7 0 0 1 10 17v-2a5 5 0 0 0 3.54-8.54l1.41-1.41zM10 20l-4-4 4-4v8zm0-12V0l4 4-4 4z"/> </svg>
                                 Retry
                             </button>
                         `;
                     }
-                    
-                    tableRows += `
+                    rows += `
                         <tr>
                             <td>${test.test_case_name || 'N/A'}</td>
                             <td><span class="test-id-badge">${test.test_case_id || 'N/A'}</span></td>
                             <td>${test.test_type || 'N/A'}</td>
-                            <td>
-                                <span class="status-indicator ${test.status}">
-                                    ${test.status_display || test.status}
-                                </span>
-                            </td>
-                            <td>
-                                <div class="action-buttons">
-                                    ${actions || '-'}
-                                </div>
-                            </td>
+                            <td><span class="status-indicator ${test.status}">${test.status_display || test.status}</span></td>
+                            <td><div class="action-buttons">${actions || '-'}</div></td>
                         </tr>
                     `;
                 });
-                
-                testResultsHtml = `
+                return `
                     <table class="results-table">
                         <thead>
                             <tr>
@@ -630,75 +609,79 @@ function displayExecutionData(data) {
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            ${tableRows}
-                        </tbody>
+                        <tbody>${rows}</tbody>
                     </table>
                 `;
-            } else {
-                testResultsHtml = '<div class="empty-state">No test results available for this device.</div>';
-            }
-            
-            // Build error section if needed
-            let errorHtml = '';
-            if (device.device_execution_status === 'failed' && device.error_message) {
-                const errorText = device.error_message.substring(0, 200);
-                // errorHtml = `
-                //     <div class="error-section">
-                //         <div class="error-text">
-                //             <strong>Error:</strong> ${errorText}${device.error_message.length > 200 ? '...' : ''}
-                //         </div>
-                //         <button class="btn-action warning" 
-                //                 onclick="retryDeviceTests('${device.device_execution_id}')" 
-                //                 title="Retry all failed tests">
-                //             <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
-                //                 <path d="M10 3v2a5 5 0 0 0-3.54 8.54l-1.41 1.41A7 7 0 0 1 10 3zm4.95 2.05A7 7 0 0 1 10 17v-2a5 5 0 0 0 3.54-8.54l1.41-1.41zM10 20l-4-4 4-4v8zm0-12V0l4 4-4 4z"/>
-                //             </svg>
-                //             Retry All Failed
-                //         </button>
-                //     </div>
-                // `;
+            };
 
-                 errorHtml = ``;
+            // Robot Framework section
+            let robotSection = '';
+            if (robotTests.length) {
+                robotSection = `
+                    <div class="test-section">
+                        <div class="section-header">
+                            <h3>Robot Framework Tests</h3>
+                            ${device.has_allure_report && device.allure_report_full_path ? `
+                                <a href="${device.allure_report_full_path}" target="_blank" class="btn-action primary">
+                                    Allure Report
+                                </a>
+                            ` : ''}
+                        </div>
+                        ${buildTable(robotTests)}
+                    </div>
+                `;
             }
-            
-            // Build device card
-// Build device card
-devicesHtml += `
-    <div class="device-card">
-        <div class="device-header">
-            <h3 class="device-title">${device.device_name || 'Unknown Device'}</h3>
-            <div class="device-stats">
-                <div class="progress-container">
-                    <span class="progress-text">${stats.success}/${stats.total} passed</span>
-                    <div class="progress-bar">
-                        <div class="progress-fill ${progressClass}" style="width: ${progressPercentage}%"></div>
+             
+
+
+            // Device Agent section
+            let agentSection = '';
+            if (agentTests.length) {
+                agentSection = `
+                   <div class="test-section">
+                        <div class="section-header">
+                            <h3>Device Agent Tests</h3>
+                            <button class="btn-action primary" 
+                                    onclick='openDeviceAgentReport("${device.device_execution_id}")'>
+                                Device Report
+                            </button>
+                        </div>
+                        ${buildTable(agentTests)}
+                    </div>
+                `;
+            }
+           
+
+            if(robotSection==='' && agentSection===''){
+                agentSection = '<div class="empty-state">No test results available for this device.</div>';
+            }
+
+
+            // Final device card
+            devicesHtml += `
+                <div class="device-card">
+                    <div class="device-header">
+                        <h3 class="device-title">${device.device_name || 'Unknown Device'}</h3>
+                        <div class="device-stats">
+                            <div class="progress-container">
+                                <span class="progress-text">${stats.success}/${stats.total} passed</span>
+                                <div class="progress-bar">
+                                    <div class="progress-fill ${progressClass}" style="width: ${progressPercentage}%"></div>
+                                </div>
+                            </div>
+                            <span class="status-indicator ${stats.overall_status}">
+                                ${stats.overall_status}
+                            </span>
+                        </div>
+                    </div>
+                    <div style="padding: 20px;">
+                        ${robotSection || ''}
+                        ${agentSection || ''}
                     </div>
                 </div>
-                <span class="status-indicator ${stats.overall_status}">
-                    ${stats.overall_status}
-                </span>
-                ${device.has_allure_report && device.allure_report_full_path  ? `
-                   <a href="${device.allure_report_full_path}"
-                       target="_blank"
-                       class="btn-action primary" 
-                       title="View Allure Report"
-                       style="margin-left: 10px;">
-                        <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
-                            <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
-                        </svg>
-                        Allure Report
-                    </a>
-                ` : ''}
-            </div>
-        </div>
-        <div style="padding: 20px;">
-            ${testResultsHtml}
-        </div>
-         ${errorHtml}
-    </div>
-`;
+            `;
+                    
+          
         });
         
         deviceExecutionsDiv.innerHTML = devicesHtml;
@@ -895,6 +878,252 @@ function stopAutoRefresh() {
         clearInterval(refreshInterval);
         refreshInterval = null;
     }
+}
+
+function openDeviceAgentReport(deviceId) {
+    const agentTests = agentTestStore[deviceId] || [];
+
+    const total = agentTests.length;
+    const passed = agentTests.filter(t => t.status === "success").length;
+    const failed = agentTests.filter(t => t.status === "failed").length;
+    const pending = agentTests.filter(t => t.status === "pending").length;
+
+    const newWin = window.open("", "_blank");
+
+    let rows = agentTests.map(test => `
+        <tr>
+            <td>${test.test_case_name || 'N/A'}</td>
+            <td><span class="test-id-badge">${test.test_case_id || 'N/A'}</span></td>
+            <td>
+                <span class="status-badge ${test.status}">
+                    ${test.status_display || test.status}
+                </span>
+            </td>
+            <td>
+                ${test.has_log && (test.status === 'success' || test.status === 'failed') ? `
+                    <button class="btn-action view-log" data-log-url="/api/v1/test-management/test-case-execution/${test.id}/download-log/">
+                        View Log
+                    </button>
+                ` : ''}
+            </td>
+        </tr>
+    `).join("");
+
+    const html = `
+        <html>
+        <head>
+            <title>Device Agent Report</title>
+            <style>
+               body {
+                    margin: 0;
+                    font-family: 'Segoe UI', Tahoma, sans-serif;
+                    background: #f3f4f6;
+                    color: #111827;
+                    height: 100vh;
+                    display: flex;
+                    gap: 6px; /* gap between left and right panels */
+                    padding: 20px; /* padding around whole layout */
+                    box-sizing: border-box;
+                }
+
+                .left-panel {
+                    flex: 3;
+                    background: #fff;
+                    padding: 20px;
+                    overflow-y: auto;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+                    text-align : center;
+                }
+
+                .right-panel {
+                    flex: 1.2;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px; /* gap between top-right and bottom-right */
+                }
+
+                .top-right, .bottom-right {
+                    background: #fff;
+                    padding: 20px;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    align-items : center;
+                    justify-content: center;
+                }
+
+                h2 {
+                    margin-top: 0;
+                    margin-bottom: 15px;
+                }
+
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 4rem;
+                }
+
+                th, td {
+                    padding: 10px;
+                    text-align: left;
+                    border-bottom: 1px solid #f3f4f6;
+                }
+
+                th {
+                    background: #f3f4f6;
+                    font-weight: 600;
+                }
+
+                tr:nth-child(even) { background: #f9fafb; }
+
+                .status-badge {
+                    padding: 4px 10px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    border-radius: 20px;
+                    text-transform: capitalize;
+                }
+                .status-badge.success { background: #dcfce7; color: #166534; }
+                .status-badge.failed { background: #fee2e2; color: #991b1b; }
+                .status-badge.pending { background: #fef3c7; color: #92400e; }
+
+                .btn-action {
+                    padding: 4px 10px;
+                    border: 1px solid #ddd;
+                    background: #fff;
+                    color: #333;
+                    font-size: 12px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                }
+                .btn-action:hover { background: #f3f4f6; }
+
+                .stats {
+                    display: flex;
+                    gap: 15px;
+                    margin-top: 45px;
+                }
+                .stat-box {
+                    background: #f3f4f6;
+                    padding: 10px 15px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    text-align: center;
+                    box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+                    width: 6rem;
+                }
+                .stat-box span {
+                    display: block;
+                    font-size: 13px;
+                    color: #6b7280;
+                }
+
+                #logContent {
+                    white-space: pre-wrap;
+                    background: #f9fafb;
+                    padding: 10px;
+                    border-radius: 6px;
+                    border: 1px solid #e5e7eb;
+                    font-family: monospace;
+                    font-size: 13px;
+                    flex: 1;
+                    overflow-y: auto;
+                }
+
+            </style>
+        </head>
+        <body>
+            <div class="left-panel">
+                <h2>Device Agent Report</h2>
+                <table>
+                    <thead>
+                        <tr><th>Test Case</th><th>Test Case ID</th><th>Status</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+            <div class="right-panel">
+                <div class="top-right">
+                    <div style="width:200px;height:200px;">
+                        <canvas id="donutChart" width="200" height="200"></canvas>
+                    </div>
+                    <div class="stats">
+                        <div class="stat-box">${total}<span>Total</span></div>
+                        <div class="stat-box">${passed}<span>Passed</span></div>
+                        <div class="stat-box">${failed}<span>Failed</span></div>
+                    </div>
+                </div>
+                <div class="bottom-right">
+                    <h2>Logs</h2>
+                    <div id="logContent">Click on "View Log" to see log details here.</div>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+
+    newWin.document.write(html);
+    newWin.document.close();
+
+    // Load Chart.js dynamically
+    const script = newWin.document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/chart.js";
+    script.onload = () => {
+        const ctx = newWin.document.getElementById("donutChart").getContext("2d");
+        if (ctx) {
+            const percentage = total > 0 ? Math.round((passed / total) * 100) : 0;
+            new newWin.Chart(ctx, {
+                type: "doughnut",
+                data: {
+                    labels: ["Passed", "Failed", "Pending"],
+                    datasets: [{
+                        data: [passed, failed, pending],
+                        backgroundColor: ["#22c55e", "#ef4444", "#f59e0b"],
+                    }]
+                },
+                options: {
+                    plugins: { legend: { display: false } },
+                    cutout: "70%"
+                },
+                plugins: [{
+                    id: "centerText",
+                    afterDraw(chart) {
+                        const { width, height, ctx } = chart;
+                        ctx.save();
+                        ctx.font = "bold 18px Segoe UI";
+                        ctx.fillStyle = "#111827";
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "middle";
+                        ctx.fillText(`${percentage}%`, width / 2, height / 2);
+                        ctx.restore();
+                    }
+                }]
+            });
+        }
+    };
+    newWin.document.body.appendChild(script);
+
+    // Attach log click handlers
+    newWin.document.addEventListener("click", async (e) => {
+        if (e.target.classList.contains("view-log")) {
+            const logUrl = e.target.getAttribute("data-log-url");
+            const logContainer = newWin.document.getElementById("logContent");
+            logContainer.textContent = "Loading log...";
+            try {
+                const response = await fetch(logUrl);
+                const text = await response.text();
+                logContainer.textContent = text || "No log available.";
+            } catch {
+                logContainer.textContent = "Failed to load log.";
+            }
+        }
+    });
 }
 
 // Handle page visibility
