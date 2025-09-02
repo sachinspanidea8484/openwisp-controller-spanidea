@@ -557,7 +557,7 @@ function displayExecutionData(data) {
                     let actions = '';
                     
                     // Download log button
-                    if (test.has_log && (test.status === 'success' || test.status === 'failed')) {
+                    if ( (test.status === 'success' || test.status === 'failed')) {
                         actions += `
                             <a href="/api/v1/test-management/test-case-execution/${test.id}/download-log/" 
                                class="btn-action" 
@@ -570,7 +570,7 @@ function displayExecutionData(data) {
                             </a>
                         `;
                     }
-                    if (test.has_log && (test.status === 'success' || test.status === 'failed')) {
+                    if ( (test.status === 'success' || test.status === 'failed')) {
                         actions += `
                             <a href="/api/v1/test-management/test-case-execution/${test.id}/download-log/" 
                                class="btn-action" 
