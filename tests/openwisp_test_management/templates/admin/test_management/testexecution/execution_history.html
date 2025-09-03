@@ -648,15 +648,16 @@ function displayExecutionData(data) {
 
             // Device Agent section
             let agentSection = '';
+            let show_nb_testcase_report= agentTests.filter((test)=> test.status !== "success" && test.status !== "failed").length === 0;
             if (agentTests.length) {
                 agentSection = `
                    <div class="test-section">
                         <div class="section-header">
                             <h3>Device Agent Tests</h3>
-                            <button class="btn-action primary" 
+                            ${show_nb_testcase_report ? `<button class="btn-action primary" 
                                     onclick='openDeviceAgentReport("${device.device_execution_id}")'>
                                     Show Report
-                            </button>
+                            </button>` : ""}
                         </div>
                         <table class="results-table aligned-table">
                             <colgroup>
