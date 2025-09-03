@@ -977,6 +977,12 @@ function openDeviceAgentReport(deviceId) {
                     align-items : center;
                     justify-content: center;
                 }
+                .log-heading{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: baseline;
+                    width: 100%;
+                }
 
                 h2 {
                     margin-top: 0;
@@ -1055,7 +1061,63 @@ function openDeviceAgentReport(deviceId) {
                     font-size: 13px;
                     flex: 1;
                     overflow-y: auto;
+                    width:100%;
                 }
+                .full-log-view {
+                    position: fixed;
+                    top: 0; left: 0;
+                    width: 100%; height: 100%;
+                    background: rgba(0,0,0,0.6);
+                    display: none; /* hidden initially */
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 1000;
+                }
+
+                .full-log-content {
+                    background: #fff;
+                    border-radius: 12px;
+                    padding: 0 20px;
+                    width: 80%;
+                    height: 80%;
+                    overflow-y: auto;
+                    font-family: monospace;
+                    font-size: 13px;
+                    white-space: pre-wrap;
+                    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+                    position: relative;
+                }
+
+                .full-log-close {
+                   
+                    background: #ef4444;
+                    color: #fff;
+                    border: none;
+                    padding: 5px 10px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 16px;
+                }
+                .full-log-close:hover {
+                    background: #dc2626;
+                }
+                #popupLogContent {
+                    max-height: 60vh;   /* take up to 60% of viewport height */
+                    overflow-y: auto;   /* scroll inside logs only */
+                    padding: 10px;
+                    background: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 6px;
+                    font-family: monospace;
+                    font-size: 13px;
+                    white-space: pre-wrap;
+                }
+                .full-log-heading{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+
 
             </style>
         </head>
@@ -1080,11 +1142,8 @@ function openDeviceAgentReport(deviceId) {
                         <div class="stat-box">${failed}<span>Failed</span></div>
                     </div>
                 </div>
-                <div class="bottom-right">
-                    <h2>Logs</h2>
-                    <div id="logContent">Click on "View Log" to see log details here.</div>
-                </div>
             </div>
+            <div class="full-log-view"></div>
         </body>
         </html>
     `;
@@ -1130,20 +1189,42 @@ function openDeviceAgentReport(deviceId) {
     };
     newWin.document.body.appendChild(script);
 
-    // Attach log click handlers
     newWin.document.addEventListener("click", async (e) => {
         if (e.target.classList.contains("view-log")) {
             const logUrl = e.target.getAttribute("data-log-url");
-            const logContainer = newWin.document.getElementById("logContent");
-            logContainer.textContent = "Loading log...";
-            try {
-                const response = await fetch(logUrl);
-                const text = await response.text();
-                logContainer.textContent = text || "No log available.";
-            } catch {
-                logContainer.textContent = "Failed to load log.";
-            }
+            const popup = newWin.document.querySelector(".full-log-view");
+
+            // Show loading message in popup
+            popup.innerHTML = `
+                <div class="full-log-content">
+                    <div class="full-log-heading">
+                        <h3>Log Details</h3>
+                        <button class="full-log-close">Close</button>
+                    </div>
+                    <div id="popupLogContent">Loading log...</div>
+                </div>
+            `;
+            popup.style.display = "flex";
+
+            // Attach close handler
+            popup.querySelector(".full-log-close").addEventListener("click", () => {
+                popup.style.display = "none";
+            });
+
+            // Fetch logs
+            (async () => {
+                try {
+                    const response = await fetch(logUrl);
+                    const text= await response.text();
+                    popup.querySelector("#popupLogContent").textContent =
+                        text || "No log available.";
+                } catch {
+                    popup.querySelector("#popupLogContent").textContent =
+                        "Failed to load log.";
+                }
+            })();
         }
+
     });
 }
 
