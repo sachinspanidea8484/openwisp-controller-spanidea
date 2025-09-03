@@ -695,7 +695,7 @@ function displayExecutionData(data) {
                             </span>
                         </div>
                     </div>
-                    <div style="padding: 20px;">
+                    <div style="padding: 20px; display: flex; flex-direction: column; gap : 30px">
                         ${robotSection || ''}
                         ${agentSection || ''}
                     </div>
@@ -1117,7 +1117,35 @@ function openDeviceAgentReport(deviceId) {
                     justify-content: space-between;
                     align-items: center;
                 }
+                .btn-action {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    padding: 4px 10px;
+                    border: 1px solid #ddd;
+                    background: #fff;
+                    color: #333;
+                    font-size: 16px;
+                    font-weight: 400;
+                    border-radius: 6px;
+                    text-decoration: none;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                }
+                .full-log-actions{
+                    display: flex;
+                    gap: 8px;
+                    align-items: center;
+                }
+                .btn-action:hover {
+                    background: #f8f8f8;
+                    border-color: #ccc;
+                }
 
+                .btn-icon {
+                    width: 14px;
+                    height: 14px;
+                }
 
             </style>
         </head>
@@ -1126,7 +1154,12 @@ function openDeviceAgentReport(deviceId) {
                 <h2>Device Agent Report</h2>
                 <table>
                     <thead>
-                        <tr><th>Test Case</th><th>Test Case ID</th><th>Status</th><th>Actions</th></tr>
+                        <tr>
+                            <th>Test Case</th>
+                            <th>Test Case ID</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
                     </thead>
                     <tbody>${rows}</tbody>
                 </table>
@@ -1199,7 +1232,14 @@ function openDeviceAgentReport(deviceId) {
                 <div class="full-log-content">
                     <div class="full-log-heading">
                         <h3>Log Details</h3>
-                        <button class="full-log-close">Close</button>
+                        <div class= "full-log-actions">
+                            <a href= ${logUrl}
+                            class="btn-action" title="Download log" download>
+                                <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20"> <path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/> </svg>
+                                <span>Log</span>
+                            </a>
+                        <button class="full-log-close">Close</button>    
+                        </div>
                     </div>
                     <div id="popupLogContent">Loading log...</div>
                 </div>
