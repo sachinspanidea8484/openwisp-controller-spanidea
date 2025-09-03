@@ -569,7 +569,7 @@ function displayExecutionData(data) {
                 let rows = '';
                 tests.forEach(test => {
                     let actions = '';
-                    if (test.has_log && (test.status === 'success' || test.status === 'failed')) {
+                    if ( (test.status === 'success' || test.status === 'failed')) {
                         actions += `
                             <a href="/api/v1/test-management/test-case-execution/${test.id}/download-log/" 
                             class="btn-action" title="Download log" download>
@@ -921,7 +921,7 @@ function openDeviceAgentReport(deviceId) {
                 </span>
             </td>
             <td>
-                ${test.has_log && (test.status === 'success' || test.status === 'failed') ? `
+                ${ (test.status === 'success' || test.status === 'failed') ? `
                     <button class="btn-action view-log" data-log-url="/api/v1/test-management/test-case-execution/${test.id}/download-log/">
                         View Log
                     </button>
