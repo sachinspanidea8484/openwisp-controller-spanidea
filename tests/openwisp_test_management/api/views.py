@@ -3765,7 +3765,7 @@ def test_execution_history(request, execution_id):
         test_case_executions = TestCaseExecution.objects.filter(
             test_suite_execution=execution
         ).select_related('device', 'test_case').order_by(
-            'device__name', 'execution_order'
+            'test_case__name'
         )
         print("<<<test_case_executions>>>",test_case_executions)
         
