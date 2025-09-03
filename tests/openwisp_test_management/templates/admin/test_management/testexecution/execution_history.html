@@ -185,6 +185,7 @@
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
+        table-layout: fixed;
     }
 
     .results-table thead th {
@@ -197,12 +198,14 @@
         font-size: 12px;
         text-transform: uppercase;
         letter-spacing: 0.3px;
+        word-wrap: break-word;
     }
 
     .results-table tbody td {
         padding: 12px 15px;
         border-bottom: 1px solid #f0f0f0;
         color: #333;
+        word-wrap: break-word;
     }
 
     .results-table tbody tr:hover {
@@ -623,11 +626,20 @@ function displayExecutionData(data) {
                             <h3>Robot Framework Tests</h3>
                             ${device.has_allure_report && device.allure_report_full_path ? `
                                 <a href="${device.allure_report_full_path}" target="_blank" class="btn-action primary">
-                                    Allure Report
+                                    Show Report
                                 </a>
                             ` : ''}
                         </div>
-                        ${buildTable(robotTests)}
+                        <table class="results-table aligned-table">
+                            <colgroup>
+                                <col style="width: 25%">
+                                <col style="width: 15%">
+                                <col style="width: 15%">
+                                <col style="width: 15%">
+                                <col style="width: 30%">
+                            </colgroup>
+                            ${buildTable(robotTests).replace('<table class="results-table">', '').replace('</table>', '')}
+                        </table>
                     </div>
                 `;
             }
@@ -643,10 +655,19 @@ function displayExecutionData(data) {
                             <h3>Device Agent Tests</h3>
                             <button class="btn-action primary" 
                                     onclick='openDeviceAgentReport("${device.device_execution_id}")'>
-                                Device Report
+                                    Show Report
                             </button>
                         </div>
-                        ${buildTable(agentTests)}
+                        <table class="results-table aligned-table">
+                            <colgroup>
+                                <col style="width: 25%">
+                                <col style="width: 15%">
+                                <col style="width: 15%">
+                                <col style="width: 15%">
+                                <col style="width: 30%">
+                            </colgroup>
+                            ${buildTable(agentTests).replace('<table class="results-table">', '').replace('</table>', '')}
+                        </table>
                     </div>
                 `;
             }
