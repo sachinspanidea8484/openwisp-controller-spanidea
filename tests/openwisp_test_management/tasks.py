@@ -577,7 +577,7 @@ def execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_exe
             # test_execution.status = TestExecutionStatus.TIMEOUT
             test_execution.status = TestExecutionStatus.FAILED
             test_execution.error_message = error_msg
-            test_execution.stdout = "Request timed out"
+            test_execution.stdout = "Connection failed - device unreachable"
             test_execution.exit_code = -2
             test_execution.completed_at = timezone.now()
             test_execution.save()
