@@ -8,6 +8,7 @@ from .swapper import load_model
 from .base.models import TestExecutionStatus
 import requests
 import os
+import subprocess
 
 
 
@@ -32,6 +33,7 @@ TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestCaseExecution = load_model("TestCaseExecution")
 TestSuiteCase = load_model("TestSuiteCase")
+
 
 # Device Execution Type Configuration
 DEVICE_EXECUTION_TYPE = 2 # 1 for SSH, 2 for NB_API (default is SSH)
@@ -502,7 +504,7 @@ def execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_exe
         try:
              print(f"🔄 [DEBUG] Checking if API is reachable...")
              base_url = api_url.rsplit('/', 2)[0]  # Get base URL
-            #  test_response = requests.get(base_url, timeout=60)
+             test_response = requests.get(base_url, timeout=60)
              print(f"✅✅✅✅✅✅✅✅✅✅✅✅         ✅✅✅✅✅✅✅✅✅✅✅✅ [DEBUG] API server is reachable at {base_url}")
         except Exception as e:
              print(f"❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌ [ERROR] Cannot reach API server: {e}")
@@ -517,10 +519,10 @@ def execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_exe
             # This ensures requests are processed sequentially on resource-limited devices
             logger.info(f"Starting NB_API request for test {test_case.test_case_id}")
             print(f"[TASK] execute_test_via_nb_api - Sending GET request (no timeout)")
-            
+            1
             response = requests.get(
                 api_url,
-                timeout=None,  # No timeout - wait indefinitely
+                timeout=300,  # No timeout - wait indefinitely
                 allow_redirects=True
             )
             
@@ -997,7 +999,7 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     print(f"\n🔍 [DEBUG] Making API Call:")
     print(f"📍 [DEBUG] API URL: {robot_api_url}")
     print(f"📮 [DEBUG] Method: POST")
-    print(f"⏱️  [DEBUG] Timeout: 6000 seconds")
+    print(f"⏱️  [DEBUG] Timeout: 300 seconds")
     # Check if API is reachable first
 
 
@@ -1021,7 +1023,7 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
         response = requests.post(
             robot_api_url,
             json=api_payload,
-            timeout=6000  # Quick timeout just to submit the job
+            timeout=300  # Quick timeout just to submit the job
         )
         
         print(f"\n[DEBUG] API Response:")
@@ -1252,3 +1254,126 @@ def retry_test_execution(test_execution_id):
     except Exception as e:
         logger.error(f"Error retrying test execution {test_execution_id}: {str(e)}")
         print(f"[ERROR] retry_test_execution - Error: {str(e)}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def ping_host(ip):
+    """
+    Simple cross-platform ping function.
+    Returns True if host is reachable, False otherwise.
+    """
+    try:
+        # Ping once, wait max 2s
+        command = ["ping", "-c", "1", "-W", "2", ip]  # Linux/macOS
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return result.returncode == 0
+    except Exception as e:
+        logger.error(f"Ping check failed for {ip}: {str(e)}")
+        return False
+
+
+@shared_task
+def timeout_stuck_tests():
+    """
+    New requirement:
+    - Find all pending Device Agent test executions
+    - For each device:
+      → Check if pingable
+      → Check if HTTP server reachable
+      → If not reachable, mark execution as FAILED
+    """
+    logger.info("Starting check for pending Device Agent tests")
+    print(f"[TASK] timeout_stuck_tests - Checking for pending Device Agent tests")
+
+    TestCaseExecution = load_model("TestCaseExecution")
+
+    try:
+        # Find all pending test case executions where test type is Device Agent
+        pending_agent_tests = TestCaseExecution.objects.filter(
+            status=TestExecutionStatus.PENDING,
+            test_case__test_type=2  # AGENT
+        ).select_related("device")
+
+        total = pending_agent_tests.count()
+        logger.info(f"Found {total} pending Device Agent test executions")
+        print(f"[TASK] timeout_stuck_tests - Found {total} pending Device Agent test executions")
+
+        for test_exec in pending_agent_tests:
+            device = test_exec.device
+            management_ip = getattr(device, "management_ip", None)
+
+            if not management_ip:
+                logger.warning(f"Device {device.name} has no management_ip set")
+                print(f"[WARNING] timeout_stuck_tests - Device {device.name} has no management_ip")
+                continue
+
+            logger.info(f"Checking device: {device.name} ({management_ip})")
+            print(f"[TASK] Checking device: {device.name}, Management IP: {management_ip}")
+
+            # Step 1: Check ICMP (ping)
+            reachable = ping_host(management_ip)
+            if not reachable:
+                logger.warning(f"Ping failed for device {device.name} ({management_ip})")
+                print(f"[ERROR] Device {device.name} not pingable at {management_ip}")
+
+                # Mark execution as failed
+                test_exec.status = TestExecutionStatus.FAILED
+                test_exec.stdout = "Connection failed - device unreachable"
+                test_exec.exit_code = -1
+                test_exec.completed_at = timezone.now()
+                test_exec.save(update_fields=["status", "stdout", "exit_code", "completed_at"])
+                continue
+
+            # Step 2: Check HTTP accessibility
+            api_url = f"http://{management_ip}/"
+            try:
+                print(f"🔄 [DEBUG] Checking if HTTP server is reachable at {api_url}...")
+                response = requests.get(api_url, timeout=10)
+
+                if response.status_code == 200:
+                    logger.info(f"HTTP server reachable at {api_url}")
+                    print(f"[TASK] ✅ HTTP server reachable for device: {device.name}")
+                else:
+                    logger.warning(f"HTTP check failed with status {response.status_code} for {device.name}")
+                    print(f"[WARNING] HTTP check failed for {device.name} ({management_ip}), status {response.status_code}")
+
+                    # Mark execution as failed
+                    test_exec.status = TestExecutionStatus.FAILED
+                    test_exec.stdout = f"Connection failed - device unreachable"
+                    test_exec.exit_code = response.status_code
+                    test_exec.completed_at = timezone.now()
+                    test_exec.save(update_fields=["status", "stdout", "exit_code", "completed_at"])
+
+            except Exception as e:
+                logger.error(f"HTTP server not reachable at {api_url} for {device.name}: {str(e)}")
+                print(f"[ERROR] Device {device.name} ({management_ip}) HTTP server unreachable: {str(e)}")
+
+                test_exec.status = TestExecutionStatus.FAILED
+                test_exec.stdout = f"Connection failed - device unreachable"
+                test_exec.exit_code = -1
+                test_exec.completed_at = timezone.now()
+                test_exec.save(update_fields=["status", "stdout", "exit_code", "completed_at"])
+
+    except Exception as e:
+        error_msg = f"Error in timeout_stuck_tests (pending Device Agent check): {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        print(f"[ERROR] timeout_stuck_tests - {error_msg}")
