@@ -655,7 +655,7 @@ function displayExecutionData(data) {
             if (robotTests.length) {
                 robotSection = `
                     <div class="test-section">
-                        <div class="section-header open" onclick="handleHideClick(this,'robot-test-case-table')">
+                        <div class="section-header open" onclick="handleHideClick(this,'robot-test-case-table-${device.device_execution_id}')">
                             <div class="header-left">
                                 <svg class="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" 
                                     viewBox="0 0 24 24" stroke="currentColor">
@@ -669,9 +669,11 @@ function displayExecutionData(data) {
                                 <a href="${device.allure_report_full_path}" target="_blank" class="btn-action primary">
                                     Show Report
                                 </a>
-                            ` : ''}
+                            ` : `<a href="" target="_blank" class="btn-action primary" title="Ready after suite completion" disabled>
+                                    Show Report
+                                </a>`}
                         </div>
-                        <table class="results-table aligned-table robot-test-case-table">
+                        <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">
                             <colgroup>
                                 <col style="width: 25%">
                                 <col style="width: 15%">
@@ -693,7 +695,7 @@ function displayExecutionData(data) {
             if (agentTests.length) {
                 agentSection = `
                    <div class="test-section">
-                        <div class="section-header open" onclick="handleHideClick(this,'agent-test-case-table')">
+                        <div class="section-header open" onclick="handleHideClick(this,'agent-test-case-table-${device.device_execution_id}')">
                             <div class="header-left">
                                 <svg class="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" 
                                     viewBox="0 0 24 24" stroke="currentColor">
@@ -707,9 +709,11 @@ function displayExecutionData(data) {
                                     onclick='openDeviceAgentReport("${device.device_execution_id}")'>
                                     Show Report
                                 </button>
-                            ` : ""}
+                            ` : `<a href="" target="_blank" class="btn-action primary" title="Ready after suite completion" disabled>
+                                    Show Report
+                                </a>`}
                         </div>
-                        <table class="results-table aligned-table agent-test-case-table">
+                        <table class="results-table aligned-table agent-test-case-table-${device.device_execution_id}">
                             <colgroup>
                                 <col style="width: 25%">
                                 <col style="width: 15%">
