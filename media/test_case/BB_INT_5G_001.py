@@ -16,6 +16,10 @@ EXIT_FAILED = 1
 EXIT_PRECONDITION_FAILED = 2
 EXIT_CMDS_NON_RESPONSIVE = 3
 
+# Global max retries
+MAX_RETRIES = 3
+
+
 # === TEST DURATIONS ===
 TEST_DURATION = 60  # 1 minutes for stability
 
@@ -89,18 +93,23 @@ def find_modem_interface():
 
 def ensure_modem_connected():
     log("Checking modem connection status...")
-    status_out, _ = run_cmd(f"uqmi -d {BB_QMI_DEVICE} --get-data-status")
-    if "disconnected" in status_out:
-        log("Modem disconnected. Bringing up interface...")
-        run_cmd("ifup Modem1")
-        run_cmd("ifup Modem2")
-        time.sleep(30)
+    for attempt in range(1, MAX_RETRIES + 1):
         status_out, _ = run_cmd(f"uqmi -d {BB_QMI_DEVICE} --get-data-status")
-        if "disconnected" in status_out:
-            log("Failed to connect modem!!!!.")
-            return False
-    log("Modem is connected.")
-    return True
+        status_out = status_out.strip().strip('"')  # clean quotes/spaces
+
+        if status_out.lower() == "connected":
+            log("Modem is connected.")
+            return True
+
+        log(f"Attempt {attempt}/{MAX_RETRIES}: Modem disconnected ({status_out}), retrying...")
+        run_cmd("ifup Modem1 && ifup Modem2")
+        time.sleep(30)
+
+    # After retries, still disconnected
+    log("Modem failed to connect after max retries.")
+    return False
+    
+
 
 def check_signal_info():
     log("Checking signal info...")
@@ -124,19 +133,17 @@ def ping_remote(iface):
     log("Ping successful.")
     return True
 
+   
 # === MAIN LOGIC ===
 def main():
     log("Starting 5G WAN Interface Test BB-INT-5G-001...")
 
     try:
-        # Keep trying until modem connects
-        while True:
-            if ensure_modem_connected():
-                log("Modem connection established successfully.")
-                break
-            else:
-                log("Retrying modem connection in 30 seconds...")
-                time.sleep(30)
+        if ensure_modem_connected():
+            log("Modem connection established successfully.")
+        else:
+            log("TEST FAILED!!!:- Modem failed to connect after max retries")
+            sys.exit(EXIT_PRECONDITION_FAILED)
 
         iface, modem_ip = find_modem_interface()
         if not iface:
