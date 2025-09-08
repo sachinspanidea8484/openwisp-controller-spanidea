@@ -349,7 +349,7 @@ class TestSuiteExecutionDeviceSerializer(serializers.ModelSerializer):
             "completed_at",
             "output",
         ]
-        read_only_fields = ["started_at", "completed_at"]
+        # read_only_fields = ["started_at", "completed_at"]
 
 
 class TestSuiteExecutionSerializer(ValidatedModelSerializer):

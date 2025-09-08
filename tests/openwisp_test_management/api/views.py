@@ -9,7 +9,7 @@ from rest_framework.decorators import api_view ,authentication_classes, permissi
 from rest_framework.views import APIView
 from django.utils import timezone
 from datetime import timedelta
-
+from datetime import timezone as dt_timezone 
 import logging
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ from .serializers import (
     AllureReportResponseSerializer
 )
 
-
+from django.utils.dateparse import parse_datetime
 
 from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
 # from openwisp_users.api.pagination import LinkHeaderPagination
@@ -65,7 +65,7 @@ from .serializers import (
 
 from ..base.models import TestExecutionStatus
 
-
+from django.utils.dateparse import parse_datetime
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
 TestSuite = load_model("TestSuite")
@@ -2164,6 +2164,9 @@ class RobotTestResultView(APIView):
         """
         try:
             data = request.data
+            started_at= parse_datetime(data.get('started_at'))
+            completed_at= parse_datetime(data.get('completed_at'))
+           
             logger.info(f"Received Robot Framework test result: {data}")
             print(f"✅ Robot Framework Result API called with data: {data}")
             # return Response({"status" : "done"}, status=status.HTTP_200_OK)
@@ -2211,8 +2214,7 @@ class RobotTestResultView(APIView):
             if execution_status == TestExecutionStatus.RUNNING:
                 execution.status = execution_status
                 if data.get('started_at'):
-                    # execution.started_at = datetime.fromisoformat(data['started_at'].replace('Z', '+00:00'))
-                    print("")
+                    execution.started_at = started_at
                 else:
                     execution.started_at = timezone.now()
                 execution.save(update_fields=['status', 'started_at'])
@@ -2223,7 +2225,7 @@ class RobotTestResultView(APIView):
                 
                 # Set completion time
                 if data.get('completed_at'):
-                    # execution.completed_at = datetime.fromisoformat(data['completed_at'].replace('Z', '+00:00'))
+                    execution.completed_at = completed_at
                     print("")
                 else:
                     execution.completed_at = timezone.now()
@@ -2234,8 +2236,8 @@ class RobotTestResultView(APIView):
                 execution.stderr = data.get('stderr', '')
                 
                 # Calculate duration
-                # if execution.started_at:
-                #     execution.execution_duration = execution.completed_at - execution.started_at
+                if execution.started_at:
+                    execution.execution_duration = execution.completed_at - execution.started_at
                 
                 # Set error message for failed status
                 if execution_status == TestExecutionStatus.FAILED:
@@ -2250,8 +2252,7 @@ class RobotTestResultView(APIView):
             elif execution_status == TestExecutionStatus.TIMEOUT:
                 execution.status = execution_status
                 if data.get('completed_at'):
-                    # execution.completed_at = datetime.fromisoformat(data['completed_at'].replace('Z', '+00:00'))
-                    print("")
+                    execution.completed_at = completed_at
                 else:
                     execution.completed_at = timezone.now()
                 execution.error_message = data.get('error_message', 'Test execution timed out')
@@ -2260,15 +2261,14 @@ class RobotTestResultView(APIView):
                     execution.execution_duration = execution.completed_at - execution.started_at
                 
                 execution.save(update_fields=[
-                    'status', 'completed_at', 'error_message', 'execution_duration'
+                    'status', 'completed_at', 'error_message', 'execution_duration','started_at'
                 ])
                 print(f"✅ Updated to TIMEOUT status")
                 
             elif execution_status == TestExecutionStatus.CANCELLED:
                 execution.status = execution_status
                 if data.get('completed_at'):
-                    # execution.completed_at = datetime.fromisoformat(data['completed_at'].replace('Z', '+00:00'))
-                    print("")
+                    execution.completed_at = completed_at
                 else:
                     execution.completed_at = timezone.now()
                 execution.error_message = data.get('error_message', 'Test execution was cancelled')
@@ -2398,6 +2398,7 @@ class RobotTestRunningResultView(APIView):
             
             # Extract execution_id
             execution_id = data.get('execution_id')
+            started_at= parse_datetime(data.get('started_at'))
             if not execution_id:
                 return Response({
                     "error": "execution_id is required"
@@ -2436,7 +2437,7 @@ class RobotTestRunningResultView(APIView):
             execution_status = status_mapping[new_status]
             if execution_status == TestExecutionStatus.RUNNING:
                 execution.status = execution_status
-                execution.started_at = timezone.now()
+                execution.started_at = started_at
             
             execution.save(update_fields=[
                     'status', 'started_at', 
@@ -2453,6 +2454,7 @@ class RobotTestRunningResultView(APIView):
                     "device_id": str(execution.device.id),
                     "device_name": execution.device.name,
                     "status": execution.status,
+                    "started_at" : execution.started_at,
                 }
             }
             
@@ -2555,15 +2557,10 @@ class DeviceTestResultView(APIView):
 
 
 
-            # started_at
-            # completed_at
-  
             
             # Extract execution_id
             execution_id = data.get('execution_id')
-            started_at = data.get('started_at')
-            completed_at = data.get('completed_at')
-     
+            
 
 
 
@@ -2634,7 +2631,7 @@ class DeviceTestResultView(APIView):
                 execution.status = execution_status
                 if data.get('started_at'):
                     print("⏱️ Using provided started_at timestamp",data.get('started_at'))
-                    # execution.started_at = data.get('started_at')
+                    execution.started_at = parse_datetime(data.get('started_at'))
                 else:
                     execution.started_at = timezone.now()
                     print("⏱️ Setting started_at to current time")
@@ -2667,9 +2664,16 @@ class DeviceTestResultView(APIView):
                 
                 execution.status = execution_status
     
+                if data.get('started_at'):
+                    print("⏱️ Using provided started_at timestamp",data.get('started_at'))
+                    execution.started_at = parse_datetime(data.get('started_at'))
+                else:
+                    execution.started_at = timezone.now()
+                    print("⏱️ Setting started_at to current time")
+
                 # Set completion time
                 if data.get('completed_at'):
-                    # execution.completed_at = data.get('completed_at')
+                    execution.completed_at = parse_datetime(data.get('completed_at'))
                     print("⏱️ Using provided completed_at timestamp", data.get('completed_at'))
                 else:
                     execution.completed_at = timezone.now()
