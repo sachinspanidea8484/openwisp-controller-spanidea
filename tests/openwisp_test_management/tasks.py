@@ -1329,6 +1329,10 @@ def timeout_stuck_tests():
             logger.info(f"Checking device: {device.name} ({management_ip})")
             print(f"[TASK] Checking device: {device.name}, Management IP: {management_ip}")
 
+            return
+
+
+
             # Step 1: Check ICMP (ping)
             reachable = ping_host(management_ip)
             if not reachable:

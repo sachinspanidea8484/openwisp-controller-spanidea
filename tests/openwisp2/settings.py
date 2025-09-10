@@ -66,16 +66,6 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BROKER_CONNECTION_MAX_RETRIES = 100
 
 
-# SQLITE
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "openwisp_utils.db.backends.spatialite",
-#         "NAME": os.path.join(BASE_DIR, "openwisp-controller.db"),
-#     }
-# }
-
-
-# SPATIALITE_LIBRARY_PATH = "mod_spatialite.so"
 
 DATABASES = {
     "default": {
@@ -207,8 +197,6 @@ MIDDLEWARE = [
     "allauth.account.middleware.AccountMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    # 'debug_toolbar.middleware.DebugToolbarMiddleware',
-    # radius
     "djangosaml2.middleware.SamlSessionMiddleware",
 
 ]
@@ -369,34 +357,6 @@ TEMPLATES = [
 
 
 
-# TEMPLATES = [
-#     {
-#         "BACKEND": "django.template.backends.django.DjangoTemplates",
-#         "DIRS": [
-#             os.path.join(os.path.dirname(BASE_DIR), "templates"),
-#             # Add the openwisp_monitoring templates directory
-#             os.path.join(BASE_DIR, "..", "..", "openwisp_monitoring", "device", "templates"),
-#             os.path.join(BASE_DIR, "..", "..", "openwisp_monitoring", "monitoring", "templates"),
-#             os.path.join(BASE_DIR, "..", "..", "openwisp_monitoring", "monitoring", "templates"),
-
-#         ],
-#         "OPTIONS": {
-#             "loaders": [
-#                 "django.template.loaders.filesystem.Loader",
-#                 "openwisp_utils.loaders.DependencyLoader",
-#                 "django.template.loaders.app_directories.Loader",
-#             ],
-#             "context_processors": [
-#                 "django.template.context_processors.debug",
-#                 "django.template.context_processors.request",
-#                 "django.contrib.auth.context_processors.auth",
-#                 "django.contrib.messages.context_processors.messages",
-#                 "openwisp_utils.admin_theme.context_processor.menu_groups",
-#                 "openwisp_notifications.context_processors.notification_api_settings",
-#             ],
-#         },
-#     }
-# ]
 
 FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
 
@@ -425,11 +385,7 @@ SOCIALACCOUNT_PROVIDERS = {
     "google": {"SCOPE": ["profile", "email"], "AUTH_PARAMS": {"access_type": "online"}},
 }
 
-OPENWISP_RADIUS_PASSWORD_RESET_URLS = {
-    "__all__": (
-        "http://localhost:8080/{organization}/password/reset/confirm/{uid}/{token}"
-    ),
-}
+
 
 
 if not TESTING:
@@ -453,17 +409,6 @@ AUTHENTICATION_BACKENDS = [
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
-# CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://0.0.0.0:8000']
-# CSRF_TRUSTED_ORIGINS = [
-#     'http://localhost:8000', 
-#     'http://127.0.0.1:8000', 
-#     'http://0.0.0.0:8000',
-#     'http://10.10.10.10:8000',
-#     'http://controller:8000',  # Add this
-#     'http://54.234.248.241:8000',
-#     'http://54.234.248.241',
-
-
 
 
 
@@ -486,9 +431,7 @@ else:
     CELERY_BROKER_URL = "memory://"
 
 
-# monitoring
-# Celery TIME_ZONE should be equal to django TIME_ZONE
-# In order to schedule run_iperf3_checks on the correct time intervals
+
 CELERY_TIMEZONE = TIME_ZONE
 
 CELERY_BEAT_SCHEDULE = {
@@ -516,7 +459,7 @@ CELERY_BEAT_SCHEDULE = {
 
         'timeout-stuck-tests': {
         'task': 'openwisp_test_management.tasks.timeout_stuck_tests',
-        'schedule': crontab(minute='*/5'),  # Run every 5 minutes
+        'schedule': crontab(minute='*/30'),  # Run every 30 minutes
     },
 }
 
@@ -543,84 +486,7 @@ ACCOUNT_EMAIL_VERIFICATION = "optional"  # or "mandatory" or "none"
 ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = "email_confirmation_success"
 ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = "email_confirmation_success"
 
-# Disable SAML2 CSP warning
 SAML_CSP_HANDLER = ''
-# OPENWISP_RADIUS_PASSWORD_RESET_URLS = {
-#     # use the uuid because the slug can change
-#     # 'dabbd57a-11ca-4277-8dbb-ad21057b5ecd': 'https://org.com/{organization}/password/reset/confirm/{uid}/{token}',
-#     # fallback in case the specific org page is not defined
-#     '__all__': 'https://example.com/{{organization}/password/reset/confirm/{uid}/{token}',
-# }
-
-
-# if TESTING:
-    # OPENWISP_RADIUS_SMS_TOKEN_MAX_USER_DAILY = 3
-    # OPENWISP_RADIUS_SMS_TOKEN_MAX_ATTEMPTS = 3
-    # OPENWISP_RADIUS_SMS_TOKEN_MAX_IP_DAILY = 4
-    # SENDSMS_BACKEND = "sendsms.backends.dummy.SmsBackend"
-    
-# else:
-    # OPENWISP_RADIUS_SMS_TOKEN_MAX_USER_DAILY = 10
-
-# LOGGING = {
-#     "version": 1,
-#     "filters": {"require_debug_true": {"()": "django.utils.log.RequireDebugTrue"}},
-#     "handlers": {
-#         "console": {
-#             "level": "DEBUG",
-#             "filters": ["require_debug_true"],
-#             "class": "logging.StreamHandler",
-#         }
-#     },
-# }
-# firmware
-# LOGGING = {
-#     "version": 1,
-#     "filters": {"require_debug_true": {"()": "django.utils.log.RequireDebugTrue"}},
-#     "handlers": {
-#         "console": {
-#             "level": "DEBUG",
-#             "filters": ["require_debug_true"],
-#             "class": "logging.StreamHandler",
-#         }
-#     },
-#     "loggers": {
-#         "py.warnings": {"handlers": ["console"]},
-#         "celery": {"handlers": ["console"], "level": "DEBUG"},
-#         "celery.task": {"handlers": ["console"], "level": "DEBUG"},
-#     },
-# }
-
-# monitoring
-# LOGGING = {
-#     'version': 1,
-#     'filters': {'require_debug_true': {'()': 'django.utils.log.RequireDebugTrue'}},
-#     'handlers': {
-#         'console': {
-#             'level': 'DEBUG',
-#             'filters': ['require_debug_true'],
-#             'class': 'logging.StreamHandler',
-#         }
-#     },
-#     'loggers': {
-#         '': {
-#             # this sets root level logger to log debug and higher level
-#             # logs to console. All other loggers inherit settings from
-#             # root level logger.
-#             'handlers': ['console'],
-#             'level': 'INFO',
-#             'propagate': False,
-#         },
-#         'django': {
-#             'handlers': ['console'],
-#             'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
-#             'propagate': False,
-#         },
-#         'py.warnings': {'handlers': ['console'], 'propagate': False},
-#         'celery': {'handlers': ['console'], 'level': 'DEBUG'},
-#         'celery.task': {'handlers': ['console'], 'level': 'DEBUG'},
-#     },
-# }
 
 
 # network topology 
@@ -788,32 +654,7 @@ if os.environ.get("SAMPLE_APP", False):
         "sample_subnet_division.SubnetDivisionIndex"
     )
 else:
-    # not needed, these are the default values, left here only for example purposes
-    # DJANGO_X509_CA_MODEL = 'pki.Ca'
-    # DJANGO_X509_CERT_MODEL = 'pki.Cert'
     pass
-
-    # for app in [
-    #     'openwisp_monitoring.monitoring',
-    #     'openwisp_monitoring.check',
-    #     'openwisp_monitoring.device',
-    # ]:
-    #     INSTALLED_APPS.remove(app)
-    #     # EXTENDED_APPS.append(app)
-    # INSTALLED_APPS.append('openwisp2.sample_monitoring')
-    # INSTALLED_APPS.append('openwisp2.sample_check')
-    # INSTALLED_APPS.append('openwisp2.sample_device_monitoring')
-    # CHECK_CHECK_MODEL = 'sample_check.Check'
-    # MONITORING_CHART_MODEL = 'sample_monitoring.Chart'
-    # MONITORING_METRIC_MODEL = 'sample_monitoring.Metric'
-    # MONITORING_ALERTSETTINGS_MODEL = 'sample_monitoring.AlertSettings'
-    # DEVICE_MONITORING_WIFICLIENT_MODEL = 'sample_device_monitoring.WifiClient'
-    # DEVICE_MONITORING_WIFISESSION_MODEL = 'sample_device_monitoring.WifiSession'
-    # DEVICE_MONITORING_DEVICEDATA_MODEL = 'sample_device_monitoring.DeviceData'
-    # DEVICE_MONITORING_DEVICEMONITORING_MODEL = (
-    #     'sample_device_monitoring.DeviceMonitoring'
-    # )
-    # Celery auto detects tasks only from INSTALLED_APPS
     CELERY_IMPORTS = ('openwisp_monitoring.device.tasks',)
 
 
