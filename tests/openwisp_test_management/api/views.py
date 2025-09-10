@@ -3659,12 +3659,17 @@ def test_execution_historys(request, execution_id):
             elif completed == 0:
                 overall_status = 'pending'
                 percentage = 0
-            elif failed == 0 and success == total:
+            elif success == total:
                 overall_status = 'success'
                 percentage = 100
-            else:
+            elif failed > 0:
                 overall_status = 'failed'
-                percentage = (success / total * 100) if total > 0 else 0
+                percentage = (success / total) * 100
+            else:
+                # means some success + some pending, but no failures
+                overall_status = 'pending'
+                percentage = (success / total) * 100
+
             
             # Build test cases data
             test_cases_data = []

@@ -20,7 +20,7 @@ class TestTypeChoices(models.IntegerChoices):
 class TestExecutionStatus(models.TextChoices):
     PENDING = 'pending', _('Pending')
     RUNNING = 'running', _('Running')
-    SUCCESS = 'success', _('Success')
+    SUCCESS = 'success', _('Passed')
     FAILED = 'failed', _('Failed')
     TIMEOUT = 'timeout', _('Timeout')
     CANCELLED = 'cancelled', _('Cancelled')
