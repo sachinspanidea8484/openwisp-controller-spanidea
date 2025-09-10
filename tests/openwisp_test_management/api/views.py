@@ -44,7 +44,11 @@ from .serializers import (
     TestSuiteExecutionDeleteAllSerializer,
     BulkTestDataCreationSerializer,
     AllureReportUploadSerializer,
-    AllureReportResponseSerializer
+    AllureReportResponseSerializer,
+    RobotTestResultSerializer,
+    RobotTestRunningResultSerializer,
+    DeviceTestResultSerializer,
+    OrganisationDevicesSerializer
 )
 
 
@@ -2138,8 +2142,8 @@ class TestCaseExecutionResultView(generics.GenericAPIView):
 
 
 
-
-
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 class RobotTestResultView(APIView):
     """
     API endpoint to receive test results from Robot Framework server
@@ -2147,7 +2151,10 @@ class RobotTestResultView(APIView):
     """
     authentication_classes = []  # Disable auth for now, enable as needed
     permission_classes = []  # Disable permissions for now
-    
+    @swagger_auto_schema(
+        request_body=RobotTestResultSerializer,
+        responses={200: "Test case execution updated"}
+    )
     def post(self, request, *args, **kwargs):
         """
         Accept test results from Robot Framework server
@@ -2380,7 +2387,10 @@ class RobotTestRunningResultView(APIView):
     """
     authentication_classes = []  # Disable auth for now, enable as needed
     permission_classes = []  # Disable permissions for now
-    
+    @swagger_auto_schema(
+        request_body=RobotTestRunningResultSerializer,
+        responses={200: "Test case execution status updated"}
+    )
     def post(self, request, *args, **kwargs):
         """
         Accept test results from Robot Framework server
@@ -2535,6 +2545,10 @@ class DeviceTestResultView(APIView):
     authentication_classes = []  # Disable auth for now, enable as needed
     permission_classes = []  # Disable permissions for now
     
+    @swagger_auto_schema(
+        request_body=DeviceTestResultSerializer,
+        responses={200: "Device execution updated"}
+    )
     def post(self, request, *args, **kwargs):
         """
         Accept test results from Robot Framework server
@@ -4294,7 +4308,24 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
 
 
 
-
+@swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter(
+            'organization_id',
+            openapi.IN_QUERY,   # it's a query param (?organization_id=123)
+            description="ID of the organization to fetch devices for",
+            type=openapi.TYPE_STRING,
+                # or TYPE_STRING depending on your model
+            format=openapi.FORMAT_UUID,
+            required=True
+        )
+    ],
+    responses={
+        200: openapi.Response("List of devices"),
+        400: openapi.Response("Missing or invalid organization_id"),
+    }
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_organization_devices(request):

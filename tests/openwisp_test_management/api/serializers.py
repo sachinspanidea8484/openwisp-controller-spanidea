@@ -819,3 +819,50 @@ class AllureReportResponseSerializer(BaseSerializer):
             if request:
                 return request.build_absolute_uri(f'/media/{obj.allure_report_path}')
         return None
+    
+
+
+class RobotTestResultSerializer(serializers.Serializer):
+    execution_id = serializers.UUIDField()
+    status = serializers.ChoiceField(choices=[
+        ('running', 'running'),
+        ('success', 'success'),
+        ('failed', 'failed'),
+        ('timeout', 'timeout'),
+        ('cancelled', 'cancelled'),
+    ])
+    exit_code = serializers.IntegerField(required=False, allow_null=True)
+    stdout = serializers.CharField(required=False, allow_blank=True)
+    stderr = serializers.CharField(required=False, allow_blank=True)
+    started_at = serializers.DateTimeField(required=False, allow_null=True)
+    completed_at = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class RobotTestRunningResultSerializer(serializers.Serializer):
+    execution_id = serializers.UUIDField()
+    status = serializers.ChoiceField(choices=[
+        ('running', 'running'),
+        ('success', 'success'),
+        ('failed', 'failed'),
+        ('timeout', 'timeout'),
+        ('cancelled', 'cancelled'),
+    ])
+
+class DeviceTestResultSerializer(serializers.Serializer):
+    execution_id = serializers.UUIDField()
+    status = serializers.ChoiceField(choices=[
+        ('running', 'running'),
+        ('success', 'success'),
+        ('failed', 'failed'),
+        ('timeout', 'timeout'),
+        ('cancelled', 'cancelled'),
+    ])
+    exit_code = serializers.IntegerField(required=False, allow_null=True)
+    stdout = serializers.CharField(required=False, allow_blank=True)
+    stderr = serializers.CharField(required=False, allow_blank=True)
+    started_at = serializers.DateTimeField(required=False, allow_null=True)
+    completed_at = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class OrganisationDevicesSerializer(serializers.Serializer):
+    organization_id= serializers.UUIDField()
