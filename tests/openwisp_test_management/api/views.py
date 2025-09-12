@@ -1,6 +1,6 @@
 from django.core.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, generics, status
+from rest_framework import filters, generics, status, viewsets, permissions
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.authentication import SessionAuthentication
 
@@ -48,7 +48,8 @@ from .serializers import (
     RobotTestResultSerializer,
     RobotTestRunningResultSerializer,
     DeviceTestResultSerializer,
-    OrganisationDevicesSerializer
+    OrganisationDevicesSerializer,
+    TestDeviceGroupSerializer
 )
 
 
@@ -4421,7 +4422,12 @@ def get_device_group_devices(request, group_id):
         group = get_object_or_404(TestDeviceGroup, pk=group_id)
         
         devices_qs = TestDeviceGroupDevice.objects.filter(group=group).select_related("device")
-        
+        group_details={
+            "id": str(group.pk),
+            "name": group.name,
+            "organization": group.organization.name if group.organization else None,
+            "device_count": group.device_count
+        }
         devices = []
         for gd in devices_qs:
             d = gd.device
@@ -4435,12 +4441,32 @@ def get_device_group_devices(request, group_id):
                 "status": "Deactivated" if getattr(d, "_is_deactivated", False) else "Active",
             })
         
-        return Response({"devices": devices, "count": len(devices)})
+        return Response({"devices": devices, "count": len(devices), "group_details": group_details})
     except Exception as e:
         logger.error(f"Error fetching devices for group {group_id}: {e}")
         return Response({"error": str(e)}, status=500)
 
 
+class TestDeviceGroupViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for CRUD operations on Test Device Groups
+    - GET    /api/device-groups/          -> list groups
+    - POST   /api/device-groups/          -> create group
+    - GET    /api/device-groups/{id}/     -> retrieve a group
+    - PATCH  /api/device-groups/{id}/     -> update group (partial)
+    - DELETE /api/device-groups/{id}/     -> delete group
+    """
+    queryset = TestDeviceGroup.objects.all()
+    serializer_class = TestDeviceGroupSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """Limit groups to the authenticated user's organization if needed"""
+        qs = super().get_queryset()
+        org_id = self.request.query_params.get("organization_id")
+        if org_id:
+            qs = qs.filter(organization_id=org_id)
+        return qs
 
 
 

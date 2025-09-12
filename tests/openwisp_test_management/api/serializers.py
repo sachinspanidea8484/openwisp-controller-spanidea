@@ -17,7 +17,7 @@ TestSuite = load_model("TestSuite")
 TestSuiteCase = load_model("TestSuiteCase")
 TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
-
+TestDeviceGroup= load_model("TestDeviceGroup")
 
 
 
@@ -866,3 +866,11 @@ class DeviceTestResultSerializer(serializers.Serializer):
 
 class OrganisationDevicesSerializer(serializers.Serializer):
     organization_id= serializers.UUIDField()
+
+
+class TestDeviceGroupSerializer(serializers.ModelSerializer):
+    organization_name = serializers.CharField(source="organization.name", read_only=True)
+    class Meta:
+        model = TestDeviceGroup  # your concrete model, not abstract
+        fields = ['id', 'organization', 'name', 'description','organization_name', 'device_count']
+        read_only_fields = ['id', 'device_count']
