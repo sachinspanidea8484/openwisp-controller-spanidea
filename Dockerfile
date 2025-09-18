@@ -41,6 +41,10 @@ WORKDIR /opt/openwisp
 # Copy requirements files first for better caching
 COPY requirements-test.txt requirements.txt ./
 
+
+# RUN git config --global url."https://${GIT_USER}:${GIT_TOKEN}@git.spanidea.com/".insteadOf "https://git.spanidea.com/"
+
+
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
@@ -54,7 +58,6 @@ RUN pip install --no-cache-dir sendsms==0.2.0 django-sendsms==0.5 twilio==6.63.2
 # Copy entire project including local modules
 COPY --chown=openwisp:openwisp . /opt/openwisp/
 
-# Create necessary directories with proper permissions INCLUDING logs
 # Create necessary directories with proper permissions INCLUDING logs
 RUN mkdir -p /opt/openwisp/media \
     /opt/openwisp/private/firmware \
@@ -74,9 +77,8 @@ RUN mkdir -p /opt/openwisp/media \
 # Make entrypoint executable BEFORE switching user
 RUN chmod +x /opt/openwisp/tests/docker-entrypoint.sh
 
-
 # Install the application in development mode to use local modules
-RUN pip install --no-cache-dir -e /opt/openwisp
+# RUN pip install --no-cache-dir -e /opt/openwisp
 
 # Fix: Ensure proper ownership after pip install
 RUN chown -R openwisp:openwisp /opt/openwisp

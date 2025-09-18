@@ -7,6 +7,11 @@ from dotenv import load_dotenv
 # Load the .env file
 load_dotenv()
 
+
+ROBOT_API_URL: str = os.getenv('ROBOT_API_URL', "http://44.199.94.165")
+OPENWISP_BASE_URL: str = os.getenv('OPENWISP_BASE_URL', "http://44.193.103.240")
+
+
 # Suppress dj_rest_auth deprecation warnings
 import warnings
 warnings.filterwarnings("ignore", message="app_settings.USERNAME_REQUIRED is deprecated")
@@ -29,7 +34,10 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
 
 
 
-DEBUG = True
+
+DJANGO_LOG_LEVEL = os.getenv('DJANGO_LOG_LEVEL', 'INFO')
+
+DEBUG = os.getenv('DEBUG_MODE', True)
 TESTING = False
 SELENIUM_HEADLESS = True
 SHELL = "shell" in sys.argv or "shell_plus" in sys.argv
@@ -256,8 +264,9 @@ if TESTING:
 
 
 # TIME_ZONE = "UTC"
-TIME_ZONE = 'Asia/Kolkata'
+TIME_ZONE = os.getenv('TIME_ZONE', 'Asia/Kolkata')
 
+LANGUAGE_CODE = os.getenv('DJANGO_LANGUAGE_CODE', "en-gb")
 LANGUAGE_CODE = "en-gb"
 USE_TZ = True
 USE_I18N = True

@@ -10,23 +10,31 @@ import requests
 import os
 import subprocess
 
+from .settings import ROBOT_SERVER_IP
 
 
-# LOG_FILE_PATH = "/var/log/openwisp/openwisp_test_management.log"
-LOG_FILE_PATH = "/opt/openwisp/logs/openwisp_test_management.log"
 
-# Configure logger for this module
-os.makedirs(os.path.dirname(LOG_FILE_PATH), exist_ok=True)
+
+
+
 
 # Create logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)  # Capture all levels
 
+# LOG_FILE_PATH = "/var/log/openwisp/openwisp_test_management.log"
+LOG_FILE_PATH = "/opt/openwisp/logs/openwisp_test_management.log"
+
+# Configure logger for this module
+# os.makedirs(os.path.dirname(LOG_FILE_PATH), exist_ok=True)
+
+
+
 # File handler
-file_handler = logging.FileHandler(LOG_FILE_PATH, mode='a')
-file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-logger.addHandler(file_handler)
+# file_handler = logging.FileHandler(LOG_FILE_PATH, mode='a')
+# file_handler.setLevel(logging.DEBUG)
+# file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+# logger.addHandler(file_handler)
 
 # Load models using swapper pattern for better modularity
 TestSuiteExecution = load_model("TestSuiteExecution")
@@ -980,14 +988,8 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     }
     
     print(f"\n[DEBUG] API Payload:")
-    # print(f"[DEBUG] Full payload: {json.dumps(api_payload, indent=2)}")
-    
-    # Call Robot Framework API
-    # robot_api_url = "http://192.168.122.1:8080/api/v1/run-robot/" # sachin
-    # robot_api_url = "http://192.168.201.37:8080/api/v1/run-robot/" # kalyani
-    # robot_api_url = "http://54.234.248.241:8080/api/v1/run-robot/" # aws
-    robot_api_url = "http://172.17.0.1:8080/api/v1/run-robot/" # docker
-    # robot_api_url = "http://54.234.248.241/api/v1/run-robot/" # robot aws live ips
+    robot_api_url = f"{ROBOT_SERVER_IP}/api/v1/run-robot/" # docker
+
 
 
 

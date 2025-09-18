@@ -228,18 +228,7 @@ class TestSuiteSerializer(ValidatedModelSerializer):
         if not value:
             return value
         
-        # Get category from instance or data
-        # category = None
-        # if self.instance:
-        #     category = self.instance.category
-        # elif 'category' in self.initial_data:
-        #     try:
-        #         category = TestCategory.objects.get(pk=self.initial_data['category'])
-        #     except TestCategory.DoesNotExist:
-        #         raise serializers.ValidationError(_("Invalid category"))
         
-        # if not category:
-        #     raise serializers.ValidationError(_("Category must be specified"))
         
         # Build test case queryset
         test_cases_qs = TestCase.objects.filter(

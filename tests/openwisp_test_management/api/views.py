@@ -3,6 +3,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, generics, status
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.authentication import SessionAuthentication
+from ..settings import OPENWISP_SERVER_IP
 
 
 from rest_framework.decorators import api_view ,authentication_classes, permission_classes
@@ -3865,8 +3866,8 @@ def test_execution_history(request, execution_id):
                 else:
                     device_duration_formatted = f"{seconds}s"
 
-            # openwisp_base_url = f"http://172.17.0.1:8000" # docker 
-            openwisp_base_url = f"http://54.234.248.241" # aws 
+            openwisp_base_url = OPENWISP_SERVER_IP
+
 
             has_allure_report = bool(device_exec.allure_report_path)    
             allure_report_full_path = f"{openwisp_base_url}/media/{device_exec.allure_report_path}"

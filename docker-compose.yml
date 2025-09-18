@@ -1,14 +1,36 @@
 # NOTE: This Docker image is for production purposes only.
 
 services:
+
+
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/openwisp.conf:/etc/nginx/conf.d/default.conf
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - controller
+    restart: unless-stopped
+
+
+    
   controller:
     image: openwisp/controller-production:latest
     environment:
       - REDIS_URL=redis://redis:6379
     build:
       context: .
+      args:
+        GIT_USER: ${GIT_USER}
+        GIT_TOKEN: ${GIT_TOKEN}
+    env_file:
+      - .env
     ports:
-      - 8000:8000
+      - "${APP_PORT}:${APP_PORT}"
     depends_on:
       - redis
       - postgres
@@ -29,6 +51,11 @@ services:
       - REDIS_URL=redis://redis:6379
     build:
       context: .
+      args:
+        GIT_USER: ${GIT_USER}
+        GIT_TOKEN: ${GIT_TOKEN}
+    env_file:
+      - .env  
     depends_on:
       - redis
       - postgres
@@ -52,6 +79,11 @@ services:
       - REDIS_URL=redis://redis:6379
     build:
       context: .
+      args:
+        GIT_USER: ${GIT_USER}
+        GIT_TOKEN: ${GIT_TOKEN}
+    env_file:
+       - .env  
     depends_on:
       - redis
       - postgres
@@ -71,10 +103,8 @@ services:
     image: redis:alpine
     restart: always
     command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--save", ""]
-    # command: ["redis-server", "--replicaof", "fake-master", "6379"]
     # ports:
     #   - "6379:6379"
-    # entrypoint: redis-server --appendonly yes
     volumes:
       - redis_data:/data
 
@@ -82,9 +112,9 @@ services:
     image: postgis/postgis:17-3.5-alpine
     restart: always
     environment:
-      POSTGRES_PASSWORD: openwisp2
-      POSTGRES_USER: openwisp2
-      POSTGRES_DB: openwisp2
+      - POSTGRES_PASSWORD=$DB_PASS
+      - POSTGRES_USER=$DB_USER
+      - POSTGRES_DB=$DB_NAME
     ports:
       - 5432:5432
     volumes:
@@ -104,9 +134,9 @@ services:
       - "8091:8091/udp"
       - "8092:8092/udp"
     environment:
-      INFLUXDB_DB: openwisp2
-      INFLUXDB_USER: openwisp
-      INFLUXDB_USER_PASSWORD: openwisp
+      - INFLUXDB_DB=$INFLUXDB_NAME
+      - INFLUXDB_USER=$INFLUXDB_USER
+      - INFLUXDB_USER_PASSWORD=$INFLUXDB_PASS
 
 
 

@@ -63,12 +63,7 @@ class AbstractTestCategory(TimeStampedEditableModel):
     def clean(self):
         """Validate the test category"""
         super().clean()
-        # if not self.name:
-        #     raise ValidationError({"name": _("Category Name is required")})
-        # if not self.code:
-        #     raise ValidationError({"code": _("Category Code is required")})
-        
-        # Check for duplicate names
+      
         qs = self.__class__.objects.filter(
             name__iexact=self.name
         ).exclude(pk=self.pk)
@@ -89,12 +84,7 @@ class AbstractTestCategory(TimeStampedEditableModel):
         TestCase = load_model("TestCase")
         return TestCase.objects.filter(category=self).count()
 
-    # @property
-    # def test_suite_count(self):
-    #     """Return count of test suites in this category"""
-    #     from ..swapper import load_model
-    #     TestSuite = load_model("TestSuite")
-    #     return TestSuite.objects.filter(category=self).count()
+ 
 
     @property
     def is_deletable(self):
@@ -171,15 +161,7 @@ class AbstractTestCase(TimeStampedEditableModel):
     def clean(self):
      """Validate the test case"""
      super().clean()
-    
-    # # Validate required fields
-    #  if not self.name:
-    #     raise ValidationError({"name": _("Test case name is required")})
-    
-    #  if not self.test_case_id:
-    #     raise ValidationError({"test_case_id": _("Test case ID is required")})
-    
-     # Handle empty params - set to empty dict if None or empty
+
      if not self.params:
         self.params = {}
     
@@ -271,13 +253,7 @@ class AbstractTestSuite(TimeStampedEditableModel):
         default=True,
         help_text=_("Whether this test group is currently active")  # Changed help text
     )
-    # category = models.ForeignKey(
-    #     'test_management.TestCategory',
-    #     on_delete=models.PROTECT,
-    #     related_name='test_suites',  # Keep model relation name same
-    #     verbose_name=_("Select Test Category"),  # Changed label
-    #     help_text=_("Category this test group belongs to")  # Changed help text
-    # )
+
     test_cases = models.ManyToManyField(
         'test_management.TestCase',
         through='test_management.TestSuiteCase',
@@ -307,23 +283,7 @@ class AbstractTestSuite(TimeStampedEditableModel):
             raise ValidationError({
                 "name": _("A test group with this name already exists")
             })
-        # if not self.name:
-        #     raise ValidationError({"name": _("Name is required")})
-        
-        # Check for duplicate name within the same category
-        # if self.category_id:
-        #     qs = self.__class__.objects.filter(
-        #         category=self.category,
-        #         name__iexact=self.name
-        #     ).exclude(pk=self.pk)
-            
-        #     if qs.exists():
-        #         raise ValidationError({
-        #             "name": _(
-        #                 f"A test group with this name already exists "
-        #                 f"in category '{self.category.name}'"
-        #             )
-        #         })
+
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -392,14 +352,6 @@ class AbstractTestSuiteCase(TimeStampedEditableModel):
         """Validate test group case"""
         super().clean()
         
-        # # Ensure test case belongs to the same category as the group
-        # if self.test_case and self.test_suite:
-        #     if self.test_case.category != self.test_suite.category:
-        #         raise ValidationError({
-        #             "test_case": _(
-        #                 "Test case must belong to the same category as the test group"
-        #             )
-        #         })
 
     def save(self, *args, **kwargs):
         # Auto-assign order if not specified
@@ -482,18 +434,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         """Validate the test suite execution"""
         super().clean()
 
-        # Validate device group requirement
-        # if self.device_selection == 1 and not self.device_group_id:
-        #     raise ValidationError({
-        #         "device_group": _("Device group is required when device selection type is 'Device Group'")
-        #     })
 
-        # # Ensure device group belongs to same organization
-        # if self.device_group and hasattr(self, 'test_suite') and hasattr(self.test_suite, 'organization'):
-        #     if self.device_group.organization_id != self.test_suite.organization_id:
-        #         raise ValidationError({
-        #             "device_group": _("Device group must belong to the same organization")
-        #         })
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None  # check if new execution
@@ -544,9 +485,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
             test_suite_execution=self
         ).count()
 
-        print(">>>>>>>>>>>>>>>>>>11111111111111",self.device_selection)
-        print(">>>>>>>>>>>>>>>>>>22222222222222",self)
-        print(">>>>>>>>>>>>>>>>>>22222222222222",self.device_count)
+
 
         
         # Save again only updating counts to persist them
@@ -921,105 +860,10 @@ class AbstractTestCaseExecution(TimeStampedEditableModel):
         # Just call super().save() without validation for now
         super().save(*args, **kwargs)  # ← This is essential!
 
-        @property
-        def is_completed(self):
-            """Check if execution is completed (success or failed)"""
-            return self.status in [
-                TestExecutionStatus.SUCCESS,
-                TestExecutionStatus.FAILED,
-                TestExecutionStatus.TIMEOUT,
-                TestExecutionStatus.CANCELLED
-            ]
+ 
+    
 
-        @property
-        def is_successful(self):
-            """Check if execution was successful"""
-            return self.status == TestExecutionStatus.SUCCESS
-
-        @property
-        def duration_seconds(self):
-            """Return duration in seconds"""
-            if self.execution_duration:
-                return self.execution_duration.total_seconds()
-            return None
-
-        @property
-        def formatted_duration(self):
-            """Return human-readable duration"""
-            if self.execution_duration:
-                total_seconds = int(self.execution_duration.total_seconds())
-                hours, remainder = divmod(total_seconds, 3600)
-                minutes, seconds = divmod(remainder, 60)
-                
-                if hours > 0:
-                    return f"{hours}h {minutes}m {seconds}s"
-                elif minutes > 0:
-                    return f"{minutes}m {seconds}s"
-                else:
-                    return f"{seconds}s"
-            return None
-
-        def start_execution(self):
-            """Mark execution as started"""
-            self.status = TestExecutionStatus.RUNNING
-            self.started_at = timezone.now()
-            self.save(update_fields=['status', 'started_at'])
-
-        def complete_execution(self, success=True, exit_code=None, stdout="", stderr="", error_message=""):
-            """Mark execution as completed"""
-            self.status = TestExecutionStatus.SUCCESS if success else TestExecutionStatus.FAILED
-            self.completed_at = timezone.now()
-            self.exit_code = exit_code
-            self.stdout = stdout
-            self.stderr = stderr
-            self.error_message = error_message
-            
-            if self.started_at:
-                self.execution_duration = self.completed_at - self.started_at
-            
-            self.save(update_fields=[
-                'status', 'completed_at', 'exit_code', 'stdout', 
-                'stderr', 'error_message', 'execution_duration'
-            ])
-
-        def fail_execution(self, error_message, exit_code=None, stderr=""):
-            """Mark execution as failed"""
-            self.complete_execution(
-                success=False,
-                exit_code=exit_code,
-                stderr=stderr,
-                error_message=error_message
-            )
-
-        def timeout_execution(self, timeout_message="Execution timed out"):
-            """Mark execution as timed out"""
-            self.status = TestExecutionStatus.TIMEOUT
-            self.completed_at = timezone.now()
-            self.error_message = timeout_message
-            
-            if self.started_at:
-                self.execution_duration = self.completed_at - self.started_at
-            
-            self.save(update_fields=[
-                'status', 'completed_at', 'error_message', 'execution_duration'
-            ])
-
-        def cancel_execution(self, cancel_message="Execution cancelled"):
-            """Mark execution as cancelled"""
-            self.status = TestExecutionStatus.CANCELLED
-            self.completed_at = timezone.now()
-            self.error_message = cancel_message
-            
-            if self.started_at:
-                self.execution_duration = self.completed_at - self.started_at
-            
-            self.save(update_fields=[
-                'status', 'completed_at', 'error_message', 'execution_duration'
-            ])
-
-
-
-
+ 
 
 class AbstractTestDeviceGroup(OrgMixin, TimeStampedEditableModel):
     """
