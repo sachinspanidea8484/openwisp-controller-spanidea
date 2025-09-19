@@ -28,7 +28,7 @@ def run_local_command(command):
 
 
 # =====================
-# Fallback IMU reader
+# Fallback IMU readers
 # =====================
 def read_value(path):
     try:
