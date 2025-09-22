@@ -146,15 +146,30 @@ urlpatterns = [
                 name="api_get_organization_devices",
             ),
             path(
-                "device-groups/",
-                views.get_device_groups,
-                name="api_device_groups",
-            ),
-            path(
                 "device-groups/<uuid:group_id>/devices/",
                 views.get_device_group_devices,
                 name="api_device_group_devices",
             ),
+             path(
+                "device-groups/",
+                views.TestDeviceGroupViewSet.as_view({
+                    "get": "list",      # GET /device-groups/
+                    "post": "create"    # POST /device-groups/
+                }),
+                name="device-group-list",
+            ),
+
+            # Detail endpoint: retrieve + update + delete
+            path(
+                "device-groups/<uuid:pk>/",
+                views.TestDeviceGroupViewSet.as_view({
+                    "get": "retrieve",           # GET /device-groups/{id}/
+                    "patch": "partial_update",   # PATCH /device-groups/{id}/
+                    "delete": "destroy"          # DELETE /device-groups/{id}/
+                }),
+                name="device-group-detail",
+            ),
+
             
             # Commented out endpoints (kept for reference)
             # path(

@@ -1,6 +1,6 @@
 from django.core.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, generics, status
+from rest_framework import filters, generics, status, viewsets, permissions
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.authentication import SessionAuthentication
 from ..settings import OPENWISP_SERVER_IP
@@ -45,7 +45,12 @@ from .serializers import (
     TestSuiteExecutionDeleteAllSerializer,
     BulkTestDataCreationSerializer,
     AllureReportUploadSerializer,
-    AllureReportResponseSerializer
+    AllureReportResponseSerializer,
+    RobotTestResultSerializer,
+    RobotTestRunningResultSerializer,
+    DeviceTestResultSerializer,
+    OrganisationDevicesSerializer,
+    TestDeviceGroupSerializer
 )
 
 
@@ -2139,8 +2144,8 @@ class TestCaseExecutionResultView(generics.GenericAPIView):
 
 
 
-
-
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 class RobotTestResultView(APIView):
     """
     API endpoint to receive test results from Robot Framework server
@@ -2148,7 +2153,10 @@ class RobotTestResultView(APIView):
     """
     authentication_classes = []  # Disable auth for now, enable as needed
     permission_classes = []  # Disable permissions for now
-    
+    @swagger_auto_schema(
+        request_body=RobotTestResultSerializer,
+        responses={200: "Test case execution updated"}
+    )
     def post(self, request, *args, **kwargs):
         """
         Accept test results from Robot Framework server
@@ -2381,7 +2389,10 @@ class RobotTestRunningResultView(APIView):
     """
     authentication_classes = []  # Disable auth for now, enable as needed
     permission_classes = []  # Disable permissions for now
-    
+    @swagger_auto_schema(
+        request_body=RobotTestRunningResultSerializer,
+        responses={200: "Test case execution status updated"}
+    )
     def post(self, request, *args, **kwargs):
         """
         Accept test results from Robot Framework server
@@ -2536,6 +2547,10 @@ class DeviceTestResultView(APIView):
     authentication_classes = []  # Disable auth for now, enable as needed
     permission_classes = []  # Disable permissions for now
     
+    @swagger_auto_schema(
+        request_body=DeviceTestResultSerializer,
+        responses={200: "Device execution updated"}
+    )
     def post(self, request, *args, **kwargs):
         """
         Accept test results from Robot Framework server
@@ -4295,7 +4310,24 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
 
 
 
-
+@swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter(
+            'organization_id',
+            openapi.IN_QUERY,   # it's a query param (?organization_id=123)
+            description="ID of the organization to fetch devices for",
+            type=openapi.TYPE_STRING,
+                # or TYPE_STRING depending on your model
+            format=openapi.FORMAT_UUID,
+            required=True
+        )
+    ],
+    responses={
+        200: openapi.Response("List of devices"),
+        400: openapi.Response("Missing or invalid organization_id"),
+    }
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_organization_devices(request):
@@ -4391,7 +4423,12 @@ def get_device_group_devices(request, group_id):
         group = get_object_or_404(TestDeviceGroup, pk=group_id)
         
         devices_qs = TestDeviceGroupDevice.objects.filter(group=group).select_related("device")
-        
+        group_details={
+            "id": str(group.pk),
+            "name": group.name,
+            "organization": group.organization.name if group.organization else None,
+            "device_count": group.device_count
+        }
         devices = []
         for gd in devices_qs:
             d = gd.device
@@ -4405,12 +4442,32 @@ def get_device_group_devices(request, group_id):
                 "status": "Deactivated" if getattr(d, "_is_deactivated", False) else "Active",
             })
         
-        return Response({"devices": devices, "count": len(devices)})
+        return Response({"devices": devices, "count": len(devices), "group_details": group_details})
     except Exception as e:
         logger.error(f"Error fetching devices for group {group_id}: {e}")
         return Response({"error": str(e)}, status=500)
 
 
+class TestDeviceGroupViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for CRUD operations on Test Device Groups
+    - GET    /api/device-groups/          -> list groups
+    - POST   /api/device-groups/          -> create group
+    - GET    /api/device-groups/{id}/     -> retrieve a group
+    - PATCH  /api/device-groups/{id}/     -> update group (partial)
+    - DELETE /api/device-groups/{id}/     -> delete group
+    """
+    queryset = TestDeviceGroup.objects.all()
+    serializer_class = TestDeviceGroupSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """Limit groups to the authenticated user's organization if needed"""
+        qs = super().get_queryset()
+        org_id = self.request.query_params.get("organization_id")
+        if org_id:
+            qs = qs.filter(organization_id=org_id)
+        return qs
 
 
 

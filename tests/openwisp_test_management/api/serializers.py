@@ -17,7 +17,7 @@ TestSuite = load_model("TestSuite")
 TestSuiteCase = load_model("TestSuiteCase")
 TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
-
+TestDeviceGroup= load_model("TestDeviceGroup")
 
 
 
@@ -808,3 +808,58 @@ class AllureReportResponseSerializer(BaseSerializer):
             if request:
                 return request.build_absolute_uri(f'/media/{obj.allure_report_path}')
         return None
+    
+
+
+class RobotTestResultSerializer(serializers.Serializer):
+    execution_id = serializers.UUIDField()
+    status = serializers.ChoiceField(choices=[
+        ('running', 'running'),
+        ('success', 'success'),
+        ('failed', 'failed'),
+        ('timeout', 'timeout'),
+        ('cancelled', 'cancelled'),
+    ])
+    exit_code = serializers.IntegerField(required=False, allow_null=True)
+    stdout = serializers.CharField(required=False, allow_blank=True)
+    stderr = serializers.CharField(required=False, allow_blank=True)
+    started_at = serializers.DateTimeField(required=False, allow_null=True)
+    completed_at = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class RobotTestRunningResultSerializer(serializers.Serializer):
+    execution_id = serializers.UUIDField()
+    status = serializers.ChoiceField(choices=[
+        ('running', 'running'),
+        ('success', 'success'),
+        ('failed', 'failed'),
+        ('timeout', 'timeout'),
+        ('cancelled', 'cancelled'),
+    ])
+
+class DeviceTestResultSerializer(serializers.Serializer):
+    execution_id = serializers.UUIDField()
+    status = serializers.ChoiceField(choices=[
+        ('running', 'running'),
+        ('success', 'success'),
+        ('failed', 'failed'),
+        ('timeout', 'timeout'),
+        ('cancelled', 'cancelled'),
+    ])
+    exit_code = serializers.IntegerField(required=False, allow_null=True)
+    stdout = serializers.CharField(required=False, allow_blank=True)
+    stderr = serializers.CharField(required=False, allow_blank=True)
+    started_at = serializers.DateTimeField(required=False, allow_null=True)
+    completed_at = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class OrganisationDevicesSerializer(serializers.Serializer):
+    organization_id= serializers.UUIDField()
+
+
+class TestDeviceGroupSerializer(serializers.ModelSerializer):
+    organization_name = serializers.CharField(source="organization.name", read_only=True)
+    class Meta:
+        model = TestDeviceGroup  # your concrete model, not abstract
+        fields = ['id', 'organization', 'name', 'description','organization_name', 'device_count']
+        read_only_fields = ['id', 'device_count']
