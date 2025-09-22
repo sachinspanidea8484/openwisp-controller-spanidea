@@ -539,6 +539,24 @@ function displayExecutionData(data) {
     // Update page title
     
     // Update summary
+
+    let total_execution_time = 0;
+    data.devices.forEach(device => {
+        // device-level total
+        let total_time_for_device = device.test_cases.every(
+            item => item?.execution_duration?.seconds != null
+        ) ? device.test_cases.reduce((acc, item) => acc + item.execution_duration.seconds, 0)
+            : null;
+
+        device.total_time_for_device = total_time_for_device; // store it back if needed
+
+        // suite-level total
+        if (total_time_for_device != null && total_execution_time!=null) {
+            total_execution_time = (total_execution_time ?? 0) + total_time_for_device;
+        } else {
+            total_execution_time = null; // if one is missing, mark overall as null
+        }
+        });
     const summaryRows = document.getElementById('summary-rows');
     summaryRows.innerHTML = `
         <div class="summary-row">
@@ -559,15 +577,21 @@ function displayExecutionData(data) {
             <div class="summary-label">Total Test Cases:</div>
             <div class="summary-value">${data?.testcase_count}</div>
         </div>
+        ${data.status ===3 && total_execution_time ? `<div class="summary-row">
+            <div class="summary-label">Total Execution Time:</div>
+            <div class="summary-value">${(total_execution_time).toFixed(2)} s</div>
+        </div>` : ''}
 
- <div class="summary-row">
-    <div class="summary-label">Status:</div>
-    <div class="summary-value">
-        <span class="status-indicator status-${data?.status}">
-            ${data?.status_display}
-        </span>
-    </div>
-</div>
+        <div class="summary-row">
+            <div class="summary-label">Status:</div>
+            <div class="summary-value">
+                <span class="status-indicator status-${data?.status}">
+                    ${data?.status_display}
+                </span>
+            </div>
+        </div>
+
+         
 
     `;
     
@@ -630,6 +654,7 @@ function displayExecutionData(data) {
                             <td><span class="test-id-badge">${test.test_case_id || 'N/A'}</span></td>
                             <td>${test.test_type || 'N/A'}</td>
                             <td><span class="status-indicator ${test.status}">${test.status_display || test.status}</span></td>
+                            <td>${test?.execution_duration?.seconds ?   `${(test?.execution_duration?.seconds).toFixed(2)} s` :  '-'}</td>
                             <td><div class="action-buttons">${actions || '-'}</div></td>
                         </tr>
                     `;
@@ -642,6 +667,7 @@ function displayExecutionData(data) {
                                 <th>Test ID</th>
                                 <th>Type</th>
                                 <th>Status</th>
+                                <th>Duration</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -655,7 +681,7 @@ function displayExecutionData(data) {
             if (robotTests.length) {
                 robotSection = `
                     <div class="test-section">
-                        <div class="section-header open" onclick="handleHideClick(this,'robot-test-case-table')">
+                        <div class="section-header open" onclick="handleHideClick(this,'robot-test-case-table-${device.device_execution_id}')">
                             <div class="header-left">
                                 <svg class="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" 
                                     viewBox="0 0 24 24" stroke="currentColor">
@@ -669,14 +695,17 @@ function displayExecutionData(data) {
                                 <a href="${device.allure_report_full_path}" target="_blank" class="btn-action primary">
                                     Show Report
                                 </a>
-                            ` : ''}
+                            ` : `<a href="" target="_blank" class="btn-action primary" title="Ready after suite completion" disabled>
+                                    Show Report
+                                </a>`}
                         </div>
-                        <table class="results-table aligned-table robot-test-case-table">
+                        <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">
                             <colgroup>
-                                <col style="width: 25%">
+                                <col style="width: 20%">
+                                <col style="width: 10%">
                                 <col style="width: 15%">
                                 <col style="width: 15%">
-                                <col style="width: 15%">
+                                <col style="width: 10%">
                                 <col style="width: 30%">
                             </colgroup>
                             ${buildTable(robotTests).replace('<table class="results-table">', '').replace('</table>', '')}
@@ -693,7 +722,7 @@ function displayExecutionData(data) {
             if (agentTests.length) {
                 agentSection = `
                    <div class="test-section">
-                        <div class="section-header open" onclick="handleHideClick(this,'agent-test-case-table')">
+                        <div class="section-header open" onclick="handleHideClick(this,'agent-test-case-table-${device.device_execution_id}')">
                             <div class="header-left">
                                 <svg class="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" 
                                     viewBox="0 0 24 24" stroke="currentColor">
@@ -707,14 +736,17 @@ function displayExecutionData(data) {
                                     onclick='openDeviceAgentReport("${device.device_execution_id}")'>
                                     Show Report
                                 </button>
-                            ` : ""}
+                            ` : `<a href="" target="_blank" class="btn-action primary" title="Ready after suite completion" disabled>
+                                    Show Report
+                                </a>`}
                         </div>
-                        <table class="results-table aligned-table agent-test-case-table">
+                        <table class="results-table aligned-table agent-test-case-table-${device.device_execution_id}">
                             <colgroup>
-                                <col style="width: 25%">
+                                <col style="width: 20%">
+                                <col style="width: 10%">
                                 <col style="width: 15%">
                                 <col style="width: 15%">
-                                <col style="width: 15%">
+                                <col style="width: 10%">
                                 <col style="width: 30%">
                             </colgroup>
                             ${buildTable(agentTests).replace('<table class="results-table">', '').replace('</table>', '')}
@@ -733,7 +765,10 @@ function displayExecutionData(data) {
             devicesHtml += `
                 <div class="device-card">
                     <div class="device-header">
-                        <h3 class="device-title">${device.device_name || 'Unknown Device'}</h3>
+                        <div style="display: flex; align-items: baseline; ">
+                            <h3 class="device-title">${device.device_name || 'Unknown Device'}</h3>
+                            ${ device.total_time_for_device ? `<h4>(Device Execution Time: ${(device.total_time_for_device).toFixed(2)} s)</h4>` : ''}
+                        </div>
                         <div class="device-stats">
                             <div class="progress-container">
                                 <span class="progress-text">${stats.success}/${stats.total} passed</span>

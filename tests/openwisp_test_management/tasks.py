@@ -46,6 +46,7 @@ TestSuiteCase = load_model("TestSuiteCase")
 # Device Execution Type Configuration
 DEVICE_EXECUTION_TYPE = 2 # 1 for SSH, 2 for NB_API (default is SSH)
 
+# ROBOT_API_SERVER = "http://172.17.0.1:8080/api/v1/run-robot/"
 # Robot Framework API Server Configuration
 # ROBOT_API_SERVER = getattr(settings, 'ROBOT_API_SERVER', 'http://localhost:5000')
 # ROBOT_API_TIMEOUT = getattr(settings, 'ROBOT_API_TIMEOUT', 300)  # 5 minutes default
@@ -527,7 +528,7 @@ def execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_exe
             # This ensures requests are processed sequentially on resource-limited devices
             logger.info(f"Starting NB_API request for test {test_case.test_case_id}")
             print(f"[TASK] execute_test_via_nb_api - Sending GET request (no timeout)")
-            1
+            
             response = requests.get(
                 api_url,
                 timeout=300,  # No timeout - wait indefinitely
