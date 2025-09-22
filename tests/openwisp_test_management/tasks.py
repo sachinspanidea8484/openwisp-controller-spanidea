@@ -1278,20 +1278,27 @@ def retry_test_execution(test_execution_id):
 
 
 
-def ping_host(ip):
+def ping_host(ip: str) -> bool:
     """
-    Simple cross-platform ping function.
+    Ping check using fping (Linux/Docker).
     Returns True if host is reachable, False otherwise.
     """
     try:
-        # Ping once, wait max 2s
-        command = ["ping", "-c", "1", "-W", "2", ip]  # Linux/macOS
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        command = ["fping", "-c1", "-t200", ip]
+        print(f"[DEBUG] Running command: {' '.join(command)}")  # show command
+
+        result = subprocess.run(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+
+        print(f"[DEBUG] Return code: {result.returncode}")
+        print(f"[DEBUG] STDOUT: {result.stdout.strip()}")
+        print(f"[DEBUG] STDERR: {result.stderr.strip()}")
+
         return result.returncode == 0
     except Exception as e:
-        logger.error(f"Ping check failed for {ip}: {str(e)}")
+        print(f"[ERROR] Ping check failed for {ip}: {str(e)}")
         return False
-
 
 @shared_task
 def timeout_stuck_tests():
@@ -1305,6 +1312,9 @@ def timeout_stuck_tests():
     """
     logger.info("Starting check for pending Device Agent tests")
     print(f"[TASK] timeout_stuck_tests - Checking for pending Device Agent tests")
+
+
+    # reachable = ping_host("127.0.0.1")
 
     TestCaseExecution = load_model("TestCaseExecution")
 
@@ -1331,7 +1341,6 @@ def timeout_stuck_tests():
             logger.info(f"Checking device: {device.name} ({management_ip})")
             print(f"[TASK] Checking device: {device.name}, Management IP: {management_ip}")
 
-            return
 
 
 

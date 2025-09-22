@@ -649,7 +649,7 @@ if os.environ.get("SAMPLE_APP", False):
     CONFIG_ORGANIZATIONCONFIGSETTINGS_MODEL = "sample_config.OrganizationConfigSettings"
     CONFIG_ORGANIZATIONLIMITS_MODEL = "sample_config.OrganizationLimits"
     DJANGO_X509_CA_MODEL = "sample_pki.Ca"
-    DJANGO_X509_CERT_MODEL = "sample_pki.Cert"
+    DJANGO_X509_CERT_MODEL = "sample_pki.Cert" 
     GEO_LOCATION_MODEL = "sample_geo.Location"
     GEO_FLOORPLAN_MODEL = "sample_geo.FloorPlan"
     GEO_DEVICELOCATION_MODEL = "sample_geo.DeviceLocation"
