@@ -29,6 +29,47 @@
     selectedTestCases: new Map(), // test_case_id -> { testCaseData, order }
     currentApiTestCases: [], // Current API response
     cachedTestCases: new Map(),
+    searchTerm: "",
+
+    setSearchTerm: function (term) {
+      this.searchTerm = term.toLowerCase().trim();
+      console.log(`Global State: Set search term to "${this.searchTerm}"`);
+    },
+
+    // Get filtered test cases based on search term
+    getFilteredTestCases: function () {
+      const testCasesToFilter = this.getMergedTestCasesForDisplay();
+
+      if (!this.searchTerm) {
+        return testCasesToFilter;
+      }
+
+      const filtered = testCasesToFilter.filter((testCase) => {
+        const name = (testCase.name || "").toLowerCase();
+        const testCaseId = (testCase.test_case_id || "").toLowerCase();
+        const category = (testCase.category || "").toLowerCase();
+
+        return (
+          name.includes(this.searchTerm) ||
+          testCaseId.includes(this.searchTerm) ||
+          category.includes(this.searchTerm)
+        );
+      });
+
+      console.log(
+        `Global State: Filtered ${filtered.length} of ${testCasesToFilter.length} test cases`
+      );
+      return filtered;
+    },
+
+    // Get search statistics
+    getSearchStats: function () {
+      const total = this.getMergedTestCasesForDisplay().length;
+      const filtered = this.searchTerm
+        ? this.getFilteredTestCases().length
+        : total;
+      return { filtered, total };
+    },
 
     // Add test case to global state
     addTestCase: function (testCase, order = null) {
@@ -282,6 +323,22 @@
   // UI Creation Functions
   function createTestCasesContainer() {
     const container = $('<div id="test-cases-container" class="hidden"></div>');
+
+    const searchBar = $(`
+    <div class="test-cases-search-container">
+      <div class="search-input-wrapper">
+        <input type="text" 
+               id="test-cases-search" 
+               class="test-cases-search-input" 
+               placeholder="Search test cases...">
+        <span class="search-icon">🔍</span>
+        <span class="clear-search" style="display: none;">✕</span>
+      </div>
+      <div class="search-results-count" style="display: none;">
+        Showing <span class="filtered-count">0</span> of <span class="total-count">0</span> test cases
+      </div>
+    </div>
+  `);
     const header = $('<div class="test-cases-header">Select Test Cases</div>');
     const errorMessage = $(`
       <div class="test-case-validation-error" id="test-case-error">
@@ -312,12 +369,26 @@
     `);
 
     tableContainer.append(table);
+    container.append(searchBar);
     container.append(header);
     container.append(errorMessage);
     container.append(successMessage);
     container.append(tableContainer);
 
     return container;
+  }
+
+  function updateSearchResultsCount() {
+    const resultsCount = $(".search-results-count");
+    const stats = globalState.getSearchStats();
+
+    if (globalState.searchTerm && stats.total > 0) {
+      $(".filtered-count").text(stats.filtered);
+      $(".total-count").text(stats.total);
+      resultsCount.show();
+    } else {
+      resultsCount.hide();
+    }
   }
 
   // UI Update Functions
@@ -333,10 +404,20 @@
     tbody.empty();
 
     // Use merged test cases if no specific test cases provided
-    const testCasesToDisplay =
-      testCases || globalState.getMergedTestCasesForDisplay();
+    const testCasesToDisplay = testCases || globalState.getFilteredTestCases();
     console.log(`Displaying ${testCasesToDisplay.length} test cases`);
 
+    if(testCasesToDisplay.length===0 && globalState.searchTerm){
+      tbody.html(`
+      <tr class="no-search-results">
+        <td colspan="5" class="no-test-cases">
+          No test cases found matching "${globalState.searchTerm}"
+        </td>
+      </tr>
+    `);
+      updateSelectAllCheckbox();
+      return;
+    }
     testCasesToDisplay.forEach(function (testCase) {
       const testCaseId = String(testCase.id);
       const isChecked = globalState.isSelected(testCaseId);
@@ -376,6 +457,7 @@
     updateSelectAllCheckbox();
     updateSelectionCount();
     updateHiddenInput();
+    updateSearchResultsCount();
   }
 
   function updateSelectAllCheckbox() {
@@ -393,6 +475,61 @@
     }
   }
 
+  function handleTestCaseSearch() {
+    let searchTimeout;
+
+    // Handle search input
+    $(document).on("input", "#test-cases-search", function () {
+      const searchTerm = $(this).val().trim();
+      const clearButton = $(".clear-search");
+      const searchIcon = $(".search-icon");
+      // Show/hide clear button
+      if (searchTerm && searchTerm!=='') {
+        clearButton.show();
+        searchIcon.hide();
+      } else {
+        clearButton.hide();
+        searchIcon.show();
+      }
+
+      // Clear previous timeout
+      clearTimeout(searchTimeout);
+
+      // Debounce search
+      searchTimeout = setTimeout(function () {
+        performSearch(searchTerm);
+      }, 300);
+    });
+
+    // Handle clear button
+    $(document).on("click", ".clear-search", function () {
+      $("#test-cases-search").val("");
+      performSearch("");
+      const clearButton = $(".clear-search");
+      const searchIcon = $(".search-icon");
+      clearButton.hide();
+      searchIcon.show();
+    });
+
+    // Handle Enter key
+    $(document).on("keypress", "#test-cases-search", function (e) {
+      if (e.which === 13) {
+        e.preventDefault();
+        clearTimeout(searchTimeout);
+        performSearch($(this).val().trim());
+      }
+    });
+  }
+
+  function performSearch(searchTerm) {
+    console.log(`Performing search: "${searchTerm}"`);
+
+    // Update global state with search term
+    globalState.setSearchTerm(searchTerm);
+
+    // Re-render the table with filtered results
+    displayTestCasesTable();
+  }
   function updateSelectionCount() {
     const selectedCount = globalState.getCount();
     const selectionDiv = getElement(".selection-count");
@@ -820,7 +957,73 @@
 
       console.log("Displayed pre-selected test cases in edit mode");
       debugGlobalState();
+    } else {
+      // NOT IN EDIT MODE - LOAD ALL TEST CASES INITIALLY
+      console.log("Not in edit mode - loading all test cases initially");
+
+      const container = getElement("#test-cases-container");
+      const tbody = container.find(".test-cases-table tbody");
+
+      // Show loading
+      tbody.html(
+        '<tr><td colspan="5" class="no-test-cases"><div class="loading-spinner"></div> Loading all test cases...</td></tr>'
+      );
+      container.removeClass("hidden");
+
+      // Fetch all test cases
+      const apiUrl = `/api/v1/test-management/category/get-test-cases/`;
+
+      $.ajax({
+        url: apiUrl,
+        method: "GET",
+        headers: {
+          "X-CSRFToken": csrftoken,
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        success: function (data) {
+          console.log("Initial load - API Response:", data);
+
+          if (data.test_cases && data.test_cases.length > 0) {
+            console.log("Found test cases from API for initial load");
+
+            // Update global state with all test cases
+            globalState.setCurrentApiTestCases(data.test_cases);
+
+            // Display all test cases
+            displayTestCasesTable();
+
+            container.removeClass("hidden");
+          } else {
+            console.log("No test cases found for initial load");
+            tbody.html(
+              '<tr><td colspan="5" class="no-test-cases">No active test cases available</td></tr>'
+            );
+          }
+
+          updateSelectionCount();
+          syncLegacyState();
+        },
+        error: function (xhr, status, error) {
+          console.error("Initial load - API Error:", status, error);
+
+          let errorMessage = "Error loading test cases";
+          if (xhr.status === 401 || xhr.status === 403) {
+            errorMessage =
+              "Authentication required. Please ensure you are logged in.";
+          } else if (xhr.status === 404) {
+            errorMessage =
+              "API endpoint not found. Please check the URL configuration.";
+          } else if (xhr.status === 500) {
+            errorMessage = "Server error. Please try again later.";
+          }
+
+          tbody.html(
+            `<tr><td colspan="5" class="no-test-cases">${errorMessage}</td></tr>`
+          );
+        },
+      });
     }
+
 
     // Setup all event handlers
     handleTestCaseSelection();
@@ -829,6 +1032,7 @@
     handleCategoryChangeWarning();
     handleFormSubmission();
     handleApplyCategoryFilter();
+    handleTestCaseSearch();
 
     // Trigger change if category is pre-selected
     if (getElement("#id_category").val()) {

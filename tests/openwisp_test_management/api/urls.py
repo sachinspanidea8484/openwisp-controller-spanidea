@@ -150,7 +150,7 @@ urlpatterns = [
                 views.get_device_group_devices,
                 name="api_device_group_devices",
             ),
-             path(
+            path(
                 "device-groups/",
                 views.TestDeviceGroupViewSet.as_view({
                     "get": "list",      # GET /device-groups/
@@ -165,7 +165,8 @@ urlpatterns = [
                 views.TestDeviceGroupViewSet.as_view({
                     "get": "retrieve",           # GET /device-groups/{id}/
                     "patch": "partial_update",   # PATCH /device-groups/{id}/
-                    "delete": "destroy"          # DELETE /device-groups/{id}/
+                    "delete": "destroy",          # DELETE /device-groups/{id}/
+                    "put": "update",
                 }),
                 name="device-group-detail",
             ),

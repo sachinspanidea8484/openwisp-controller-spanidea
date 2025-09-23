@@ -447,3 +447,69 @@
         margin-top: 10px;
     }
 }
+
+.test-cases-search-container {
+  margin-bottom: 15px;
+  position: relative;
+  width: 35%;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.test-cases-search-input {
+  width: 100%;
+  padding: 10px 40px 10px 35px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: border-color 0.3s;
+}
+
+.test-cases-search-input:focus {
+  outline: none;
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
+}
+
+.search-icon {
+  position: absolute;
+  right: 5px;
+  color: #666;
+  pointer-events: none;
+}
+
+.clear-search {
+  position: absolute;
+  right: 0px;
+  cursor: pointer;
+  color: #999;
+  font-size: 18px;
+  padding: 5px;
+  transition: color 0.2s;
+}
+
+.clear-search:hover {
+  color: #333;
+}
+
+.search-results-count {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #666;
+}
+
+.search-highlight {
+  background-color: #ffeb3b;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.no-search-results td {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+}
