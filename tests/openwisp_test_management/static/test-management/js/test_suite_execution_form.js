@@ -178,9 +178,8 @@
       success: function (data) {
         dropdown.empty();
         dropdown.append('<option value="">Select a device group...</option>');
-
-        if (data.groups && data.groups.length > 0) {
-          data.groups.forEach(function (group) {
+        if (data && data.length > 0) {
+          data.forEach(function (group) {
             dropdown.append(
               `<option value="${group.id}">${group.name}</option>`
             );

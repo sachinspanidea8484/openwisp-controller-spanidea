@@ -18,6 +18,15 @@ django.jQuery(function ($) {
       menuLink.addClass("current");
       $(tabId).addClass("current");
       triggerResize();
+
+      if (tabId === "#devicefirmware-group") {
+        $(".firmware-save-btn").show();
+        $(".refresh-btn").show();
+      } else {
+        $(".firmware-save-btn").hide();
+        $(".refresh-btn").hide();
+      }
+
       $.event.trigger({
         type: "tabshown",
         tabId: tabId,
