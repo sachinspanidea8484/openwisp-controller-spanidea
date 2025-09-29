@@ -4468,12 +4468,24 @@ class TestDeviceGroupViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Limit groups to the authenticated user's organization if needed"""
         qs = super().get_queryset()
+        if self.request.user.is_superuser:
+            return qs
+
         org_id = self.request.query_params.get("organization_id")
         if org_id:
             qs = qs.filter(organization_id=org_id)
+        else:
+            # Filter by all organizations the user belongs to
+            org_ids = []
+
+            if hasattr(self.request.user, "organizations_owned"):
+                org_ids.extend(self.request.user.organizations_owned)
+
+            if org_ids:
+                qs = qs.filter(organization__in=org_ids)
+            else:
+                qs = qs.none()
         return qs
-
-
 
 
 # Create view instances

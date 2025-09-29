@@ -1731,6 +1731,16 @@ class TestDeviceGroupAdmin(BaseVersionAdmin):
         css = {
             'all': ('test-management/css/device_group_form.css',)
         }
+   
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+      
+        org = request.user.organizations_owned
+        if org:
+            return qs.filter(organization__in=org)
+        return qs.none()
     
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -1776,11 +1786,11 @@ class TestDeviceGroupAdmin(BaseVersionAdmin):
         return count
     active_device_count.short_description = _("Active Devices")
     
-    def get_queryset(self, request):
-        """Filter queryset based on user permissions"""
-        qs = super().get_queryset(request)
-        # MultitenantOrgFilter will handle organization filtering
-        return qs
+    # def get_queryset(self, request):
+    #     """Filter queryset based on user permissions"""
+    #     qs = super().get_queryset(request)
+    #     # MultitenantOrgFilter will handle organization filtering
+    #     return qs
     
     def change_view(self, request, object_id, form_url='', extra_context=None):
         """Override change view to add devices to context"""
