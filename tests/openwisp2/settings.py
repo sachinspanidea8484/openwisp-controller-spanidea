@@ -285,6 +285,7 @@ CORS_ORIGIN_ALLOW_ALL = True
 PRIVATE_STORAGE_ROOT = "/opt/openwisp/private/firmware"
 
 
+AUTO_REFRESH_INTERVAL=60
 
 # additional statics 
 STATIC_ROOT = "/opt/openwisp/static_collected/"  # Absolute path in container

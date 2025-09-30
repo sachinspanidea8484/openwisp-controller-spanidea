@@ -9,9 +9,48 @@
 .form-row.field-backend{ display: none }
 </style>
 {% endif %}
+
+<style>
+    .firmware-save-btn{
+        font-size: 13px !important;
+        
+    }
+    .refresh-btn {
+        background: black;
+        color: white;
+        border: none;
+        padding: 7px 6px 6px 6px;
+        border-radius: 5px;  
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+    .refresh-btn:hover{
+        background: grey;
+    }
+    .refresh-btn.active {
+        background: #2ecc71;
+    }
+    @keyframes rotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    .refresh-btn.active .refresh-icon {
+        animation: rotate 2s linear infinite;
+    }
+    .auto-refresh-text {
+        font-size: 12px;
+    }
+
+</style>
 {% endblock %}
 
 {% block extrahead %}
+    {{ block.super }}
     <script>
     {% if OPENWISP_CONTROLLER_API_HOST %}
         const owControllerApiHost = new URL('{{ OPENWISP_CONTROLLER_API_HOST }}');
@@ -19,8 +58,8 @@
         const owControllerApiHost = window.location;
     {% endif %}
         const owCommandApiEndpoint = '{{ commands_api_endpoint | safe }}';
+        const AUTO_REFRESH_INTERVAL = {{ AUTO_REFRESH_INTERVAL|default:10 }};
     </script>
-   {{ block.super}}
 {% endblock extrahead %}
 
 {% block object-tools-items %}
@@ -33,7 +72,11 @@
 {% endblock %}
 
 {% block submit_buttons_top %}{% submit_row %}{% endblock %}
-{% block submit_buttons_bottom %}{% submit_row %}{% endblock %}
+{% block submit_buttons_bottom %}
+    
+{% submit_row %}
+ 
+{% endblock %}
 
 {% block field_sets %}
 {% if not add %}
@@ -48,6 +91,28 @@
         </li>
     </ul>
     <div class="tabs-divider"></div>
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 7px; justify-content: flex-end; margin-top: 5px;">
+        <input type="submit" 
+        value="Start Firmware Upgrade" 
+        name="_continue" 
+        class="firmware-save-btn" 
+        >
+        <button type="button" class="refresh-btn auto-refresh-toggle" title="Toggle Auto-Refresh">
+            <svg class="refresh-icon" xmlns="http://www.w3.org/2000/svg" 
+                width="20" height="20" viewBox="0 0 24 24" 
+                fill="none" stroke="currentColor" stroke-width="2" 
+                stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 2v6h-6"/>
+            <path d="M3 12a9 9 0 0 1 15.5-6.36L21 8"/>
+            <path d="M3 22v-6h6"/>
+            <path d="M21 12a9 9 0 0 1-15.5 6.36L3 16"/>
+            </svg>
+            <span class="auto-refresh-text">Auto-Refresh: OFF</span>
+        </button>
+        <span class="refresh-countdown" style="display: none; margin-left: 10px; font-size: 12px; color: #666;">
+            Next refresh in: <span class="countdown-seconds">10</span>s
+        </span>
+    </div>
 </div>
 {% endif %}
 {{ block.super }}
@@ -85,4 +150,109 @@
     </script>
     {% endblock %}
 </div>
+<!-- Auto-refresh script -->
+<script>
+django.jQuery(document).ready(function($) {
+    const AutoRefreshManager = (() => {
+        let autoRefreshTimer;
+        let isAutoRefreshEnabled = false;
+        let secondsUntilRefresh = AUTO_REFRESH_INTERVAL;
+
+        const $toggleBtn = $('.auto-refresh-toggle');
+        const $btnText = $('.auto-refresh-text');
+        const $countdown = $('.refresh-countdown');
+        const $countdownSeconds = $('.countdown-seconds');
+
+        function updateCountdown() {
+            secondsUntilRefresh--;
+            $countdownSeconds.text(secondsUntilRefresh);
+
+            if (secondsUntilRefresh <= 0) {
+                location.reload();
+            }
+        }
+
+        function start() {
+            if (isAutoRefreshEnabled) return;
+
+            isAutoRefreshEnabled = true;
+            secondsUntilRefresh = AUTO_REFRESH_INTERVAL;
+
+            $toggleBtn.addClass('active').attr('aria-pressed', 'true');
+            $btnText.text('Auto-Refresh: ON');
+            $countdown.show();
+            $countdownSeconds.text(secondsUntilRefresh);
+
+            autoRefreshTimer = setInterval(updateCountdown, 1000);
+            console.log('Auto-refresh started');
+        }
+
+        function stop() {
+            if (!isAutoRefreshEnabled) return;
+
+            isAutoRefreshEnabled = false;
+            clearInterval(autoRefreshTimer);
+
+            $toggleBtn.removeClass('active').attr('aria-pressed', 'false');
+            $btnText.text('Auto-Refresh: OFF');
+            $countdown.hide();
+            console.log('Auto-refresh stopped');
+        }
+
+        function handleTabChange() {
+            const activeHash = window.location.hash;
+            console.log("Tab changed:", activeHash);
+
+            if (activeHash === '#upgradeoperation_set-group') {
+                
+                if (localStorage.getItem('autoRefreshEnabled') === 'true') {
+                    start();
+                }
+            } else {
+                
+                stop();
+                localStorage.setItem('autoRefreshEnabled', 'false');
+            }
+
+            if(activeHash === '#devicefirmware-group'){
+                $('.submit-row input[name="_continue"]').hide();
+            }
+            else{
+                $('.submit-row input[name="_continue"]').show();
+            }
+        }
+
+        function init() {
+            $toggleBtn.on('click', function(e) {
+                e.preventDefault();
+                if (isAutoRefreshEnabled) {
+                    stop();
+                } else {
+                    start();
+                }
+                localStorage.setItem('autoRefreshEnabled', isAutoRefreshEnabled.toString());
+            });
+
+            $('input, textarea, select').on('focus', function() {
+                if (isAutoRefreshEnabled) {
+                    stop();
+                }
+            });
+
+            handleTabChange();
+            $(window).on('hashchange', handleTabChange);
+
+            if (localStorage.getItem('autoRefreshEnabled') === 'true' && window.location.hash === '#upgradeoperation_set-group') {
+                start();
+            }
+        }
+
+        return { init };
+    })();
+
+    AutoRefreshManager.init();
+
+   
+});
+</script>
 {% endblock %}

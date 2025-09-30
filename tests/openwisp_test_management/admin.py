@@ -501,43 +501,43 @@ class TestCaseAdmin(BaseVersionAdmin):
 
         
 
-        @admin.action(description=_("Recover deleted test cases"))
-        def recover_deleted(self, request, queryset):
-            """Action to recover soft-deleted test cases"""
-            # This is a placeholder for future soft-delete functionality
-            self.message_user(
-                request,
-                _("Recovery functionality will be implemented in a future version"),
-                messages.INFO
-            )
+    # @admin.action(description=_("Recover deleted test cases"))
+    # def recover_deleted(self, request, queryset):
+    #     """Action to recover soft-deleted test cases"""
+    #     # This is a placeholder for future soft-delete functionality
+    #     self.message_user(
+    #         request,
+    #         _("Recovery functionality will be implemented in a future version"),
+    #         messages.INFO
+    #     )
 
-        @admin.action(description=_("Activate selected test cases"))
-        def activate_cases(self, request, queryset):
-            """Activate selected test cases"""
-            updated = queryset.update(is_active=True)
-            self.message_user(
-                request,
-                ngettext(
-                    "%d test case was successfully activated.",
-                    "%d test cases were successfully activated.",
-                    updated,
-                ) % updated,
-                messages.SUCCESS,
-            )
+    @admin.action(description=_("Activate selected test cases"))
+    def activate_cases(self, request, queryset):
+        """Activate selected test cases"""
+        updated = queryset.update(is_active=True)
+        self.message_user(
+            request,
+            ngettext(
+                "%d test case was successfully activated.",
+                "%d test cases were successfully activated.",
+                updated,
+            ) % updated,
+            messages.SUCCESS,
+        )
 
-        @admin.action(description=_("Deactivate selected test cases"))
-        def deactivate_cases(self, request, queryset):
-            """Deactivate selected test cases"""
-            updated = queryset.update(is_active=False)
-            self.message_user(
-                request,
-                ngettext(
-                    "%d test case was successfully deactivated.",
-                    "%d test cases were successfully deactivated.",
-                    updated,
-                ) % updated,
-                messages.SUCCESS,
-            )
+    @admin.action(description=_("Deactivate selected test cases"))
+    def deactivate_cases(self, request, queryset):
+        """Deactivate selected test cases"""
+        updated = queryset.update(is_active=False)
+        self.message_user(
+            request,
+            ngettext(
+                "%d test case was successfully deactivated.",
+                "%d test cases were successfully deactivated.",
+                updated,
+            ) % updated,
+            messages.SUCCESS,
+        )
 
     
 
@@ -1142,12 +1142,12 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     change_form_template = 'admin/test_management/testsuitexecution/change_form.html'
     list_display = [
         "name",
-    "test_suite_name",
-    "device_count",
-    "testcase_count",
-    "status_label",
-    "created",
-    "view_history",
+        "test_suite_name",
+        "device_count",
+        "testcase_count",
+        "status_label",
+        "created",
+        "view_history",
      ]
     list_filter = [
         TestExecutionStatusFilter,  # Add this new filter
@@ -1160,10 +1160,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     
     fields = [
         "name",
-    "test_suite",
-    "device_selection",
-    # "device_group",
+        "test_suite",
+        "device_selection",
+        # "device_group",
     ]
+    autocomplete_fields=["test_suite"]
     
 
     readonly_fields = ["created", "modified", "device_count", "testcase_count"]
