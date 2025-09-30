@@ -21,16 +21,27 @@ django.jQuery(function ($) {
 
       if (tabId === "#devicefirmware-group") {
         $(".firmware-save-btn").show();
-        $(".refresh-btn").show();
+        
       } else {
         $(".firmware-save-btn").hide();
-        $(".refresh-btn").hide();
+        
       }
 
+      if (tabId === "#upgradeoperation_set-group"){
+        $(".refresh-btn").show();
+      }
+      else{
+        $(".refresh-btn").hide();
+        localStorage.setItem(
+          "autoRefreshEnabled",
+          'false'
+        );
+      }
+        
       $.event.trigger({
-        type: "tabshown",
-        tabId: tabId,
-      });
+          type: "tabshown",
+          tabId: tabId,
+        });
       return tabId;
     },
     showFragment = function (fragment) {

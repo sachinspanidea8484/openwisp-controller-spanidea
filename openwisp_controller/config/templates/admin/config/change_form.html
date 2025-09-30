@@ -58,6 +58,7 @@
         const owControllerApiHost = window.location;
     {% endif %}
         const owCommandApiEndpoint = '{{ commands_api_endpoint | safe }}';
+        const AUTO_REFRESH_INTERVAL = {{ AUTO_REFRESH_INTERVAL|default:10 }};
     </script>
 {% endblock extrahead %}
 
@@ -72,9 +73,27 @@
 
 {% block submit_buttons_top %}{% submit_row %}{% endblock %}
 {% block submit_buttons_bottom %}
-    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 7px;">
+    
+{% submit_row %}
+ 
+{% endblock %}
+
+{% block field_sets %}
+{% if not add %}
+<div id="loading-overlay" class="djnjc-overlay loading">
+    <div class="spinner"></div>
+</div>
+
+<div id="tabs-container">
+    <ul class="tabs">
+        <li>
+            <a class="button" href="#overview-group">{% trans 'Overview' %}</a>
+        </li>
+    </ul>
+    <div class="tabs-divider"></div>
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 7px; justify-content: flex-end; margin-top: 5px;">
         <input type="submit" 
-        value="Start Firmware" 
+        value="Start Firmware Upgrade" 
         name="_continue" 
         class="firmware-save-btn" 
         >
@@ -94,23 +113,6 @@
             Next refresh in: <span class="countdown-seconds">10</span>s
         </span>
     </div>
-{% submit_row %}
- 
-{% endblock %}
-
-{% block field_sets %}
-{% if not add %}
-<div id="loading-overlay" class="djnjc-overlay loading">
-    <div class="spinner"></div>
-</div>
-
-<div id="tabs-container">
-    <ul class="tabs">
-        <li>
-            <a class="button" href="#overview-group">{% trans 'Overview' %}</a>
-        </li>
-    </ul>
-    <div class="tabs-divider"></div>
 </div>
 {% endif %}
 {{ block.super }}
@@ -148,100 +150,109 @@
     </script>
     {% endblock %}
 </div>
-
-<!-- Auto-refresh script at the very end -->
+<!-- Auto-refresh script -->
 <script>
 django.jQuery(document).ready(function($) {
-    let autoRefreshInterval;
-    let countdownInterval;
-    let isAutoRefreshEnabled = false;
-    let secondsUntilRefresh = 10;
-    
-    const $toggleBtn = $('.auto-refresh-toggle');
-    const $btnText = $('.auto-refresh-text');
-    const $countdown = $('.refresh-countdown');
-    const $countdownSeconds = $('.countdown-seconds');
-    
-    console.log('Auto-refresh script loaded');
-    console.log('Toggle button found:', $toggleBtn.length);
-    
-    function updateCountdown() {
-        secondsUntilRefresh--;
-        $countdownSeconds.text(secondsUntilRefresh);
-        
-        if (secondsUntilRefresh <= 0) {
-            location.reload();
+    const AutoRefreshManager = (() => {
+        let autoRefreshTimer;
+        let isAutoRefreshEnabled = false;
+        let secondsUntilRefresh = AUTO_REFRESH_INTERVAL;
+
+        const $toggleBtn = $('.auto-refresh-toggle');
+        const $btnText = $('.auto-refresh-text');
+        const $countdown = $('.refresh-countdown');
+        const $countdownSeconds = $('.countdown-seconds');
+
+        function updateCountdown() {
+            secondsUntilRefresh--;
+            $countdownSeconds.text(secondsUntilRefresh);
+
+            if (secondsUntilRefresh <= 0) {
+                location.reload();
+            }
         }
-    }
-    
-    function startAutoRefresh() {
-        isAutoRefreshEnabled = true;
-        secondsUntilRefresh = 10;
-        
-        // Update UI
-        $toggleBtn.addClass('active');
-        $btnText.text('Auto-Refresh: ON');
-        $countdown.show();
-        
-        // Start countdown
-        countdownInterval = setInterval(updateCountdown, 1000);
-        
-        // Start auto-refresh
-        autoRefreshInterval = setInterval(function() {
-            location.reload();
-        }, 10000);
-        
-        console.log('Auto-refresh started');
-    }
-    
-    function stopAutoRefresh() {
-        isAutoRefreshEnabled = false;
-        
-        // Clear intervals
-        if (autoRefreshInterval) {
-            clearInterval(autoRefreshInterval);
+
+        function start() {
+            if (isAutoRefreshEnabled) return;
+
+            isAutoRefreshEnabled = true;
+            secondsUntilRefresh = AUTO_REFRESH_INTERVAL;
+
+            $toggleBtn.addClass('active').attr('aria-pressed', 'true');
+            $btnText.text('Auto-Refresh: ON');
+            $countdown.show();
+            $countdownSeconds.text(secondsUntilRefresh);
+
+            autoRefreshTimer = setInterval(updateCountdown, 1000);
+            console.log('Auto-refresh started');
         }
-        if (countdownInterval) {
-            clearInterval(countdownInterval);
+
+        function stop() {
+            if (!isAutoRefreshEnabled) return;
+
+            isAutoRefreshEnabled = false;
+            clearInterval(autoRefreshTimer);
+
+            $toggleBtn.removeClass('active').attr('aria-pressed', 'false');
+            $btnText.text('Auto-Refresh: OFF');
+            $countdown.hide();
+            console.log('Auto-refresh stopped');
         }
-        
-        // Update UI
-        $toggleBtn.removeClass('active');
-        $btnText.text('Auto-Refresh: OFF');
-        $countdown.hide();
-        secondsUntilRefresh = 10;
-        
-        console.log('Auto-refresh stopped');
-    }
-    
-    // Toggle button click - single handler
-    $toggleBtn.on('click', function(e) {
-        e.preventDefault();
-        console.log('Toggle clicked, current state:', isAutoRefreshEnabled);
-        
-        if (isAutoRefreshEnabled) {
-            stopAutoRefresh();
-        } else {
-            startAutoRefresh();
+
+        function handleTabChange() {
+            const activeHash = window.location.hash;
+            console.log("Tab changed:", activeHash);
+
+            if (activeHash === '#upgradeoperation_set-group') {
+                
+                if (localStorage.getItem('autoRefreshEnabled') === 'true') {
+                    start();
+                }
+            } else {
+                
+                stop();
+                localStorage.setItem('autoRefreshEnabled', 'false');
+            }
+
+            if(activeHash === '#devicefirmware-group'){
+                $('.submit-row input[name="_continue"]').hide();
+            }
+            else{
+                $('.submit-row input[name="_continue"]').show();
+            }
         }
-        
-        // Save preference
-        localStorage.setItem('autoRefreshEnabled', isAutoRefreshEnabled.toString());
-    });
-    
-    // Stop auto-refresh when user is editing
-    $('input, textarea, select').on('focus', function() {
-        if (isAutoRefreshEnabled) {
-            console.log('User started editing, stopping auto-refresh');
-            stopAutoRefresh();
+
+        function init() {
+            $toggleBtn.on('click', function(e) {
+                e.preventDefault();
+                if (isAutoRefreshEnabled) {
+                    stop();
+                } else {
+                    start();
+                }
+                localStorage.setItem('autoRefreshEnabled', isAutoRefreshEnabled.toString());
+            });
+
+            $('input, textarea, select').on('focus', function() {
+                if (isAutoRefreshEnabled) {
+                    stop();
+                }
+            });
+
+            handleTabChange();
+            $(window).on('hashchange', handleTabChange);
+
+            if (localStorage.getItem('autoRefreshEnabled') === 'true' && window.location.hash === '#upgradeoperation_set-group') {
+                start();
+            }
         }
-    });
-    
-    // Check saved preference on load
-    if (localStorage.getItem('autoRefreshEnabled') === 'true') {
-        console.log('Auto-refresh was enabled in previous session');
-        startAutoRefresh();
-    }
+
+        return { init };
+    })();
+
+    AutoRefreshManager.init();
+
+   
 });
 </script>
 {% endblock %}

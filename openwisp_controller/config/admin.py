@@ -882,6 +882,7 @@ class DeviceAdmin(MultitenantAdminMixin, BaseConfigAdmin, UUIDAdmin):
         ctx = super().get_extra_context(pk)
         if pk:
             device = self.model.objects.select_related("config").get(id=pk)
+            ctx["AUTO_REFRESH_INTERVAL"]=60
             ctx.update(
                 {
                     "show_deactivate": not device.is_deactivated(),
