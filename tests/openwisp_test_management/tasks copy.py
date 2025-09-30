@@ -4,7 +4,7 @@ from celery import shared_task
 from django.utils import timezone
 from openwisp_controller.connection.connectors.ssh import Ssh
 from openwisp_controller.connection.models import DeviceConnection
-from openwisp_controller.config.models import Config as DeviceConfig
+from openwisp_controller.config.models import Config
 
 from .swapper import load_model
 from .base.models import TestExecutionStatus
@@ -152,6 +152,7 @@ def execute_tests_on_device(device_execution_id):
                     device=device,
                     enabled=True
                 )
+
                 has_connection = True
                 logger.info(f"Found working device connection: {device_conn}")
                 print(f"[TASK] execute_tests_on_device - Found working connection: {device_conn}")
@@ -181,7 +182,13 @@ def execute_tests_on_device(device_execution_id):
         test_execution_ids = []
         device_agent_tests = []
         robot_framework_tests = []
-        device_config = DeviceConfig.objects.filter(device=device).first()
+        
+        device_config = Config.objects.get(
+                    device=device,
+                )
+        
+        print("device_config  ✅✅✅✅✅✅✅✅",device_config)
+        print("device_config  ✅✅✅✅✅✅✅✅",device_config.context)
 
         
         device_data = {
@@ -193,10 +200,21 @@ def execute_tests_on_device(device_execution_id):
                 "username": device_conn.credentials.params.get('username', '') if has_connection else '',
                 "password": device_conn.credentials.params.get('password', '') if has_connection else ''
             },
-            "configuration": device_config.context if device_config else {}
+            "configuration" : {
+    "RPi": {
+        "interface": "wlan0",
+        "ip": "100.91.48.105",
+        "password": "rbp5!@#",
+        "user": "rbp5user"
+    }
+}
+            # "configuration": {
+            #     "host": device.management_ip,
+            #     "username": device_conn.credentials.params.get('username', '') if has_connection else '',
+            #     "password": device_conn.credentials.params.get('password', '') if has_connection else ''
+            # },
         }
 
-        print("device_data>>>>>>>>",device_data)
         
         test_suite_data = {
             "test_suite_name": test_suite_execution.test_suite.name,
@@ -928,6 +946,7 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
         "configuration": device_data.get('configuration', {})
 
     }
+    
     # Fix test_suite_data UUIDs
     test_suite_data_fixed = {
         "test_suite_name": test_suite_data.get('test_suite_name', 'N/A'),
@@ -1006,7 +1025,7 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
 
     # robot_api_url = "http://192.168.201.37:8080/run-robot/"
     print(f"\n🔍 [DEBUG] Making API Call:")
-    print(f"📍 [DEBUG] API URL>>>: {robot_api_url}")
+    print(f"📍 [DEBUG] API URL: {robot_api_url}")
     print(f"📮 [DEBUG] Method: POST")
     print(f"⏱️  [DEBUG] Timeout: 300 seconds")
     # Check if API is reachable first
@@ -1014,7 +1033,7 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
 
     
     try:
-     print(f"🔄 [DEBUG] Checking if API is reachable....",robot_api_url)
+     print(f"🔄 [DEBUG] Checking if API is reachable...")
      base_url = robot_api_url.rsplit('/', 2)[0]  # Get base URL
      test_response = requests.get(base_url, timeout=60)
      print(f"✅✅✅✅✅✅✅✅✅✅✅✅         ✅✅✅✅✅✅✅✅✅✅✅✅ [DEBUG] API server is reachable at {base_url}")
@@ -1223,8 +1242,7 @@ def retry_test_execution(test_execution_id):
         else:
             # Robot framework test - needs different handling
             logger.info(f"Retrying robot framework test: {test_execution.test_case.name}")
-            device_config = DeviceConfig.objects.filter(device=device).first()
-
+            
             # Prepare data for robot framework API
             device_data = {
                 "device_name": device.name,
@@ -1234,8 +1252,7 @@ def retry_test_execution(test_execution_id):
                     "host": device.management_ip,
                     "username": ssh_params.get('username', ''),
                     "password": ssh_params.get('password', '')
-                },
-                "configuration": device_config.context if device_config else {}
+                }
             }
             
             test_suite_data = {

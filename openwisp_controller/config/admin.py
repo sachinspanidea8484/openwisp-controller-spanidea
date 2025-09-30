@@ -347,6 +347,15 @@ class BaseForm(forms.ModelForm):
 
 class ConfigForm(AlwaysHasChangedMixin, BaseForm):
     _old_templates = None
+    json_file = forms.FileField(
+        required=False,
+        help_text=_("Upload a JSON file to populate parameters"),
+        widget=forms.FileInput(attrs={
+            'accept': '.json',
+            'id': 'json-file-input',
+            'style': 'display: none;'
+        })
+    )
 
     def get_temp_model_instance(self, **options):
         config_model = self.Meta.model
@@ -408,7 +417,11 @@ class ConfigForm(AlwaysHasChangedMixin, BaseForm):
 
     class Meta(BaseForm.Meta):
         model = Config
-        widgets = {"config": JsonSchemaWidget, "context": FlatJsonWidget}
+        widgets =  {"config": JsonSchemaWidget }
+        # widgets = {"config": JsonSchemaWidget, "context": FlatJsonWidget}
+        # widgets = {"config": JsonSchemaWidget, "context": JsonSchemaWidget}
+
+
         labels = {"context": _("Configuration Variables")}
         help_texts = {
             "context": _(

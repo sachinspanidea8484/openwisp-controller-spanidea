@@ -560,7 +560,7 @@ OPENWRT_FIRMWARE_IMAGE_MAP.update(
  
                 }
             ),
-                      (
+            (
                 '23.05-openwrt-x86-64-generic-ext4-combined.img-openwisp-http.gz',
                 {
                   'label' :'23.05-openwrt-x86-64' ,
