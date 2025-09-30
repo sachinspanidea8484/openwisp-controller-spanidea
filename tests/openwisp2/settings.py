@@ -29,7 +29,11 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
 
+ACCOUNT_AUTHENTICATION_METHOD = "username_email"  # allows username + email login
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_EMAIL_VERIFICATION = "optional"  # or "none" for dev/testing
 
+ACCOUNT_LOGIN_METHODS = ["username", "email", "phone"]
 
 
 
