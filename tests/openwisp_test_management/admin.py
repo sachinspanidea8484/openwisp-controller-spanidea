@@ -23,7 +23,7 @@ import traceback
 
 import json
 from django.utils.translation import gettext_lazy as _
-
+from import_export.admin import ImportExportMixin
 
 from django.core.validators import RegexValidator
 from openwisp_controller.connection.models import DeviceConnection
@@ -69,7 +69,7 @@ TestDeviceGroupDevice = load_model("TestDeviceGroupDevice")
 # Credentials = load_model("connection", "Credentials")
 # DeviceConnection = load_model("connection", "DeviceConnection")
 
-
+from import_export import resources
 
 
 
@@ -82,8 +82,17 @@ class BaseVersionAdmin(TimeReadonlyAdminMixin, VersionAdmin):
     save_on_top = True
     list_per_page= 10
 
+class TestCategoryResource(resources.ModelResource):
+    
+    class Meta:
+        model = TestCategory
 
-@admin.register(TestCategory)
+class TestCasesResource(resources.ModelResource):
+    
+    class Meta:
+        model = TestCase
+
+# @admin.register(TestCategory)
 class TestCategoryAdmin(BaseVersionAdmin):
     list_display = [
         "name",
@@ -219,6 +228,10 @@ def delete_selected(self, request, queryset):
     
     delete_selected.short_description = _("Delete selected test categories")
 
+
+class TestCategoryExportable(ImportExportMixin, TestCategoryAdmin):
+    resource_class= TestCategoryResource
+
 class FormattedJSONField(forms.CharField):
     """Custom field that formats JSON for display"""
     
@@ -302,7 +315,7 @@ class TestCaseAdminForm(forms.ModelForm):
     #             raise forms.ValidationError(_("Invalid JSON file: {}".format(str(e))))
     #     return json_file
 
-@admin.register(TestCase)
+# @admin.register(TestCase)
 class TestCaseAdmin(BaseVersionAdmin):
     form = TestCaseAdminForm
     list_display = [
@@ -540,7 +553,8 @@ class TestCaseAdmin(BaseVersionAdmin):
         )
 
     
-
+class TestCasesExportable(ImportExportMixin, TestCaseAdmin):
+    resource_class= TestCasesResource
 
 
 class TestSuiteAdminForm(forms.ModelForm):
@@ -2042,8 +2056,8 @@ class TestDeviceGroupDeviceInline(admin.TabularInline):
     def has_delete_permission(self, request, obj=None):
         return False
 
-
-
+admin.site.register(TestCategory, TestCategoryExportable)
+admin.site.register(TestCase,TestCasesExportable)
 # Register models with reversion for history tracking
 if not reversion.is_registered(TestCategory):
     reversion.register(TestCategory)
