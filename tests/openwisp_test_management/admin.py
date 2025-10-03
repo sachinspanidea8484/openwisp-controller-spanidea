@@ -69,7 +69,9 @@ TestDeviceGroupDevice = load_model("TestDeviceGroupDevice")
 # Credentials = load_model("connection", "Credentials")
 # DeviceConnection = load_model("connection", "DeviceConnection")
 
-from import_export import resources
+from import_export import resources, fields
+from import_export.widgets import ForeignKeyWidget
+
 
 
 
@@ -88,9 +90,55 @@ class TestCategoryResource(resources.ModelResource):
         model = TestCategory
 
 class TestCasesResource(resources.ModelResource):
-    
+    category= fields.Field(
+        column_name="category_name",
+        attribute="category",
+        widget=ForeignKeyWidget(TestCategory,"name")
+    )
+
     class Meta:
         model = TestCase
+        fields = (
+            "id",
+            "name",
+            "test_case_id",
+            "category",
+            "description",
+            "is_active",
+            "test_type",
+            "params",
+        )
+        export_order = (
+            "id",
+            "name",
+            "test_case_id",
+            "category",
+            "description",
+            "is_active",
+            "test_type",
+            "params",
+        )
+
+    def before_import_row(self, row, **kwargs):
+        """
+        Ensure category exists before import.
+        - If category_name is missing -> use default.
+        - If category_name is given but doesn't exist -> create it.
+        """
+        category_name = row.get("category_name")
+
+        if not category_name or str(category_name).strip() == "":
+            category_name = "Default Category"
+            row["category_name"] = category_name  # ensure widget never sees ""
+
+        # Ensure the category exists (create if missing)
+        TestCategory.objects.get_or_create(
+            name=category_name,
+            defaults={
+                "code": category_name.lower().replace(" ", "_"),
+                "description": f"Auto-created category '{category_name}'",
+            },
+        )
 
 # @admin.register(TestCategory)
 class TestCategoryAdmin(BaseVersionAdmin):
