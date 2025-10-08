@@ -14,12 +14,9 @@ import subprocess
 
 from .settings import ROBOT_SERVER_IP
 
-
-
-
-
-
-
+from django.db import transaction
+from django.core.cache import cache
+import time
 # Create logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)  # Capture all levels
@@ -43,7 +40,7 @@ TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestCaseExecution = load_model("TestCaseExecution")
 TestSuiteCase = load_model("TestSuiteCase")
-
+ScheduledExecution= load_model("ScheduledExecution")
 
 # Device Execution Type Configuration
 DEVICE_EXECUTION_TYPE = 2 # 1 for SSH, 2 for NB_API (default is SSH)
@@ -1401,3 +1398,216 @@ def timeout_stuck_tests():
         error_msg = f"Error in timeout_stuck_tests (pending Device Agent check): {str(e)}"
         logger.error(error_msg, exc_info=True)
         print(f"[ERROR] timeout_stuck_tests - {error_msg}")
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+    time_limit=300,  # 5 minutes
+    soft_time_limit=240  # 4 minutes
+)
+def check_and_execute_scheduled(self):
+    """
+    Check for due scheduled executions and trigger them.
+    Runs every minute via Celery Beat.
+    """
+    
+    
+    # Prevent duplicate executions using cache lock
+    lock_id = 'check_scheduled_executions_lock'
+    acquire_lock = cache.add(lock_id, 'true', 50)  # Lock for 50 seconds
+    
+    if not acquire_lock:
+        logger.info("Another instance is already running, skipping...")
+        return "Skipped: Another instance running"
+    
+    try:
+        from .models import ScheduledExecution
+        
+        # ✅ FIX: Wrap select_for_update in transaction.atomic()
+        with transaction.atomic():
+            # Get pending executions that are due
+            due_executions = list(
+                ScheduledExecution.objects.filter(
+                    status=ScheduledExecution.Status.PENDING,
+                    scheduled_time__lte=timezone.now()
+                )
+            )
+           
+        count = len(due_executions)
+        logger.info(f"Found {count} due executions")
+        
+        
+        for scheduled in due_executions:
+            print(f"Triggering execution for scheduled ID: {scheduled.id}")
+            logger.info(f"Triggering execution for scheduled ID: {scheduled.id}")
+            
+            # Trigger async execution
+            result = execute_scheduled_test.apply_async(
+                args=[scheduled.id],
+                countdown=0,  # Execute immediately
+                retry=True,
+                retry_policy={
+                    'max_retries': 3,
+                    'interval_start': 0,
+                    'interval_step': 60,
+                    'interval_max': 300,
+                }
+            )
+            
+            print(f"Task queued with ID: {result.id}")
+            logger.info(f"Task queued with ID: {result.id}")
+        
+        return f"Triggered {count} executions"
+        
+    except Exception as exc:
+        logger.error(f"Error in check_and_execute_scheduled: {exc}", exc_info=True)
+        print(f"ERROR: {exc}")
+        raise self.retry(exc=exc, countdown=30)
+    
+    finally:
+        cache.delete(lock_id)
+
+
+@shared_task(
+    bind=True,
+    max_retries=3, # after 3 retries raises exception
+    autoretry_for=(Exception,),  #autoretry for mentioned exceptions
+    retry_backoff=True,  # expo retries- 1s, 2s, 3s............
+    retry_backoff_max=600,  # Max 10 minutes delay for expo backoff
+    retry_jitter=True  # Add randomness to avoid thundering herd(many task retries simuntaneously)
+)
+def execute_scheduled_test(self, scheduled_execution_id):
+    """
+    Execute a specific scheduled test suite.
+    """
+    from .models import ScheduledExecution
+    
+    logger.info(f"Starting execution for scheduled ID: {scheduled_execution_id}")
+    print(f"Starting execution for scheduled ID: {scheduled_execution_id}")
+    
+    try:
+        # ✅ Get the scheduled execution and update status
+        
+        with transaction.atomic():
+            
+            # Use select_for_update to prevent race conditions
+            scheduled = ScheduledExecution.objects.select_for_update().get(
+                id=scheduled_execution_id
+            )
+            
+            # Double-check status
+            if scheduled.status != ScheduledExecution.Status.PENDING:
+                logger.warning(
+                    f"Scheduled execution {scheduled_execution_id} "
+                    f"already in status: {scheduled.status}"
+                )
+                print(f"Skipping - status is: {scheduled.status}")
+                return f"Skipped: status is {scheduled.status}"
+            
+            # Mark as running
+            scheduled.status = ScheduledExecution.Status.IN_PROCESS
+            # scheduled.started_at = timezone.now()
+            scheduled.save(update_fields=['status'])
+            
+            print(f"Marked as IN_Process: {scheduled_execution_id}")
+        
+        # Execute the actual test (outside transaction for long-running task)
+        try:
+            
+            from .admin import TestSuiteExecutionAdmin
+            
+            admin = TestSuiteExecutionAdmin(
+                model=scheduled.execution.__class__,
+                admin_site=None
+            )
+            
+            print(f"Calling _start_execution for {scheduled.execution.id}")
+            
+            # Execute with timeout monitoring
+            start_time = time.time()
+            admin._start_execution(None, scheduled.execution)
+            execution_time = time.time() - start_time
+            
+            logger.info(
+                f"Execution {scheduled_execution_id} completed "
+                f"in {execution_time:.2f} seconds"
+            )
+            print(f"Execution completed in {execution_time:.2f} seconds")
+            
+            # Mark as completed
+            with transaction.atomic():
+                scheduled = ScheduledExecution.objects.select_for_update().get(
+                    id=scheduled_execution_id
+                )
+                scheduled.status = ScheduledExecution.Status.COMPLETED
+                # scheduled.completed_at = timezone.now()
+                scheduled.save(update_fields=['status'])
+            
+            print(f"Marked as COMPLETED: {scheduled_execution_id}")
+            return f"Successfully executed {scheduled.execution}"
+            
+        except Exception as exec_error:
+            logger.error(
+                f"Execution error for {scheduled_execution_id}: {exec_error}",
+                exc_info=True
+            )
+            print(f"Execution ERROR: {exec_error}")
+            raise  # Re-raise to trigger retry
+            
+    except ScheduledExecution.DoesNotExist:
+        logger.error(f"Scheduled execution {scheduled_execution_id} not found")
+        print(f"ERROR: Scheduled execution {scheduled_execution_id} not found")
+        return f"Not found: {scheduled_execution_id}"
+        
+    except Exception as exc:
+        logger.error(
+            f"Fatal error in execute_scheduled_test {scheduled_execution_id}: {exc}",
+            exc_info=True
+        )
+        
+        # Mark as failed
+        try:
+            with transaction.atomic():
+                scheduled = ScheduledExecution.objects.select_for_update().get(
+                    id=scheduled_execution_id
+                )
+                scheduled.status = ScheduledExecution.Status.FAILED
+                # scheduled.error_message = str(exc)[:1000]  # Limit error message size
+                # scheduled.completed_at = timezone.now()
+                scheduled.save(update_fields=['status'])
+            
+            print(f"Marked as FAILED: {scheduled_execution_id}")
+        except Exception as save_error:
+            logger.error(f"Could not save error status: {save_error}")
+            print(f"Could not save error status: {save_error}")
+        
+        # Re-raise for Celery retry mechanism
+        raise
+
+
+@shared_task
+def cleanup_old_executions():
+    """
+    Clean up old completed/failed scheduled executions.
+    Runs daily at 2 AM.
+    """
+    from .models import ScheduledExecution
+    from datetime import timedelta
+    
+    cutoff_date = timezone.now() - timedelta(days=30)
+    
+    deleted_count, _ = ScheduledExecution.objects.filter(
+        status__in=[
+            ScheduledExecution.Status.COMPLETED,
+            ScheduledExecution.Status.FAILED,
+            ScheduledExecution.Status.CANCELLED
+        ],
+        updated_at__lt=cutoff_date
+    ).delete()
+    
+    logger.info(f"Cleaned up {deleted_count} old scheduled executions")
+    print(f"Cleaned up {deleted_count} old scheduled executions")
+    
+    return f"Cleaned up {deleted_count} records"

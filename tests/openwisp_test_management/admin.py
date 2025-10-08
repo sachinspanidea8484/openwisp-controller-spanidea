@@ -10,7 +10,7 @@ from django.contrib.admin.utils import model_ngettext
 from django.core.exceptions import PermissionDenied
 from django.template.response import TemplateResponse
 from django.http import JsonResponse
-
+from django.db import transaction
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
@@ -24,7 +24,7 @@ import traceback
 import json
 from django.utils.translation import gettext_lazy as _
 
-
+import time
 from django.core.validators import RegexValidator
 from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Device
@@ -1199,6 +1199,9 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         else:
             context["hide_submit_row"] = False
         context['show_save_and_execute'] = True
+        context['show_timed_execute']=True
+        context['show_save_and_continue'] = context.get('show_save_and_continue', False)
+
         return super().render_change_form(
             request, context, add=add, change=change, form_url=form_url, obj=obj
         )
@@ -1208,15 +1211,24 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         Internal helper so we can call the same code from
         an admin *action* and from a change/add form.
         """
-        # Re-use the action defined previously
         self.execute_test_suite(request, self.model.objects.filter(pk=obj.pk))
 
     # “Save & execute” after ADD call
     def response_add(self, request, obj, post_url_continue=None):
         if '_save_execute' in request.POST:
-            self._start_execution(request, obj)
+            super().save_model(request, obj, request.POST, True)
+           
+          
+            transaction.on_commit(lambda: self._start_execution(request, obj))
+
             # Send the user back to the change form of what he just created
             return self.response_post_save_add(request, obj)
+        if '_schedule_execution' in request.POST:
+            schedule_datetime = request.POST.get("schedule_datetime")
+            if schedule_datetime:
+                self._schedule_execution(request, obj, schedule_datetime)
+            return self.response_post_save_add(request, obj)
+
         return super().response_add(request, obj, post_url_continue)
 
     # “Save & execute” after CHANGE call
@@ -1224,8 +1236,37 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         if '_save_execute' in request.POST:
             self._start_execution(request, obj)
             return self.response_post_save_change(request, obj)   # stay on the same page
+        
+        if '_schedule_execution' in request.POST:
+            
+            schedule_datetime = request.POST.get("schedule_datetime")
+            if schedule_datetime:
+                self._schedule_execution(request, obj, schedule_datetime)
+            return self.response_post_save_change(request, obj)
         return super().response_change(request, obj)
 
+    def _schedule_execution(self, request, obj, schedule_datetime):
+        from .models import ScheduledExecution
+        from django.utils.dateparse import parse_datetime
+
+        dt = parse_datetime(schedule_datetime)
+        if not dt:
+            self.message_user(request, "Invalid date/time format", level=messages.ERROR)
+            return
+
+        ScheduledExecution.objects.update_or_create(
+            execution=obj,
+            defaults={
+                "scheduled_time": dt,
+                "status": ScheduledExecution.Status.PENDING
+            }
+        )
+
+        self.message_user(
+            request,
+            f"Execution scheduled for {dt}",
+            messages.SUCCESS
+        )
 
     def changelist_view(self, request, extra_context=None):
         """Override to add custom title"""
@@ -1376,7 +1417,9 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         print(f">>> ADMIN save_model called. Change: {change} <<<")
         super().save_model(request, obj, form, change)
         print(f">>> Object saved with ID: {obj.id} <<<")
-        
+        if '_save_execute' in request.POST and not change:
+            # Object is being saved for the first time, and "Save and Execute" was clicked
+            self._start_execution(request, obj)
         # Ensure devices are saved
         if hasattr(form, 'save_devices'):
             form.save_devices(obj)
@@ -1395,6 +1438,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         print(f">>> ADMIN save_model completed. Updated device_count={obj.device_count}, testcase_count={obj.testcase_count} <<<")
     
     def has_delete_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
         """Prevent deletion of executed test suites"""
         if obj and obj.is_executed:
             return False
@@ -1409,12 +1454,13 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         to_execute = queryset.filter(is_executed=False)
         
         if to_execute.count() == 0:
-            self.message_user(
-                request,
-                _("No pending executions to process"),
-                messages.WARNING
-            )
-            return
+            if request:
+                self.message_user(
+                    request,
+                    _("No pending executions to process"),
+                    messages.WARNING
+                )
+                return
         
         executed_count = 0
         for execution in to_execute:
@@ -1441,16 +1487,16 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 f"{test_count} tests × {device_count} devices = "
                 f"{total_test_executions} parallel test executions"
             )
-        
-        self.message_user(
-            request,
-            ngettext(
-                "%d test execution was started.",
-                "%d test executions were started.",
-                executed_count,
-            ) % executed_count,
-            messages.SUCCESS,
-        )
+        if request:
+            self.message_user(
+                request,
+                ngettext(
+                    "%d test execution was started.",
+                    "%d test executions were started.",
+                    executed_count,
+                ) % executed_count,
+                messages.SUCCESS,
+            )
 
     
     def change_view(self, request, object_id, form_url='', extra_context=None):

@@ -551,10 +551,47 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         return status_map.get(self.status, _("UNKNOWN"))
 
     def __str__(self):
-        return f"{self.test_suite}- {self.device_group}"
+        return f"{self.test_suite}- {self.device_group}- {self.name}"
 
 
-        
+class AbstractScheduledExecution(models.Model):
+
+    class Status(models.IntegerChoices):
+        PENDING = 0, "Pending"
+        IN_PROCESS = 1, "In Process"
+        COMPLETED = 2, "Completed"
+        FAILED= 3, "Failed"
+        CANCELLED= 4, "Cancelled"
+
+    execution = models.ForeignKey(
+        'test_management.TestSuiteExecution', 
+        on_delete=models.CASCADE, 
+        related_name="scheduled_executions"
+    )
+    scheduled_time = models.DateTimeField()
+    status = models.IntegerField(
+        choices=Status.choices,
+        default=Status.PENDING
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        abstract= True
+        ordering = ['scheduled_time']
+        indexes = [
+            models.Index(fields=['status', 'scheduled_time']),
+        ]
+
+    def __str__(self):
+        return f"{self.execution} @ {self.scheduled_time} ({self.status})"
+
+    def is_due(self):
+        """Check if this execution is due to run"""
+        return (
+            self.status == self.Status.PENDING and 
+            self.scheduled_time <= timezone.now()
+        )
+
 class AbstractTestSuiteExecutionDevices(TimeStampedEditableModel):
     """
     Abstract model for Test Suite Execution Devices
