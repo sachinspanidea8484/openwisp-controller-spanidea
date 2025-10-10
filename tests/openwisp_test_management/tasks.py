@@ -1425,58 +1425,75 @@ def check_and_execute_scheduled(self):
     try:
         from .models import ScheduledExecution
         
-        # ✅ FIX: Wrap select_for_update in transaction.atomic()
+        
+        execution_ids=[]
         with transaction.atomic():
-            # Get pending executions that are due
-            due_executions = list(
-                ScheduledExecution.objects.filter(
+            # Get pending executions that are due limit to 100 not to overwhelm
+            due_executions = ScheduledExecution.objects.select_for_update(
+                skip_locked=True
+                ).filter(
                     status=ScheduledExecution.Status.PENDING,
                     scheduled_time__lte=timezone.now()
-                )
-            )
-           
-        count = len(due_executions)
+                )[:100]
+            
+            for scheduled in due_executions:
+                scheduled.status= ScheduledExecution.Status.QUEUED
+                scheduled.queued_at= timezone.now()
+                scheduled.save(update_fields=['status','queued_at'])
+                execution_ids.append(scheduled.id)
+
+
+        count = len(execution_ids)
         logger.info(f"Found {count} due executions")
         
         
-        for scheduled in due_executions:
-            print(f"Triggering execution for scheduled ID: {scheduled.id}")
-            logger.info(f"Triggering execution for scheduled ID: {scheduled.id}")
-            
-            # Trigger async execution
-            result = execute_scheduled_test.apply_async(
-                args=[scheduled.id],
-                countdown=0,  # Execute immediately
-                retry=True,
-                retry_policy={
-                    'max_retries': 3,
-                    'interval_start': 0,
-                    'interval_step': 60,
-                    'interval_max': 300,
-                }
-            )
-            
-            print(f"Task queued with ID: {result.id}")
-            logger.info(f"Task queued with ID: {result.id}")
+        # Trigger tasks outside transaction
+        triggered = 0
+        for scheduled_id in execution_ids:
+            try:
+                result = execute_scheduled_test.apply_async(
+                    args=[scheduled_id],
+                    countdown=0,
+                    retry=True,
+                    retry_policy={
+                        'max_retries': 3,
+                        'interval_start': 0,
+                        'interval_step': 60,
+                        'interval_max': 300,
+                    }
+                )
+                
+                # Store task ID for tracking
+                ScheduledExecution.objects.filter(id=scheduled_id).update(
+                    celery_task_id=result.id
+                )
+                
+                logger.info(f"Task queued with ID: {result.id} for scheduled: {scheduled_id}")
+                triggered += 1
+                
+            except Exception as e:
+                logger.error(f"Failed to queue task for {scheduled_id}: {e}")
+                # Revert status on failure
+                ScheduledExecution.objects.filter(id=scheduled_id).update(
+                    status=ScheduledExecution.Status.PENDING
+                )
         
-        return f"Triggered {count} executions"
+        return f"Triggered {triggered}/{count} executions"
         
     except Exception as exc:
         logger.error(f"Error in check_and_execute_scheduled: {exc}", exc_info=True)
-        print(f"ERROR: {exc}")
         raise self.retry(exc=exc, countdown=30)
     
     finally:
         cache.delete(lock_id)
 
-
 @shared_task(
     bind=True,
-    max_retries=3, # after 3 retries raises exception
-    autoretry_for=(Exception,),  #autoretry for mentioned exceptions
-    retry_backoff=True,  # expo retries- 1s, 2s, 3s............
-    retry_backoff_max=600,  # Max 10 minutes delay for expo backoff
-    retry_jitter=True  # Add randomness to avoid thundering herd(many task retries simuntaneously)
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True
 )
 def execute_scheduled_test(self, scheduled_execution_id):
     """
@@ -1485,37 +1502,53 @@ def execute_scheduled_test(self, scheduled_execution_id):
     from .models import ScheduledExecution
     
     logger.info(f"Starting execution for scheduled ID: {scheduled_execution_id}")
-    print(f"Starting execution for scheduled ID: {scheduled_execution_id}")
+    
+    scheduled = None
     
     try:
-        # ✅ Get the scheduled execution and update status
-        
+        # Atomic status update with validation
         with transaction.atomic():
-            
-            # Use select_for_update to prevent race conditions
             scheduled = ScheduledExecution.objects.select_for_update().get(
                 id=scheduled_execution_id
             )
             
-            # Double-check status
-            if scheduled.status != ScheduledExecution.Status.PENDING:
-                logger.warning(
-                    f"Scheduled execution {scheduled_execution_id} "
-                    f"already in status: {scheduled.status}"
-                )
-                print(f"Skipping - status is: {scheduled.status}")
-                return f"Skipped: status is {scheduled.status}"
+            # Validate current status
+            if scheduled.status == ScheduledExecution.Status.COMPLETED:
+                logger.warning(f"Already completed: {scheduled_execution_id}")
+                return f"Already completed: {scheduled_execution_id}"
             
-            # Mark as running
+            if scheduled.status == ScheduledExecution.Status.CANCELLED:
+                logger.warning(f"Cancelled: {scheduled_execution_id}")
+                return f"Cancelled: {scheduled_execution_id}"
+            
+            if scheduled.status == ScheduledExecution.Status.IN_PROCESS:
+                logger.warning(f"Already running: {scheduled_execution_id}")
+                # Check if it's stuck (running > 30 minutes)
+                if scheduled.started_at and (timezone.now() - scheduled.started_at).seconds > 3600:
+                    logger.error(f"Stuck execution detected: {scheduled_execution_id}")
+                    scheduled.status = ScheduledExecution.Status.FAILED
+                    scheduled.error_message = "Execution timeout - force killed"
+                    scheduled.completed_at = timezone.now()
+                    scheduled.save()
+                    return f"Killed stuck execution: {scheduled_execution_id}"
+                return f"Already running: {scheduled_execution_id}"
+            
+            # Check if execution is already executed
+            if scheduled.execution.is_executed:
+                logger.warning(f"Execution already completed: {scheduled.execution.id}")
+                scheduled.status = ScheduledExecution.Status.COMPLETED
+                scheduled.completed_at = timezone.now()
+                scheduled.save()
+                return f"Already executed: {scheduled.execution.id}"
+            
+            # Mark as IN_PROCESS
             scheduled.status = ScheduledExecution.Status.IN_PROCESS
-            # scheduled.started_at = timezone.now()
-            scheduled.save(update_fields=['status'])
-            
-            print(f"Marked as IN_Process: {scheduled_execution_id}")
+            scheduled.started_at = timezone.now()
+            scheduled.retry_count = self.request.retries  # Track retry attempts
+            scheduled.save(update_fields=['status', 'started_at', 'retry_count'])
         
-        # Execute the actual test (outside transaction for long-running task)
+        # Execute outside transaction
         try:
-            
             from .admin import TestSuiteExecutionAdmin
             
             admin = TestSuiteExecutionAdmin(
@@ -1523,18 +1556,20 @@ def execute_scheduled_test(self, scheduled_execution_id):
                 admin_site=None
             )
             
-            print(f"Calling _start_execution for {scheduled.execution.id}")
+            logger.info(f"Calling _start_execution for {scheduled.execution.id}")
             
-            # Execute with timeout monitoring
+            #  Add timeout monitoring
             start_time = time.time()
-            admin._start_execution(None, scheduled.execution)
+            
+            # Execute with progress tracking
+            admin._start_execution(None, scheduled.execution, False)
+            
             execution_time = time.time() - start_time
             
             logger.info(
                 f"Execution {scheduled_execution_id} completed "
                 f"in {execution_time:.2f} seconds"
             )
-            print(f"Execution completed in {execution_time:.2f} seconds")
             
             # Mark as completed
             with transaction.atomic():
@@ -1542,10 +1577,10 @@ def execute_scheduled_test(self, scheduled_execution_id):
                     id=scheduled_execution_id
                 )
                 scheduled.status = ScheduledExecution.Status.COMPLETED
-                # scheduled.completed_at = timezone.now()
-                scheduled.save(update_fields=['status'])
+                scheduled.completed_at = timezone.now()
+                scheduled.save(update_fields=['status', 'completed_at'])
             
-            print(f"Marked as COMPLETED: {scheduled_execution_id}")
+            logger.info(f"Marked as COMPLETED: {scheduled_execution_id}")
             return f"Successfully executed {scheduled.execution}"
             
         except Exception as exec_error:
@@ -1553,12 +1588,26 @@ def execute_scheduled_test(self, scheduled_execution_id):
                 f"Execution error for {scheduled_execution_id}: {exec_error}",
                 exc_info=True
             )
-            print(f"Execution ERROR: {exec_error}")
-            raise  # Re-raise to trigger retry
+            
+            # Mark as failed and prepare for retry
+            with transaction.atomic():
+                scheduled = ScheduledExecution.objects.select_for_update().get(
+                    id=scheduled_execution_id
+                )
+                scheduled.status = ScheduledExecution.Status.FAILED
+                scheduled.error_message = str(exec_error)[:1000]
+                scheduled.retry_count = self.request.retries
+                
+                # Only set completed_at if max retries reached
+                if self.request.retries >= self.max_retries:
+                    scheduled.completed_at = timezone.now()
+                
+                scheduled.save()
+            
+            raise  # Re-raise to trigger Celery retry
             
     except ScheduledExecution.DoesNotExist:
         logger.error(f"Scheduled execution {scheduled_execution_id} not found")
-        print(f"ERROR: Scheduled execution {scheduled_execution_id} not found")
         return f"Not found: {scheduled_execution_id}"
         
     except Exception as exc:
@@ -1567,23 +1616,20 @@ def execute_scheduled_test(self, scheduled_execution_id):
             exc_info=True
         )
         
-        # Mark as failed
+        # Mark as failed with proper error handling
         try:
             with transaction.atomic():
                 scheduled = ScheduledExecution.objects.select_for_update().get(
                     id=scheduled_execution_id
                 )
                 scheduled.status = ScheduledExecution.Status.FAILED
-                # scheduled.error_message = str(exc)[:1000]  # Limit error message size
-                # scheduled.completed_at = timezone.now()
-                scheduled.save(update_fields=['status'])
-            
-            print(f"Marked as FAILED: {scheduled_execution_id}")
+                scheduled.error_message = str(exc)[:1000]
+                scheduled.retry_count = self.request.retries
+                scheduled.completed_at = timezone.now()
+                scheduled.save()
         except Exception as save_error:
             logger.error(f"Could not save error status: {save_error}")
-            print(f"Could not save error status: {save_error}")
         
-        # Re-raise for Celery retry mechanism
         raise
 
 

@@ -25,6 +25,7 @@ import json
 from django.utils.translation import gettext_lazy as _
 
 import time
+from django.utils import timezone
 from django.core.validators import RegexValidator
 from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Device
@@ -1206,12 +1207,12 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             request, context, add=add, change=change, form_url=form_url, obj=obj
         )
     #  call this function when you want to execute the test suite
-    def _start_execution(self, request, obj):
+    def _start_execution(self, request, obj,from_action_execution):
         """
         Internal helper so we can call the same code from
         an admin *action* and from a change/add form.
         """
-        self.execute_test_suite(request, self.model.objects.filter(pk=obj.pk))
+        self.execute_test_suite(request, self.model.objects.filter(pk=obj.pk), from_action_execution)
 
     # “Save & execute” after ADD call
     def response_add(self, request, obj, post_url_continue=None):
@@ -1219,7 +1220,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             super().save_model(request, obj, request.POST, True)
            
           
-            transaction.on_commit(lambda: self._start_execution(request, obj))
+            transaction.on_commit(lambda: self._start_execution(request, obj,False))
 
             # Send the user back to the change form of what he just created
             return self.response_post_save_add(request, obj)
@@ -1234,7 +1235,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     # “Save & execute” after CHANGE call
     def response_change(self, request, obj):
         if '_save_execute' in request.POST:
-            self._start_execution(request, obj)
+            self._start_execution(request, obj,True)
             return self.response_post_save_change(request, obj)   # stay on the same page
         
         if '_schedule_execution' in request.POST:
@@ -1446,48 +1447,153 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         return super().has_delete_permission(request, obj)
     
     @admin.action(description=_("Execute Selected Test Groups"))
-    def execute_test_suite(self, request, queryset):
+    def execute_test_suite(self, request, queryset, from_action_execution=True):
         """Execute test suites using Celery tasks"""
-        from .tasks import execute_test_suite
+        from .tasks import execute_test_suite as execute_test_suite_task
+        from .models import ScheduledExecution
         
-        # Filter only non-executed ones
-        to_execute = queryset.filter(is_executed=False)
+        logger.info(f"Execute action triggered for {queryset.count()} items")
         
-        if to_execute.count() == 0:
+        if from_action_execution:
+
+            #   executions that are actively scheduled/running
+            active_scheduled_ids = ScheduledExecution.objects.filter(
+                execution__in=queryset,
+                status__in=[
+                    ScheduledExecution.Status.QUEUED,      # Already triggered
+                    ScheduledExecution.Status.IN_PROCESS   # Currently running
+                ]
+            ).values_list('execution_id', flat=True)
+            
+            
+            #  executions scheduled for future
+            future_scheduled_ids = ScheduledExecution.objects.filter(
+                execution__in=queryset,
+                status=ScheduledExecution.Status.PENDING,
+                scheduled_time__gt=timezone.now()
+            ).values_list('execution_id', flat=True)
+            
+            # executions that are overdue but still pending
+            overdue_scheduled_ids = ScheduledExecution.objects.filter(
+                execution__in=queryset,
+                status=ScheduledExecution.Status.PENDING,
+                scheduled_time__lte=timezone.now()
+            ).values_list('execution_id', flat=True)
+           
+            #  Categorize the queryset
+            active_scheduled = queryset.filter(id__in=active_scheduled_ids)
+            future_scheduled = queryset.filter(id__in=future_scheduled_ids, is_executed=False)
+            overdue_scheduled = queryset.filter(id__in=overdue_scheduled_ids, is_executed=False)
+            
+            #  Items to execute: Not scheduled OR not executed
+            # Exclude actively running/queued items
+            # Include overdue items (execute them immediately)
+            to_execute = queryset.filter(is_executed=False).exclude(
+                id__in=set(active_scheduled_ids) | set(future_scheduled_ids) 
+            )
+        else:
+            
+            future_scheduled_ids = ScheduledExecution.objects.filter(
+                execution__in=queryset,
+                status=ScheduledExecution.Status.PENDING,
+                scheduled_time__gt=timezone.now()
+            ).values_list('execution_id', flat=True)
+            future_scheduled = queryset.filter(id__in=future_scheduled_ids, is_executed=False)
+            to_execute = queryset.filter(is_executed=False).exclude(
+                id__in=set(future_scheduled_ids) 
+            )
+        
+        # Currently running/queued
+        if active_scheduled.exists():
+            count = active_scheduled.count()
             if request:
+                self.message_user(
+                    request,
+                    _(f"{count} test suite(s) are currently running or queued. Skipping these."),
+                    messages.WARNING
+                )
+            
+        # Scheduled for future
+        if future_scheduled.exists():
+            count = future_scheduled.count()
+            msg = f"{count} test suite(s) already scheduled for future execution."
+            if request:
+                self.message_user(request, _(msg), messages.INFO)
+        
+        
+        # Nothing to execute
+        if to_execute.count() == 0:
+            if not (active_scheduled.exists() or future_scheduled.exists() or overdue_scheduled.exists()) and request:
                 self.message_user(
                     request,
                     _("No pending executions to process"),
                     messages.WARNING
                 )
-                return
+            return
         
+        #  Execute the filtered items
         executed_count = 0
+        failed_count = 0
+        
         for execution in to_execute:
-            # Calculate estimated test count
-            test_count = 0
-            device_count = execution.device_count
-            
-            for test_case in execution.test_suite.test_cases.filter(test_type=1):
-                test_count += 1
-            
-            total_test_executions = test_count * device_count
-            
-            # Mark as executed
-            execution.is_executed = True
-            execution.save()
-            
-            # Launch Celery task
-            execute_test_suite.delay(str(execution.id))
-            executed_count += 1
-            
-            # Log info
-            logger.info(
-                f"Started execution {execution.id}: "
-                f"{test_count} tests × {device_count} devices = "
-                f"{total_test_executions} parallel test executions"
-            )
-        if request:
+            try:
+                # Double-check not already executed
+                if execution.is_executed:
+                    logger.warning(f"Execution {execution.id} already marked as executed")
+                    continue
+                
+                # Validate test and device counts
+                test_count = execution.test_suite.test_cases.filter(test_type=1).count()
+                device_count = execution.device_count
+                
+                # if test_count == 0:
+                #     logger.warning(f"No tests found for execution {execution.id}")
+                #     if request:
+                #         self.message_user(
+                #             request,
+                #             f"Skipped {execution}: No tests found",
+                #             messages.WARNING
+                #         )
+                #     continue
+                
+                # if device_count == 0:
+                #     logger.warning(f"No devices for execution {execution.id}")
+                #     if request:
+                #         self.message_user(
+                #             request,
+                #             f"Skipped {execution}: No devices configured",
+                #             messages.WARNING
+                #         )
+                #     continue
+                
+                # Mark as executed
+                execution.is_executed = True
+                execution.save()
+                
+                # Launch Celery task
+                result = execute_test_suite_task.delay(str(execution.id))
+                
+                executed_count += 1
+                
+                total_test_executions = test_count * device_count
+                logger.info(
+                    f"Started execution {execution.id} (Task: {result.id}): "
+                    f"{test_count} tests × {device_count} devices = "
+                    f"{total_test_executions} parallel executions"
+                )
+                
+            except Exception as e:
+                failed_count += 1
+                logger.error(f"Failed to execute {execution.id}: {e}", exc_info=True)
+                if request:
+                    self.message_user(
+                        request,
+                        f"Failed to start {execution}: {str(e)}",
+                        messages.ERROR
+                    )
+        
+        # Final feedback
+        if executed_count > 0 and request:
             self.message_user(
                 request,
                 ngettext(
@@ -1497,8 +1603,14 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 ) % executed_count,
                 messages.SUCCESS,
             )
+        
+        if failed_count > 0 and request:
+            self.message_user(
+                request,
+                f"{failed_count} execution(s) failed to start",
+                messages.ERROR
+            )
 
-    
     def change_view(self, request, object_id, form_url='', extra_context=None):
         extra_context = extra_context or {}
         obj = self.get_object(request, object_id)
