@@ -510,6 +510,23 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         2 = PARTIALLY COMPLETED (mix of done + running/pending)
         3 = COMPLETED (all success/failed)
         """
+
+        if not self.pk:
+            return 0  # CREATED
+    
+        from ..swapper import load_model
+        scheduledExecution= load_model("ScheduledExecution")
+        
+        is_scheduled= scheduledExecution.objects.filter(
+            execution= self,
+            scheduled_time__gt = timezone.now(),
+            status=scheduledExecution.Status.PENDING
+        ).exists()
+
+        
+        if is_scheduled:
+            return 4
+        
         if not self.is_executed:
             return 0  # CREATED
 
@@ -547,6 +564,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
             1: _("EXECUTION PROGRESS"),
             2: _("PARTIALLY COMPLETED"),
             3: _("COMPLETED"),
+            4: _("SCHEDULED")
         }
         return status_map.get(self.status, _("UNKNOWN"))
 
@@ -1039,4 +1057,8 @@ class AbstractTestDeviceGroupDevice(TimeStampedEditableModel):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+
+
 

@@ -931,7 +931,7 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['device_selection'].widget = forms.RadioSelect(choices=self.fields['device_selection'].choices)
-        if getattr(self.instance, "status", None) != 0:
+        if getattr(self.instance, "status", None) not in [0,4]:
             self.fields['device_selection'].disabled = True
             self.fields['name'].disabled = True
             self.fields['test_suite'].disabled = True
@@ -1184,7 +1184,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             obj_id = request.resolver_match.kwargs.get("object_id")
             if obj_id:
                 obj = self.get_object(request, obj_id)
-                if obj and obj.status != 0:
+                if obj and obj.status not in [0,4]:
                     # unwrap RelatedFieldWidgetWrapper (removes the icons)
                     if isinstance(formfield.widget, RelatedFieldWidgetWrapper):
                         formfield.widget = formfield.widget.widget
