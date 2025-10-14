@@ -9,7 +9,7 @@ from .base.models import (
     AbstractTestSuiteExecution,
     AbstractTestSuiteExecutionDevice,
     AbstractTestCaseExecution,
-    AbstractTestDeviceGroup,
+    AbstractTestDeviceGroup, 
     AbstractTestDeviceGroupDevice
 
 )

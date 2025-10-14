@@ -509,7 +509,7 @@ def execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_exe
         # test_execution.save()
         
         logger.info(f"Updated test execution status to 'running' at {test_execution.started_at}")
-        print(f"[TASK] execute_test_via_nb_api - Updated status to 'running'")
+        print(f"[TASK] execute_test_via_nb_api - Updated status to 'running'",device_ip)
         
         # Construct API URL
         api_url = f"http://{device_ip}/cgi-bin/nb_script_runner.py?test_id={test_case.test_case_id}&execution_id={test_execution_id}"

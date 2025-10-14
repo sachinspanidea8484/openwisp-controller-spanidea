@@ -26,7 +26,6 @@ def _is_update_in_progress(device_id):
                 return True
     return False
 
-
 @shared_task
 def update_config(device_id):
     """
@@ -35,6 +34,7 @@ def update_config(device_id):
     """
     Device = swapper.load_model(*swapper.split(app_settings.UPDATE_CONFIG_MODEL))
     DeviceConnection = swapper.load_model("connection", "DeviceConnection")
+    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> update_config debugs ")
     # wait for the saving operations of this device to complete
     # (there may be multiple ones happening at the same time)
     time.sleep(2)
@@ -52,6 +52,7 @@ def update_config(device_id):
     try:
         device_conn = DeviceConnection.get_working_connection(device)
     except NoWorkingDeviceConnectionError:
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> NoWorkingDeviceConnectionError ")
         return
     else:
         logger.info(f"Updating {device} (pk: {device_id})")

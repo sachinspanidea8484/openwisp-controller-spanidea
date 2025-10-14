@@ -29,6 +29,8 @@ def run_checks(checks=None):
     This allows to enqueue all the checks that need to be performed and
     execute them in parallel with multiple workers if needed.
     """
+
+    print("run_checks debug>>>>>>>>>>")
     # If checks is None, We should execute all the checks
     if checks is None:
         checks = app_settings.CHECK_LIST
