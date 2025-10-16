@@ -331,6 +331,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         "params",  # ADD THIS - NEW FIELD
         "json_file",
         "description",
+        "file",
         "is_active",
         # "created",
         # "modified",

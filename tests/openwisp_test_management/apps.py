@@ -23,6 +23,7 @@ class TestManagementConfig(ApiAppConfig):
     }
 
     def ready(self, *args, **kwargs):
+        from . import signals
         super().ready(*args, **kwargs)
         self.register_menu_groups()
 
@@ -56,13 +57,13 @@ class TestManagementConfig(ApiAppConfig):
                         "name": "changelist",
                         "icon": "ow-device-group",
                     },
-                      5: {
+                    5: {
                     "label": _("Test Executions"),
                     "model": get_model_name(self.label, "TestSuiteExecution"),
                     "name": "changelist",
                     "icon": "ow-mass-upgrade",
-                },
-
+                    },
+                  
                 },
                 "icon": "ow-test-management",
             },

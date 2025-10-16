@@ -279,6 +279,10 @@ STATIC_URL = "/static/"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = "/opt/openwisp/media/"  # Absolute path in container
 
+from pathlib import Path
+ROOT_PATH= Path(__file__).resolve().parent.parent
+TEST_SCRIPT_MEDIA_ROOT= ROOT_PATH   / "media"
+TEST_SCRIPT_MEDIA_URL="/test-script-media/"
 CORS_ORIGIN_ALLOW_ALL = True
 
 # firmware
