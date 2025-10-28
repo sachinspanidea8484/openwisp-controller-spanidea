@@ -38,7 +38,7 @@ Category = load_model("Category")
 FirmwareImage = load_model("FirmwareImage")
 DeviceFirmware = load_model("DeviceFirmware")
 Device = swapper.load_model("config", "Device")
-
+Organization= swapper.load_model("openwisp_users", "Organization")
 
 class ListViewPagination(pagination.PageNumberPagination):
     page_size = 10
@@ -354,34 +354,42 @@ class FirmwareUpgradeView( APIView):
     """
 
     def post(self, request):
-        raw_details = request.data.get("other_details")
+        raw_details = request.data.get("firmware_details")
         try:
             data = json.loads(raw_details)
             if isinstance(data, str):
                 # means it was double-encoded
                 data = json.loads(data)
         except json.JSONDecodeError:
-            return Response({"error": "Invalid JSON in other_details"}, status=400)
+            return Response({"error": "Invalid JSON in firmware_details"}, status=400)
         category_data = data.get("category", {})
         build_data = data.get("build", {})
         device_id = data.get("device_id")
         upgrade_options = data.get("upgrade_options", {})
         firmware_image= request.FILES.get("firmware_image")
         firmware_image_type= data.get("firmware_image_type", None)
-        if not category_data or not build_data or not device_id or not firmware_image:
+
+        if not build_data or not device_id or not firmware_image:
             return Response(
-                {"error": "category, build, firmware_image and device_ids are required"},
+                {"error": " build, firmware_image and device_ids are required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             with transaction.atomic():
                 #  Create or get Category
-                category, _ = Category.objects.get_or_create(
-                    name=category_data["name"],
-                    organization_id=category_data["organization_id"],
-                    defaults={"description": category_data.get("description", "")},
-                )
+                if not category_data or category_data == {} : 
+                    category= Category.objects.get(name="default")
+               
+                else:
+                    org_id= category_data.get("organization_id")
+                    if not org_id:
+                        org_id= Organization.objects.get(name="default").id
+                    category, _ = Category.objects.get_or_create(
+                        name=category_data["name"],
+                        organization_id=org_id,
+                        defaults={"description": category_data.get("description", "")},
+                    )
                 # Create or get Build
                 build, created = Build.objects.get_or_create(
                     category=category,
@@ -392,14 +400,19 @@ class FirmwareUpgradeView( APIView):
                     },
                 )
                 private_path= f"{build.id}/{firmware_image.name}"
-                saved_path= private_storage.save(private_path, ContentFile(firmware_image.read()))
-                firmware_image= FirmwareImage.objects.create(
+                if private_storage.exists(private_path):
+                    saved_path=private_path
+                else:
+                    saved_path= private_storage.save(private_path, ContentFile(firmware_image.read()))
+
+                firmware_image,_ = FirmwareImage.objects.get_or_create(
                     build=build,
-                    file=saved_path,
-                    type= firmware_image_type
+                    type= firmware_image_type,
+                    defaults={ "file":saved_path},
+                    
                 )
                 # Validate devices
-                device = Device.objects.get(id=device_id)
+                device = Device.objects.filter(id=device_id, deviceconnection__is_working=True).prefetch_related('deviceconnection_set').first()
                 if not device:
                     return Response(
                         {"error": "No valid devices found"},
@@ -409,6 +422,12 @@ class FirmwareUpgradeView( APIView):
                 #  Trigger batch upgrade
                 
                 uo_model = load_model("UpgradeOperation")
+                is_already_upgraded= uo_model.objects.filter(device=device, image= firmware_image, status__in=["success", "in progress"]).exists()
+                if is_already_upgraded:
+                    return Response(
+                        {"error": "This device is already upgraded with given version of firmware."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
                 operation = uo_model(
                     device=device, image=firmware_image, upgrade_options=upgrade_options
                 )
