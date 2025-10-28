@@ -23,7 +23,7 @@ import traceback
 
 import json
 from django.utils.translation import gettext_lazy as _
-
+from import_export.admin import ImportExportMixin
 
 from django.core.validators import RegexValidator
 from openwisp_controller.connection.models import DeviceConnection
@@ -69,6 +69,8 @@ TestDeviceGroupDevice = load_model("TestDeviceGroupDevice")
 # Credentials = load_model("connection", "Credentials")
 # DeviceConnection = load_model("connection", "DeviceConnection")
 
+from import_export import resources, fields
+from import_export.widgets import ForeignKeyWidget
 
 
 
@@ -82,8 +84,63 @@ class BaseVersionAdmin(TimeReadonlyAdminMixin, VersionAdmin):
     save_on_top = True
     list_per_page= 10
 
+class TestCategoryResource(resources.ModelResource):
+    
+    class Meta:
+        model = TestCategory
 
-@admin.register(TestCategory)
+class TestCasesResource(resources.ModelResource):
+    category= fields.Field(
+        column_name="category_name",
+        attribute="category",
+        widget=ForeignKeyWidget(TestCategory,"name")
+    )
+
+    class Meta:
+        model = TestCase
+        fields = (
+            "id",
+            "name",
+            "test_case_id",
+            "category",
+            "description",
+            "is_active",
+            "test_type",
+            "params",
+        )
+        export_order = (
+            "id",
+            "name",
+            "test_case_id",
+            "category",
+            "description",
+            "is_active",
+            "test_type",
+            "params",
+        )
+
+    def before_import_row(self, row, **kwargs):
+        """
+        Ensure category exists before import.
+        - If category_name is missing -> use default.
+        - If category_name is given but doesn't exist -> create it.
+        """
+        category_name = row.get("category_name")
+
+        if not category_name or str(category_name).strip() == "":
+            category_name = "Default Category"
+            row["category_name"] = category_name  # ensure widget never sees ""
+
+        # Ensure the category exists (create if missing)
+        TestCategory.objects.get_or_create(
+            name=category_name,
+            defaults={
+                "code": category_name.lower().replace(" ", "_"),
+                "description": f"Auto-created category '{category_name}'",
+            },
+        )
+
+# @admin.register(TestCategory)
 class TestCategoryAdmin(BaseVersionAdmin):
     list_display = [
         "name",
@@ -219,6 +276,10 @@ def delete_selected(self, request, queryset):
     
     delete_selected.short_description = _("Delete selected test categories")
 
+
+class TestCategoryExportable(ImportExportMixin, TestCategoryAdmin):
+    resource_class= TestCategoryResource
+
 class FormattedJSONField(forms.CharField):
     """Custom field that formats JSON for display"""
     
@@ -302,7 +363,7 @@ class TestCaseAdminForm(forms.ModelForm):
     #             raise forms.ValidationError(_("Invalid JSON file: {}".format(str(e))))
     #     return json_file
 
-@admin.register(TestCase)
+# @admin.register(TestCase)
 class TestCaseAdmin(BaseVersionAdmin):
     form = TestCaseAdminForm
     list_display = [
@@ -540,7 +601,8 @@ class TestCaseAdmin(BaseVersionAdmin):
         )
 
     
-
+class TestCasesExportable(ImportExportMixin, TestCaseAdmin):
+    resource_class= TestCasesResource
 
 
 class TestSuiteAdminForm(forms.ModelForm):
@@ -2042,8 +2104,8 @@ class TestDeviceGroupDeviceInline(admin.TabularInline):
     def has_delete_permission(self, request, obj=None):
         return False
 
-
-
+admin.site.register(TestCategory, TestCategoryExportable)
+admin.site.register(TestCase,TestCasesExportable)
 # Register models with reversion for history tracking
 if not reversion.is_registered(TestCategory):
     reversion.register(TestCategory)
