@@ -79,7 +79,7 @@ docker compose version
    ⚠️ Please **change this password** after first login!
 
 6. **Change Test Management Settings**
-     ROBOT_SERVER_IP    (Use Cloud IP || Domain)
+     EXECUTOR_SERVER_IP    (Use Cloud IP || Domain)
      OPENWISP_SERVER_IP (Use Cloud IP || Domain)
 
 

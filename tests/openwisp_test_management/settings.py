@@ -1,8 +1,8 @@
 from django.conf import settings
 
 
-# ROBOT_SERVER_IP = getattr(
-#     settings, "ROBOT_SERVER_IP", "http://44.199.94.165"
+# EXECUTOR_SERVER_IP = getattr(
+#     settings, "EXECUTOR_SERVER_IP", "http://44.199.94.165"
 # )
 
 
@@ -10,8 +10,8 @@ from django.conf import settings
 #     settings, "OPENWISP_SERVER_IP", "http://44.193.103.240"
 # )
 
-ROBOT_SERVER_IP = getattr(
-    settings, "ROBOT_SERVER_IP", "http://172.17.0.1:8080"
+EXECUTOR_SERVER_IP = getattr(
+    settings, "EXECUTOR_SERVER_IP", "http://172.17.0.1:8080"
 )
 
 

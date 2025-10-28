@@ -26,7 +26,7 @@ TestSuiteCase = load_model("TestSuiteCase")
 DEVICE_EXECUTION_TYPE = 2
 
 # Robot API server
-ROBOT_SERVER_IP = "http://localhost:5000"  # move to settings in production
+EXECUTOR_SERVER_IP = "http://localhost:5000"  # move to settings in production
 
 # ======================================================================================
 # 1. MASTER TASK - RUN TEST SUITE ON MULTIPLE DEVICES (DEVICES PARALLEL, TESTS SEQUENTIAL)
@@ -194,7 +194,7 @@ def execute_robot_test(test_exec_id, device_data):
     test_exec.save()
 
     try:
-        api_url = f"{ROBOT_SERVER_IP}/api/v1/run-robot/"
+        api_url = f"{EXECUTOR_SERVER_IP}/api/v1/run-robot/"
         payload = {
             "device": device_data,
             "test_case": {

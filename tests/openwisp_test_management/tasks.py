@@ -12,7 +12,7 @@ import requests
 import os
 import subprocess
 
-from .settings import ROBOT_SERVER_IP
+from .settings import EXECUTOR_SERVER_IP
 
 
 
@@ -995,7 +995,7 @@ def execute_robot_framework_tests(test_execution_ids, device_data, test_suite_da
     }
     
     print(f"\n[DEBUG] API Payload:")
-    robot_api_url = f"{ROBOT_SERVER_IP}/api/v1/run-robot/" # docker
+    robot_api_url = f"{EXECUTOR_SERVER_IP}/api/v1/run-test/" 
 
 
 

@@ -104,15 +104,30 @@ urlpatterns = [
             ),
             
             # Robot Test Result endpoints
+            #old
             path(
                 "robot-test-result/",
                 views.RobotTestResultView.as_view(),
                 name="api_robot_test_result",
             ),
+            #new
+            path(
+                "test-result/",
+                views.TestResultView.as_view(),
+                name="api_test_result",
+            ),
+            
+
             path(
                 "robot-test-result/running/",
                 views.RobotTestRunningResultView.as_view(),
                 name="api_robot_test_running_result",
+            ),
+
+                        path(
+                "test-result/running/",
+                views.TestRunningResultView.as_view(),
+                name="api_test_running_result",
             ),
             
             # Device Test Result endpoints
