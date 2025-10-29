@@ -28,7 +28,8 @@ from .serializers import (
 )
 from django.conf import settings
 import json
-
+import requests
+import os
 private_storage = FileSystemStorage(location=settings.PRIVATE_STORAGE_ROOT)
 
 BatchUpgradeOperation = load_model("BatchUpgradeOperation")
@@ -367,11 +368,12 @@ class FirmwareUpgradeView( APIView):
         device_id = data.get("device_id")
         upgrade_options = data.get("upgrade_options", {})
         firmware_image= request.FILES.get("firmware_image")
+        firmware_image_path_or_url = data.get("firmware_image")
         firmware_image_type= data.get("firmware_image_type", None)
 
-        if not build_data or not device_id or not firmware_image:
+        if not build_data or not device_id or (not firmware_image and not firmware_image_path_or_url):
             return Response(
-                {"error": " build, firmware_image and device_ids are required"},
+                {"error": " build, firmware_image(file/url/path) and device_ids are required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -399,11 +401,39 @@ class FirmwareUpgradeView( APIView):
                         "changelog": build_data.get("changelog", ""),
                     },
                 )
-                private_path= f"{build.id}/{firmware_image.name}"
+
+                if firmware_image:
+                    file_name= firmware_image.name
+                    file_content= firmware_image.read()
+                elif firmware_image_path_or_url:
+                    if firmware_image_path_or_url.startswith("http"):
+                        response= requests.get(firmware_image_path_or_url,stream=True)
+                        if response.status_code!=200:
+                            return Response(
+                                {"error": f"failed to download firmware image from: {firmware_image_path_or_url}"},
+                                status=status.HTTP_400_BAD_REQUEST,
+                            )
+                        file_name= os.path.basename(firmware_image_path_or_url)
+                        file_content= response.content
+                    elif os.path.exists(firmware_image_path_or_url):
+                        file_name= os.path.basename(firmware_image_path_or_url)
+                        with open(firmware_image_path_or_url,"rb") as f:
+                            file_content= f.read()
+                    else:
+                        return Response(
+                            {"error": f"invalid firmware image path or url."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                else:
+                    return Response(
+                            {"error": f" firmware image is required"},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                private_path= f"{build.id}/{file_name}"
                 if private_storage.exists(private_path):
                     saved_path=private_path
                 else:
-                    saved_path= private_storage.save(private_path, ContentFile(firmware_image.read()))
+                    saved_path= private_storage.save(private_path, ContentFile(file_content))
 
                 firmware_image,_ = FirmwareImage.objects.get_or_create(
                     build=build,
@@ -425,7 +455,7 @@ class FirmwareUpgradeView( APIView):
                 is_already_upgraded= uo_model.objects.filter(device=device, image= firmware_image, status__in=["success", "in progress"]).exists()
                 if is_already_upgraded:
                     return Response(
-                        {"error": "This device is already upgraded with given version of firmware."},
+                        {"error": "This device is already upgraded or in progress with given version of firmware."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 operation = uo_model(
