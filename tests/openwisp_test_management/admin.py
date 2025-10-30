@@ -91,6 +91,11 @@ class TestCategoryResource(resources.ModelResource):
     
     class Meta:
         model = TestCategory
+    
+    def before_import_row(self, row, **kwargs):
+        # Replace None with empty string for description
+        if row.get('description') is None:
+            row['description'] = ''
 
 class TestCasesResource(resources.ModelResource):
     category= fields.Field(
@@ -142,6 +147,9 @@ class TestCasesResource(resources.ModelResource):
                 "description": f"Auto-created category '{category_name}'",
             },
         )
+
+        if row.get('description') is None:
+            row['description'] = ''
 
 # @admin.register(TestCategory)
 class TestCategoryAdmin(BaseVersionAdmin):
