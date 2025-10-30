@@ -1420,7 +1420,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         print(f">>> Object saved with ID: {obj.id} <<<")
         if '_save_execute' in request.POST and not change:
             # Object is being saved for the first time, and "Save and Execute" was clicked
-            self._start_execution(request, obj)
+            self._start_execution(request, obj,False)
         # Ensure devices are saved
         if hasattr(form, 'save_devices'):
             form.save_devices(obj)
@@ -1454,6 +1454,10 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         
         logger.info(f"Execute action triggered for {queryset.count()} items")
         
+        active_scheduled = queryset.none()
+        future_scheduled = queryset.none()
+        overdue_scheduled = queryset.none()
+
         if from_action_execution:
 
             #   executions that are actively scheduled/running
@@ -1518,7 +1522,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             count = future_scheduled.count()
             msg = f"{count} test suite(s) already scheduled for future execution."
             if request:
-                self.message_user(request, _(msg), messages.INFO)
+                self.message_user(request, _(msg), messages.WARNING)
         
         
         # Nothing to execute
