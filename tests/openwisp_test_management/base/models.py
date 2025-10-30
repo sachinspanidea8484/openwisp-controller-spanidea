@@ -510,6 +510,23 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         2 = PARTIALLY COMPLETED (mix of done + running/pending)
         3 = COMPLETED (all success/failed)
         """
+
+        if not self.pk:
+            return 0  # CREATED
+    
+        from ..swapper import load_model
+        scheduledExecution= load_model("ScheduledExecution")
+        
+        is_scheduled= scheduledExecution.objects.filter(
+            execution= self,
+            scheduled_time__gt = timezone.now(),
+            status=scheduledExecution.Status.PENDING
+        ).exists()
+
+        
+        if is_scheduled:
+            return 4
+        
         if not self.is_executed:
             return 0  # CREATED
 
@@ -547,14 +564,65 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
             1: _("EXECUTION PROGRESS"),
             2: _("PARTIALLY COMPLETED"),
             3: _("COMPLETED"),
+            4: _("SCHEDULED")
         }
         return status_map.get(self.status, _("UNKNOWN"))
 
     def __str__(self):
-        return f"{self.test_suite}- {self.device_group}"
+        return f"{self.test_suite}- {self.device_group}- {self.name}"
 
 
-        
+class AbstractScheduledExecution(models.Model):
+
+    class Status(models.IntegerChoices):
+        PENDING = 0, _('Pending')
+        QUEUED = 1, _('Queued')  
+        IN_PROCESS = 2, _('In Process')
+        COMPLETED = 3, _('Completed')
+        FAILED = 4, _('Failed')
+        CANCELLED = 5, _('Cancelled')
+
+    execution = models.ForeignKey(
+        'test_management.TestSuiteExecution', 
+        on_delete=models.CASCADE, 
+        related_name="scheduled_executions"
+    )
+    scheduled_time = models.DateTimeField()
+    status = models.IntegerField(
+        choices=Status.choices,
+        default=Status.PENDING
+    )
+    celery_task_id = models.CharField(max_length=255, blank=True, null=True)
+
+    
+    queued_at = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    
+    error_message = models.TextField(blank=True)
+    retry_count = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract= True
+        ordering = ['scheduled_time']
+        indexes = [
+            models.Index(fields=['status', 'scheduled_time']),
+            models.Index(fields=['celery_task_id']),
+        ]
+
+    def __str__(self):
+        return f"{self.execution} @ {self.scheduled_time} ({self.status})"
+
+    def is_due(self):
+        """Check if this execution is due to run"""
+        return (
+            self.status == self.Status.PENDING and 
+            self.scheduled_time <= timezone.now()
+        )
+
 class AbstractTestSuiteExecutionDevices(TimeStampedEditableModel):
     """
     Abstract model for Test Suite Execution Devices
@@ -989,4 +1057,8 @@ class AbstractTestDeviceGroupDevice(TimeStampedEditableModel):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+
+
 

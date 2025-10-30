@@ -9,8 +9,9 @@ from .base.models import (
     AbstractTestSuiteExecution,
     AbstractTestSuiteExecutionDevice,
     AbstractTestCaseExecution,
-    AbstractTestDeviceGroup, 
-    AbstractTestDeviceGroupDevice
+    AbstractTestDeviceGroup,
+    AbstractTestDeviceGroupDevice,
+    AbstractScheduledExecution
 
 )
 
@@ -61,6 +62,11 @@ class TestSuiteExecution(AbstractTestSuiteExecution):
     class Meta(AbstractTestSuiteExecution.Meta):
         abstract = False
         swappable = swappable_setting("test_management", "TestSuiteExecution")
+
+class ScheduledExecution(AbstractScheduledExecution):
+    class Meta(AbstractScheduledExecution.Meta):
+        abstract= False
+        swappable= swappable_setting("test_management", "ScheduledExecution")
 
 @reversion.register()
 class TestSuiteExecutionDevice(AbstractTestSuiteExecutionDevice):

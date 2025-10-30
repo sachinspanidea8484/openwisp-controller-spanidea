@@ -221,7 +221,7 @@ if DEBUG:
     CSRF_COOKIE_HTTPONLY = True
 else:
     SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = False
 
 
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
@@ -381,8 +381,13 @@ OPENWISP_ORGANIZATION_USER_ADMIN = True  # tests will fail without this setting
 OPENWISP_ADMIN_DASHBOARD_ENABLED = True
 OPENWISP_CONTROLLER_GROUP_PIE_CHART = True
 # during development only
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'js.backend01@gmail.com'
+EMAIL_HOST_PASSWORD = 'loywrptezgxlbdsh'
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 # monitoring
 OPENWISP_MONITORING_MANAGEMENT_IP_ONLY = False
 
@@ -419,8 +424,8 @@ if not TESTING:
 SESSION_ENGINE = "django.contrib.sessions.backends.db"  # Use database sessions for now
 
 AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 
@@ -452,6 +457,24 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes hard limit
+CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60  # 25 minutes soft limit
+CELERY_TASK_ACKS_LATE = True  # Acknowledge task after completion
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # Get one task at a time
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000  # Restart worker after 1000 tasks
+
+# Retry settings
+CELERY_TASK_DEFAULT_RETRY_DELAY = 60  # Retry after 60 seconds
+CELERY_TASK_MAX_RETRIES = 3
+
+# Result expiration
+CELERY_RESULT_EXPIRES = 3600  # Results expire after 1 hour
+
+# Monitoring
+CELERY_SEND_TASK_SENT_EVENT = True
+CELERY_SEND_TASK_ERROR_EMAILS = True
+
 CELERY_BEAT_SCHEDULE = {
     'run_checks': {
         'task': 'openwisp_monitoring.check.tasks.run_checks',
@@ -475,9 +498,21 @@ CELERY_BEAT_SCHEDULE = {
         'relative': True,
     },
 
-        'timeout-stuck-tests': {
+    'timeout-stuck-tests': {
         'task': 'openwisp_test_management.tasks.timeout_stuck_tests',
         'schedule': crontab(minute='*/30'),  # Run every 30 minutes
+    },
+    'check-scheduled-executions-every-minute': {
+        'task': 'openwisp_test_management.tasks.check_and_execute_scheduled',
+        'schedule': 60,
+        'options': {
+            'expires': 55,  # Task expires if not executed within 55 seconds(if not even started from queue, no effect on execution)
+        }
+    },
+    # Cleanup old completed executions daily
+    'cleanup-old-executions': {
+        'task': 'openwisp_test_management.tasks.cleanup_old_executions',
+        'schedule': crontab(hour=2, minute=0),  # Run at 2 AM daily
     },
 }
 
