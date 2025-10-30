@@ -483,6 +483,28 @@ class FirmwareUpgradeView( APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)   
 
+class FirmwareUpdateOnDevice(APIView):
+    def get(self,request):
+        device_name= request.query_params.get('name')
+        if not device_name:
+            return Response(
+                {"error": "please provide valid device name"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            device_status = UpgradeOperation.objects.filter(device__name=device_name).prefetch_related("device").order_by("-created").first().status
+        
+            return Response(
+                {"upgrade_status_on_device": device_status},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            return Response(
+                {"error": e},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    pass
 build_list = BuildListView.as_view()
 build_detail = BuildDetailView.as_view()
 api_batch_upgrade = BuildBatchUpgradeView.as_view()

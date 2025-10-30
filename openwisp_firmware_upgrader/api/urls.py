@@ -71,6 +71,11 @@ urlpatterns = [
                     "firmware/upgrade/",
                     views.FirmwareUpgradeView.as_view(),
                     name="firmware-upgrade"
+                ),
+                path(
+                    "device/firmware-upgrade-status",
+                    views.FirmwareUpdateOnDevice.as_view(),
+                    name="device-firmware-update-status"
                 )
             ]
         ),
