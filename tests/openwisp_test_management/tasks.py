@@ -129,9 +129,7 @@ def execute_tests_on_device(device_execution_id):
         test_suite_execution = device_execution.test_suite_execution
         
         logger.info(f"Device: {device.name} (ID: {device.id})")
-        logger.info(f"Test suite: {test_suite_execution.test_suite.name}")
-        print(f"[TASK] execute_tests_on_device - Device: {device.name} (ID: {device.id})")
-        print(f"[TASK] execute_tests_on_device - Test suite: {test_suite_execution.test_suite.name}")
+        
         
         # Update device execution status to running
         device_execution.status = 'running'
@@ -163,17 +161,16 @@ def execute_tests_on_device(device_execution_id):
          
         
         # Get ordered test cases from the test suite
-        test_cases = test_suite_execution.test_suite.get_ordered_test_cases()
+        if test_suite_execution.test_selection_type == 1:
+            test_cases = test_suite_execution.test_suite.get_ordered_test_cases()
+        elif test_suite_execution.test_selection_type ==0 :
+            test_cases= test_suite_execution.individual_test_cases.all()
         total_test_cases = len(test_cases)
         
         logger.info(f"Retrieved {total_test_cases} test cases from test suite")
         print(f"[TASK] execute_tests_on_device - Retrieved {total_test_cases} test cases")
         
-        # Debug: Print all test cases
-        for i, suite_case in enumerate(test_cases):
-            logger.debug(f"Test case {i+1}: {suite_case.test_case.name} (Type: {suite_case.test_case.test_type})")
-            print(f"[DEBUG] execute_tests_on_device - Test case {i+1}: {suite_case.test_case.name} (Type: {suite_case.test_case.test_type})")
-        
+
         # Create TestCaseExecution records for all test cases
         test_execution_ids = []
         device_agent_tests = []
@@ -196,15 +193,18 @@ def execute_tests_on_device(device_execution_id):
         print("device_data>>>>>>>>",device_data)
         
         test_suite_data = {
-            "test_suite_name": test_suite_execution.test_suite.name,
-            "test_suite_id": test_suite_execution.test_suite.id,
-            # "test_suite_category": test_suite_execution.test_suite.category.name,
             "test_suite_execution_id": test_suite_execution.id,
             "test_cases": []
         }
+        if test_suite_execution.test_selection_type==1:
+            test_suite_data["test_suite_name"] = test_suite_execution.test_suite.name
+            test_suite_data["test_suite_id"]= test_suite_execution.test_suite.id
         
         for suite_case in test_cases:
-            test_case = suite_case.test_case
+            if test_suite_execution.test_selection_type==1:
+                test_case = suite_case.test_case
+            else:
+                test_case=suite_case
             
             # Create execution records for Device Agent type tests (type=2)
             if test_case.test_type == 2:

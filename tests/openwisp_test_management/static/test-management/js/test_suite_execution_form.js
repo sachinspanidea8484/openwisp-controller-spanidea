@@ -1,4 +1,4 @@
-(function($) {
+(function ($) {
   ("use strict");
 
   // Get CSRF token
@@ -59,7 +59,6 @@
   // Create device selection section
   function createDeviceSelection(mode = "single") {
     const isGroupMode = mode === "group";
-    console.log(mode);
     const container = $(`
         <div id="device-selection">
             <div class="section-header">Select ${
@@ -184,27 +183,27 @@
               `<option value="${group.id}">${group.name}</option>`
             );
           });
-           if (pendingGroupSelection) {
-             const groupId = String(pendingGroupSelection.id);
-             const groupName = pendingGroupSelection.name;
+          if (pendingGroupSelection) {
+            const groupId = String(pendingGroupSelection.id);
+            const groupName = pendingGroupSelection.name;
 
-             // Check if option exists
-             if (dropdown.find(`option[value='${groupId}']`).length === 0) {
-               // Add missing option
-               dropdown.append(
-                 `<option value="${groupId}">${groupName}</option>`
-               );
-             }
+            // Check if option exists
+            if (dropdown.find(`option[value='${groupId}']`).length === 0) {
+              // Add missing option
+              dropdown.append(
+                `<option value="${groupId}">${groupName}</option>`
+              );
+            }
 
-             // Select the option
-             dropdown.val(groupId).trigger("change");
+            // Select the option
+            dropdown.val(groupId).trigger("change");
 
-             // Handle the group selection
-             handleGroupSelection(groupId);
+            // Handle the group selection
+            handleGroupSelection(groupId);
 
-             // Clear the pending selection
-             pendingGroupSelection = null;
-           }
+            // Clear the pending selection
+            pendingGroupSelection = null;
+          }
         } else {
           dropdown.append(
             '<option value="">No device groups available</option>'
@@ -231,7 +230,6 @@
     function () {
       const deviceSelectionField = $(".field-device_selection");
       const selection = $(this).val(); // "0" for single, "1" for group
-      console.log("Radio changed:", selection);
 
       // Remove old container
       $("#device-selection").remove();
@@ -295,31 +293,31 @@
     $("#device-dropdown").val("");
   });
 
-    const apiUrl = `/api/v1/test-management/devices`;
-    // Load available devices on page load
-    function loadAvailableDevices() {
-      $.ajax({
-        url: apiUrl,
-        method: "GET",
-        headers: {
-          "X-CSRFToken": csrftoken,
-          "X-Requested-With": "XMLHttpRequest",
-        },
-        success: function (data) {
-          console.log("Available devices:", data);
-          availableDevices = data.devices || [];
-          updateDeviceDropdown();
-          applyDisabledState();
-        },
-        error: function (xhr, status, error) {
-          console.error("Error loading devices:", error);
-          $("#device-dropdown").html(
-            '<option value="">Error loading devices</option>'
-          );
-          applyDisabledState();
-        },
-      });
-    }
+  const apiUrl = `/api/v1/test-management/devices`;
+  // Load available devices on page load
+  function loadAvailableDevices() {
+    $.ajax({
+      url: apiUrl,
+      method: "GET",
+      headers: {
+        "X-CSRFToken": csrftoken,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      success: function (data) {
+        console.log("Available devices:", data);
+        availableDevices = data.devices || [];
+        updateDeviceDropdown();
+        applyDisabledState();
+      },
+      error: function (xhr, status, error) {
+        console.error("Error loading devices:", error);
+        $("#device-dropdown").html(
+          '<option value="">Error loading devices</option>'
+        );
+        applyDisabledState();
+      },
+    });
+  }
 
   function initializeDeviceSelection() {
     const selectedValue = $('input[name="device_selection"]:checked').val();
@@ -345,7 +343,6 @@
   // Insert containers after test_suite field
   const testSuiteField = $(".field-test_suite");
   const deviceSelectionField = $(".field-device_selection");
-  console.log("length", testSuiteField.length);
   if (testSuiteField.length) {
     const testCasesDisplay = createTestCasesDisplay();
 
@@ -392,7 +389,6 @@
   // Handle test suite selection change
   $(document).on("change", "#id_test_suite", function () {
     const testSuiteId = $(this).val();
-    console.log("hi", testSuiteId);
     const testCasesDisplay = $("#test-cases-display");
     const deviceSelection = $("#device-selection");
     const tbody = testCasesDisplay.find("tbody");
@@ -483,7 +479,7 @@
     }
     if (window.recoveredDeviceGroup?.id) {
       pendingGroupSelection = window.recoveredDeviceGroup;
-   }
+    }
   });
 
   // CHANGE: Converted to delegated event handler for add device button
@@ -604,7 +600,6 @@
 
     // If "Device Group Selection" is chosen, set the group id
     const selectedType = $('input[name="device_selection"]:checked').val();
-    console.log("selectedType", selectedType);
     if (selectedType === "1") {
       const groupId = $("#device-dropdown").val(); // or however you let user pick group
       groupInput.val(groupId);

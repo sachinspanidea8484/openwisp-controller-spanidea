@@ -295,7 +295,22 @@
     #id_device_selection input{
         cursor: pointer;
     }
-      #id_device_selection input:disabled{
-        cursor: not-allowed;
-      }
-    
+    #id_device_selection input:disabled{
+    cursor: not-allowed;
+    }
+    #id_test_selection_type{
+        display: flex;
+    }
+    #id_test_selection_type label{
+        display: flex !important;
+        align-items: center;
+        gap: 6px;
+        width: auto;
+        
+    }
+    #id_test_selection_type input{
+        cursor: pointer;
+    }
+    #id_test_selection_type input:disabled{
+    cursor: not-allowed;
+    }

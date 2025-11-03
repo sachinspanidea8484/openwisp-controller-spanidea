@@ -560,10 +560,10 @@ function displayExecutionData(data) {
     const summaryRows = document.getElementById('summary-rows');
     summaryRows.innerHTML = `
         <div class="summary-row">
-            <div class="summary-label">Test Group:</div>
+            <div class="summary-label">Test Execution:</div>
             <div class="summary-value">
-                <a href="/admin/test_management/testsuite/${data.test_suite_id}/change/">
-                    ${data.test_suite_name}
+                <a href="/admin/test_management/testsuiteexecution/${data.execution_id}/change/">
+                    ${data.execution_name}
                 </a>
             </div>
         </div>

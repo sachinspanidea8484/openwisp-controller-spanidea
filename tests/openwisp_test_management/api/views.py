@@ -4360,14 +4360,23 @@ def test_execution_history(request, execution_id):
         
         # Build execution
                 # Build execution summary
+        if execution.test_selection_type == 1:
+            test_suite_name= execution.test_suite.name
+            test_suite_id =str(execution.test_suite.pk)
+            total_test_cases= execution.test_suite.test_case_count
+        elif execution.test_selection_type ==0 :
+            test_suite_name= "individual execution"
+            test_suite_id = None
+            total_test_cases= len(execution.individual_test_cases.all())
         execution_data = {
             'execution_id': str(execution.pk),
-            'test_suite_name': execution.test_suite.name,
-            'test_suite_id': str(execution.test_suite.pk),
+            'execution_name' : execution.name,
+            'test_suite_name': test_suite_name,
+            'test_suite_id': test_suite_id,
             # 'category_name': execution.test_suite.category.name,
             # 'category_id': str(execution.test_suite.category.pk),
             'total_devices': execution.device_count,
-            'total_test_cases': execution.test_suite.test_case_count,
+            'total_test_cases': total_test_cases,
             'is_executed': execution.is_executed,
             'created': execution.created.isoformat() if execution.created else None,
             'started_at': overall_start.isoformat() if overall_start else None,
