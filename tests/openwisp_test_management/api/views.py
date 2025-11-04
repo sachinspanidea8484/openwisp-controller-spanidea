@@ -4827,7 +4827,7 @@ def get_device_groups(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_device_group_devices(request, group_id):
+def get_device_group_devices(request, group_id,execution_id=None):
     """
     Return list of devices belonging to a given device group
     """
@@ -4844,6 +4844,10 @@ def get_device_group_devices(request, group_id):
         devices = []
         for gd in devices_qs:
             d = gd.device
+            if execution_id:
+                connection_protocol = TestSuiteExecutionDevice.objects.get(device=d, test_suite_execution_id=execution_id).connection_protocol 
+            else:
+                connection_protocol=0
             devices.append({
                 "id": str(d.pk),
                 "name": d.name,
@@ -4852,6 +4856,7 @@ def get_device_group_devices(request, group_id):
                 "last_ip": getattr(d, "last_ip", None) or "-",
                 "mac_address": getattr(d, "mac_address", None) or "-",
                 "status": "Deactivated" if getattr(d, "_is_deactivated", False) else "Active",
+                "connection_protocol" :connection_protocol
             })
         
         return Response({"devices": devices, "count": len(devices), "group_details": group_details})

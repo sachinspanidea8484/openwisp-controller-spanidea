@@ -1094,7 +1094,8 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
 
         if selected_devices_data:
             try:
-                selected_device_ids = json.loads(selected_devices_data)
+                selected_device_data = json.loads(selected_devices_data)
+                selected_device_ids= [d["id"] for d in selected_device_data]
                 print(f">>> Parsed device IDs: {selected_device_ids} <<<")
                 
                 if not selected_device_ids or len(selected_device_ids) == 0:
@@ -1212,7 +1213,8 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
         
         if selected_devices_data:
             try:
-                selected_device_ids = json.loads(selected_devices_data)
+                selected_device_data = json.loads(selected_devices_data)
+                selected_device_ids= [d["id"] for d in selected_device_data]
                 print(f">>> Parsed device IDs for saving: {selected_device_ids} <<<")
                 
                 # Clear existing devices for this execution
@@ -1221,8 +1223,10 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                 
                 # Create new TestSuiteExecutionDevice entries
                 successful_devices = 0
-                for device_id in selected_device_ids:
-                    print(f">>> Processing device ID: {device_id} <<<")
+                for device_data in selected_device_data:
+                    device_id= device_data["id"]
+                    connection_protocol= device_data["protocol"]
+                    print(f">>> Processing device ID: {device_id}  {connection_protocol}<<<")
                     try:
                         device = Device.objects.get(id=device_id)
                         print(f">>> Found device: {device} (ID: {device.id}) <<<")
@@ -1230,6 +1234,7 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                         execution_device = TestSuiteExecutionDevice.objects.create(
                             test_suite_execution=instance,
                             device=device,
+                            connection_protocol=connection_protocol,
                             status='pending'
                         )
                         print(f">>> Created TestSuiteExecutionDevice: {execution_device.id} <<<")
@@ -1853,11 +1858,16 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             # check if it is in other state than created(0)
             if obj and obj.status != "0":
                 extra_context["hide_submit_row"] = True
-            related_device_ids = TestSuiteExecutionDevice.objects.filter(
+
+            related_devices= TestSuiteExecutionDevice.objects.filter(
                 test_suite_execution=obj
-            ).values_list("device_id", flat=True)
+            ).select_related("device")
+
+            device_protocol_map={
+                str(dev.device_id) : dev.connection_protocol for dev in related_devices
+            }
             devices_query = Device.objects.filter(
-                id__in=related_device_ids
+                id__in=device_protocol_map.keys()
             ).select_related("organization")
             devices_data = []
             for device in devices_query:
@@ -1887,6 +1897,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     "os": getattr(device, "os", None) or "Unknown",
                     "hardware_id": getattr(device, "hardware_id", None) or "N/A",
                     "created": device.created.isoformat() if hasattr(device, "created") and device.created else None,
+                    "connection_protocol" :device_protocol_map.get(str(device.id),0),
                 })
 
             extra_context["execution_devices_json"] = json.dumps(devices_data)
@@ -1901,8 +1912,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
         if version:
 
-            execution_obj = version._object_version.object        
             # 🔹 Add device_group info if it exists
+            execution_obj = version._object_version.object 
             device_group = getattr(execution_obj, "device_group", None)
             if device_group:
                 extra_context["execution_device_group"] = {
@@ -1915,10 +1926,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             related_versions = version.revision.version_set.filter(
             content_type__model="testsuiteexecutiondevice"
             )
-
+            
             recovered_device_ids = [str(v._object_version.object.device_id) for v in related_versions]
+            device_protocol_map = { str(v._object_version.object.device_id) : getattr(v._object_version.object, "connection_protocol") for v in related_versions }       
 
-            # 🔹 Re-use logic from get_available_devices
+            #  Re-use logic from get_available_devices
             devices_query = Device.objects.filter(id__in=recovered_device_ids).select_related("organization")
             print("devices_query>>>>>>>>>>>>",devices_query)
             devices_data = []
@@ -1949,6 +1961,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     'os': getattr(device, 'os', None) or 'Unknown',
                     'hardware_id': getattr(device, 'hardware_id', None) or 'N/A',
                     'created': device.created.isoformat() if hasattr(device, 'created') and device.created else None,
+                    'connection_protocol' : device_protocol_map.get(str(device.id),0),
                 })
             
 

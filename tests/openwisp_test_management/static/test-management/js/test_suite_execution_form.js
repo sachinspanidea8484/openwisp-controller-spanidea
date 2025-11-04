@@ -100,8 +100,15 @@
   // CHANGE: Updated handleGroupSelection to properly manage selectedDevices map
   function handleGroupSelection(groupId) {
     // Call API to fetch devices for the group
+    const match = window.location.pathname.match(
+      /testsuiteexecution\/([0-9a-fA-F-]+)\/change\/$/
+    );
+    const executionId = match ? match[1] : null;
+    const api_url = executionId
+      ? `/api/v1/test-management/device-groups/${groupId}/devices/${executionId}`
+      : `/api/v1/test-management/device-groups/${groupId}/devices`;
     $.ajax({
-      url: `/api/v1/test-management/device-groups/${groupId}/devices`, // 🔧 adjust endpoint
+      url: api_url,
       method: "GET",
       headers: {
         "X-CSRFToken": csrftoken,
@@ -121,6 +128,8 @@
           );
         } else {
           devices.forEach((device) => {
+            ismqtt = device.connection_protocol === 0 ? "checked" : "";
+            isssh = device.connection_protocol === 1 ? "checked" : "";
             // CHANGE: Add devices to selectedDevices map
             selectedDevices.set(String(device.id), device);
 
@@ -129,13 +138,28 @@
                 <div class="selected-device-item" data-device-id="${device.id}">
                     <div class="device-info">
                         <div class="device-name">${device.name}</div>
-                        <div class="device-details">${
-                          device.organization || ""
-                        } - ${device.management_ip || ""} - ${
-              device.status || ""
-            }</div>
+                        <div class="device-details">
+                          ${device.organization || ""} - ${
+              device.management_ip || ""
+            } - ${device.status || ""}
+                        </div>
                     </div>
-                    
+
+                    <div class="protocol-selection">
+                      <label>
+                        <input type="radio" name="protocol_${
+                          device.id
+                        }" value="0" ${ismqtt}>
+                        MQTT
+                      </label>
+                      <label>
+                        <input type="radio" name="protocol_${
+                          device.id
+                        }" value="1" ${isssh}>
+                        SSH
+                      </label>
+                    </div>
+                  </div>  
                 </div>
               `);
           });
@@ -527,17 +551,30 @@
     }
 
     selectedDevices.forEach(function (device, deviceId) {
+      const ismqttChecked = device?.connection_protocol === 0 ? "checked" : ""
+      const issshChecked = device?.connection_protocol === 1 ? "checked" : "";
       const deviceItem = $(`
                 <div class="selected-device-item" data-device-id="${deviceId}">
                     <div class="device-info">
                         <div class="device-name">${device.name}</div>
                         <div class="device-details">${device.organization} - ${
-        device.management_ip
-      } - ${device.status}</div>
+                          device.management_ip
+                        } - ${device.status}</div>
+                    </div>
+
+                    <div class="protocol-selection">
+                      <label>
+                        <input type="radio" name="protocol_${device.id}" value="0" ${ismqttChecked}>
+                        MQTT
+                      </label>
+                      <label>
+                        <input type="radio" name="protocol_${device.id}" value="1" ${issshChecked}>
+                        SSH
+                      </label>
                     </div>
                     <button type="button" class="remove-device-btn" data-device-id="${deviceId}" ${
-        window.disabledViewMode ? "disabled" : ""
-      }>Remove</button>
+                      window.disabledViewMode ? "disabled" : ""
+                    }>Remove</button>
                 </div>
             `);
       if (device?.status !== "Deactivated") {
@@ -585,7 +622,10 @@
     }
 
     // Get device IDs
-    const deviceIds = Array.from(selectedDevices.keys());
+    const deviceIds = Array.from(selectedDevices.keys()).map((id)=> {
+      const selectedProtocol = $(`input[name="protocol_${id}"]:checked`).val() || 0;
+      return {id, protocol : selectedProtocol};
+    });
     input.val(JSON.stringify(deviceIds));
     console.log("Updated selected devices:", deviceIds);
 

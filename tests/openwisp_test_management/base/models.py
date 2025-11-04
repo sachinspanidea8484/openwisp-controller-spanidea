@@ -739,6 +739,10 @@ class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
     Abstract model for Test Suite Execution Devices
     Links devices to test executions
     """
+    CONNECTION_PROTOCOL_CHOICES= (
+        (0, _("MQTT")),
+        (1,_("SSH"))
+    )
     test_suite_execution = models.ForeignKey(
         'test_management.TestSuiteExecution',
         on_delete=models.CASCADE,
@@ -787,6 +791,13 @@ class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
         max_length=255,
         blank=True,
         help_text=_("Path to the Allure report HTML file for this device execution")
+    )
+    
+    connection_protocol = models.IntegerField(
+        _("Connection Protocol"),
+        choices=CONNECTION_PROTOCOL_CHOICES,
+        default=0,  # Default to Test Suite for backward compatibility
+        help_text=_("connection protocol used by device to run testcases.")
     )
     
     class Meta:
