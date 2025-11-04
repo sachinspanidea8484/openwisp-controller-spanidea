@@ -1,15 +1,16 @@
 source ../../.env
 API_URL="$API_BASE_URL/api/v1/firmware-upgrader/firmware/upgrade/"
 FIRMWARE_IMAGE=$1
+DEVICE_NAME=$2
 PAYLOAD=$(cat <<EOF
 {
   "category": {},
   "build": {
-    "version": "v2.1.4",
-    "os": "openwrt-23.12",
+    "version": "v2.1.6",
+    "os": "openwrt-23.13",
     "changelog": "Bug fixes and WiFi improvements v5"
   },
-  "device_id": "b7d6adb3-f87f-4331-a194-0fcd04f9e8d8",
+  "device_name": "$DEVICE_NAME",
   "upgrade_options": {
     "c": false
   },

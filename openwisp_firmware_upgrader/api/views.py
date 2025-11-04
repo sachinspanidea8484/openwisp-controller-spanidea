@@ -365,13 +365,12 @@ class FirmwareUpgradeView( APIView):
             return Response({"error": "Invalid JSON in firmware_details"}, status=400)
         category_data = data.get("category", {})
         build_data = data.get("build", {})
-        device_id = data.get("device_id")
+        device_name = data.get("device_name")
         upgrade_options = data.get("upgrade_options", {})
         firmware_image= request.FILES.get("firmware_image")
         firmware_image_path_or_url = data.get("firmware_image")
         firmware_image_type= data.get("firmware_image_type", None)
-
-        if not build_data or not device_id or (not firmware_image and not firmware_image_path_or_url):
+        if not build_data or not device_name or (not firmware_image and not firmware_image_path_or_url):
             return Response(
                 {"error": " build, firmware_image(file/url/path) and device_ids are required"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -379,6 +378,12 @@ class FirmwareUpgradeView( APIView):
 
         try:
             with transaction.atomic():
+                device_id= Device.objects.get(name= device_name).id
+                if not device_id:
+                    return Response(
+                        {"error": "No device found with given name."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
                 #  Create or get Category
                 if not category_data or category_data == {} : 
                     category= Category.objects.get(name="default")
@@ -445,17 +450,17 @@ class FirmwareUpgradeView( APIView):
                 device = Device.objects.filter(id=device_id, deviceconnection__is_working=True).prefetch_related('deviceconnection_set').first()
                 if not device:
                     return Response(
-                        {"error": "No valid devices found"},
+                        {"error": "Device doesn't have a working connection."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
                 #  Trigger batch upgrade
                 
                 uo_model = load_model("UpgradeOperation")
-                is_already_upgraded= uo_model.objects.filter(device=device, image= firmware_image, status__in=["success", "in progress"]).exists()
+                is_already_upgraded= uo_model.objects.filter(device=device, image= firmware_image, status__in=["success", "in-progress"]).exists()
                 if is_already_upgraded:
                     return Response(
-                        {"error": "This device is already upgraded or in progress with given version of firmware."},
+                        {"error": "This device is already upgraded or in progress with given version of firmware image build."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 operation = uo_model(
