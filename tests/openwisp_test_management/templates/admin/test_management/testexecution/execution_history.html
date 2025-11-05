@@ -589,6 +589,8 @@ function displayExecutionData(data) {
                     ${data?.status_display}
                 </span>
             </div>
+
+            
         </div>
 
          
@@ -691,13 +693,7 @@ function displayExecutionData(data) {
                                 <h3>Robot Framework Tests</h3>
                             </div>
 
-                            ${device.has_allure_report && device.allure_report_full_path ? `
-                                <a href="${device.allure_report_full_path}" target="_blank" class="btn-action primary">
-                                    Show Report
-                                </a>
-                            ` : `<a href="" target="_blank" class="btn-action primary" title="Ready after suite completion" disabled>
-                                    Show Report
-                                </a>`}
+                           
                         </div>
                         <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">
                             <colgroup>
@@ -731,14 +727,7 @@ function displayExecutionData(data) {
                                 </svg>
                                 <h3>Device Agent Tests</h3>
                             </div>
-                            ${show_nb_testcase_report ? `
-                                <button class="btn-action primary" 
-                                    onclick='openDeviceAgentReport("${device.device_execution_id}")'>
-                                    Show Report
-                                </button>
-                            ` : `<a href="" target="_blank" class="btn-action primary" title="Ready after suite completion" disabled>
-                                    Show Report
-                                </a>`}
+                           
                         </div>
                         <table class="results-table aligned-table agent-test-case-table-${device.device_execution_id}">
                             <colgroup>
@@ -767,6 +756,7 @@ function displayExecutionData(data) {
                     <div class="device-header">
                         <div style="display: flex; align-items: baseline; ">
                             <h3 class="device-title">${device.device_name || 'Unknown Device'}</h3>
+                            
                             ${ device.total_time_for_device ? `<h4>(Device Execution Time: ${(device.total_time_for_device).toFixed(2)} s)</h4>` : ''}
                         </div>
                         <div class="device-stats">
@@ -779,6 +769,13 @@ function displayExecutionData(data) {
                             <span class="status-indicator ${stats.overall_status}">
                                 ${stats.overall_status}
                             </span>
+                             ${device && device?.has_allure_report && device?.allure_report_full_path ? `
+                                <a href="${device?.allure_report_full_path}" target="_blank" class="btn-action primary">
+                                    Show Report
+                                </a>
+                            ` : `<a href="" target="_blank" class="btn-action primary" title="Ready after suite completion" disabled>
+                                    Show Report
+                                </a>`}
                         </div>
                     </div>
                     <div style="padding: 20px; display: flex; flex-direction: column; gap : 30px">
