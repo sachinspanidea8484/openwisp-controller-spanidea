@@ -1063,11 +1063,14 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                 # })
             cleaned_data['individual_test_cases']= TestCase.objects.none()
         elif test_selection_type==0:
-            if not individual_test_cases or individual_test_cases.count()==0 : 
-                print(">>> ERROR: No test cases selected <<<")
-                raise forms.ValidationError({
-                    'individual_test_cases': _('Please select atleast one test case to execute.')
-                })
+            if not individual_test_cases or individual_test_cases.count()==0 :
+                if self.instance.pk and self.instance.individual_test_cases.exists():
+                    cleaned_data["individual_test_cases"]=self.instance.individual_test_cases.all()
+                else:
+                    print(">>> ERROR: No test cases selected <<<")
+                    raise forms.ValidationError({
+                        'individual_test_cases': _('Please select atleast one test case to execute.')
+                    })
             cleaned_data['test_suite']=None
 
         # Validate selected devices
