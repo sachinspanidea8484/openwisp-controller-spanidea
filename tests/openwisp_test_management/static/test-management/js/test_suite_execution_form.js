@@ -128,8 +128,8 @@
           );
         } else {
           devices.forEach((device) => {
-            ismqtt = device.connection_protocol === 0 ? "checked" : "";
             isssh = device.connection_protocol === 1 ? "checked" : "";
+            ismqtt = device.connection_protocol === 0 || isssh==="" ? "checked" : "";
             // CHANGE: Add devices to selectedDevices map
             selectedDevices.set(String(device.id), device);
 
@@ -140,8 +140,8 @@
                         <div class="device-name">${device.name}</div>
                         <div class="device-details">
                           ${device.organization || ""} - ${
-              device.management_ip || ""
-            } - ${device.status || ""}
+                            device.management_ip || ""
+                          } - ${device.status || ""}
                         </div>
                     </div>
 
@@ -149,13 +149,17 @@
                       <label>
                         <input type="radio" name="protocol_${
                           device.id
-                        }" value="0" ${ismqtt}>
+                        }" value="0" 
+                        ${ismqtt} ${window.disabledViewMode ? "disabled" : ""} 
+                        style="cursor : ${
+                          window.disabledViewMode ? "not-allowed" : "pointer"
+                        }">
                         MQTT
                       </label>
                       <label>
-                        <input type="radio" name="protocol_${
-                          device.id
-                        }" value="1" ${isssh}>
+                        <input type="radio" name="protocol_${device.id}" value="1" ${isssh} 
+                        ${window.disabledViewMode ? "disabled" : ""} 
+                        style="cursor : ${window.disabledViewMode ? "not-allowed" : "pointer"}">     
                         SSH
                       </label>
                     </div>
@@ -551,8 +555,8 @@
     }
 
     selectedDevices.forEach(function (device, deviceId) {
-      const ismqttChecked = device?.connection_protocol === 0 ? "checked" : ""
       const issshChecked = device?.connection_protocol === 1 ? "checked" : "";
+      const ismqttChecked = device?.connection_protocol === 0  || issshChecked===""? "checked" : ""
       const deviceItem = $(`
                 <div class="selected-device-item" data-device-id="${deviceId}">
                     <div class="device-info">
