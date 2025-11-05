@@ -642,6 +642,13 @@ function displayExecutionData(data) {
                             </a>
                         `;
                     }
+                    if (test.status === 'running') {
+                        actions += `
+                            <button class="btn-action warning" onclick="abortTest('${test.id}')">
+                                Abort
+                            </button>
+                        `;
+                    }
                     if (test.can_retry) {
                         actions += `
                             <button class="btn-action warning" onclick="retryTest('${test.id}')">
@@ -792,6 +799,51 @@ function displayExecutionData(data) {
     } else {
         deviceExecutionsDiv.innerHTML = '<div class="empty-state">No device executions found.</div>';
     }
+}
+
+// abortTest function
+function abortTest(executionId) {
+    if (!confirm('Are you sure you want to abort this running test?')) {
+        return;
+    }
+
+    const button = event.target.closest('button');
+    const originalContent = button.innerHTML;
+    button.innerHTML = '<span class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></span> <span class="retry-text">Retrying...</span>';
+    button.disabled = true;
+    button.classList.add('retry-loading')
+
+    fetch(`/api/v1/test-management/test-case-execution/${executionId}/abort/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',  // Important for CSRF
+        body: JSON.stringify({})
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => Promise.reject(err));
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            showMessage('Test abort initiated successfully', 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showMessage(data.error || 'Failed to abort test', 'error');
+            button.innerHTML = originalContent;
+            button.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Abort error:', error);
+        showMessage(error.detail || error.message || 'Failed to abort test', 'error');
+        button.innerHTML = originalContent;
+        button.disabled = false;
+    });
 }
 
 // Simplified retry function without CSRF token

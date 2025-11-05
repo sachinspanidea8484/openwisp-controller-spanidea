@@ -2209,7 +2209,8 @@ class RobotTestResultView(APIView):
                 'success': TestExecutionStatus.SUCCESS,
                 'failed': TestExecutionStatus.FAILED,
                 'timeout': TestExecutionStatus.TIMEOUT,
-                'cancelled': TestExecutionStatus.CANCELLED
+                'cancelled': TestExecutionStatus.CANCELLED,
+                'aborted': TestExecutionStatus.ABORTED
             }
             
             if new_status not in status_mapping:
@@ -2402,7 +2403,7 @@ class TestResultView(APIView):
         Expected payload:
         {
             "execution_id": "uuid",
-            "status": "running|success|failed|timeout|cancelled",
+            "status": "running|success|failed|timeout|cancelled|aborted",
             "exit_code": 0,
             "stdout": "output",
             "stderr": "error",
@@ -2448,7 +2449,8 @@ class TestResultView(APIView):
                 'success': TestExecutionStatus.SUCCESS,
                 'failed': TestExecutionStatus.FAILED,
                 'timeout': TestExecutionStatus.TIMEOUT,
-                'cancelled': TestExecutionStatus.CANCELLED
+                'cancelled': TestExecutionStatus.CANCELLED,
+                'aborted': TestExecutionStatus.ABORTED
             }
             
             if new_status not in status_mapping:
@@ -2528,6 +2530,21 @@ class TestResultView(APIView):
                     'status', 'completed_at', 'error_message', 'execution_duration'
                 ])
                 print(f"✅ Updated to CANCELLED status")
+            elif execution_status == TestExecutionStatus.ABORTED:
+                execution.status = execution_status
+                if data.get('completed_at'):
+                    execution.completed_at = completed_at
+                else:
+                    execution.completed_at = timezone.now()
+                execution.error_message = data.get('error_message', 'Test execution was aborted')
+                
+                if execution.started_at:
+                    execution.execution_duration = execution.completed_at - execution.started_at
+                
+                execution.save(update_fields=[
+                    'status', 'completed_at', 'error_message', 'execution_duration'
+                ])
+                print(f"✅ Updated to ABORTED status")
             
             # Check if all test cases are completed for this suite execution
             self._check_suite_execution_completion(execution.test_suite_execution, execution.device)
@@ -2638,7 +2655,7 @@ class RobotTestRunningResultView(APIView):
         Expected payload:
         {
             "execution_id": "uuid",
-            "status": "running|success|failed|timeout|cancelled",
+            "status": "running|success|failed|timeout|cancelled|aborted",
             
         }
         """
@@ -2677,7 +2694,8 @@ class RobotTestRunningResultView(APIView):
                 'success': TestExecutionStatus.SUCCESS,
                 'failed': TestExecutionStatus.FAILED,
                 'timeout': TestExecutionStatus.TIMEOUT,
-                'cancelled': TestExecutionStatus.CANCELLED
+                'cancelled': TestExecutionStatus.CANCELLED,
+                'aborted': TestExecutionStatus.ABORTED
             }
             
             if new_status not in status_mapping:
@@ -2689,6 +2707,9 @@ class RobotTestRunningResultView(APIView):
             if execution_status == TestExecutionStatus.RUNNING:
                 execution.status = execution_status
                 execution.started_at = started_at
+            elif execution_status == TestExecutionStatus.ABORTED:
+                execution.status = execution_status
+                execution.completed_at = timezone.now()
             
             execution.save(update_fields=[
                     'status', 'started_at', 
@@ -2797,7 +2818,7 @@ class TestRunningResultView(APIView):
         Expected payload:
         {
             "execution_id": "uuid",
-            "status": "running|success|failed|timeout|cancelled",
+            "status": "running|success|failed|timeout|cancelled|aborted",
             
         }
         """
@@ -2836,7 +2857,8 @@ class TestRunningResultView(APIView):
                 'success': TestExecutionStatus.SUCCESS,
                 'failed': TestExecutionStatus.FAILED,
                 'timeout': TestExecutionStatus.TIMEOUT,
-                'cancelled': TestExecutionStatus.CANCELLED
+                'cancelled': TestExecutionStatus.CANCELLED,
+                'aborted': TestExecutionStatus.ABORTED
             }
             
             if new_status not in status_mapping:
@@ -2848,6 +2870,9 @@ class TestRunningResultView(APIView):
             if execution_status == TestExecutionStatus.RUNNING:
                 execution.status = execution_status
                 execution.started_at = started_at
+            elif execution_status == TestExecutionStatus.ABORTED:
+                execution.status = execution_status
+                execution.completed_at = timezone.now()
             
             execution.save(update_fields=[
                     'status', 'started_at', 
@@ -3028,7 +3053,8 @@ class DeviceTestResultView(APIView):
                 'success': TestExecutionStatus.SUCCESS,
                 'failed': TestExecutionStatus.FAILED,
                 'timeout': TestExecutionStatus.TIMEOUT,
-                'cancelled': TestExecutionStatus.CANCELLED
+                'cancelled': TestExecutionStatus.CANCELLED,
+                'aborted': TestExecutionStatus.ABORTED
             }
             
             if new_status not in status_mapping:
@@ -3178,6 +3204,24 @@ class DeviceTestResultView(APIView):
                     'status', 'completed_at', 'error_message', 'execution_duration'
                 ])
                 print(f"🚫 Updated to CANCELLED status")
+            elif execution_status == TestExecutionStatus.ABORTED:
+                execution.status = execution_status
+                if data.get('completed_at'):
+                    execution.completed_at = parse_datetime(data.get('completed_at'))
+                    print("⏱️ Using provided completed_at timestamp")
+                else:
+                    execution.completed_at = timezone.now()
+                    print("⏱️ Setting completed_at to current time")
+                execution.error_message = data.get('error_message', 'Test execution was aborted')
+                
+                if execution.started_at:
+                    execution.execution_duration = execution.completed_at - execution.started_at
+                    print(f"⏱️ Execution duration: {execution.execution_duration}")
+                
+                execution.save(update_fields=[
+                    'status', 'completed_at', 'error_message', 'execution_duration'
+                ])
+                print(f"🚫 Updated to ABORTED status")
             # ===== END OF COMMENTED STATUS UPDATE LOGIC =====
             
             print(f"⚠️ STATUS UPDATE LOGIC IS COMMENTED OUT - NO DATABASE CHANGES MADE")
@@ -4528,6 +4572,48 @@ def retry_test_execution(request, execution_id):
         return Response({
             'success': False,
             'error': 'Failed to retry test',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@authentication_classes([CsrfExemptSessionAuthentication])
+@permission_classes([IsAuthenticated])  # Disable CSRF requirement
+def abort_test_execution(request, execution_id):
+    """
+    Retry a single test execution
+    """
+    try:
+        test_execution = TestCaseExecution.objects.get(pk=execution_id)
+        
+        #Check if test is in a abortable state
+        if test_execution.status != 'running':
+            
+            return Response({
+                'success': False,
+                'error': 'Only running tests can be aborted'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Import and call the Celery task
+        from ..tasks import abort_test_execution as abort_task
+        abort_task.delay(str(execution_id))
+        
+        return Response({
+            'success': True,
+            'message': 'Test abort initiated successfully',
+            'execution_id': str(execution_id)
+        }, status=status.HTTP_200_OK)
+        
+    except TestCaseExecution.DoesNotExist:
+        return Response({
+            'success': False,
+            'error': 'Test execution not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error aborting test: {str(e)}")
+        return Response({
+            'success': False,
+            'error': 'Failed to abort test',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

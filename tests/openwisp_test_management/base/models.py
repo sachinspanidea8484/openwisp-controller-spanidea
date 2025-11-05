@@ -24,6 +24,8 @@ class TestExecutionStatus(models.TextChoices):
     FAILED = 'failed', _('Failed')
     TIMEOUT = 'timeout', _('Timeout')
     CANCELLED = 'cancelled', _('Cancelled')
+    ABORTING = 'aborting', _('Aborting')
+    ABORTED = 'aborted', _('Aborted')
 
 
 class AbstractTestCategory(TimeStampedEditableModel):

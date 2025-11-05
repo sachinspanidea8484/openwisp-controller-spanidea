@@ -102,6 +102,11 @@ urlpatterns = [
                 views.retry_test_execution,
                 name="api_retry_test_execution",
             ),
+            path(
+                "test-case-execution/<uuid:execution_id>/abort/",
+                views.abort_test_execution,
+                name="api_abort_test_execution",
+            ),
             
             # Robot Test Result endpoints
             #old
