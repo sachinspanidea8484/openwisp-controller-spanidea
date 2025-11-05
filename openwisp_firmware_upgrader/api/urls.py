@@ -67,6 +67,16 @@ urlpatterns = [
                     views.device_firmware_detail,
                     name="api_devicefirmware_detail",
                 ),
+                path(
+                    "firmware/upgrade/",
+                    views.FirmwareUpgradeView.as_view(),
+                    name="firmware-upgrade"
+                ),
+                path(
+                    "device/firmware-upgrade-status",
+                    views.FirmwareUpdateOnDevice.as_view(),
+                    name="device-firmware-update-status"
+                )
             ]
         ),
     ),
