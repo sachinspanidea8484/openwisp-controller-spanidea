@@ -1002,45 +1002,74 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['test_selection_type'].widget= forms.RadioSelect(choices=self.fields['test_selection_type'].choices)
         self.fields['device_selection'].widget = forms.RadioSelect(choices=self.fields['device_selection'].choices)
+      
+
         if getattr(self.instance, "status", None) not in [0,4]:
             self.fields['device_selection'].disabled = True
+            self.fields['test_selection_type'].disabled = True
             self.fields['name'].disabled = True
             self.fields['test_suite'].disabled = True
+            if 'individual_test_cases' in self.fields:
+                self.fields['individual_test_cases'].disabled = True
 
         
         # Store selected devices data for later use
         self._selected_devices_data = None
         self._device_group=None
+
         # Customize test_suite field
         if "test_suite" in self.fields:
+            self.fields["test_suite"].required=False
             self.fields["test_suite"].help_text = _(
-                "Select a test group to execute"
+                "Select a test suite to execute (required if selection type is 'Test Suite')"
             )
             self.fields["test_suite"].queryset = TestSuite.objects.filter(
+                is_active=True
+            )
+        if "individual_test_cases" in self.fields:
+            self.fields["individual_test_cases"].required = False
+            self.fields["individual_test_cases"].help_text = _(
+                "Select individual test cases (required if selection type is 'Individual Test Cases')"
+            )
+            self.fields["individual_test_cases"].queryset = TestCase.objects.filter(
                 is_active=True
             )
     
     class Meta:
         model = TestSuiteExecution
-        fields = ['name','test_suite', 'device_selection','device_group']
+        fields = ['name','test_selection_type','test_suite','individual_test_cases', 'device_selection']
         labels = {
             'name' : _('Enter Execution Name'),
+            'test_selection_type' : _('Test Selection Type'),
             'test_suite': _('Select Test Group'),
+            'individual_test_cases': _('Select Test Cases'),
             'device_selection' :_('Device Selection Type'),
         }
     def clean(self):
         """Custom validation"""
         print(">>> CLEAN METHOD STARTED <<<")
         cleaned_data = super().clean()
+        test_selection_type= cleaned_data.get('test_selection_type')
         test_suite = cleaned_data.get('test_suite')
-        
-        if not test_suite:
-            print(">>> ERROR: No test suite selected <<<")
-            # raise forms.ValidationError({
-            #     'test_suite': _('Please select a test group to execute.')
-            # })
-        
+        individual_test_cases= cleaned_data.get('individual_test_cases')
+
+        if test_selection_type==1: 
+            if not test_suite:
+                print(">>> ERROR: No test suite selected <<<")
+                # raise forms.ValidationError({
+                #     'test_suite': _('Please select a test group to execute.')
+                # })
+            cleaned_data['individual_test_cases']= TestCase.objects.none()
+        elif test_selection_type==0:
+            if not individual_test_cases or individual_test_cases.count()==0 : 
+                print(">>> ERROR: No test cases selected <<<")
+                raise forms.ValidationError({
+                    'individual_test_cases': _('Please select atleast one test case to execute.')
+                })
+            cleaned_data['test_suite']=None
+
         # Validate selected devices
         selected_devices_data = self.data.get('selected_devices_data', '')
         print(f">>> Selected devices data from form: {selected_devices_data} <<<")
@@ -1065,7 +1094,8 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
 
         if selected_devices_data:
             try:
-                selected_device_ids = json.loads(selected_devices_data)
+                selected_device_data = json.loads(selected_devices_data)
+                selected_device_ids= [d["id"] for d in selected_device_data]
                 print(f">>> Parsed device IDs: {selected_device_ids} <<<")
                 
                 if not selected_device_ids or len(selected_device_ids) == 0:
@@ -1105,6 +1135,71 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
         print(">>> CLEAN METHOD COMPLETED SUCCESSFULLY <<<")
         return cleaned_data
     
+    #NOTE: currently not is use 
+    def create_test_case_executions(self, instance):
+        """
+        Create TestCaseExecution entries for individual test case mode
+        This links individual test cases to devices for execution
+        """
+        print(f">>> CREATE_TEST_CASE_EXECUTIONS METHOD STARTED for instance: {instance.id} <<<")
+        
+        # Only for individual test case selection
+        if instance.test_selection_type != 0:
+            print(">>> Skipping create_test_case_executions (using test suite mode) <<<")
+            return
+        
+        # Get all execution devices
+        execution_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=instance
+        ).select_related('device')
+        
+        if not execution_devices.exists():
+            print(">>> WARNING: No execution devices found <<<")
+            return
+        
+        # Get individual test cases
+        individual_test_cases = instance.individual_test_cases.all()
+        
+        if not individual_test_cases.exists():
+            print(">>> WARNING: No individual test cases found <<<")
+            return
+        
+        print(f">>> Found {execution_devices.count()} devices and {individual_test_cases.count()} test cases <<<")
+        
+        # Clear existing test case executions for this execution
+        deleted_count = TestCaseExecution.objects.filter(
+            test_suite_execution=instance
+        ).delete()
+        print(f">>> Deleted {deleted_count[0]} existing TestCaseExecution entries <<<")
+        
+        # Create TestCaseExecution for each device × test case combination
+        created_count = 0
+        for execution_device in execution_devices:
+            order = 1
+            for test_case in individual_test_cases:
+                try:
+                    TestCaseExecution.objects.create(
+                        test_suite_execution=instance,
+                        device=execution_device.device,
+                        test_case=test_case,
+                        execution_order=order,
+                        status='pending'
+                    )
+                    created_count += 1
+                    order += 1
+                    print(f">>> Created TestCaseExecution: Device={execution_device.device.name}, TestCase={test_case.name} <<<")
+                except Exception as e:
+                    error_msg = f"Error creating TestCaseExecution: {e}"
+                    logger.error(error_msg)
+                    print(f">>> ERROR: {error_msg} <<<")
+        
+        print(f">>> Successfully created {created_count} TestCaseExecution entries <<<")
+        
+        # Update testcase_count
+        instance.testcase_count = individual_test_cases.count()
+        instance.save(update_fields=['testcase_count'])
+        print(f">>> Updated testcase_count to {instance.testcase_count} <<<")
+
     def save_devices(self, instance):
         """Save devices for the test suite execution"""
         print(f">>> SAVE_DEVICES METHOD STARTED for instance: {instance.id} <<<")
@@ -1118,7 +1213,8 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
         
         if selected_devices_data:
             try:
-                selected_device_ids = json.loads(selected_devices_data)
+                selected_device_data = json.loads(selected_devices_data)
+                selected_device_ids= [d["id"] for d in selected_device_data]
                 print(f">>> Parsed device IDs for saving: {selected_device_ids} <<<")
                 
                 # Clear existing devices for this execution
@@ -1127,8 +1223,10 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                 
                 # Create new TestSuiteExecutionDevice entries
                 successful_devices = 0
-                for device_id in selected_device_ids:
-                    print(f">>> Processing device ID: {device_id} <<<")
+                for device_data in selected_device_data:
+                    device_id= device_data["id"]
+                    connection_protocol= device_data["protocol"]
+                    print(f">>> Processing device ID: {device_id}  {connection_protocol}<<<")
                     try:
                         device = Device.objects.get(id=device_id)
                         print(f">>> Found device: {device} (ID: {device.id}) <<<")
@@ -1136,6 +1234,7 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                         execution_device = TestSuiteExecutionDevice.objects.create(
                             test_suite_execution=instance,
                             device=device,
+                            connection_protocol=connection_protocol,
                             status='pending'
                         )
                         print(f">>> Created TestSuiteExecutionDevice: {execution_device.id} <<<")
@@ -1192,8 +1291,13 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
             instance.save()
             print(f">>> Instance saved to DB. ID: {instance.id} <<<")
             
+            self.save_m2m()
             # Save devices after the instance is saved
             self.save_devices(instance)
+            if instance.test_selection_type ==0 :
+                instance.testcase_count = instance.individual_test_cases.all().count()
+                instance.save(update_fields=['testcase_count'])
+            # self.create_test_case_executions(instance)
         else:
             # When commit=False, we need to add a hook to save devices later
             print(">>> Commit=False, adding save_m2m hook for devices <<<")
@@ -1202,6 +1306,10 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                 old_save_m2m()
                 print(">>> save_m2m called, now saving devices <<<")
                 self.save_devices(instance)
+                # self.create_test_case_executions(instance)
+                if instance.test_selection_type ==0 :
+                    instance.testcase_count = instance.individual_test_cases.all().count()
+                    instance.save(update_fields=['testcase_count'])
             self.save_m2m = save_m2m
         
         print(f">>> SAVE METHOD COMPLETED. Returning instance: {instance} <<<")
@@ -1215,7 +1323,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     change_form_template = 'admin/test_management/testsuitexecution/change_form.html'
     list_display = [
         "name",
-        "test_suite_name",
+        # "test_selection_display",
+        # "test_suite_name",
         "device_count",
         "testcase_count",
         "status_label",
@@ -1223,32 +1332,49 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         "view_history",
      ]
     list_filter = [
-        TestExecutionStatusFilter,  # Add this new filter
+        TestExecutionStatusFilter,
+        "test_selection_type",
         "created",
         ("test_suite", admin.RelatedOnlyFieldListFilter),
     ]
-    list_select_related = ["test_suite"]
-    search_fields = ["test_suite__name"]
+    list_select_related = ["test_suite", "device_group"]
+    search_fields = ["name", "test_suite__name"]
     ordering = ["-created"]
     
     fields = [
         "name",
+        "test_selection_type",
         "test_suite",
+        "individual_test_cases",
         "device_selection",
         # "device_group",
     ]
     autocomplete_fields=["test_suite"]
     
-
+    filter_horizontal=["individual_test_cases"]
     readonly_fields = ["created", "modified", "device_count", "testcase_count"]
     actions = ["execute_test_suite"]
     class Media:
-        js = ('admin/js/jquery.init.js',)
+        js = ('admin/js/jquery.init.js',
+              'test-management/js/selection_toggle.js')
     
     class Meta:
         verbose_name = _("Test Execution")  # Change from "Test Suite Execution"
         verbose_name_plural = _("Test Executions")  # Change from "Test Suite Executions"
     
+    def test_selection_display(self, obj):
+        """Display test selection type with icon"""
+        if obj.test_selection_type == 1:
+            return format_html(
+                '<span title="Test Suite">Suite</span>'
+            )
+        else:
+            return format_html(
+                '<span title="Individual Test Cases">Individual</span>'
+            )
+    test_selection_display.short_description = _("Selection Type")
+    test_selection_display.admin_order_field = "test_selection_type"
+
     def formfield_for_dbfield(self, db_field, request, **kwargs):
         formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
 
@@ -1261,6 +1387,14 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     if isinstance(formfield.widget, RelatedFieldWidgetWrapper):
                         formfield.widget = formfield.widget.widget
                         formfield.widget.attrs["disabled"] = True
+
+        if db_field.name == "individual_test_cases":
+            obj_id = request.resolver_match.kwargs.get("object_id")
+            if obj_id:
+                obj = self.get_object(request, obj_id)
+                if obj and obj.status not in [0, 4]:
+                    formfield.widget.attrs["disabled"] = True
+
         return formfield
    
     #  function which trigger to show save and execute button on ui
@@ -1354,11 +1488,17 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     
     def test_suite_name(self, obj):
         """Display test suite name with link"""
-        if obj.test_suite:
+        if obj.test_selection_type==1 and obj.test_suite:
             return format_html(
                 '<a href="../testsuite/{}/change/">{}</a>',
                 obj.test_suite.pk,
                 obj.test_suite.name
+            )
+        elif obj.test_selection_type==0:
+            count= obj.individual_test_cases.count()
+            return format_html(
+                '<span title="Individual test cases">{} test case(s)</span>',
+                count
             )
         return "-"
     test_suite_name.short_description = _("Test Group Name")
@@ -1367,7 +1507,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     def device_count(self, obj):
         """Display device count"""
         return obj.device_count
-    device_count.short_description = _("Devices") 
+    device_count.short_description = _("Devices")
+
     def get_urls(self):
         """Add custom URL for test execution history only"""
         urls = super().get_urls()
@@ -1435,9 +1576,13 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     'overall_status': overall_status
                 }
             }
+        if execution.test_selection_type ==1 and execution.test_suite:
+            test_source_name= execution.test_suite.name
+        else:
+            test_source_name= f"Individual Tests ({execution.testcase_count})"
         
         context = {
-            'title': f'Test Execution History - {execution.test_suite.name}',
+            'title': f'Test Execution History - {test_source_name}',
             'execution': execution,
             'execution_id': str(execution.pk),
 
@@ -1497,14 +1642,20 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         if hasattr(form, 'save_devices'):
             form.save_devices(obj)
 
-        # ✅ FIX: absolute import
+        # if hasattr(form, 'create_test_case_executions'):
+        #     form.create_test_case_executions(obj)
+
+        # FIX: absolute import
         from openwisp_test_management.swapper import load_model
         TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 
         obj.device_count = TestSuiteExecutionDevice.objects.filter(
             test_suite_execution=obj
         ).count()
-        obj.testcase_count = obj.test_suite.test_case_count if obj.test_suite_id else 0
+        if obj.test_selection_type == 1 and obj.test_suite_id:
+            obj.testcase_count = obj.test_suite.test_case_count
+        else:
+            obj.testcase_count = obj.individual_test_cases.count()
 
         obj.save(update_fields=["device_count", "testcase_count"])
 
@@ -1518,7 +1669,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             return False
         return super().has_delete_permission(request, obj)
     
-    @admin.action(description=_("Execute Selected Test Groups"))
+    @admin.action(description=_("Execute Selected Test Executions"))
     def execute_test_suite(self, request, queryset, from_action_execution=True):
         """Execute test suites using Celery tasks"""
         from .tasks import execute_test_suite as execute_test_suite_task
@@ -1619,7 +1770,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     continue
                 
                 # Validate test and device counts
-                test_count = execution.test_suite.test_cases.filter(test_type=1).count()
+                if execution.test_selection_type==1:
+                    test_count= execution.test_suite.test_cases.filter(test_type=1).count()
+                else:
+                    test_count = execution.individual_test_cases.count()
+
                 device_count = execution.device_count
                 
                 # if test_count == 0:
@@ -1703,11 +1858,16 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             # check if it is in other state than created(0)
             if obj and obj.status != "0":
                 extra_context["hide_submit_row"] = True
-            related_device_ids = TestSuiteExecutionDevice.objects.filter(
+
+            related_devices= TestSuiteExecutionDevice.objects.filter(
                 test_suite_execution=obj
-            ).values_list("device_id", flat=True)
+            ).select_related("device")
+
+            device_protocol_map={
+                str(dev.device_id) : dev.connection_protocol for dev in related_devices
+            }
             devices_query = Device.objects.filter(
-                id__in=related_device_ids
+                id__in=device_protocol_map.keys()
             ).select_related("organization")
             devices_data = []
             for device in devices_query:
@@ -1737,6 +1897,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     "os": getattr(device, "os", None) or "Unknown",
                     "hardware_id": getattr(device, "hardware_id", None) or "N/A",
                     "created": device.created.isoformat() if hasattr(device, "created") and device.created else None,
+                    "connection_protocol" :device_protocol_map.get(str(device.id),0),
                 })
 
             extra_context["execution_devices_json"] = json.dumps(devices_data)
@@ -1751,8 +1912,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
         if version:
 
-            execution_obj = version._object_version.object        
             # 🔹 Add device_group info if it exists
+            execution_obj = version._object_version.object 
             device_group = getattr(execution_obj, "device_group", None)
             if device_group:
                 extra_context["execution_device_group"] = {
@@ -1765,10 +1926,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             related_versions = version.revision.version_set.filter(
             content_type__model="testsuiteexecutiondevice"
             )
-
+            
             recovered_device_ids = [str(v._object_version.object.device_id) for v in related_versions]
+            device_protocol_map = { str(v._object_version.object.device_id) : getattr(v._object_version.object, "connection_protocol") for v in related_versions }       
 
-            # 🔹 Re-use logic from get_available_devices
+            #  Re-use logic from get_available_devices
             devices_query = Device.objects.filter(id__in=recovered_device_ids).select_related("organization")
             print("devices_query>>>>>>>>>>>>",devices_query)
             devices_data = []
@@ -1799,6 +1961,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     'os': getattr(device, 'os', None) or 'Unknown',
                     'hardware_id': getattr(device, 'hardware_id', None) or 'N/A',
                     'created': device.created.isoformat() if hasattr(device, 'created') and device.created else None,
+                    'connection_protocol' : device_protocol_map.get(str(device.id),0),
                 })
             
 

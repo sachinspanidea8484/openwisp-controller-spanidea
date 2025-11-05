@@ -1,4 +1,4 @@
-(function($) {
+(function ($) {
   ("use strict");
 
   // Get CSRF token
@@ -59,7 +59,6 @@
   // Create device selection section
   function createDeviceSelection(mode = "single") {
     const isGroupMode = mode === "group";
-    console.log(mode);
     const container = $(`
         <div id="device-selection">
             <div class="section-header">Select ${
@@ -101,8 +100,15 @@
   // CHANGE: Updated handleGroupSelection to properly manage selectedDevices map
   function handleGroupSelection(groupId) {
     // Call API to fetch devices for the group
+    const match = window.location.pathname.match(
+      /testsuiteexecution\/([0-9a-fA-F-]+)\/change\/$/
+    );
+    const executionId = match ? match[1] : null;
+    const api_url = executionId
+      ? `/api/v1/test-management/device-groups/${groupId}/devices/${executionId}`
+      : `/api/v1/test-management/device-groups/${groupId}/devices`;
     $.ajax({
-      url: `/api/v1/test-management/device-groups/${groupId}/devices`, // 🔧 adjust endpoint
+      url: api_url,
       method: "GET",
       headers: {
         "X-CSRFToken": csrftoken,
@@ -122,6 +128,8 @@
           );
         } else {
           devices.forEach((device) => {
+            isssh = device.connection_protocol === 1 ? "checked" : "";
+            ismqtt = device.connection_protocol === 0 || isssh==="" ? "checked" : "";
             // CHANGE: Add devices to selectedDevices map
             selectedDevices.set(String(device.id), device);
 
@@ -130,13 +138,32 @@
                 <div class="selected-device-item" data-device-id="${device.id}">
                     <div class="device-info">
                         <div class="device-name">${device.name}</div>
-                        <div class="device-details">${
-                          device.organization || ""
-                        } - ${device.management_ip || ""} - ${
-              device.status || ""
-            }</div>
+                        <div class="device-details">
+                          ${device.organization || ""} - ${
+                            device.management_ip || ""
+                          } - ${device.status || ""}
+                        </div>
                     </div>
-                    
+
+                    <div class="protocol-selection">
+                      <label>
+                        <input type="radio" name="protocol_${
+                          device.id
+                        }" value="0" 
+                        ${ismqtt} ${window.disabledViewMode ? "disabled" : ""} 
+                        style="cursor : ${
+                          window.disabledViewMode ? "not-allowed" : "pointer"
+                        }">
+                        MQTT
+                      </label>
+                      <label>
+                        <input type="radio" name="protocol_${device.id}" value="1" ${isssh} 
+                        ${window.disabledViewMode ? "disabled" : ""} 
+                        style="cursor : ${window.disabledViewMode ? "not-allowed" : "pointer"}">     
+                        SSH
+                      </label>
+                    </div>
+                  </div>  
                 </div>
               `);
           });
@@ -184,27 +211,27 @@
               `<option value="${group.id}">${group.name}</option>`
             );
           });
-           if (pendingGroupSelection) {
-             const groupId = String(pendingGroupSelection.id);
-             const groupName = pendingGroupSelection.name;
+          if (pendingGroupSelection) {
+            const groupId = String(pendingGroupSelection.id);
+            const groupName = pendingGroupSelection.name;
 
-             // Check if option exists
-             if (dropdown.find(`option[value='${groupId}']`).length === 0) {
-               // Add missing option
-               dropdown.append(
-                 `<option value="${groupId}">${groupName}</option>`
-               );
-             }
+            // Check if option exists
+            if (dropdown.find(`option[value='${groupId}']`).length === 0) {
+              // Add missing option
+              dropdown.append(
+                `<option value="${groupId}">${groupName}</option>`
+              );
+            }
 
-             // Select the option
-             dropdown.val(groupId).trigger("change");
+            // Select the option
+            dropdown.val(groupId).trigger("change");
 
-             // Handle the group selection
-             handleGroupSelection(groupId);
+            // Handle the group selection
+            handleGroupSelection(groupId);
 
-             // Clear the pending selection
-             pendingGroupSelection = null;
-           }
+            // Clear the pending selection
+            pendingGroupSelection = null;
+          }
         } else {
           dropdown.append(
             '<option value="">No device groups available</option>'
@@ -231,7 +258,6 @@
     function () {
       const deviceSelectionField = $(".field-device_selection");
       const selection = $(this).val(); // "0" for single, "1" for group
-      console.log("Radio changed:", selection);
 
       // Remove old container
       $("#device-selection").remove();
@@ -295,31 +321,31 @@
     $("#device-dropdown").val("");
   });
 
-    const apiUrl = `/api/v1/test-management/devices`;
-    // Load available devices on page load
-    function loadAvailableDevices() {
-      $.ajax({
-        url: apiUrl,
-        method: "GET",
-        headers: {
-          "X-CSRFToken": csrftoken,
-          "X-Requested-With": "XMLHttpRequest",
-        },
-        success: function (data) {
-          console.log("Available devices:", data);
-          availableDevices = data.devices || [];
-          updateDeviceDropdown();
-          applyDisabledState();
-        },
-        error: function (xhr, status, error) {
-          console.error("Error loading devices:", error);
-          $("#device-dropdown").html(
-            '<option value="">Error loading devices</option>'
-          );
-          applyDisabledState();
-        },
-      });
-    }
+  const apiUrl = `/api/v1/test-management/devices`;
+  // Load available devices on page load
+  function loadAvailableDevices() {
+    $.ajax({
+      url: apiUrl,
+      method: "GET",
+      headers: {
+        "X-CSRFToken": csrftoken,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      success: function (data) {
+        console.log("Available devices:", data);
+        availableDevices = data.devices || [];
+        updateDeviceDropdown();
+        applyDisabledState();
+      },
+      error: function (xhr, status, error) {
+        console.error("Error loading devices:", error);
+        $("#device-dropdown").html(
+          '<option value="">Error loading devices</option>'
+        );
+        applyDisabledState();
+      },
+    });
+  }
 
   function initializeDeviceSelection() {
     const selectedValue = $('input[name="device_selection"]:checked').val();
@@ -345,7 +371,6 @@
   // Insert containers after test_suite field
   const testSuiteField = $(".field-test_suite");
   const deviceSelectionField = $(".field-device_selection");
-  console.log("length", testSuiteField.length);
   if (testSuiteField.length) {
     const testCasesDisplay = createTestCasesDisplay();
 
@@ -392,7 +417,6 @@
   // Handle test suite selection change
   $(document).on("change", "#id_test_suite", function () {
     const testSuiteId = $(this).val();
-    console.log("hi", testSuiteId);
     const testCasesDisplay = $("#test-cases-display");
     const deviceSelection = $("#device-selection");
     const tbody = testCasesDisplay.find("tbody");
@@ -483,7 +507,7 @@
     }
     if (window.recoveredDeviceGroup?.id) {
       pendingGroupSelection = window.recoveredDeviceGroup;
-   }
+    }
   });
 
   // CHANGE: Converted to delegated event handler for add device button
@@ -531,17 +555,30 @@
     }
 
     selectedDevices.forEach(function (device, deviceId) {
+      const issshChecked = device?.connection_protocol === 1 ? "checked" : "";
+      const ismqttChecked = device?.connection_protocol === 0  || issshChecked===""? "checked" : ""
       const deviceItem = $(`
                 <div class="selected-device-item" data-device-id="${deviceId}">
                     <div class="device-info">
                         <div class="device-name">${device.name}</div>
                         <div class="device-details">${device.organization} - ${
-        device.management_ip
-      } - ${device.status}</div>
+                          device.management_ip
+                        } - ${device.status}</div>
+                    </div>
+
+                    <div class="protocol-selection">
+                      <label>
+                        <input type="radio" name="protocol_${device.id}" value="0" ${ismqttChecked}>
+                        MQTT
+                      </label>
+                      <label>
+                        <input type="radio" name="protocol_${device.id}" value="1" ${issshChecked}>
+                        SSH
+                      </label>
                     </div>
                     <button type="button" class="remove-device-btn" data-device-id="${deviceId}" ${
-        window.disabledViewMode ? "disabled" : ""
-      }>Remove</button>
+                      window.disabledViewMode ? "disabled" : ""
+                    }>Remove</button>
                 </div>
             `);
       if (device?.status !== "Deactivated") {
@@ -589,7 +626,10 @@
     }
 
     // Get device IDs
-    const deviceIds = Array.from(selectedDevices.keys());
+    const deviceIds = Array.from(selectedDevices.keys()).map((id)=> {
+      const selectedProtocol = $(`input[name="protocol_${id}"]:checked`).val() || 0;
+      return {id, protocol : selectedProtocol};
+    });
     input.val(JSON.stringify(deviceIds));
     console.log("Updated selected devices:", deviceIds);
 
@@ -604,7 +644,6 @@
 
     // If "Device Group Selection" is chosen, set the group id
     const selectedType = $('input[name="device_selection"]:checked').val();
-    console.log("selectedType", selectedType);
     if (selectedType === "1") {
       const groupId = $("#device-dropdown").val(); // or however you let user pick group
       groupInput.val(groupId);

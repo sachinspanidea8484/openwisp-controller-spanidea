@@ -497,10 +497,16 @@ class FirmwareUpdateOnDevice(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
-            device_status = UpgradeOperation.objects.filter(device__name=device_name).prefetch_related("device").order_by("-created").first().status
-        
+            device_status = UpgradeOperation.objects.filter(device__name=device_name).prefetch_related("device").order_by("-created").first()
+            if not device_status:
+                
+                return Response(
+                    {"error": 'No upgrade operation found on this device.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            
             return Response(
-                {"upgrade_status_on_device": device_status},
+                {"upgrade_status_on_device": device_status.status},
                 status=status.HTTP_200_OK,
             )
         except Exception as e:

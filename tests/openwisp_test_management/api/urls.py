@@ -161,6 +161,11 @@ urlpatterns = [
                 name="api_get_organization_devices",
             ),
             path(
+                "device-groups/<uuid:group_id>/devices/<uuid:execution_id>",
+                views.get_device_group_devices,
+                name="api_device_group_devices",
+            ),
+            path(
                 "device-groups/<uuid:group_id>/devices/",
                 views.get_device_group_devices,
                 name="api_device_group_devices",

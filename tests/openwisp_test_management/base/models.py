@@ -375,19 +375,40 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         (0, _('Individual')),
         (1, _('Device Group')),
     )
+    TEST_SELECTION_CHOICES = (
+        (0, _('Individual Test Cases')),
+        (1, _('Test Suite')),
+    )
     name = models.CharField(
         _("Test Execution Name"), 
         max_length=50,
         db_index=True,
         help_text=_("Descriptive name for the test Execution")  
     )
+    test_selection_type = models.IntegerField(
+        _("test selection type"),
+        choices=TEST_SELECTION_CHOICES,
+        default=1,  # Default to Test Suite for backward compatibility
+        db_index=True,
+        help_text=_("Select individual test cases or a test suite")
+    )
     test_suite = models.ForeignKey(
         'test_management.TestSuite',
         on_delete=models.PROTECT,
         related_name='executions',
         verbose_name=_("Select Test Group"),
-        help_text=_("Test to execute")
+        help_text=_("Test suite to execute (required if selection type is 'Test Suite')"),
+        null=True,
+        blank=True,
     )
+    individual_test_cases = models.ManyToManyField(
+        'test_management.TestCase',
+        blank=True,
+        related_name='individual_executions',
+        verbose_name=_("Select Test Cases"),
+        help_text=_("Individual test cases to execute (required if selection type is 'Individual Test Cases')")
+    )
+    
     is_executed = models.BooleanField(
         _("is executed"),
         default=False,
@@ -434,13 +455,25 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         """Validate the test suite execution"""
         super().clean()
 
+        if self.test_selection_type == 1:  # Test Suite mode
+            if not self.test_suite_id:
+                raise ValidationError({
+                    'test_suite': _('Test suite is required when selection type is "Test Suite"')
+                })
+        ########## Note: M2M validation happens in form (can't access M2M in model.clean() before save)
+
+    def get_selected_test_cases(self):
+        if self.test_selection_type ==1 and self.test_suite_id:
+            return self.test_suite.test_cases.all()
+        else:
+            return self.individual_test_cases.all()
 
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None  # check if new execution
         
         # Pre-calc testcase count from suite
-        if self.test_suite_id:
+        if self.test_selection_type==1 and self.test_suite_id:
             self.testcase_count = self.test_suite.test_case_count
 
         self.full_clean()
@@ -456,19 +489,20 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
 
         # ⚡ Only run auto-population for new executions with device group
         if is_new and self.device_selection == 1 and self.device_group_id:
-            for group_device in self.device_group.devices.select_related("device"):
-                device = group_device.device
+            if self.test_selection_type==1 and self.test_suite_id:
+                for group_device in self.device_group.devices.select_related("device"):
+                    device = group_device.device
 
-                # Create TestSuiteExecutionDevice
-                execution_device, _ = TestSuiteExecutionDevice.objects.get_or_create(
-                        test_suite_execution=self,
-                        device=device,
-                        defaults={"status": "pending"}
-                )
+                    # Create TestSuiteExecutionDevice
+                    execution_device, _ = TestSuiteExecutionDevice.objects.get_or_create(
+                            test_suite_execution=self,
+                            device=device,
+                            defaults={"status": "pending"}
+                    )
 
-                # Create TestCaseExecution per TestCase per Device
-                order = 1
-                for tcase in self.test_suite.test_cases.all():
+                    # Create TestCaseExecution per TestCase per Device
+                    order = 1
+                    for tcase in self.test_suite.test_cases.all():
                         TestCaseExecution.objects.get_or_create(
                             test_suite_execution=self,
                             device=device,
@@ -478,18 +512,31 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
                                 "status": "pending"
                             }
                         )
-                        order += 1
+                        order = order + 1
+            else:
+                for group_device in self.device_group.devices.select_related("device"):
+                    device = group_device.device
+                    TestSuiteExecutionDevice.objects.get_or_create(
+                        test_suite_execution=self,
+                        device=device,
+                        defaults={"status": "pending"}
+                    )
+                ############NOTE: here test case will be saved after M2M is saved
 
-        # 🔄 Update device_count ALWAYS (single or group)
+
+
+        # Update device_count ALWAYS (single or group)
         self.device_count = TestSuiteExecutionDevice.objects.filter(
             test_suite_execution=self
         ).count()
 
+        if not is_new and self.test_selection_type==0:
+            self.testcase_count= self.individual_test_cases.count()
 
 
-        
-        # Save again only updating counts to persist them
-        super().save(update_fields=["device_count", "testcase_count"])
+        if not is_new or self.test_selection_type==1:
+            # Save again only updating counts to persist them (only for 1 because M2M not saved yet)
+            super().save(update_fields=["device_count", "testcase_count"])
 
 
     def execute_tests(self):
@@ -569,7 +616,13 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         return status_map.get(self.status, _("UNKNOWN"))
 
     def __str__(self):
-        return f"{self.test_suite}- {self.device_group}- {self.name}"
+        if self.test_selection_type == 1 and self.test_suite:
+            return f"{self.test_suite} - {self.device_group or 'Individual'} - {self.name}"
+        elif self.test_selection_type == 0:
+            test_count = self.individual_test_cases.count() if self.pk else 0
+            return f"Individual Tests ({test_count}) - {self.device_group or 'Individual'} - {self.name}"
+        else:
+            return f"{self.name}"
 
 
 class AbstractScheduledExecution(models.Model):
@@ -686,6 +739,10 @@ class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
     Abstract model for Test Suite Execution Devices
     Links devices to test executions
     """
+    CONNECTION_PROTOCOL_CHOICES= (
+        (0, _("MQTT")),
+        (1,_("SSH"))
+    )
     test_suite_execution = models.ForeignKey(
         'test_management.TestSuiteExecution',
         on_delete=models.CASCADE,
@@ -734,6 +791,13 @@ class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
         max_length=255,
         blank=True,
         help_text=_("Path to the Allure report HTML file for this device execution")
+    )
+    
+    connection_protocol = models.IntegerField(
+        _("Connection Protocol"),
+        choices=CONNECTION_PROTOCOL_CHOICES,
+        default=0,  # Default to Test Suite for backward compatibility
+        help_text=_("connection protocol used by device to run testcases.")
     )
     
     class Meta:
