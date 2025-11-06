@@ -20,7 +20,6 @@ import traceback
 import json
 from django.utils.translation import gettext_lazy as _
 from import_export.admin import ImportExportMixin
-
 from django.core.validators import RegexValidator
 from openwisp_controller.config.models import Device
 
@@ -622,27 +621,55 @@ class TestCaseAdmin(BaseVersionAdmin):
             messages.SUCCESS,
         )
 
+from django.shortcuts import redirect
+from django.urls import reverse
+
     
 class TestCasesExportable(ImportExportMixin, TestCaseAdmin):
     resource_class= TestCasesResource
-    actions = TestCaseAdmin.actions + ["export_selected_objects"]
+    actions = TestCaseAdmin.actions + ["export_selected_redirect"]
 
-    def export_selected_objects(self, request, queryset):
+    def export_selected_redirect(self, request, queryset):
+        """
+            this function help to navigate to export page from actions
+        """
         if not queryset.exists():
             self.message_user(request, "No test cases selected.", level=messages.WARNING)
             return
+        
+        # make a single key for current session and store ids in it
+        key = f"export_ids_{self.model._meta.label_lower}"
+        request.session[key] = [str(pk) for pk in queryset.values_list("pk", flat=True)]
 
-        dataset = self.resource_class().export(queryset)
-        export_format = base_formats.XLSX()
-
-        response = HttpResponse(
-            dataset.xlsx,
-            content_type=export_format.get_content_type()
+        opts = self.model._meta
+        export_url = reverse(
+            f"admin:{opts.app_label}_{opts.model_name}_export",
+            current_app=self.admin_site.name,
         )
-        response['Content-Disposition'] = 'attachment; filename=selected_test_cases.xlsx'
-        return response
+        # redirect to the export URL manually
+        return redirect(export_url)
+    
+    
 
-    export_selected_objects.short_description = _("Export selected test cases")
+    def get_export_queryset(self, request):
+        """
+        Filter exported queryset based on ids stored in session
+        """
+        qs = super().get_export_queryset(request)
+        key = f"export_ids_{self.model._meta.label_lower}"
+
+        if request.method=="GET":
+            ids = request.session.get(key, None)
+        else:
+            ids= request.session.pop(key,None)
+
+        if ids:
+            qs = qs.filter(pk__in=ids)
+        
+        return qs
+    export_selected_redirect.short_description = "Export selected test cases"
+
+
 
 class TestSuiteAdminForm(forms.ModelForm):
     """Custom form for TestSuite admin"""
