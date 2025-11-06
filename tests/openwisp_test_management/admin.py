@@ -1585,7 +1585,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             test_source_name= f"Individual Tests ({execution.testcase_count})"
         
         context = {
-            'title': f'Test Execution History - {test_source_name}',
+            'title': f'Test Execution History',
+            # 'title': f'Test Execution History - {test_source_name}',
             'execution': execution,
             'execution_id': str(execution.pk),
 

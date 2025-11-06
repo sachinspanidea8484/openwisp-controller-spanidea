@@ -117,6 +117,7 @@ def execute_tests_on_device(device_execution_id):
     try:
         # Retrieve the device execution record
         device_execution = TestSuiteExecutionDevice.objects.get(pk=device_execution_id)
+        device_execution_connection_protocol = getattr(device_execution, 'connection_protocol', 0) or 0
         logger.info(f"Retrieved device execution: {device_execution}")
         print(f"[TASK] execute_tests_on_device - Retrieved device execution: {device_execution}")
         
@@ -255,7 +256,8 @@ def execute_tests_on_device(device_execution_id):
                     all_test_execution_ids,
                     device_data,
                     test_suite_data,
-                    device_execution_id
+                    device_execution_id,
+                    device_execution_connection_protocol
                 )
             else:
                 logger.warning("No tests found to execute")
@@ -292,7 +294,7 @@ def execute_tests_on_device(device_execution_id):
 
 
 @shared_task
-def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite_data, device_execution_id):
+def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite_data, device_execution_id ,device_execution_connection_protocol):
     """
     Execute ALL test cases (Device Agent + Robot Framework) on executor server.
     The executor server will handle how to trigger each test case.
@@ -312,7 +314,8 @@ def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite
         "management_ip": device_data.get('management_ip', 'N/A'),
         "device_id": str(device_data.get('device_id', '')),
         "ssh": device_data.get('ssh', {}),
-        "configuration": device_data.get('configuration', {})
+        "configuration": device_data.get('configuration', {}),
+        "connection_protocol" : device_execution_connection_protocol
     }
     
     # Fix test_suite_data UUIDs
@@ -527,6 +530,9 @@ def retry_test_execution(test_execution_id):
                 device=device
             )
             device_execution_id = device_execution.id
+            device_execution_connection_protocol = getattr(device_execution, 'connection_protocol', 0) or 0
+
+
         except TestSuiteExecutionDevice.DoesNotExist:
             logger.error(f"Device execution not found for test execution {test_execution_id}")
             return
@@ -605,7 +611,8 @@ def retry_test_execution(test_execution_id):
             [test_execution_id],
             device_data,
             test_suite_data,
-            device_execution_id
+            device_execution_id,
+            device_execution_connection_protocol
         )
         
         logger.info(f"Successfully queued retry for test execution {test_execution_id}")

@@ -4287,7 +4287,9 @@ def test_execution_history(request, execution_id):
             openwisp_base_url = OPENWISP_SERVER_IP
 
 
-            has_allure_report = bool(device_exec.allure_report_path)    
+            has_allure_report = bool(device_exec.allure_report_path)  
+            connection_protocol = device_exec.connection_protocol  
+
             allure_report_full_path = f"{openwisp_base_url}/media/{device_exec.allure_report_path}"
 
 
@@ -4298,6 +4300,7 @@ def test_execution_history(request, execution_id):
                 'device_execution_id': str(device_exec.pk),
                 'allure_report_path': device_exec.allure_report_path,
                 'has_allure_report': has_allure_report,
+                'connection_protocol': connection_protocol,''
                 'allure_report_full_path': allure_report_full_path,
 
 

@@ -769,6 +769,8 @@ function displayExecutionData(data) {
                             <span class="status-indicator ${stats.overall_status}">
                                 ${stats.overall_status}
                             </span>
+
+                            ${device?.connection_protocol == "0" ? "MQTT" : "SSH" }
                              ${device && device?.has_allure_report && device?.allure_report_full_path ? `
                                 <a href="${device?.allure_report_full_path}" target="_blank" class="btn-action primary">
                                     Show Report

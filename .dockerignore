@@ -1,0 +1,13 @@
+**/.git
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/.venv
+**/venv
+**/node_modules
+**/logs
+**/postgres_data
+**/redis_data
+**/influxdb_data
+**/media
