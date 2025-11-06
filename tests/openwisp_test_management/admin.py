@@ -79,15 +79,15 @@ class BaseVersionAdmin(TimeReadonlyAdminMixin, VersionAdmin):
     save_on_top = True
     list_per_page= 10
 
-class TestCategoryResource(resources.ModelResource):
+# class TestCategoryResource(resources.ModelResource):
     
-    class Meta:
-        model = TestCategory
+#     class Meta:
+#         model = TestCategory
     
-    def before_import_row(self, row, **kwargs):
-        # Replace None with empty string for description
-        if row.get('description') is None:
-            row['description'] = ''
+#     def before_import_row(self, row, **kwargs):
+#         # Replace None with empty string for description
+#         if row.get('description') is None:
+#             row['description'] = ''
 
 class TestCasesResource(resources.ModelResource):
     category= fields.Field(
@@ -143,7 +143,7 @@ class TestCasesResource(resources.ModelResource):
         if row.get('description') is None:
             row['description'] = ''
 
-# @admin.register(TestCategory)
+@admin.register(TestCategory)
 class TestCategoryAdmin(BaseVersionAdmin):
     list_display = [
         "name",
@@ -280,26 +280,26 @@ def delete_selected(self, request, queryset):
     delete_selected.short_description = _("Delete selected test categories")
 
 
-class TestCategoryExportable(ImportExportMixin, TestCategoryAdmin):
-    resource_class= TestCategoryResource
-    actions = TestCategoryAdmin.actions + ["export_selected_objects"]
+# class TestCategoryExportable(ImportExportMixin, TestCategoryAdmin):
+#     resource_class= TestCategoryResource
+#     actions = TestCategoryAdmin.actions + ["export_selected_objects"]
 
-    def export_selected_objects(self, request, queryset):
-        if not queryset.exists():
-            self.message_user(request, "No categories selected.", level=messages.WARNING)
-            return
+#     def export_selected_objects(self, request, queryset):
+#         if not queryset.exists():
+#             self.message_user(request, "No categories selected.", level=messages.WARNING)
+#             return
 
-        dataset = self.resource_class().export(queryset)
-        export_format = base_formats.XLSX()
+#         dataset = self.resource_class().export(queryset)
+#         export_format = base_formats.XLSX()
 
-        response = HttpResponse(
-            dataset.xlsx,
-            content_type=export_format.get_content_type()
-        )
-        response['Content-Disposition'] = 'attachment; filename=selected_test_categories.xlsx'
-        return response
+#         response = HttpResponse(
+#             dataset.xlsx,
+#             content_type=export_format.get_content_type()
+#         )
+#         response['Content-Disposition'] = 'attachment; filename=selected_test_categories.xlsx'
+#         return response
 
-    export_selected_objects.short_description = _("Export selected test categories")
+#     export_selected_objects.short_description = _("Export selected test categories")
 
 
 class FormattedJSONField(forms.CharField):
@@ -423,7 +423,7 @@ class TestCaseAdmin(BaseVersionAdmin):
     
     # Enable history button
     object_history_template = "reversion/object_history.html"
-    
+    change_list_template = 'admin/test_management/import_export/testcase/change_list.html'
     actions = ["delete_selected", "recover_deleted", "activate_cases", "deactivate_cases"]
 
         # ADD THIS NEW METHOD
@@ -2143,7 +2143,7 @@ class TestDeviceGroupDeviceInline(admin.TabularInline):
     def has_delete_permission(self, request, obj=None):
         return False
 
-admin.site.register(TestCategory, TestCategoryExportable)
+# admin.site.register(TestCategory, TestCategoryExportable)
 admin.site.register(TestCase,TestCasesExportable)
 # Register models with reversion for history tracking
 if not reversion.is_registered(TestCategory):

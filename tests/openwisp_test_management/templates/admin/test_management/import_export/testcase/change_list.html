@@ -1,0 +1,14 @@
+{% extends "reversion/change_list.html" %}
+{% load admin_urls i18n %}
+
+{% block object-tools-items %}
+  {{ block.super }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const exportLink = document.querySelector(".object-tools .export_link");
+      if (exportLink) {
+        exportLink.textContent = "Export All";
+      }
+    });
+  </script>
+{% endblock %}
