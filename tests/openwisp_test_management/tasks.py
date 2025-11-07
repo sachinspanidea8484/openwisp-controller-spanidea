@@ -43,7 +43,7 @@ TestSuiteCase = load_model("TestSuiteCase")
 ScheduledExecution= load_model("ScheduledExecution")
 
 # Device Execution Type Configuration
-DEVICE_EXECUTION_TYPE = 2 # 1 for SSH, 2 for NB_API (default is SSH)
+DEVICE_EXECUTION_TYPE = 1 # 1 for SSH, 2 for NB_API (default is SSH)
 
 @shared_task
 def execute_test_suite(execution_id):
@@ -633,7 +633,7 @@ def abort_test_execution(test_execution_id):
         # Get device and device execution info
         device = test_execution.device
         test_suite_execution = test_execution.test_suite_execution
-        
+
         # Find the device execution record
         try:
             device_execution = TestSuiteExecutionDevice.objects.get(
@@ -678,16 +678,27 @@ def abort_test_execution(test_execution_id):
         test_execution.execution_duration = None
         test_execution.retry_count += 1
         test_execution.save()
+
+        device_data = {
+            "device_name": test_execution.device.name,
+            "management_ip": test_execution.device.management_ip,
+            "device_id": str(test_execution.device.id),
+            "ssh": {
+                "host": test_execution.device.management_ip,
+                "username": ssh_params.get('username', ''),
+                "password": ssh_params.get('password', '')
+            }
+        }
         
         logger.info(f"Aborting test execution {test_execution_id})")
         print(f"[TASK] abort_test_execution - Aborting test {test_execution_id}")
 
         api_payload = {
-            "device_id": str(test_execution.device.id),
+            "device": device_data,
             "test_id": str(test_execution.test_case.test_case_id),
             "execution_id": str(test_execution_id),
             "test_type": test_execution.test_case.test_type,
-            "device_communication_method": 2 #MQTT 
+            "device_communication_method": 3 # 2: MQTT 3: SSH
         }
         print(f"\n[DEBUG] API Payload prepared")
         abort_api_url = f"{EXECUTOR_SERVER_IP}/api/v1/abort-test/"

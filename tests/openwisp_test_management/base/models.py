@@ -540,7 +540,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
             return 1  # EXECUTION PROGRESS but no tests yet
 
         total = executions.count()
-        completed_statuses = [TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED]
+        completed_statuses = [TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED, TestExecutionStatus.ABORTED]
         incomplete_statuses = [
             TestExecutionStatus.PENDING,
             TestExecutionStatus.RUNNING,
