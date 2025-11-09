@@ -24,6 +24,8 @@ class TestExecutionStatus(models.TextChoices):
     FAILED = 'failed', _('Failed')
     TIMEOUT = 'timeout', _('Timeout')
     CANCELLED = 'cancelled', _('Cancelled')
+    ABORTING = 'aborting', _('Aborting')
+    ABORTED = 'aborted', _('Aborted')
 
 
 class AbstractTestCategory(TimeStampedEditableModel):
@@ -585,7 +587,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
             return 1  # EXECUTION PROGRESS but no tests yet
 
         total = executions.count()
-        completed_statuses = [TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED]
+        completed_statuses = [TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED, TestExecutionStatus.ABORTED]
         incomplete_statuses = [
             TestExecutionStatus.PENDING,
             TestExecutionStatus.RUNNING,

@@ -43,7 +43,7 @@ TestSuiteCase = load_model("TestSuiteCase")
 ScheduledExecution= load_model("ScheduledExecution")
 
 # Device Execution Type Configuration
-DEVICE_EXECUTION_TYPE = 2 # 1 for SSH, 2 for NB_API (default is SSH)
+DEVICE_EXECUTION_TYPE = 1 # 1 for SSH, 2 for NB_API (default is SSH)
 
 @shared_task
 def execute_test_suite(execution_id):
@@ -623,6 +623,199 @@ def retry_test_execution(test_execution_id):
         logger.error(f"Error retrying test execution {test_execution_id}: {str(e)}")
         print(f"[ERROR] retry_test_execution - Error: {str(e)}")
 
+
+@shared_task
+def abort_test_execution(test_execution_id):
+    """
+    Abort a running test execution
+    """
+    from .swapper import load_model
+    TestCaseExecution = load_model("TestCaseExecution")
+    TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+    
+    try:
+        test_execution = TestCaseExecution.objects.get(pk=test_execution_id)
+        test_case = test_execution.test_case
+        # Get device and device execution info
+        device = test_execution.device
+        test_suite_execution = test_execution.test_suite_execution
+
+        # Find the device execution record
+        try:
+            device_execution = TestSuiteExecutionDevice.objects.get(
+                test_suite_execution=test_suite_execution,
+                device=device
+            )
+            device_execution_id = device_execution.id
+        except TestSuiteExecutionDevice.DoesNotExist:
+            logger.error(f"Device execution not found for test execution {test_execution_id}")
+            return
+        
+        # Get device connection if exists
+        device_conn = None
+        ssh_params = {}
+
+        if test_execution.test_case.test_type == 1 or DEVICE_EXECUTION_TYPE==1:
+         try:
+            device_conn = DeviceConnection.objects.get(
+                device=device,
+                enabled=True
+            )
+            ssh_params = device_conn.credentials.params
+         except DeviceConnection.DoesNotExist:
+            logger.warning(f"No working connection found for device {device.name} during retry")
+            # Mark as failed if no connection
+            test_execution.status = TestExecutionStatus.FAILED
+            test_execution.stdout = "No working connection found for device"
+            test_execution.error_message = "No working connection found for device"
+            test_execution.exit_code = 1
+            test_execution.completed_at = timezone.now()
+            test_execution.save()
+            return
+        
+        # Reset the test execution status
+        test_execution.status = TestExecutionStatus.ABORTING
+        test_execution.started_at = None
+        test_execution.completed_at = None
+        test_execution.stdout = ''
+        test_execution.stderr = ''
+        test_execution.exit_code = None
+        test_execution.error_message = ''
+        test_execution.execution_duration = None
+        test_execution.retry_count += 1
+        test_execution.save()
+
+        device_data = {
+            "device_name": test_execution.device.name,
+            "management_ip": test_execution.device.management_ip,
+            "device_id": str(test_execution.device.id),
+            "ssh": {
+                "host": test_execution.device.management_ip,
+                "username": ssh_params.get('username', ''),
+                "password": ssh_params.get('password', '')
+            }
+        }
+        
+        logger.info(f"Aborting test execution {test_execution_id})")
+        print(f"[TASK] abort_test_execution - Aborting test {test_execution_id}")
+
+        api_payload = {
+            "device": device_data,
+            "test_id": str(test_execution.test_case.test_case_id),
+            "execution_id": str(test_execution_id),
+            "test_type": test_execution.test_case.test_type,
+            "device_communication_method": 3 # 2: MQTT 3: SSH
+        }
+        print(f"\n[DEBUG] API Payload prepared")
+        abort_api_url = f"{EXECUTOR_SERVER_IP}/api/v1/abort-test/"
+    
+        print(f"\n🔍 [DEBUG] Making API Call:")
+        print(f"📍 [DEBUG] API URL: {abort_api_url}")
+        print(f"📮 [DEBUG] Method: POST")
+        print(f"⏱️  [DEBUG] Timeout: 300 seconds")
+    
+        # Check if API is reachable first
+        try:
+            print(f"🔄 [DEBUG] Checking if executor server is reachable....")
+            base_url = abort_api_url.rsplit('/', 2)[0]
+            test_response = requests.get(base_url, timeout=60)
+            print(f"✅ [DEBUG] Executor server is reachable at {base_url}")
+        except Exception as e:
+            print(f"❌ [ERROR] Cannot reach executor server: {e}")
+            print(f"⚠️  [ERROR] Make sure the server at {abort_api_url} is running")
+        
+        # Mark all tests as failed
+            try:
+                test_execution.status = TestExecutionStatus.FAILED
+                test_execution.error_message = f"Executor server unreachable: {str(e)}"
+                test_execution.stderr = "Connection failed - Executor server unreachable"
+                test_execution.completed_at = timezone.now()
+                test_execution.save()
+            except Exception as update_error:
+                logger.error(f"Error updating test {test_execution_id}: {update_error}")
+            return
+    
+        try:
+            print(f"[DEBUG] Sending abort request to executor server...")
+            
+            response = requests.post(
+                abort_api_url,
+                json=api_payload,
+                timeout=300  # Quick timeout just to submit the job
+            )
+        
+            print(f"\n[DEBUG] API Response:")
+            print(f"[DEBUG] Status Code: {response.status_code}")
+            print(f"[DEBUG] Response Headers: {dict(response.headers)}")
+        
+            try:
+                response_json = response.json()
+                print(f"[DEBUG] Response Body: {response_json}")
+            except:
+                print(f"[DEBUG] Response Body (text): {response.text[:500]}...")
+        
+            if response.status_code == 200:
+                logger.info("Executor server API called successfully")
+                print(f"\n[DEBUG] ✅ API call successful! Tests submitted to executor server")
+                
+                    
+            else:
+                logger.error(f"Executor server API call failed: {response.status_code}")
+                print(f"\n[DEBUG] ❌ API call failed! Status: {response.status_code}")
+                print(f"[DEBUG] Marking all tests as failed...")
+                
+                # Mark tests as failed
+                try:
+                    test_execution.status = TestExecutionStatus.FAILED
+                    test_execution.error_message = f"Executor server API call failed: {response.status_code}"
+                    test_execution.stdout = response.text[:1000] if response.text else "No response"
+                    test_execution.completed_at = timezone.now()
+                    test_execution.save()
+                    
+                    print(f"[DEBUG] ✅ Marked test execution {test_execution_id} as FAILED")
+                    
+                except Exception as e:
+                    print(f"[DEBUG] ❌ Error updating failed test {test_execution_id}: {str(e)}")
+                    logger.error(f"Error updating failed test {test_execution_id}: {str(e)}")
+                    
+        except requests.exceptions.Timeout:
+            print(f"\n[DEBUG] ❌ API call timed out!")
+            logger.error("Executor server API call timed out")
+        
+            # Mark all tests as failed due to timeout
+            try:
+                test_execution.status = TestExecutionStatus.FAILED
+                test_execution.error_message = "Executor server API timeout"
+                test_execution.completed_at = timezone.now()
+                test_execution.save()
+                print(f"[DEBUG] Marked test {test_execution_id} as FAILED due to timeout")
+            except Exception as e:
+                print(f"[DEBUG] Error updating test {test_execution_id} after timeout: {str(e)}")
+                
+        except Exception as e:
+            print(f"\n[DEBUG] ❌ Unexpected error calling executor server API!")
+            print(f"[DEBUG] Error type: {type(e).__name__}")
+            print(f"[DEBUG] Error message: {str(e)}")
+            
+            logger.error(f"Error calling executor server API: {str(e)}")
+            
+            # Mark all tests as failed due to error
+            try:
+                test_execution.status = TestExecutionStatus.FAILED
+                test_execution.error_message = f"API error: {str(e)}"
+                test_execution.completed_at = timezone.now()
+                test_execution.save()
+                print(f"[DEBUG] Marked test {test_execution_id} as FAILED due to error")
+            except Exception as update_error:
+                print(f"[DEBUG] Error updating test {test_execution_id} after API error: {str(update_error)}")
+                
+        logger.info(f"Successfully queued abort for test execution {test_execution_id}")
+        
+    except TestCaseExecution.DoesNotExist:
+        logger.error(f"Test execution {test_execution_id} not found")
+    except Exception as e:
+        logger.error(f"Error aborting test execution {test_execution_id}: {str(e)}")
+        print(f"[ERROR] abort_test_execution - Error: {str(e)}")
 
 def ping_host(ip: str) -> bool:
     """
