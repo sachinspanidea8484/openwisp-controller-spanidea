@@ -4613,7 +4613,7 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
     """
     print(f"\n=== UPLOAD ALLURE REPORT START ===")
     print(f"Device Execution ID: {dev_id}")
-    print(f"Device Execution ID: {test_group_execution_id}")
+    print(f"Test Suite Execution ID: {test_group_execution_id}")
 
     print(f"Request Files: {request.FILES}")
     
@@ -4626,9 +4626,11 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
                 test_suite_execution=test_group_execution_id,
                 device=dev_id
             )
-        print(f"Found device execution: {device_execution}")
+        print(f"Found test suite device execution: {device_execution}")
         print(f"Device: {device_execution.device.name}")
         print(f"Status: {device_execution.status}")
+        
+
         
         # Step 2: Check if execution is in a valid state for report upload
         # Reports should only be uploaded for completed or failed executions
@@ -4658,11 +4660,22 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
         # Step 5: Generate a unique filename
         # Format: allure_report_<suite>_<device>_<timestamp>.html
         timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+
         # Replace spaces and slashes with underscores for safe filenames
         device_name = device_execution.device.name.replace(' ', '_').replace('/', '_')
-        suite_name = device_execution.test_suite_execution.test_suite.name.replace(' ', '_').replace('/', '_')
+
+        # Handle both test suite and individual test executions
+        test_suite = device_execution.test_suite_execution.test_suite
+        if test_suite:
+                 suite_name = test_suite.name.replace(' ', '_').replace('/', '_')
+        else:
+                 # For individual test executions, use a generic name or test execution name
+                 suite_name = "individual_test"
+
         filename = f"allure_report_{suite_name}_{device_name}_{timestamp}.html"
         print(f"Generated filename: {filename}")
+           
+        
         
         # Step 6: Define the save path (FIXED: using allure_report without 's')
         save_path = f"allure_report/{filename}"  # Changed from allure_reports to allure_report
