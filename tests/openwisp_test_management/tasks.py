@@ -705,7 +705,7 @@ def abort_test_execution(test_execution_id):
             "execution_id": str(test_execution_id),
             "test_type": test_execution.test_case.test_type,
             "device_communication_method": 3 , # 2: MQTT 3: SSH,
-            "connection_protocall" :  getattr(device_execution, 'connection_protocol', 0) or 0 # 0: MQTT 1: SSH SACHIN
+            "connection_protocol" :  getattr(device_execution, 'connection_protocol', 0) or 0 # 0: MQTT 1: SSH SACHIN CHANGES
         }
         print(f"\n[DEBUG] API Payload prepared")
         abort_api_url = f"{EXECUTOR_SERVER_IP}/api/v1/abort-test/"
