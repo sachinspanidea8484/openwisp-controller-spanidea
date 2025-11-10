@@ -79,7 +79,7 @@ TestSuiteCase = load_model("TestSuiteCase")
 TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestCaseExecution = load_model("TestCaseExecution")
-
+ScheduledExecution= load_model("ScheduledExecution")
 
 TestDeviceGroup = load_model("TestDeviceGroup")
 TestDeviceGroupDevice = load_model("TestDeviceGroupDevice")
@@ -4368,6 +4368,12 @@ def test_execution_history(request, execution_id):
             test_suite_name= "individual execution"
             test_suite_id = None
             total_test_cases= len(execution.individual_test_cases.all())
+        try:
+            is_scheduled_execution= ScheduledExecution.objects.filter(execution=execution).first()
+            scheduled_time= is_scheduled_execution.scheduled_time
+        except ScheduledExecution.DoesNotExist:
+            is_scheduled_execution = None
+            scheduled_time = None
         execution_data = {
             'execution_id': str(execution.pk),
             'execution_name' : execution.name,
@@ -4383,7 +4389,7 @@ def test_execution_history(request, execution_id):
             'completed_at': overall_end.isoformat() if overall_end else None,
             'status_display': execution.status_display,  # <-- added
             'status': execution.status,  # <-- added
-
+            'scheduled_time': scheduled_time,
             'device_count': execution.device_count,  # <-- added
             'testcase_count': execution.testcase_count,  # <-- added
 

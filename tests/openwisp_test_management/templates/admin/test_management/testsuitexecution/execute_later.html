@@ -354,6 +354,15 @@ document.addEventListener('DOMContentLoaded', function() {
         hideError();
     }
 
+    function syncFilteredSelects() {
+      if (typeof django !== "undefined" && django.jQuery) {
+          // Copy selected options from the right box to the original select
+          django.jQuery("select[multiple].filtered").each(function() {
+              const select = django.jQuery(this);
+              select.find("option").prop("selected", true);
+          });
+      }
+    }
     // Close button handlers
     closeBtn.addEventListener('click', closeModal);
     closeXBtn.addEventListener('click', closeModal);
@@ -424,6 +433,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         console.log("Submitting form with scheduled datetime:", datetime);
+        syncFilteredSelects();
         closeModal();
         form.submit();
     });
