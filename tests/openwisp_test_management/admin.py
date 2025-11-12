@@ -5,17 +5,13 @@ from django import forms
 from django.conf import settings
 
 from django.contrib import admin, messages
-from django.contrib.admin import helpers
-from django.contrib.admin.utils import model_ngettext
 from django.core.exceptions import PermissionDenied
-from django.template.response import TemplateResponse
 from django.http import JsonResponse
 from django.db import transaction
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 from reversion.admin import VersionAdmin
-from .base.models import TestTypeChoices
 import json
 from django.urls import path
 from django.shortcuts import get_object_or_404, render
@@ -24,17 +20,11 @@ import traceback
 import json
 from django.utils.translation import gettext_lazy as _
 from import_export.admin import ImportExportMixin
-
-
-import time
-from django.utils import timezone
 from django.core.validators import RegexValidator
-from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Device
 
 from reversion.models import Version
-from django.http import HttpResponseRedirect
-from django.urls import reverse
+from django.http import HttpResponse
 
 from openwisp_utils.admin import TimeReadonlyAdminMixin
 
@@ -74,6 +64,7 @@ TestDeviceGroupDevice = load_model("TestDeviceGroupDevice")
 
 from import_export import resources, fields
 from import_export.widgets import ForeignKeyWidget
+from import_export.formats import base_formats
 
 
 
@@ -87,15 +78,15 @@ class BaseVersionAdmin(TimeReadonlyAdminMixin, VersionAdmin):
     save_on_top = True
     list_per_page= 10
 
-class TestCategoryResource(resources.ModelResource):
+# class TestCategoryResource(resources.ModelResource):
     
-    class Meta:
-        model = TestCategory
+#     class Meta:
+#         model = TestCategory
     
-    def before_import_row(self, row, **kwargs):
-        # Replace None with empty string for description
-        if row.get('description') is None:
-            row['description'] = ''
+#     def before_import_row(self, row, **kwargs):
+#         # Replace None with empty string for description
+#         if row.get('description') is None:
+#             row['description'] = ''
 
 class TestCasesResource(resources.ModelResource):
     category= fields.Field(
@@ -151,7 +142,7 @@ class TestCasesResource(resources.ModelResource):
         if row.get('description') is None:
             row['description'] = ''
 
-# @admin.register(TestCategory)
+@admin.register(TestCategory)
 class TestCategoryAdmin(BaseVersionAdmin):
     list_display = [
         "name",
@@ -288,8 +279,27 @@ def delete_selected(self, request, queryset):
     delete_selected.short_description = _("Delete selected test categories")
 
 
-class TestCategoryExportable(ImportExportMixin, TestCategoryAdmin):
-    resource_class= TestCategoryResource
+# class TestCategoryExportable(ImportExportMixin, TestCategoryAdmin):
+#     resource_class= TestCategoryResource
+#     actions = TestCategoryAdmin.actions + ["export_selected_objects"]
+
+#     def export_selected_objects(self, request, queryset):
+#         if not queryset.exists():
+#             self.message_user(request, "No categories selected.", level=messages.WARNING)
+#             return
+
+#         dataset = self.resource_class().export(queryset)
+#         export_format = base_formats.XLSX()
+
+#         response = HttpResponse(
+#             dataset.xlsx,
+#             content_type=export_format.get_content_type()
+#         )
+#         response['Content-Disposition'] = 'attachment; filename=selected_test_categories.xlsx'
+#         return response
+
+#     export_selected_objects.short_description = _("Export selected test categories")
+
 
 class FormattedJSONField(forms.CharField):
     """Custom field that formats JSON for display"""
@@ -412,7 +422,7 @@ class TestCaseAdmin(BaseVersionAdmin):
     
     # Enable history button
     object_history_template = "reversion/object_history.html"
-    
+    change_list_template = 'admin/test_management/import_export/testcase/change_list.html'
     actions = ["delete_selected", "recover_deleted", "activate_cases", "deactivate_cases"]
 
         # ADD THIS NEW METHOD
@@ -611,9 +621,54 @@ class TestCaseAdmin(BaseVersionAdmin):
             messages.SUCCESS,
         )
 
+from django.shortcuts import redirect
+from django.urls import reverse
+
     
 class TestCasesExportable(ImportExportMixin, TestCaseAdmin):
     resource_class= TestCasesResource
+    actions = TestCaseAdmin.actions + ["export_selected_redirect"]
+
+    def export_selected_redirect(self, request, queryset):
+        """
+            this function help to navigate to export page from actions
+        """
+        if not queryset.exists():
+            self.message_user(request, "No test cases selected.", level=messages.WARNING)
+            return
+        
+        # make a single key for current session and store ids in it
+        key = f"export_ids_{self.model._meta.label_lower}"
+        request.session[key] = [str(pk) for pk in queryset.values_list("pk", flat=True)]
+
+        opts = self.model._meta
+        export_url = reverse(
+            f"admin:{opts.app_label}_{opts.model_name}_export",
+            current_app=self.admin_site.name,
+        )
+        # redirect to the export URL manually
+        return redirect(export_url)
+    
+    
+
+    def get_export_queryset(self, request):
+        """
+        Filter exported queryset based on ids stored in session
+        """
+        qs = super().get_export_queryset(request)
+        key = f"export_ids_{self.model._meta.label_lower}"
+
+        if request.method=="GET":
+            ids = request.session.get(key, None)
+        else:
+            ids= request.session.pop(key,None)
+
+        if ids:
+            qs = qs.filter(pk__in=ids)
+        
+        return qs
+    export_selected_redirect.short_description = "Export selected test cases"
+
 
 
 class TestSuiteAdminForm(forms.ModelForm):
@@ -2443,7 +2498,7 @@ class TestDeviceGroupDeviceInline(admin.TabularInline):
     def has_delete_permission(self, request, obj=None):
         return False
 
-admin.site.register(TestCategory, TestCategoryExportable)
+# admin.site.register(TestCategory, TestCategoryExportable)
 admin.site.register(TestCase,TestCasesExportable)
 # Register models with reversion for history tracking
 if not reversion.is_registered(TestCategory):
