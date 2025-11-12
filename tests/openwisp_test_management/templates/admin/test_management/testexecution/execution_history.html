@@ -593,6 +593,12 @@ function displayExecutionData(data) {
             
         </div>
 
+        ${data?.status === 4 ?
+            `<div class="summary-row">
+                <div class="summary-label">Scheduled Time:</div>
+                <div class="summary-value">${data?.scheduled_time}</div>
+            </div> `: ""     
+        }
          
 
     `;

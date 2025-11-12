@@ -1113,9 +1113,9 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
         if test_selection_type==1: 
             if not test_suite:
                 print(">>> ERROR: No test suite selected <<<")
-                # raise forms.ValidationError({
-                #     'test_suite': _('Please select a test group to execute.')
-                # })
+                raise forms.ValidationError({
+                    'test_suite': _('Please select a test group to execute.')
+                })
             cleaned_data['individual_test_cases']= TestCase.objects.none()
         elif test_selection_type==0:
             if not individual_test_cases or individual_test_cases.count()==0 :
@@ -1345,30 +1345,37 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                 raise forms.ValidationError({
                     'device_group': _('Invalid device group selected.')
                 })
-        if commit:
-            instance.save()
-            print(f">>> Instance saved to DB. ID: {instance.id} <<<")
+        instance.save()
+        self.save_m2m()
+
+        self.save_devices(instance)
+        if instance.test_selection_type ==0 :
+            instance.testcase_count = instance.individual_test_cases.all().count()
+            instance.save(update_fields=['testcase_count'])
+       
+         # if commit:
+        #     instance.save()
+        #     print(f">>> Instance saved to DB. ID: {instance.id} <<<")
             
-            self.save_m2m()
-            # Save devices after the instance is saved
-            self.save_devices(instance)
-            if instance.test_selection_type ==0 :
-                instance.testcase_count = instance.individual_test_cases.all().count()
-                instance.save(update_fields=['testcase_count'])
-            # self.create_test_case_executions(instance)
-        else:
-            # When commit=False, we need to add a hook to save devices later
-            print(">>> Commit=False, adding save_m2m hook for devices <<<")
-            old_save_m2m = self.save_m2m
-            def save_m2m():
-                old_save_m2m()
-                print(">>> save_m2m called, now saving devices <<<")
-                self.save_devices(instance)
-                # self.create_test_case_executions(instance)
-                if instance.test_selection_type ==0 :
-                    instance.testcase_count = instance.individual_test_cases.all().count()
-                    instance.save(update_fields=['testcase_count'])
-            self.save_m2m = save_m2m
+        #     self.save_m2m()
+        #     # Save devices after the instance is saved
+        #     self.save_devices(instance)
+        #     if instance.test_selection_type ==0 :
+        #         instance.testcase_count = instance.individual_test_cases.all().count()
+        #         instance.save(update_fields=['testcase_count'])
+        #     # self.create_test_case_executions(instance)
+        # else:
+        #     # When commit=False, we need to add a hook to save devices later
+        #     print(">>> Commit=False, adding save_m2m hook for devices <<<")
+            
+        #     # self.save_m2m()
+        #     self.save_devices(instance)
+        #         # self.create_test_case_executions(instance)
+        #     print(">>>>>>>>>>>>>>>>>>>>>>>instance", instance.__dict__)
+        #     if instance.test_selection_type ==0 :
+        #         instance.testcase_count = instance.individual_test_cases.all().count()
+        #         insta
+           
         
         print(f">>> SAVE METHOD COMPLETED. Returning instance: {instance} <<<")
         return instance
@@ -1701,8 +1708,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         if hasattr(form, 'save_devices'):
             form.save_devices(obj)
 
-        # if hasattr(form, 'create_test_case_executions'):
-        #     form.create_test_case_executions(obj)
+     
 
         # FIX: absolute import
         from openwisp_test_management.swapper import load_model

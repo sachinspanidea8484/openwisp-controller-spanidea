@@ -453,15 +453,16 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         verbose_name_plural = _("Test Executions")
         ordering = ["-created"]
 
-    def clean(self):
-        """Validate the test suite execution"""
-        super().clean()
+    # def clean(self):
+    #     """Validate the test suite execution"""
+    #     super().clean()
+    #     print("clean modelsssss")
 
-        if self.test_selection_type == 1:  # Test Suite mode
-            if not self.test_suite_id:
-                raise ValidationError({
-                    'test_suite': _('Test suite is required when selection type is "Test Suite"')
-                })
+    #     if self.test_selection_type == 1:  # Test Suite mode
+    #         if not self.test_suite_id:
+    #             raise ValidationError({
+    #                 'test_suite': _('Test suite is required when selection type is "Test Suite"')
+    #             })
         ########## Note: M2M validation happens in form (can't access M2M in model.clean() before save)
 
     def get_selected_test_cases(self):
