@@ -2866,16 +2866,23 @@ class TestRunningResultView(APIView):
                     "error": f"Invalid status: {new_status}. Must be one of {list(status_mapping.keys())}"
                 }, status=status.HTTP_400_BAD_REQUEST)
             
+            # Extract process_id
+            process_id = data.get('process_id')
             execution_status = status_mapping[new_status]
             if execution_status == TestExecutionStatus.RUNNING:
                 execution.status = execution_status
                 execution.started_at = started_at
+                if data.get('process_id'):
+                    execution.process_id = process_id
+                else:
+                    execution.process_id = 0
             elif execution_status == TestExecutionStatus.ABORTED:
                 execution.status = execution_status
                 execution.completed_at = timezone.now()
+                execution.process_id = 0
             
             execution.save(update_fields=[
-                    'status', 'started_at', 
+                    'status', 'started_at', 'process_id' 
                 ])
             
             # Prepare response

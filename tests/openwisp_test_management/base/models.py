@@ -449,7 +449,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
 
     class Meta:
         abstract = True
-        verbose_name = _("Test Group Execution")
+        verbose_name = _("Test Execution")
         verbose_name_plural = _("Test Executions")
         ordering = ["-created"]
 
@@ -899,6 +899,14 @@ class AbstractTestCaseExecution(TimeStampedEditableModel):
         help_text=_("Order in which this test case should be executed within the suite")
     )
     
+    #Process ID
+    process_id = models.IntegerField(
+        _("Process ID"),
+        null=True,
+        blank=True,
+        help_text=_("Process ID returned by executor server.")
+    )
+
     # Results and output
     exit_code = models.IntegerField(
         _("exit code"),
