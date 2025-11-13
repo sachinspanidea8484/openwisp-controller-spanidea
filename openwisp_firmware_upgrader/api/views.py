@@ -26,6 +26,7 @@ from .serializers import (
     FirmwareImageSerializer,
     UpgradeOperationSerializer,
 )
+from ..hardware import FIRMWARE_IMAGE_MAP
 from django.conf import settings
 import json
 import requests
@@ -378,10 +379,23 @@ class FirmwareUpgradeView( APIView):
 
         try:
             with transaction.atomic():
-                device_id= Device.objects.get(name= device_name).id
+                device_data= Device.objects.get(name= device_name)
+                device_id= device_data.id
+                device_model= device_data.model
+                
                 if not device_id:
                     return Response(
                         {"error": "No device found with given name."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if firmware_image_type not in FIRMWARE_IMAGE_MAP:
+                    return Response(
+                        {"error": "No related firmware image type found."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                elif device_model not in FIRMWARE_IMAGE_MAP[firmware_image_type]["boards"]:
+                    return Response(
+                        {"error": "Device is not compatible with this image type."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 #  Create or get Category
@@ -398,6 +412,12 @@ class FirmwareUpgradeView( APIView):
                         defaults={"description": category_data.get("description", "")},
                     )
                 # Create or get Build
+                is_org_has_this_build= Build.objects.filter(category__organization=category.organization, os=build_data.get("os", "")).exists()
+                if is_org_has_this_build:
+                    return Response(
+                        {"error": f'A build with this OS identifier ("{build_data.get("os", "")}") and organization ("{category.organization}") already exists'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
                 build, created = Build.objects.get_or_create(
                     category=category,
                     version=build_data["version"],
@@ -457,10 +477,21 @@ class FirmwareUpgradeView( APIView):
                 #  Trigger batch upgrade
                 
                 uo_model = load_model("UpgradeOperation")
-                is_already_upgraded= uo_model.objects.filter(device=device, image= firmware_image, status__in=["success", "in-progress"]).exists()
-                if is_already_upgraded:
+                is_upgrade_in_progress= uo_model.objects.filter(device=device,status="in-progress").exists()
+                if is_upgrade_in_progress:
                     return Response(
-                        {"error": "This device is already upgraded or in progress with given version of firmware image build."},
+                        {"error": "This device is already in-progress with an upgrade"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                last_success_upgrade_image=(
+                    uo_model.objects.filter(device=device, status="success")
+                    .order_by("-modified")
+                    .values_list("image", flat=True)
+                    .first()
+                )
+                if last_success_upgrade_image==firmware_image.id:
+                    return Response(
+                        {"error": "This device is already upgraded with given version of firmware image build."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 operation = uo_model(
