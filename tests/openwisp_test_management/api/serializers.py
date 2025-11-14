@@ -405,7 +405,7 @@ class TestSuiteExecutionSerializer(ValidatedModelSerializer):
     def validate_test_suite(self, value):
         """Ensure test suite is active"""
         if not value.is_active:
-            raise serializers.ValidationError(_("Test suite must be active"))
+            raise serializers.ValidationError(_("Test group must be active"))
         return value
     
     def create(self, validated_data):
@@ -578,7 +578,7 @@ class TestSuiteExecutionDeleteSerializer(serializers.Serializer):
     confirm = serializers.BooleanField(
         required=False,
         default=False,
-        help_text=_("Confirm deletion of test suite execution and all related data")
+        help_text=_("Confirm deletion of test group execution and all related data")
     )
     
     def validate_confirm(self, value):
@@ -707,10 +707,10 @@ class BulkTestDataCreationSerializer(serializers.Serializer):
         required_fields = ['name']
         for field in required_fields:
             if field not in value:
-                raise serializers.ValidationError(f"Test suite must have '{field}' field")
+                raise serializers.ValidationError(f"Test group must have '{field}' field")
         
         if not value.get('name', '').strip():
-            raise serializers.ValidationError("Test suite name cannot be empty")
+            raise serializers.ValidationError("Test group name cannot be empty")
         
         return value
     

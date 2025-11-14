@@ -316,7 +316,7 @@ class TestSuiteExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDes
         
         if instance.is_executed:
             return Response(
-                {"detail": _("Cannot delete executed test suite executions")},
+                {"detail": _("Cannot delete executed test executions")},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -1009,7 +1009,7 @@ class AddDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
                                 "id": str(test_case_1.id),
                                 "name": test_case_1.name,
                                 "test_case_id": test_case_1.test_case_id,
-                                "test_type": "Device Agent"
+                                "test_type": "Device"
                             },
                             # {
                             #     "id": str(test_case_2.id),
@@ -1137,7 +1137,7 @@ class AddFireWallGDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
                                 "id": str(test_case_1.id),
                                 "name": test_case_1.name,
                                 "test_case_id": test_case_1.test_case_id,
-                                "test_type": "Device Agent"
+                                "test_type": "Device"
                             },
   
                         ],
@@ -1264,7 +1264,7 @@ class AddWifiGDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
                                 "id": str(test_case_1.id),
                                 "name": test_case_1.name,
                                 "test_case_id": test_case_1.test_case_id,
-                                "test_type": "Device Agent"
+                                "test_type": "Device"
                             },
   
                         ],
@@ -1386,7 +1386,7 @@ class AddFiveGDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
                                 "id": str(test_case_1.id),
                                 "name": test_case_1.name,
                                 "test_case_id": test_case_1.test_case_id,
-                                "test_type": "Device Agent"
+                                "test_type": "Device"
                             },
   
                         ],
@@ -1506,7 +1506,7 @@ class AddLoggingDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
                                 "id": str(test_case_1.id),
                                 "name": test_case_1.name,
                                 "test_case_id": test_case_1.test_case_id,
-                                "test_type": "Device Agent"
+                                "test_type": "Device"
                             },
   
                         ],
@@ -1790,13 +1790,13 @@ def add_device_test_data(request):
                             "id": str(test_case_1.id),
                             "name": test_case_1.name,
                             "test_case_id": test_case_1.test_case_id,
-                            "test_type": "Device Agent"
+                            "test_type": "Device"
                         },
                         {
                             "id": str(test_case_2.id),
                             "name": test_case_2.name,
                             "test_case_id": test_case_2.test_case_id,
-                            "test_type": "Device Agent"
+                            "test_type": "Device"
                         }
                     ],
                     "test_suite": {
@@ -4415,9 +4415,13 @@ def test_execution_history(request, execution_id):
             test_suite_name= "individual execution"
             test_suite_id = None
             total_test_cases= len(execution.individual_test_cases.all())
+
+        scheduled_time=None
         try:
             is_scheduled_execution= ScheduledExecution.objects.filter(execution=execution).first()
-            scheduled_time= is_scheduled_execution.scheduled_time
+            if is_scheduled_execution:
+                scheduled_time= is_scheduled_execution.scheduled_time
+                
         except ScheduledExecution.DoesNotExist:
             is_scheduled_execution = None
             scheduled_time = None

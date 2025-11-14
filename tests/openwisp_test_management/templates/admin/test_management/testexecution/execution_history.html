@@ -420,6 +420,13 @@
   border-radius: 4px;
   font-weight: bold;
 }
+.status-4{
+    background-color: orange;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+}
 .section-header{
     display: flex;
     justify-content: space-between;
@@ -596,7 +603,10 @@ function displayExecutionData(data) {
         ${data?.status === 4 ?
             `<div class="summary-row">
                 <div class="summary-label">Scheduled Time:</div>
-                <div class="summary-value">${data?.scheduled_time}</div>
+                <div class="summary-value">${(() => {
+                    const d = new Date(data?.scheduled_time);
+                    return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth()+1).padStart(2, '0')}-${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                })()}</div>
             </div> `: ""     
         }
          
@@ -624,7 +634,7 @@ function displayExecutionData(data) {
                     
             // --- Group test cases by type ---
             const robotTests = (device.test_cases || []).filter(t => t.test_type === "Robot Framework");
-            const agentTests = (device.test_cases || []).filter(t => t.test_type === "Device Agent");
+            const agentTests = (device.test_cases || []).filter(t => t.test_type === "Device");
             agentTestStore[device.device_execution_id] = agentTests;
             // Function to build a test case table
             const buildTable = (tests) => {
@@ -738,7 +748,7 @@ function displayExecutionData(data) {
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                                         d="M9 5l7 7-7 7" />
                                 </svg>
-                                <h3>Device Agent Tests</h3>
+                                <h3>Device Tests</h3>
                             </div>
                            
                         </div>
@@ -1077,7 +1087,7 @@ function openDeviceAgentReport(deviceId) {
     const html = `
         <html>
         <head>
-            <title>Device Agent Report</title>
+            <title>Device Report</title>
             <style>
                body {
                     margin: 0;
@@ -1300,7 +1310,7 @@ function openDeviceAgentReport(deviceId) {
         </head>
         <body>
             <div class="left-panel">
-                <h2>Device Agent Report</h2>
+                <h2>Device Report</h2>
                 <table>
                     <thead>
                         <tr>

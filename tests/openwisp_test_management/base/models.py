@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 # ADD THIS NEW ENUM CLASS HERE
 class TestTypeChoices(models.IntegerChoices):
     ROBOT_FRAMEWORK = 1, _('Robot Framework')
-    AGENT = 2, _('Device Agent')
+    AGENT = 2, _('Device')
 
 class TestExecutionStatus(models.TextChoices):
     PENDING = 'pending', _('Pending')
@@ -136,7 +136,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         _("Test Type"),
         choices=TestTypeChoices.choices,
         default=TestTypeChoices.ROBOT_FRAMEWORK,
-        help_text=_("Type of test: Robot Framework or Device Agent ")
+        help_text=_("Type of test: Robot Framework or Device")
     )
     params = models.JSONField(
         _("Parameters"),
@@ -378,8 +378,8 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         (1, _('Device Group')),
     )
     TEST_SELECTION_CHOICES = (
-        (0, _('Individual Test Cases')),
-        (1, _('Test Suite')),
+        (0, _('Individual')),
+        (1, _('Group')),
     )
     name = models.CharField(
         _("Test Execution Name"), 
@@ -392,14 +392,14 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         choices=TEST_SELECTION_CHOICES,
         default=1,  # Default to Test Suite for backward compatibility
         db_index=True,
-        help_text=_("Select individual test cases or a test suite")
+        help_text=_("Select individual test cases or a test Group")
     )
     test_suite = models.ForeignKey(
         'test_management.TestSuite',
         on_delete=models.PROTECT,
         related_name='executions',
         verbose_name=_("Select Test Group"),
-        help_text=_("Test suite to execute (required if selection type is 'Test Suite')"),
+        help_text=_("Test Group to execute (required if selection type is 'Test Group')"),
         null=True,
         blank=True,
     )
@@ -688,7 +688,7 @@ class AbstractTestSuiteExecutionDevices(TimeStampedEditableModel):
         'test_management.TestSuiteExecution',
         on_delete=models.CASCADE,
         related_name='devices',
-        verbose_name=_("test suite execution")
+        verbose_name=_("test execution")
     )
     device = models.ForeignKey(
         'config.Device',
@@ -728,8 +728,8 @@ class AbstractTestSuiteExecutionDevices(TimeStampedEditableModel):
     
     class Meta:
         abstract = True
-        verbose_name = _("Test Suite Execution Device")
-        verbose_name_plural = _("Test Suite Execution Devices")
+        verbose_name = _("Test Group Execution Device")
+        verbose_name_plural = _("Test Group Execution Devices")
         unique_together = ("test_suite_execution", "device")
         ordering = ["test_suite_execution", "device"]
     
@@ -750,7 +750,7 @@ class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
         'test_management.TestSuiteExecution',
         on_delete=models.CASCADE,
         related_name='devices',
-        verbose_name=_("test suite execution")
+        verbose_name=_("test Group execution")
     )
     device = models.ForeignKey(
         'config.Device',
@@ -805,8 +805,8 @@ class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
     
     class Meta:
         abstract = True
-        verbose_name = _("Test Suite Execution Device")
-        verbose_name_plural = _("Test Suite Execution Devices")
+        verbose_name = _("Test Group Execution Device")
+        verbose_name_plural = _("Test Group Execution Devices")
         unique_together = ("test_suite_execution", "device")
         ordering = ["test_suite_execution", "device"]
     
@@ -851,8 +851,8 @@ class AbstractTestCaseExecution(TimeStampedEditableModel):
         'test_management.TestSuiteExecution',
         on_delete=models.CASCADE,
         related_name='test_case_executions',
-        verbose_name=_("test suite execution"),
-        help_text=_("The parent test suite execution")
+        verbose_name=_("test group execution"),
+        help_text=_("The parent test group execution")
     )
     device = models.ForeignKey(
         'config.Device',

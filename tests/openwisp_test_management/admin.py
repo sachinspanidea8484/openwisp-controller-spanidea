@@ -42,7 +42,7 @@ from .filters import (
 from .swapper import load_model
 from openwisp_users.multitenancy import MultitenantOrgFilter, MultitenantRelatedOrgFilter
 from django.contrib.admin.widgets import RelatedFieldWidgetWrapper
-
+from import_export.widgets import Widget
 logger = logging.getLogger(__name__)
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
@@ -65,7 +65,7 @@ TestDeviceGroupDevice = load_model("TestDeviceGroupDevice")
 from import_export import resources, fields
 from import_export.widgets import ForeignKeyWidget
 from import_export.formats import base_formats
-
+from django.db import models
 
 
 
@@ -87,12 +87,33 @@ class BaseVersionAdmin(TimeReadonlyAdminMixin, VersionAdmin):
 #         # Replace None with empty string for description
 #         if row.get('description') is None:
 #             row['description'] = ''
+class TestTypeChoices(models.IntegerChoices):
+    ROBOT_FRAMEWORK = 1, _('Robot Framework')
+    AGENT = 2, _('Device')
 
+class ChoicesWidget(Widget):
+    def __init__(self, choices):
+        self.choices = dict(choices)
+        self.reverse_choices = {v: k for k, v in self.choices.items()}
+
+    def render(self, value, obj=None, **kwargs):
+        """Convert integer → readable text for export"""
+        return self.choices.get(value, "")
+
+    def clean(self, value, row=None, **kwargs):
+        """Convert readable text → integer for import"""
+        return self.reverse_choices.get(value, None)
+   
 class TestCasesResource(resources.ModelResource):
     category= fields.Field(
         column_name="category_name",
         attribute="category",
         widget=ForeignKeyWidget(TestCategory,"name")
+    )
+    test_type = fields.Field(
+        column_name="test_type",
+        attribute="test_type",
+        widget=ChoicesWidget(TestTypeChoices.choices),
     )
 
     class Meta:
@@ -1059,7 +1080,7 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['test_selection_type'].widget= forms.RadioSelect(choices=self.fields['test_selection_type'].choices)
         self.fields['device_selection'].widget = forms.RadioSelect(choices=self.fields['device_selection'].choices)
-      
+        self.fields['individual_test_cases'].widget.can_add_related= False
 
         if getattr(self.instance, "status", None) not in [0,4]:
             self.fields['device_selection'].disabled = True
@@ -1078,7 +1099,7 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
         if "test_suite" in self.fields:
             self.fields["test_suite"].required=False
             self.fields["test_suite"].help_text = _(
-                "Select a test suite to execute (required if selection type is 'Test Suite')"
+                "Select a test Group to execute (required if selection type is 'Test Group')"
             )
             self.fields["test_suite"].queryset = TestSuite.objects.filter(
                 is_active=True
@@ -1097,7 +1118,7 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
         fields = ['name','test_selection_type','test_suite','individual_test_cases', 'device_selection']
         labels = {
             'name' : _('Enter Execution Name'),
-            'test_selection_type' : _('Test Selection Type'),
+            'test_selection_type' : _('Test Case Selection Type'),
             'test_suite': _('Select Test Group'),
             'individual_test_cases': _('Select Test Cases'),
             'device_selection' :_('Device Selection Type'),
@@ -1431,7 +1452,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         """Display test selection type with icon"""
         if obj.test_selection_type == 1:
             return format_html(
-                '<span title="Test Suite">Suite</span>'
+                '<span title="Test Group">Group</span>'
             )
         else:
             return format_html(
@@ -1801,14 +1822,14 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             if request:
                 self.message_user(
                     request,
-                    _(f"{count} test suite(s) are currently running or queued. Skipping these."),
+                    _(f"{count} test Group(s) are currently running or queued. Skipping these."),
                     messages.WARNING
                 )
             
         # Scheduled for future
         if future_scheduled.exists():
             count = future_scheduled.count()
-            msg = f"{count} test suite(s) already scheduled for future execution."
+            msg = f"{count} test Group(s) already scheduled for future execution."
             if request:
                 self.message_user(request, _(msg), messages.WARNING)
         
