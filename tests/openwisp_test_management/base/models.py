@@ -449,7 +449,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
 
     class Meta:
         abstract = True
-        verbose_name = _("Test Group Execution")
+        verbose_name = _("Test Execution")
         verbose_name_plural = _("Test Executions")
         ordering = ["-created"]
 

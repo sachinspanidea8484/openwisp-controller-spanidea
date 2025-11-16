@@ -4417,7 +4417,10 @@ def test_execution_history(request, execution_id):
             total_test_cases= len(execution.individual_test_cases.all())
         try:
             is_scheduled_execution= ScheduledExecution.objects.filter(execution=execution).first()
-            scheduled_time= is_scheduled_execution.scheduled_time
+            if is_scheduled_execution:
+                scheduled_time= is_scheduled_execution.scheduled_time
+            else:
+                scheduled_time=None
         except ScheduledExecution.DoesNotExist:
             is_scheduled_execution = None
             scheduled_time = None
