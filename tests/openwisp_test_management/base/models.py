@@ -11,6 +11,14 @@ from openwisp_users.mixins import OrgMixin
 from openwisp_utils.base import TimeStampedEditableModel
 
 logger = logging.getLogger(__name__)
+from pathlib import Path
+from .. import settings as app_settings
+from private_storage.fields import PrivateFileField
+
+def get_build_directory(instance, filename):
+    build_pk = str(instance.name)
+    # return "/".join([STORED_DATA_DIR,build_pk, filename])
+    return f"{build_pk}/{filename}"
 
 # ADD THIS NEW ENUM CLASS HERE
 class TestTypeChoices(models.IntegerChoices):
@@ -94,7 +102,7 @@ class AbstractTestCategory(TimeStampedEditableModel):
         # Categories with test cases or test suites cannot be deleted
         return self.test_case_count == 0 
 
-
+from openwisp_test_management.private_storage.storage import zip_storage
 class AbstractTestCase(TimeStampedEditableModel):
     """
     Abstract model for Test Cases
@@ -144,6 +152,15 @@ class AbstractTestCase(TimeStampedEditableModel):
         blank=True,
         help_text=_("Optional parameters for test case execution in JSON format. "
                     "These parameters can be used to customize test case behavior.")
+    )
+    file = PrivateFileField(
+        "Test Script",
+        upload_to="zip/",
+        max_file_size=app_settings.MAX_FILE_SIZE,
+        storage=zip_storage,
+        max_length=255,
+        null=True,
+        help_text=_("Upload Test Script file.")
     )
     class Meta:
         abstract = True
