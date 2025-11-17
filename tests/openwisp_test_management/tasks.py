@@ -358,7 +358,7 @@ def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite
     
     print(f"\n[DEBUG] Test Cases to Execute:")
     for idx, test_case in enumerate(test_suite_data_fixed.get('test_cases', []), 1):
-        test_type_display = "Robot Framework" if test_case.get('test_type') == 1 else "Device Agent"
+        test_type_display = "Robot Framework" if test_case.get('test_type') == 1 else "Device"
         print(f"  {idx}. Test Case ID: {test_case.get('test_case_id', 'N/A')}")
         print(f"     Test Case Name: {test_case.get('test_case_name', 'N/A')}")
         print(f"     Test Type: {test_type_display}")

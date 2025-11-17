@@ -104,7 +104,7 @@
         $(document).ready(function () {
             // Initialize Select2 on test suite dropdown
             $('#id_test_suite').select2({
-                placeholder: "{% trans 'Select a test suite' %}",
+                placeholder: "{% trans 'Select a test Group' %}",
                 allowClear: true,
                 width: '100%',
                 maximumSelectionLength: 1
@@ -162,7 +162,7 @@
                 const devices = $('#id_devices').val();
 
                 if (!testSuite) {
-                    alert("{% trans 'Please select a test suite' %}");
+                    alert("{% trans 'Please select a test Group' %}");
                     e.preventDefault();
                     return false;
                 }

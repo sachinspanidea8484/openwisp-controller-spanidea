@@ -152,7 +152,7 @@
     function updateHelpText() {
       if (testTypeField.value === "2") {
         helpText.textContent =
-          "The Device agent will run test cases directly on the Device.";
+          "The Device will run test cases directly on the Device.";
       } else if (testTypeField.value === "1") {
         helpText.textContent =
           "The test type Robot Framework defines the test cases that will run through Robot Framework.";
@@ -167,7 +167,7 @@
         <div class="info-content">
           <ol>
             <li>The test type Robot Framework defines the test cases that will run through Robot Framework.</li>
-            <li>The Device agent will run test cases directly on the Device.</li>
+            <li>The Device will run test cases directly on the Device.</li>
            
           </ol>
         </div>

@@ -90,8 +90,8 @@ django.jQuery(function ($) {
   if (window.location.hash) {
     showFragment(window.location.hash);
   } else {
-    $("ul.tabs li:first-child a").addClass("current");
-    overview.addClass("current");
+    const firstTab = $("ul.tabs li:first-child a");
+    showTab(firstTab); 
   }
 
   // if there's any validation error, show the first one

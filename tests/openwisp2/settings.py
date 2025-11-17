@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 # Load the .env file
 load_dotenv()
 
-
+from import_export.formats.base_formats import XLSX,CSV
 ROBOT_API_URL: str = os.getenv('ROBOT_API_URL', "http://44.199.94.165")
 OPENWISP_BASE_URL: str = os.getenv('OPENWISP_BASE_URL', "http://44.193.103.240")
 
@@ -35,7 +35,7 @@ ACCOUNT_EMAIL_VERIFICATION = "optional"  # or "none" for dev/testing
 
 ACCOUNT_LOGIN_METHODS = ["username", "email", "phone"]
 
-
+IMPORT_EXPORT_FORMATS=[CSV,XLSX]
 
 
 
