@@ -2829,7 +2829,8 @@ class TestRunningResultView(APIView):
             
             # Extract execution_id
             execution_id = data.get('execution_id')
-            started_at= parse_datetime(data.get('started_at'))
+            if data.get('started_at'):
+                started_at= parse_datetime(data.get('started_at'))
             if not execution_id:
                 return Response({
                     "error": "execution_id is required"
@@ -4688,7 +4689,60 @@ def retry_device_tests(request, device_execution_id):
             'error': 'Failed to retry device tests',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
+
+@api_view(['POST'])
+@authentication_classes([CsrfExemptSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def test_execution_abort(request, execution_id):
+    """
+    Abort test execution
+    """
+    try:
+        execution = TestSuiteExecution.objects.get(pk=execution_id)
+
+        # Get all execution devices
+        execution_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device').order_by('device__name')
+
+        print("device_exec>>>>>",execution_devices)
+        from ..tasks import abort_test_execution as abort_task
+        from ..tasks import abort_test_execution_pending_tests as abort_pending_tests
+        #First abort all pending tests
+        abort_pending_tests(execution_id)
+        # Get the device execution
+        for device_execution in execution_devices:
+            device = device_execution.device
+
+            # Get all running test executions for this device
+            running_tests = TestCaseExecution.objects.filter(
+                test_suite_execution=device_execution.test_suite_execution,
+                device=device_execution.device,
+                status='running'
+            )
+            #Abort running tests for this device
+            for test in running_tests:
+                abort_task.delay(str(test.pk))
+
+        return Response({
+            'success': True,
+            'message': f'Aborting running and pending tests for test execution',
+            'device_execution_id': str(execution_id)
+        }, status=status.HTTP_200_OK)
+
+    except TestSuiteExecution.DoesNotExist:
+        return Response({
+            'success': False,
+            'error': 'Test execution not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error aborting test execution: {str(e)}")
+        return Response({
+            'success': False,
+            'error': 'Failed to abort test execution',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])

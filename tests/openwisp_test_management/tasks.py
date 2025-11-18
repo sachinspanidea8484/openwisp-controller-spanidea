@@ -625,6 +625,54 @@ def retry_test_execution(test_execution_id):
 
 
 @shared_task
+def abort_test_execution_pending_tests(test_group_execution_id):
+    """
+    Abort all pending tests for test execution
+    """
+    try:
+        abort_pending_tests_api_url = f"{EXECUTOR_SERVER_IP}/api/v1/abort-pending-tests/"
+        abort_pending_tests_api_payload = {
+            "test_group_execution_id": str(test_group_execution_id)
+        }
+        # Check if API is reachable first
+        try:
+            print(f"🔄 [DEBUG] Checking if executor server is reachable....")
+            base_url = abort_pending_tests_api_url.rsplit('/', 2)[0]
+            test_response = requests.get(base_url, timeout=60)
+            print(f"✅ [DEBUG] Executor server is reachable at {base_url}")
+        except Exception as e:
+            print(f"❌ [ERROR] Cannot reach executor server: {e}")
+            print(f"⚠️  [ERROR] Make sure the server at {abort_pending_tests_api_url} is running")
+            return
+
+        print(f"[DEBUG] Sending abort pending tests request to executor server...")
+        response = requests.post(
+                abort_pending_tests_api_url,
+                json=abort_pending_tests_api_payload,
+                timeout=300  # Quick timeout just to submit the job
+            )
+        print(f"\n[DEBUG] API Response:")
+        print(f"[DEBUG] Status Code: {response.status_code}")
+        print(f"[DEBUG] Response Headers: {dict(response.headers)}")
+        
+        try:
+            response_json = response.json()
+            print(f"[DEBUG] Response Body: {response_json}")
+        except:
+            print(f"[DEBUG] Response Body (text): {response.text[:500]}...")
+        
+        if response.status_code == 200:
+            logger.info("Executor server API called successfully")
+            print(f"\n[DEBUG] ✅ API call successful! Tests submitted to executor server")
+        else:
+            logger.error(f"Executor server API call failed: {response.status_code}")
+            print(f"\n[DEBUG] ❌ API call failed! Status: {response.status_code}")
+    except Exception as e:
+        logger.error(f"Error aborting pending tests for test execution {test_group_execution_id}: {str(e)}")
+        print(f"[ERROR] abort_test_execution_pending_tests - Error: {str(e)}")
+
+
+@shared_task
 def abort_test_execution(test_execution_id):
     """
     Abort a running test execution
@@ -744,6 +792,7 @@ def abort_test_execution(test_execution_id):
                 json=api_payload,
                 timeout=300  # Quick timeout just to submit the job
             )
+                
         
             print(f"\n[DEBUG] API Response:")
             print(f"[DEBUG] Status Code: {response.status_code}")
