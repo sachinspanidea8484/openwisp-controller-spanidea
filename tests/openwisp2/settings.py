@@ -281,12 +281,12 @@ MEDIA_ROOT = "/opt/openwisp/media/"  # Absolute path in container
 
 from pathlib import Path
 ROOT_PATH= Path(__file__).resolve().parent.parent
-# TEST_SCRIPT_MEDIA_ROOT= ROOT_PATH   / "media"
+# TEST_SCRIPT_MEDIA_ROOT= ROOT_PATH   / "media/test_case"
 # TEST_SCRIPT_MEDIA_URL="/test-script-media/"
 TEST_SCRIPT_MEDIA_ROOT= "/opt/openwisp/media/test_case"
 TEST_SCRIPT_MEDIA_URL="/media/"
 CORS_ORIGIN_ALLOW_ALL = True
-TEST_SCRIPT_MEDIA_ROOT_ZIP= "/opt/openwisp/media/zip"
+TEST_SCRIPT_MEDIA_ROOT_ZIP= "/opt/openwisp/media"
 
 # firmware
 PRIVATE_STORAGE_ROOT = "/opt/openwisp/private/firmware"
