@@ -577,8 +577,13 @@ def retry_test_execution(test_execution_id):
         
         # ===== CHANGED: Always send to executor server for retry =====
         test_case = test_execution.test_case
-        device_config = DeviceConfig.objects.filter(device=device).first()
+        test_suite_name = ""
+        test_suite_id = ""
+        if test_suite_execution.test_selection_type == 1:
+            test_suite_name = test_suite_execution.test_suite.name
+            test_suite_id = test_suite_execution.test_suite.id
 
+        device_config = DeviceConfig.objects.filter(device=device).first()
         # Prepare data for executor server
         device_data = {
             "device_name": device.name,
@@ -593,8 +598,8 @@ def retry_test_execution(test_execution_id):
         }
         
         test_suite_data = {
-            "test_suite_name": test_suite_execution.test_suite.name,
-            "test_suite_id": test_suite_execution.test_suite.id,
+            "test_suite_name": test_suite_name,
+            "test_suite_id": test_suite_id,
             "test_suite_execution_id": test_suite_execution.id,
             "test_cases": [{
                 "test_case_id": test_case.test_case_id,

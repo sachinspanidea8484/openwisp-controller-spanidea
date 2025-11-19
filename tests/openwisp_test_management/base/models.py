@@ -157,7 +157,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         ]
 
     def __str__(self):
-        return f"{self.category.name} - {self.name} ({self.get_test_type_display()})"
+        return f"{self.name}"
 
 
     def clean(self):
