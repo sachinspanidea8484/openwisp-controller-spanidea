@@ -36,7 +36,7 @@ def extract_zip_after_upload(sender, instance, created, **kwargs):
                                 continue
 
                             base,ext= os.path.splitext(filename)
-                            new_filename= f"{instance.test_case_id}_{base}{ext}"
+                            new_filename= f"{instance.test_case_id}{ext}"
                             dest_path= os.path.join(extract_to, new_filename)
 
                             with zip_ref.open(member) as source, open(dest_path,"wb") as target:
