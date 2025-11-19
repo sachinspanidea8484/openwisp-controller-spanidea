@@ -130,8 +130,7 @@ class AbstractTestCase(TimeStampedEditableModel):
     )
     description = models.TextField(
         _("Description"),
-        blank=True,
-        max_length=1000,
+        max_length=10000,
         help_text=_("Detailed description of what this test does")
     )
     # Additional fields for future use
