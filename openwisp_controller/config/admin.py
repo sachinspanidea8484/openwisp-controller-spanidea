@@ -422,7 +422,7 @@ class ConfigForm(AlwaysHasChangedMixin, BaseForm):
         # widgets = {"config": JsonSchemaWidget, "context": JsonSchemaWidget}
 
 
-        labels = {"context": _("Configuration Variables")}
+        labels = {"context": _("Configuration Variables") , "test_case_context": _("Test Case Params"),}
         help_texts = {
             "context": _(
                 "In this section it's possible to override the default values of "
@@ -449,6 +449,7 @@ class ConfigInline(
         "templates",
         "system_context",
         "context",
+        "test_case_context",
         "config",
         "created",
         "modified",
