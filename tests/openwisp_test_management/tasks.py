@@ -577,8 +577,13 @@ def retry_test_execution(test_execution_id):
         
         # ===== CHANGED: Always send to executor server for retry =====
         test_case = test_execution.test_case
-        device_config = DeviceConfig.objects.filter(device=device).first()
+        test_suite_name = ""
+        test_suite_id = ""
+        if test_suite_execution.test_selection_type == 1:
+            test_suite_name = test_suite_execution.test_suite.name
+            test_suite_id = test_suite_execution.test_suite.id
 
+        device_config = DeviceConfig.objects.filter(device=device).first()
         # Prepare data for executor server
         device_data = {
             "device_name": device.name,
@@ -593,8 +598,8 @@ def retry_test_execution(test_execution_id):
         }
         
         test_suite_data = {
-            "test_suite_name": test_suite_execution.test_suite.name,
-            "test_suite_id": test_suite_execution.test_suite.id,
+            "test_suite_name": test_suite_name,
+            "test_suite_id": test_suite_id,
             "test_suite_execution_id": test_suite_execution.id,
             "test_cases": [{
                 "test_case_id": test_case.test_case_id,
@@ -622,6 +627,54 @@ def retry_test_execution(test_execution_id):
     except Exception as e:
         logger.error(f"Error retrying test execution {test_execution_id}: {str(e)}")
         print(f"[ERROR] retry_test_execution - Error: {str(e)}")
+
+
+@shared_task
+def abort_test_execution_pending_tests(test_group_execution_id):
+    """
+    Abort all pending tests for test execution
+    """
+    try:
+        abort_pending_tests_api_url = f"{EXECUTOR_SERVER_IP}/api/v1/abort-pending-tests/"
+        abort_pending_tests_api_payload = {
+            "test_group_execution_id": str(test_group_execution_id)
+        }
+        # Check if API is reachable first
+        try:
+            print(f"🔄 [DEBUG] Checking if executor server is reachable....")
+            base_url = abort_pending_tests_api_url.rsplit('/', 2)[0]
+            test_response = requests.get(base_url, timeout=60)
+            print(f"✅ [DEBUG] Executor server is reachable at {base_url}")
+        except Exception as e:
+            print(f"❌ [ERROR] Cannot reach executor server: {e}")
+            print(f"⚠️  [ERROR] Make sure the server at {abort_pending_tests_api_url} is running")
+            return
+
+        print(f"[DEBUG] Sending abort pending tests request to executor server...")
+        response = requests.post(
+                abort_pending_tests_api_url,
+                json=abort_pending_tests_api_payload,
+                timeout=300  # Quick timeout just to submit the job
+            )
+        print(f"\n[DEBUG] API Response:")
+        print(f"[DEBUG] Status Code: {response.status_code}")
+        print(f"[DEBUG] Response Headers: {dict(response.headers)}")
+        
+        try:
+            response_json = response.json()
+            print(f"[DEBUG] Response Body: {response_json}")
+        except:
+            print(f"[DEBUG] Response Body (text): {response.text[:500]}...")
+        
+        if response.status_code == 200:
+            logger.info("Executor server API called successfully")
+            print(f"\n[DEBUG] ✅ API call successful! Tests submitted to executor server")
+        else:
+            logger.error(f"Executor server API call failed: {response.status_code}")
+            print(f"\n[DEBUG] ❌ API call failed! Status: {response.status_code}")
+    except Exception as e:
+        logger.error(f"Error aborting pending tests for test execution {test_group_execution_id}: {str(e)}")
+        print(f"[ERROR] abort_test_execution_pending_tests - Error: {str(e)}")
 
 
 @shared_task
@@ -704,7 +757,7 @@ def abort_test_execution(test_execution_id):
             "test_id": str(test_execution.test_case.test_case_id),
             "execution_id": str(test_execution_id),
             "test_type": test_execution.test_case.test_type,
-            "device_communication_method": 3 , # 2: MQTT 3: SSH,
+            "process_id": getattr(test_execution, 'process_id', 0) or 0,
             "connection_protocol" :  getattr(device_execution, 'connection_protocol', 0) or 0 # 0: MQTT 1: SSH SACHIN CHANGES
         }
         print(f"\n[DEBUG] API Payload prepared")
@@ -744,6 +797,7 @@ def abort_test_execution(test_execution_id):
                 json=api_payload,
                 timeout=300  # Quick timeout just to submit the job
             )
+                
         
             print(f"\n[DEBUG] API Response:")
             print(f"[DEBUG] Status Code: {response.status_code}")
