@@ -128,6 +128,7 @@ class TestCasesResource(resources.ModelResource):
             "is_active",
             "test_type",
             "params",
+            "file"
         )
         export_order = (
             "id",
@@ -138,6 +139,7 @@ class TestCasesResource(resources.ModelResource):
             "is_active",
             "test_type",
             "params",
+            "file"
         )
 
     def before_import_row(self, row, **kwargs):
