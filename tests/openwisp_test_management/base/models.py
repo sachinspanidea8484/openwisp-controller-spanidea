@@ -160,7 +160,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         storage=zip_storage,
         max_length=255,
         null=True,
-        help_text=_("Upload Test Script file.")
+        help_text='<button type="button" class="guideline-btn" data-bs-toggle="modal" data-bs-target="#guidelineModal">Guidelines to Upload Test Scripts</button>'
     )
     class Meta:
         abstract = True
