@@ -26,7 +26,7 @@ from .serializers import (
     FirmwareImageSerializer,
     UpgradeOperationSerializer,
 )
-from ..hardware import FIRMWARE_IMAGE_MAP
+from ..hardware import FIRMWARE_IMAGE_MAP, FIRMWARE_IMAGE_LABEL_TO_VALUE_MAP
 from django.conf import settings
 import json
 import requests
@@ -370,7 +370,8 @@ class FirmwareUpgradeView( APIView):
         upgrade_options = data.get("upgrade_options", {})
         firmware_image= request.FILES.get("firmware_image")
         firmware_image_path_or_url = data.get("firmware_image")
-        firmware_image_type= data.get("firmware_image_type", None)
+        firmware_image_label= data.get("firmware_image_type", None)
+        firmware_image_type=FIRMWARE_IMAGE_LABEL_TO_VALUE_MAP[firmware_image_label]
         if not build_data or not device_name or (not firmware_image and not firmware_image_path_or_url):
             return Response(
                 {"error": " build, firmware_image(file/url/path) and device_ids are required"},
