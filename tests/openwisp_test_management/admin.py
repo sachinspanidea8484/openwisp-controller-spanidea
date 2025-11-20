@@ -128,6 +128,7 @@ class TestCasesResource(resources.ModelResource):
             "is_active",
             "test_type",
             "params",
+            "file"
         )
         export_order = (
             "id",
@@ -138,6 +139,7 @@ class TestCasesResource(resources.ModelResource):
             "is_active",
             "test_type",
             "params",
+            "file"
         )
 
     def before_import_row(self, row, **kwargs):
@@ -562,7 +564,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         return form
 
     class Media:
-        js = ('test-management/js/json_file_handler.js',)  # Add custom JavaScript
+        js = ('test-management/js/json_file_handler.js','https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',)  # Add custom JavaScript
         css = {
             'all': ('test-management/css/json_file_handler.css',)  # Optional custom CSS
         }

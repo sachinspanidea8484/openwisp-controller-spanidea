@@ -75,7 +75,7 @@
     if ($jsonFileInput.length && $paramsField.length) {
       // Create custom upload button
       var $uploadBtn = $(
-        '<button type="button" class="btn btn-secondary json-upload-btn">📁 Load JSON File</button>'
+        '<button type="button" class="btn btn-secondary utility-btn">📁 Load JSON File</button>'
       );
 
       // Insert button after the params field
@@ -145,6 +145,39 @@
         $messageDiv.fadeOut();
       }, 3000);
     }
+
+    // NOTE: MODAL FOR TEST SCRIPT GUIDELINES
+    var modalHTML = `
+      <div class="modal fade" id="guidelineModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">File Upload Guidelines</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <h6>Step 1: File Format</h6>
+              <p>Supported formats: JSON, CSV, etc.</p>
+              
+              <h6>Step 2: File Size</h6>
+              <p>Maximum file size: 10MB</p>
+              
+              <h6>Step 3: Upload</h6>
+              <p>Click the upload button and select your file...</p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary utility-btn" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Add modal to page
+    $("body").append(modalHTML);
+    
+  
+
   });
   document.addEventListener("DOMContentLoaded", function () {
     const testTypeField = document.querySelector("#id_test_type");

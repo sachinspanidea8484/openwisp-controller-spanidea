@@ -100,6 +100,17 @@ class AbstractConfig(BaseConfig):
         dump_kwargs={"indent": 4},
     )
 
+    test_case_context = JSONField(
+        blank=True,
+        null=True,
+        default=dict,
+        help_text=_(
+            "Test Case Configuration"
+        ),
+        load_kwargs={"object_pairs_hook": collections.OrderedDict},
+        dump_kwargs={"indent": 4},
+    )
+
     _CHECKSUM_CACHE_TIMEOUT = 60 * 60 * 24 * 30  # 10 days
     _config_context_functions = list()
     _old_backend = None

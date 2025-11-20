@@ -130,8 +130,7 @@ class AbstractTestCase(TimeStampedEditableModel):
     )
     description = models.TextField(
         _("Description"),
-        blank=True,
-        max_length=1000,
+        max_length=10000,
         help_text=_("Detailed description of what this test does")
     )
     # Additional fields for future use
@@ -160,7 +159,8 @@ class AbstractTestCase(TimeStampedEditableModel):
         storage=zip_storage,
         max_length=255,
         null=True,
-        help_text=_("Upload Test Script file.")
+        blank=True,
+        help_text='<button type="button" class="guideline-btn" data-bs-toggle="modal" data-bs-target="#guidelineModal">Guidelines to Upload Test Scripts</button>'
     )
     class Meta:
         abstract = True
