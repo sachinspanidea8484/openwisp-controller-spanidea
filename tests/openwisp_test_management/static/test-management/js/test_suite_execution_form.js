@@ -92,6 +92,7 @@
                 <span class="count">0</span> device(s) selected
             </div>
         </div>
+        <div id="schedule-execution-info"></div>
     `);
 
     return container;
@@ -507,6 +508,19 @@
     }
     if (window.recoveredDeviceGroup?.id) {
       pendingGroupSelection = window.recoveredDeviceGroup;
+    }
+   
+    if(window.scheduled_dt_time){
+      const element = document.getElementById("schedule-execution-info");
+      element.innerHTML = `<strong style={{}}>Scheduled Execution Time:</strong> ${(() => {
+        const d = new Date(window.scheduled_dt_time);
+        return `${String(d.getDate()).padStart(2, "0")}-${String(
+          d.getMonth() + 1
+        ).padStart(2, "0")}-${d.getFullYear()} ${String(d.getHours()).padStart(
+          2,
+          "0"
+        )}:${String(d.getMinutes()).padStart(2, "0")}`;
+      })()}`;
     }
   });
 

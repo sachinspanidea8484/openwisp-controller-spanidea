@@ -300,28 +300,32 @@ document.addEventListener('DOMContentLoaded', function() {
     const overlay = document.querySelector('.modal-overlay');
     const datetimeInput = document.getElementById('scheduleDateTime');
     const errorMsg = document.getElementById('datetimeError');
-    
+    if (datetimeInput && datetimeInput.showPicker) {
+      datetimeInput.addEventListener('click', function() {
+        this.showPicker();
+      });
+    }
     if (!openBtns.length) return;
 
-    // // Set minimum datetime to current time
-    // function setMinDateTime() {
-    //     const now = new Date();
-    //     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    //     datetimeInput.min = now.toISOString().slice(0, 16);
-    // }
+    // Set minimum datetime to current time
+    function setMinDateTime() {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        datetimeInput.min = now.toISOString().slice(0, 16);
+    }
     
-    // setMinDateTime();
-
+    
     // Open modal - attach to ALL schedule buttons
     openBtns.forEach(function(btn) {
         btn.addEventListener('click', function(e) {
-            e.preventDefault();
+          e.preventDefault();
             e.stopPropagation();
             console.log("Schedule button clicked");
             modal.style.display = 'block';
             document.body.style.overflow = 'hidden';
             // Clear any previous error
             hideError();
+            setMinDateTime();
         });
     });
 

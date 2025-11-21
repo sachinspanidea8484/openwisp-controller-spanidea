@@ -44,6 +44,7 @@ from .swapper import load_model
 from openwisp_users.multitenancy import MultitenantOrgFilter, MultitenantRelatedOrgFilter
 from django.contrib.admin.widgets import RelatedFieldWidgetWrapper
 from import_export.widgets import Widget
+from django.utils.safestring import mark_safe
 logger = logging.getLogger(__name__)
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
@@ -182,15 +183,54 @@ class TestCategoryAdmin(BaseVersionAdmin):
         "name",
         "code",    # ✅ code visible only in Add/Edit form
         "description",
+        "related_testcases"
         # "created", 
         # "modified",
     ]
-    readonly_fields = ["created", "modified"]
+    readonly_fields = ["created", "modified", "related_testcases"]
     
     # Enable history button
     object_history_template = "reversion/object_history.html"
     
     actions = ["delete_selected", "recover_deleted"]
+    
+
+    def related_testcases(self, obj):
+        # return "test"
+        testcases= obj.test_cases.all()
+        if not testcases.exists():
+            return "No test case assigned."
+        html = """
+        <table class="related-testcases-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Test Case ID</th>
+                    <th>Type</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+
+        for tc in testcases:
+            html += f"""
+            <tr>
+                <td class="readonly-name-col">
+                    <div class="readonly-test-case-name">{tc.name}</div>
+                </td>
+                <td class="readonly-id-col">
+                    <div class="readonly-test-case-id">{tc.test_case_id}</div>
+                </td>
+                <td class="readonly-type-col">
+                    <span class="readonly-test-type-badge">{tc.get_test_type_display()}</span>
+                </td>
+            </tr>
+            """
+
+        html += "</tbody></table>"
+
+        return mark_safe(html)
+    related_testcases.short_description = "Test Cases in this Category"
 
     def test_case_count(self, obj):
         """Display count of test cases in this category"""
@@ -412,7 +452,7 @@ class TestCaseAdminForm(forms.ModelForm):
 class TestCaseAdmin(BaseVersionAdmin):
     form = TestCaseAdminForm
     list_display = [
-        "name",              # 1st - Test Case Name
+        "name_with_tooltip",              # 1st - Test Case Name
         "test_case_id",      # 2nd - Test Case ID  
         "category_link",     # 3rd - Category
         "is_active",         # 4th - Is Active
@@ -450,6 +490,15 @@ class TestCaseAdmin(BaseVersionAdmin):
     change_list_template = 'admin/test_management/import_export/testcase/change_list.html'
     actions = ["delete_selected", "recover_deleted", "activate_cases", "deactivate_cases"]
 
+    def name_with_tooltip(self,obj):
+        tooltip_text= obj.description or "No description available"
+
+        return format_html(
+            '<span title="{}" style="cursor:help;">{}</span>',
+            tooltip_text,
+            obj.name
+        )
+    name_with_tooltip.short_description= "name"
         # ADD THIS NEW METHOD
     def category_link(self, obj):
         """Display category as a link"""
@@ -1948,7 +1997,19 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             # check if it is in other state than created(0)
             if obj and obj.status != "0":
                 extra_context["hide_submit_row"] = True
-
+            ScheduledExecution=load_model("ScheduledExecution")
+            scheduled_dt = None
+            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>...", obj.status)
+            if obj and obj.status == 4:
+                # Get the most recent scheduled execution (if multiple)
+                scheduled = ScheduledExecution.objects.filter(execution=obj).order_by('-scheduled_time').first()
+                if scheduled and scheduled.scheduled_time:
+                    # Convert to local timezone & ISO format for <input type="datetime-local">
+                    local_dt = timezone.localtime(scheduled.scheduled_time)
+                    scheduled_dt = local_dt.strftime('%Y-%m-%dT%H:%M')
+            print("....ax",scheduled_dt)
+            # Pass it to the template context
+            extra_context['scheduled_datetime'] = scheduled_dt
             related_devices= TestSuiteExecutionDevice.objects.filter(
                 test_suite_execution=obj
             ).select_related("device")

@@ -104,6 +104,18 @@
         color: #31708f;
         border: 1px solid #bce8f1;
     }
+    .connection-protocol{
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 3px;
+        font-size: 14px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        background: #d9edf7;
+        color: #31708f;
+        border: 1px solid #bce8f1;
+    }
 
     /* Device Cards - OpenWISP Style */
     .device-card {
@@ -793,7 +805,7 @@ function displayExecutionData(data) {
                                 ${stats.overall_status}
                             </span>
 
-                            ${device?.connection_protocol == "0" ? "MQTT" : "SSH" }
+                            <div class="connection-protocol">${device?.connection_protocol == "0" ? "MQTT" : "SSH" }</div>
                              ${device && device?.has_allure_report && device?.allure_report_full_path ? `
                                 <a href="${device?.allure_report_full_path}" target="_blank" class="btn-action primary">
                                     Show Report
