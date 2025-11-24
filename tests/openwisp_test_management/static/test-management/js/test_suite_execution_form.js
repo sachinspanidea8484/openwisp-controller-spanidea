@@ -129,8 +129,14 @@
           );
         } else {
           devices.forEach((device) => {
-            isssh = device.connection_protocol === 1 ? "checked" : "";
-            ismqtt = device.connection_protocol === 0 || isssh==="" ? "checked" : "";
+            const selectedProtocol = device._chosen_protocol;
+            isssh = device.connection_protocol === 1 || (selectedProtocol && selectedProtocol==='1')  ? "checked" : "";
+            ismqtt =
+              device.connection_protocol === 0 ||
+              isssh === "" ||
+              (selectedProtocol && selectedProtocol === "0")
+                ? "checked"
+                : "";
             // CHANGE: Add devices to selectedDevices map
             selectedDevices.set(String(device.id), device);
 
@@ -524,6 +530,13 @@
     }
   });
 
+  $(document).on("change", "input[name^='protocol_']", function () {
+    const id = $(this).attr("name").replace("protocol_", "");
+    const dev = selectedDevices.get(id);
+    if (dev) {
+      dev._chosen_protocol = $(this).val(); // Save selected protocol
+    }
+  });
   // CHANGE: Converted to delegated event handler for add device button
   $(document).off("click", "#add-device-btn"); // Remove any existing direct handlers
   $(document).on("click", "#add-device-btn", function () {
@@ -569,8 +582,20 @@
     }
 
     selectedDevices.forEach(function (device, deviceId) {
-      const issshChecked = device?.connection_protocol === 1 ? "checked" : "";
-      const ismqttChecked = device?.connection_protocol === 0  || issshChecked===""? "checked" : ""
+
+       const selectedProtocol = device._chosen_protocol;
+      
+       issshChecked =
+         device.connection_protocol === 1 ||
+         (selectedProtocol && selectedProtocol === "1")
+           ? "checked"
+           : "";
+       ismqttChecked =
+         device.connection_protocol === 0 ||
+         issshChecked === "" ||
+         (selectedProtocol && selectedProtocol === "0")
+           ? "checked"
+           : "";
       const deviceItem = $(`
                 <div class="selected-device-item" data-device-id="${deviceId}">
                     <div class="device-info">
