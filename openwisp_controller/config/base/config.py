@@ -13,7 +13,7 @@ from model_utils.fields import StatusField
 from netjsonconfig import OpenWrt
 from packaging import version
 from swapper import get_model_name, load_model
-
+from private_storage.fields import PrivateFileField
 from .. import settings as app_settings
 from ..signals import (
     config_backend_changed,
@@ -25,8 +25,14 @@ from ..signals import (
 from ..sortedm2m.fields import SortedManyToManyField
 from ..utils import get_default_templates_queryset
 from .base import BaseConfig
-
+from django.conf import settings
+from private_storage.storage.files import PrivateFileSystemStorage
 logger = logging.getLogger(__name__)
+
+file_upload_storage = PrivateFileSystemStorage(
+    location=settings.MEDIA_ROOT_TEMP,
+    base_url=settings.TEST_SCRIPT_MEDIA_URL
+)
 
 
 class TemplatesThrough(object):
@@ -109,6 +115,16 @@ class AbstractConfig(BaseConfig):
         ),
         load_kwargs={"object_pairs_hook": collections.OrderedDict},
         dump_kwargs={"indent": 4},
+    )
+    file = PrivateFileField(
+        "Test Case Input",
+        upload_to="",
+        max_file_size=app_settings.MAX_FILE_SIZE,
+        storage=file_upload_storage,
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text='Input for test cases'
     )
 
     _CHECKSUM_CACHE_TIMEOUT = 60 * 60 * 24 * 30  # 10 days

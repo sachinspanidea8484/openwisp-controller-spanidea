@@ -288,6 +288,7 @@ TEST_SCRIPT_MEDIA_URL="/media/"
 CORS_ORIGIN_ALLOW_ALL = True
 TEST_SCRIPT_MEDIA_ROOT_ZIP= "/opt/openwisp/media"
 
+MEDIA_ROOT_TEMP= ROOT_PATH /"media/tmp"
 # firmware
 PRIVATE_STORAGE_ROOT = "/opt/openwisp/private/firmware"
 

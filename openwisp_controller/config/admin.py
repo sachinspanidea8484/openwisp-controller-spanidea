@@ -57,6 +57,7 @@ Vpn = load_model("config", "Vpn")
 Organization = load_model("openwisp_users", "Organization")
 OrganizationConfigSettings = load_model("config", "OrganizationConfigSettings")
 OrganizationLimits = load_model("config", "OrganizationLimits")
+DeviceConnection = load_model("connection", "DeviceConnection")
 
 if "reversion" in settings.INSTALLED_APPS:
     from reversion.admin import VersionAdmin as ModelAdmin
@@ -344,7 +345,7 @@ class BaseForm(forms.ModelForm):
         exclude = []
         widgets = {"config": JsonSchemaWidget}
 
-
+from openwisp_controller.connection.connectors.ssh import Ssh
 class ConfigForm(AlwaysHasChangedMixin, BaseForm):
     _old_templates = None
     json_file = forms.FileField(
@@ -403,6 +404,20 @@ class ConfigForm(AlwaysHasChangedMixin, BaseForm):
     def save(self, *args, **kwargs):
         templates = self.cleaned_data.get("templates", [])
         instance = super().save(*args, **kwargs)
+        try:
+            device= Device.objects.get(id=instance.device_id)
+            conn= DeviceConnection.objects.get(device_id= device, enabled= True)
+            ssh_params={}
+            if conn:
+                ssh_params= conn.credentials.params
+            
+            
+            ssh_conn= Ssh(ssh_params,[device.management_ip])
+            ssh_conn.connect()
+
+            ssh_conn.upload(instance.file, f"tmp/{instance.file.name}")
+        except Exception as e:
+            print("[ERROR]>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>",e)
         # as group templates are not forced so if user remove any selected
         # group template, we need to remove it from the config instance
         # not doing this in save_m2m because save_form_data directly set the
@@ -450,6 +465,7 @@ class ConfigInline(
         "system_context",
         "context",
         "test_case_context",
+        'file',
         "config",
         "created",
         "modified",

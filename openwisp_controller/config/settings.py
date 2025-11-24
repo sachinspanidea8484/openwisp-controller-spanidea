@@ -10,6 +10,9 @@ def get_setting(option, default):
     return getattr(settings, f"OPENWISP_CONTROLLER_{option}", default)
 
 
+MAX_FILE_SIZE = getattr(
+    settings, "OPENWISP_FIRMWARE_UPGRADER_MAX_FILE_SIZE", 500 * 1024 * 1024
+)
 BACKENDS = get_setting(
     "BACKENDS",
     (
