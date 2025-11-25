@@ -10,6 +10,32 @@
     {% endif %}
 {% endblock messages %}
 
+{% block extrahead %}
+{{ block.super }}
+
+<script>
+django.jQuery(function($) {
+    $(document).one("tabshown", function() {
+        const tab = $("#config-group");
+
+        if (tab.length) {
+            tab.append(`
+                <hr/>
+                <div class="form-row">
+                  <h3>Upload Configuration File</h3>
+                  <form action="{% url 'admin:config_device_process_file' original.pk %}" method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="file" name="config_file">
+                    <button type="submit" class="button">Upload to Device</button>
+                  </form>
+                </div>
+            `);
+        }
+    });
+});
+</script>
+
+{% endblock extrahead %}
 {% block content %}
     {% comment %}
     Due to HTML's limitation in supporting nested forms, we employ a

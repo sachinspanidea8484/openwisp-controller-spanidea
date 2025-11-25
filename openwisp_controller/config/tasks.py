@@ -8,8 +8,10 @@ from django.core.exceptions import ObjectDoesNotExist
 from swapper import load_model
 
 from openwisp_utils.tasks import OpenwispCeleryTask
-
+from django.core.files.storage import default_storage
+from io import BytesIO
 logger = logging.getLogger(__name__)
+from openwisp_controller.connection.connectors.ssh import Ssh
 
 
 @shared_task(soft_time_limit=7200)
@@ -157,3 +159,22 @@ def invalidate_device_checksum_view_cache(organization_id):
         Device.objects.filter(organization_id=organization_id).only("id").iterator()
     ):
         DeviceChecksumView.invalidate_get_device_cache(device)
+
+@shared_task(soft_time_limit=7200)
+def upload_file_on_device(device_id, saved_path, management_ip,file_name):
+    try:
+        DeviceConnection = load_model("connection", "DeviceConnection")
+        conn= DeviceConnection.objects.get(device_id= device_id, enabled= True)
+        ssh_params={}
+        if conn:
+            ssh_params= conn.credentials.params
+        
+        
+        ssh_conn= Ssh(ssh_params,[management_ip])
+        ssh_conn.connect()
+
+        with default_storage.open(saved_path, "rb") as f:
+            ssh_conn.upload(f, f"/tmp/{file_name}")
+        default_storage.delete(saved_path)
+    except Exception as e:
+        print("[ERROR] uploading file over device:",e)
