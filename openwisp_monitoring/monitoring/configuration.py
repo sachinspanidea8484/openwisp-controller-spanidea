@@ -766,6 +766,83 @@ DEFAULT_METRICS = {
             },
         },
     },
+
+
+
+  'connections': {
+    'label': _('Network Connections'),
+    'name': 'Network Connections',
+    'key': 'connections',
+    'field_name': 'connections',  # ✅ FIXED: Changed from 'total_connections'
+    'related_fields': ['tcp_ipv4', 'udp_ipv4', 'tcp_ipv6', 'udp_ipv6'],
+    'charts': {
+        'connections': {
+            'type': 'stackedbar+lines',
+            'title': _('Network Connections'),
+            'description': _(
+                'Active network connections count (TCP and UDP for IPv4 and IPv6). '
+                'High connection counts may indicate heavy load or potential issues.'
+            ),
+            'summary_labels': [
+                _('Total Connections'),
+                _('TCP IPv4'),
+                _('UDP IPv4'),
+                _('TCP IPv6'),
+                _('UDP IPv6'),
+            ],
+            'unit': '',
+            'colors': [
+                DEFAULT_COLORS[7],  # gray - total
+                DEFAULT_COLORS[0],  # blue - tcp ipv4
+                DEFAULT_COLORS[1],  # orange - udp ipv4
+                DEFAULT_COLORS[2],  # green - tcp ipv6
+                DEFAULT_COLORS[4],  # purple - udp ipv6
+            ],
+            'order': 275,
+            'query': chart_query['connections'],
+            'trace_type': {
+                'total': 'lines',
+                'tcp_ipv4': 'stackedbar',
+                'udp_ipv4': 'stackedbar',
+                'tcp_ipv6': 'stackedbar',
+                'udp_ipv6': 'stackedbar',
+            },
+            'trace_order': ['total', 'tcp_ipv4', 'udp_ipv4', 'tcp_ipv6', 'udp_ipv6'],
+        }
+    },
+    'alert_settings': {
+        'operator': '>',
+        'threshold': 1000,
+        'tolerance': 5,
+    },
+    'notification': {
+        'problem': {
+            'verbose_name': 'Network Connections PROBLEM',
+            'verb': _('has high connection count'),
+            'level': 'warning',
+            'email_subject': _(
+                '[{site.name}] PROBLEM: {notification.target} {notification.verb}'
+            ),
+            'message': _(
+                'The device [{notification.target}]({notification.target_link}) '
+                '{notification.verb} which has exceeded '
+                '{notification.actor.alertsettings.threshold} connections.'
+            ),
+        },
+        'recovery': {
+            'verbose_name': 'Network Connections RECOVERY',
+            'verb': _('connection count has returned to normal'),
+            'level': 'info',
+            'email_subject': _(
+                '[{site.name}] RECOVERY: {notification.target} {notification.verb}'
+            ),
+            'message': _(
+                'The device [{notification.target}]({notification.target_link}) '
+                '{notification.verb}.'
+            ),
+        },
+    },
+},
 }
 
 DEFAULT_CHARTS = {}

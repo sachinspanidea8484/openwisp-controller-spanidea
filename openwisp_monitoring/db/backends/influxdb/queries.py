@@ -143,6 +143,19 @@ chart_query = {
             "AND object_id = '{object_id}' GROUP BY time(1d)"
         )
     },
+    'connections': {
+        'influxdb': (
+                "SELECT MEAN(connections) AS total, "
+                "MEAN(tcp_ipv4) AS tcp_ipv4, "
+                "MEAN(udp_ipv4) AS udp_ipv4, "
+                "MEAN(tcp_ipv6) AS tcp_ipv6, "
+                "MEAN(udp_ipv6) AS udp_ipv6 "
+                "FROM {key} WHERE "
+                "time >= '{time}' {end_date} AND content_type = '{content_type}' AND "
+                "object_id = '{object_id}' "
+                "GROUP BY time(1d)"
+        ),
+},
 }
 
 default_chart_query = [

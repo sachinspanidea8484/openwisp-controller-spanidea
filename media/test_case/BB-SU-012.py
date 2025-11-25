@@ -81,6 +81,33 @@ def reboot_system():
     log_step("Rebooting the system to apply configuration...")
     run_cmd("sleep 3 && reboot")
 
+
+So Ravindra when we host our openwisp  on uat enivorment nokia peoples add a few devices on uat envoments.
+they guyz noticed that some device health issues in problem that naresh inform me that how we can fix that.
+so explore that and figure out that issues actully in openwrt device their are one monitoring services running on backgaround.
+so The  Monitoring  agent is responsible for collecting monitoring metrics from that devices and sending them to a central OpenWISP Monitoring Server via HTTPS, so this api already in there. 
+its collect such kind cpu load ,  memory usage , disk load , all interfaces through latecy and also send all systemtic data like uptime of deviece , storage infomration,RAM status kind of infomration.
+but uat in devices their are some netjson issues thats its not collect data properly its internally  used by montoring agent. but that errors occur openwisp ui device show device health problem.
+so naresh already discuss with that with nokia peopels and fix it.
+now naresh told me Ultimately Lelio wanted to have those data for BOT to analyze & say what is going on with that device.
+    
+
+
+
+
+
+
+
+
+
+
+
+so now what we try do dikhat is work on montoring agent that add kind of new kpis or some new information what is not sent on openwisp.
+so i just check how all data store in openwisp and how we can add new kind kpis or systemic data.
+
+
+
+
 def main():
     log_step("=== Starting Configuration Push Testcase ===")
     try:
@@ -98,5 +125,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

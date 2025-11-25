@@ -77,7 +77,10 @@ schema = {
                 },
                 "connections": {
                     "type": "object",
+                    "title": "Network Connections",
+                    "additionalProperties": True,
                     "properties": {
+
                         "ipv4": {
                             "type": "object",
                             "properties": {
