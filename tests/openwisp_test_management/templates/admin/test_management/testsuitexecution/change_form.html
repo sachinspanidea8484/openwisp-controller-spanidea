@@ -27,6 +27,11 @@
     </script>
   {% endif %}
 
+    {% if scheduled_datetime %}
+      <script>
+          window.scheduled_dt_time = "{{ scheduled_datetime|escapejs }}"; 
+      </script>
+    {% endif %}
     <script>
         window.disabledViewMode = {{ hide_submit_row|yesno:"true,false" }}; 
     </script>

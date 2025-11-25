@@ -587,8 +587,12 @@ FIRMWARE_IMAGE_MAP = OPENWRT_FIRMWARE_IMAGE_MAP
 REVERSE_FIRMWARE_IMAGE_MAP = {}
 # Choices used in model
 FIRMWARE_IMAGE_TYPE_CHOICES = []
+FIRMWARE_IMAGE_LABEL_TO_VALUE_MAP={}
 
 for key, info in FIRMWARE_IMAGE_MAP.items():
     FIRMWARE_IMAGE_TYPE_CHOICES.append((key, info["label"]))
+    FIRMWARE_IMAGE_LABEL_TO_VALUE_MAP[info["label"]]=key
     for board in info["boards"]:
         REVERSE_FIRMWARE_IMAGE_MAP[board] = key
+
+

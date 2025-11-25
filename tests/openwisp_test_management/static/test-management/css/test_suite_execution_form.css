@@ -319,3 +319,7 @@
         width: 80px;
         min-width: 80px;
     }
+
+    #schedule-execution-info{
+        padding : 32px 0 6px 16px;
+    }

@@ -111,15 +111,15 @@
               $paramsField.val(jsonContent);
 
               // Show success message
-            //   showMessage("JSON file loaded successfully!", "success");
+              //   showMessage("JSON file loaded successfully!", "success");
             } catch (error) {
-            //   showMessage("Invalid JSON file: " + error.message, "error");
+              //   showMessage("Invalid JSON file: " + error.message, "error");
             }
           };
 
           reader.readAsText(file);
         } else {
-        //   showMessage("Please select a valid JSON file.", "error");
+          //   showMessage("Please select a valid JSON file.", "error");
         }
 
         // Reset file input
@@ -151,22 +151,49 @@
       <div class="modal fade" id="guidelineModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
           <div class="modal-content">
+
             <div class="modal-header">
               <h5 class="modal-title">File Upload Guidelines</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
+
             <div class="modal-body">
-              <h6>Step 1: File Format</h6>
-              <p>Supported formats: JSON, CSV, etc.</p>
-              
-              <h6>Step 2: File Size</h6>
-              <p>Maximum file size: 10MB</p>
-              
-              <h6>Step 3: Upload</h6>
-              <p>Click the upload button and select your file...</p>
+              <!-- Nav tabs -->
+              <div class="tabs" id="tabs">
+                <div class="tab active">Robot</div>
+                <div class="tab">Device</div>
+              </div>
+
+              <!-- Tab panes -->
+              <div class="tab-content mt-3">
+                <!-- Tab 1: Robot Framework Guidelines -->
+                <div class="tab-pane fade show active" id="robot-content" role="tabpanel" aria-labelledby="robot-tab">
+                  <h6>Step 1: File Format</h6>
+                  <p>Supported formats: ZIP files containing Robot Framework scripts (.robot).</p>
+
+                  <h6>Step 2: File Size</h6>
+                  <p>Maximum file size: 10MB.</p>
+
+                  <h6>Step 3: Upload</h6>
+                  <p>Ensure that the file structure matches the required test case format before uploading.</p>
+                </div>
+
+                <!-- Tab 2: Device Test Guidelines -->
+                <div class="tab-pane fade" id="device-content" role="tabpanel" aria-labelledby="device-tab">
+                  <h6>Step 1: File Format</h6>
+                  <p>Supported formats: JSON, CSV, or configuration files defining device actions.</p>
+
+                  <h6>Step 2: File Size</h6>
+                  <p>Maximum file size: 5 MB.</p>
+
+                  <h6>Step 3: Upload</h6>
+                  <p>Each device test configuration should include all required parameters and test metadata.</p>
+                </div>
+              </div>
             </div>
+
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary utility-btn" data-bs-dismiss="modal">Close</button>
+               <button type="button" class="btn btn-secondary utility-btn" data-bs-dismiss="modal">Close</button>
             </div>
           </div>
         </div>
@@ -175,9 +202,23 @@
 
     // Add modal to page
     $("body").append(modalHTML);
-    
-  
 
+    // Simple tab logic
+    const tabs = document.querySelectorAll("#tabs .tab");
+    const panes = document.querySelectorAll(".tab-pane");
+
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => {
+        // Remove active classes
+        tabs.forEach((t) => t.classList.remove("active"));
+        panes.forEach((p) => p.classList.remove("active", "show"));
+
+        // Add active to clicked tab
+        tab.classList.add("active");
+        // Show the corresponding pane
+        panes[index].classList.add("active", "show");
+      });
+    });
   });
   document.addEventListener("DOMContentLoaded", function () {
     const testTypeField = document.querySelector("#id_test_type");

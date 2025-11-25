@@ -92,6 +92,7 @@
                 <span class="count">0</span> device(s) selected
             </div>
         </div>
+        <div id="schedule-execution-info"></div>
     `);
 
     return container;
@@ -128,8 +129,14 @@
           );
         } else {
           devices.forEach((device) => {
-            isssh = device.connection_protocol === 1 ? "checked" : "";
-            ismqtt = device.connection_protocol === 0 || isssh==="" ? "checked" : "";
+            const selectedProtocol = device._chosen_protocol;
+            isssh = device.connection_protocol === 1 || (selectedProtocol && selectedProtocol==='1')  ? "checked" : "";
+            ismqtt =
+              device.connection_protocol === 0 ||
+              isssh === "" ||
+              (selectedProtocol && selectedProtocol === "0")
+                ? "checked"
+                : "";
             // CHANGE: Add devices to selectedDevices map
             selectedDevices.set(String(device.id), device);
 
@@ -508,8 +515,28 @@
     if (window.recoveredDeviceGroup?.id) {
       pendingGroupSelection = window.recoveredDeviceGroup;
     }
+   
+    if(window.scheduled_dt_time){
+      const element = document.getElementById("schedule-execution-info");
+      element.innerHTML = `<strong style={{}}>Scheduled Execution Time:</strong> ${(() => {
+        const d = new Date(window.scheduled_dt_time);
+        return `${String(d.getDate()).padStart(2, "0")}-${String(
+          d.getMonth() + 1
+        ).padStart(2, "0")}-${d.getFullYear()} ${String(d.getHours()).padStart(
+          2,
+          "0"
+        )}:${String(d.getMinutes()).padStart(2, "0")}`;
+      })()}`;
+    }
   });
 
+  $(document).on("change", "input[name^='protocol_']", function () {
+    const id = $(this).attr("name").replace("protocol_", "");
+    const dev = selectedDevices.get(id);
+    if (dev) {
+      dev._chosen_protocol = $(this).val(); // Save selected protocol
+    }
+  });
   // CHANGE: Converted to delegated event handler for add device button
   $(document).off("click", "#add-device-btn"); // Remove any existing direct handlers
   $(document).on("click", "#add-device-btn", function () {
@@ -555,8 +582,20 @@
     }
 
     selectedDevices.forEach(function (device, deviceId) {
-      const issshChecked = device?.connection_protocol === 1 ? "checked" : "";
-      const ismqttChecked = device?.connection_protocol === 0  || issshChecked===""? "checked" : ""
+
+       const selectedProtocol = device._chosen_protocol;
+      
+       issshChecked =
+         device.connection_protocol === 1 ||
+         (selectedProtocol && selectedProtocol === "1")
+           ? "checked"
+           : "";
+       ismqttChecked =
+         device.connection_protocol === 0 ||
+         issshChecked === "" ||
+         (selectedProtocol && selectedProtocol === "0")
+           ? "checked"
+           : "";
       const deviceItem = $(`
                 <div class="selected-device-item" data-device-id="${deviceId}">
                     <div class="device-info">
