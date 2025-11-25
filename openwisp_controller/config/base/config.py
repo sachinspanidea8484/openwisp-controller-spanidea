@@ -111,7 +111,7 @@ class AbstractConfig(BaseConfig):
         null=True,
         default=dict,
         help_text=_(
-            "Use for connected devices"
+            "Test Case Configuration"
         ),
         load_kwargs={"object_pairs_hook": collections.OrderedDict},
         dump_kwargs={"indent": 4},

@@ -6,6 +6,8 @@ import argparse
 
 # === USER CONFIGURATION ===
 BACKUP_DIR = "/etc/config_backup"
+
+
 EXTRACT_DIR = "/"
 LOG_FILE = "/usr/bin/tests/config_push.log"
 
@@ -18,6 +20,7 @@ def parse_arguments():
 
 args = parse_arguments()
 MODIFIED_FILE = args.modified_file
+
 
 # === HELPER FUNCTIONS ===
 def log_step(message):

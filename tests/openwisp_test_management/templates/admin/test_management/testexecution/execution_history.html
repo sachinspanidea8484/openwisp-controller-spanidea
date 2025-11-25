@@ -117,6 +117,18 @@
         border: 1px solid #bce8f1;
     }
 
+    .status-indicator.aborting {
+        background: #fff3cd;   
+        color: #856404;        
+        border: 1px solid #ffeeba;
+    }
+    
+    .status-indicator.aborted {
+        background: #f8d7da;   
+        color: #721c24;        
+        border: 1px solid #f5c6cb;
+    }
+
     /* Device Cards - OpenWISP Style */
     .device-card {
         border: 1px solid #e3e3e3;
@@ -459,6 +471,27 @@
     transition: transform 0.25s ease;
     color: #374151; /* neutral gray */
 }
+.abort-button-class {
+    background-color: #e5e7eb; /* light gray */
+    color: #374151;            /* dark gray text */
+    border: 1px solid #d1d5db;
+    padding: 10px 18px;
+    font-size: 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s ease;
+}
+
+.abort-button-class:hover:not(:disabled) {
+    background-color: #d1d5db;
+}
+
+.abort-button-class:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 
 /* rotated when expanded */
 .section-header.open .arrow-icon {
@@ -485,7 +518,11 @@
         <p>{% trans 'Loading execution history...' %}</p>
     </div>
 
-    <div style="display : flex; justify-content: end; margin-bottom: 10px;">
+    <div style="display : flex; justify-content: end; margin-bottom: 10px; gap: 5px">
+
+        <div id="abort-test-execution">
+        
+        </div>
         <button onclick="location.reload()" class="refresh-btn" title="Refresh History">
             <svg xmlns="http://www.w3.org/2000/svg" 
                 width="21" height="21" viewBox="0 0 24 24" 
@@ -625,6 +662,11 @@ function displayExecutionData(data) {
 
     `;
     
+    const abortSection = document.getElementById('abort-test-execution');
+    abortSection.innerHTML = `
+    <button ${data.status !== 2 && data.status !== 1 ? "disabled" : ""} class="abort-button-class" onclick="abortAllTests()">
+        Abort Test Execution
+    </button>`
     // Display device executions
     const deviceExecutionsDiv = document.getElementById('device-executions');
     
@@ -829,6 +871,49 @@ function displayExecutionData(data) {
     } else {
         deviceExecutionsDiv.innerHTML = '<div class="empty-state">No device executions found.</div>';
     }
+}
+// abortAllTests function
+function abortAllTests() {
+    if (!confirm('Are you sure you want to abort this execution?')) {
+        return;
+    }
+    
+    const button = event.target.closest('button');
+    const originalContent = button.innerHTML;
+    button.innerHTML = '<span class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></span> Processing...';
+    button.disabled = true;
+    
+    fetch(`/api/v1/test-management/execution/${executionId}/abort-execution/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',  // Important for CSRF
+        body: JSON.stringify({})
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => Promise.reject(err));
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            showMessage(`${data.retried_count} tests abort request sent`, 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showMessage(data.error || 'Failed to abort test execution', 'error');
+            button.innerHTML = originalContent;
+            button.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Abort error:', error);
+        showMessage(error.detail || error.message || 'Failed to abort test execution', 'error');
+        button.innerHTML = originalContent;
+        button.disabled = false;
+    });
 }
 
 // abortTest function

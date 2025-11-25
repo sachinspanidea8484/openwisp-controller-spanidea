@@ -174,7 +174,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         ]
 
     def __str__(self):
-        return f"{self.category.name} - {self.name} ({self.get_test_type_display()})"
+        return f"{self.name}"
 
 
     def clean(self):
@@ -917,6 +917,14 @@ class AbstractTestCaseExecution(TimeStampedEditableModel):
         help_text=_("Order in which this test case should be executed within the suite")
     )
     
+    #Process ID
+    process_id = models.IntegerField(
+        _("Process ID"),
+        null=True,
+        blank=True,
+        help_text=_("Process ID returned by executor server.")
+    )
+
     # Results and output
     exit_code = models.IntegerField(
         _("exit code"),
