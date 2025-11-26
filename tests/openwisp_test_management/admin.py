@@ -201,7 +201,15 @@ class TestCategoryAdmin(BaseVersionAdmin):
         if not testcases.exists():
             return "No test case assigned."
         html = """
-        <table class="related-testcases-table">
+        <style>
+            .field-related_testcases .readonly{
+                width: 90%;
+            }
+            .related-testcases-table th,td{
+                width: 30%;
+            }
+        </style>
+        <table class="related-testcases-table" style="width:90%">
             <thead>
                 <tr>
                     <th>Name</th>
