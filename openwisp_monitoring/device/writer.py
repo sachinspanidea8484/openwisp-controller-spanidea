@@ -153,6 +153,24 @@ class DeviceDataWriter(object):
                     current,
                     time=time,
                 )
+                    # ===== ADD CONNECTIONS PROCESSING =====
+            if 'connections' in data['resources']:
+                logger.info("=" * 50)
+                logger.info("🌐 PROCESSING CONNECTIONS DATA")
+                logger.info(f"   Connections: {data['resources']['connections']}")
+                self._write_connections(
+                        data['resources']['connections'],
+                        self.device_data.pk,
+                        ct,
+                        current,
+                        time=time,
+                )
+                logger.info("✅ Connections data processed successfully")
+            else:
+                logger.info("ℹ️  No connections data in this batch")    
+
+  
+          
         try:
             Metric.batch_write(self.write_device_metrics)
         except ValueError as error:
@@ -377,6 +395,7 @@ class DeviceDataWriter(object):
         chart.save()
 
     def _create_resources_chart(self, metric, resource):
+        logger.info(f"Created {resource} metric")
         if resource not in monitoring_settings.AUTO_CHARTS:
             return
         chart = Chart(metric=metric, configuration=resource)
@@ -402,3 +421,78 @@ class DeviceDataWriter(object):
         chart = Chart(metric=metric, configuration='access_tech')
         chart.full_clean()
         chart.save()
+
+    
+    def _write_connections(
+    self, connections, primary_key, content_type, current=False, time=None
+):
+      """
+      Writes network connections metrics to InfluxDB.
+      
+      Args:
+            connections: dict with ipv4 and ipv6 connection counts
+                              Example: {
+                                    'ipv4': {'tcp': 15, 'udp': 8},
+                                    'ipv6': {'tcp': 3, 'udp': 2}
+                              }
+            primary_key: device UUID
+            content_type: ContentType for Device model
+            current: bool - is this current/latest data
+            time: datetime - timestamp of data
+      """
+      logger.info("📊 _write_connections() called")
+      
+      ipv4 = connections.get('ipv4', {})
+      ipv6 = connections.get('ipv6', {})
+      
+      tcp_ipv4 = ipv4.get('tcp', 0)
+      udp_ipv4 = ipv4.get('udp', 0)
+      tcp_ipv6 = ipv6.get('tcp', 0)
+      udp_ipv6 = ipv6.get('udp', 0)
+      
+      # Calculate total connections
+      total_connections = tcp_ipv4 + udp_ipv4 + tcp_ipv6 + udp_ipv6
+      
+      logger.info(f"   IPv4 - TCP: {tcp_ipv4}, UDP: {udp_ipv4}")
+      logger.info(f"   IPv6 - TCP: {tcp_ipv6}, UDP: {udp_ipv6}")
+      logger.info(f"   Total: {total_connections}")
+      
+      if total_connections == 0:
+            logger.warning("⚠️  No connections found, skipping write")
+            return
+      
+      # Prepare extra values for additional fields
+      extra_values = {
+            'tcp_ipv4': int(tcp_ipv4),
+            'udp_ipv4': int(udp_ipv4),
+            'tcp_ipv6': int(tcp_ipv6),
+            'udp_ipv6': int(udp_ipv6),
+      }
+      
+      # Get or create metric in PostgreSQL
+      metric, created = Metric._get_or_create(
+            object_id=primary_key,
+            content_type_id=content_type.id,
+            configuration='connections',
+      )
+      
+      logger.info(f"   Metric object - Created: {created}, ID: {metric.pk}, Key: {metric.key}")
+      
+      # Append data for batch write to InfluxDB
+      self._append_metric_data(
+            metric,
+            int(total_connections),  # main field value
+            current,
+            time=time,
+            extra_values=extra_values,
+      )
+      
+      # Create chart and alert settings for new metrics
+      if created:
+            logger.info("🆕 First time metric - creating chart and alert settings")
+            self._create_resources_chart(metric, resource='connections')
+            self._create_resources_alert_settings(metric, resource='connections')
+            logger.info("✅ Chart and alert settings created")
+      
+      logger.info("✅ _write_connections() completed successfully")
+

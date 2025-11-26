@@ -22,13 +22,11 @@ class Migration(migrations.Migration):
                 max_length=255,
                 null=True,
                 storage=private_storage.storage.files.PrivateFileSystemStorage(
-                    base_url="/test-script-media/",
-                    location=pathlib.PurePosixPath(
-                        "/home/spanidea-lt83/Desktop/nokia/openwisp-controller/tests/media"
-                    ),
+                    base_url="/media/", location="/opt/openwisp/media"
                 ),
                 upload_to="zip/",
                 verbose_name="Test Script",
             ),
         ),
     ]
+

@@ -13,8 +13,13 @@
                   <label>{% trans 'Local time' %}:</label>
                   <div class="readonly">
                       {{ device_data.general.local_time }}
+
+                      
                   </div>
               </div>
+
+
+             
               {% endif %}
               {% if device_data.general.uptime %}
               <div class="form-row">
@@ -26,6 +31,42 @@
               {% endif %}
               {% endif %}
               {% if device_data.resources %}
+              {% if device_data.resources.connections %}
+<h2>{% trans 'Connections' %}</h2>
+
+<div class="form-row">
+    <label>{% trans 'IPv4 TCP' %}:</label>
+    <div class="readonly">
+        {{ device_data.resources.connections.ipv4.tcp }}
+    </div>
+</div>
+
+<div class="form-row">
+    <label>{% trans 'IPv4 UDP' %}:</label>
+    <div class="readonly">
+        {{ device_data.resources.connections.ipv4.udp }}
+    </div>
+</div>
+
+<div class="form-row">
+    <label>{% trans 'IPv6 TCP' %}:</label>
+    <div class="readonly">
+        {{ device_data.resources.connections.ipv6.tcp }}
+    </div>
+</div>
+
+<div class="form-row">
+    <label>{% trans 'IPv6 UDP' %}:</label>
+    <div class="readonly">
+        {{ device_data.resources.connections.ipv6.udp }}
+    </div>
+</div>
+{% endif %}
+
+
+
+
+
               {% if device_data.resources.load or device_data.resources.cpus %}
               <h2>{% trans 'CPU' %}</h2>
               {% endif %}

@@ -1,5 +1,7 @@
 import logging
 import uuid
+import json
+
 from datetime import datetime
 
 from cache_memoize import cache_memoize
@@ -110,6 +112,8 @@ class DeviceMetricView(
     method is meant to be used by network devices).
     """
 
+
+
     model = DeviceData
     queryset = (
         DeviceData.objects.filter(organization__is_active=True)
@@ -143,6 +147,8 @@ class DeviceMetricView(
 
     def get(self, request, pk):
         # ensure valid UUID
+        logger.info("========================== GET API" * 70)
+        
         try:
             pk = str(uuid.UUID(pk))
         except ValueError:
@@ -152,6 +158,34 @@ class DeviceMetricView(
         if not request.query_params.get('csv'):
             charts_data = dict(response.data)
             device_metrics_data = MonitoringDeviceDetailSerializer(self.instance).data
+   
+
+
+            logger.info(f"🔹 device_metrics_data: {device_metrics_data}")
+            logger.info(f"🔹 charts_data: {charts_data}")
+
+            # ---- Temporary manual Network Connections chart ----
+#             charts_data.setdefault("charts", []).append({
+#     "title": "Network Connections",
+#     "type": "stackedbar+lines",
+#     "traces": [
+#         ["total", [2802, 2802]],
+#         ["tcp_ipv4", [1200, 1200]],
+#         ["udp_ipv4", [190, 190]],
+#         ["tcp_ipv6", [112, 112]],
+#         ["udp_ipv6", [1300, 1300]]
+#     ],
+#     "summary": {
+#         "total": 2802,
+#         "tcp_ipv4": 1200,
+#         "udp_ipv4": 190,
+#         "tcp_ipv6": 112,
+#         "udp_ipv6": 1300
+#     }
+# })
+# -----------------------------------------------------
+
+
             return Response(
                 {**device_metrics_data, **charts_data}, status=status.HTTP_200_OK
             )
@@ -174,8 +208,74 @@ class DeviceMetricView(
         return super().get_object()
 
     def post(self, request, pk):
+
+
+            # ===== ADD DEBUG LOGS =====
+        logger.info("=" * 70)
+        logger.info("📥 MONITORING DATA RECEIVED")
+        logger.info("=" * 70)
+        logger.info(f"🔹 Device UUID: {pk}")
+        logger.info(f"🔹 Timestamp: {request.query_params.get('time')}")
+        logger.info(f"🔹 Current flag: {request.query_params.get('current')}")
+        logger.info(f"🔹 Data keys: {list(request.data.keys())}")
+
+
+
+
+        logger.info("📦 PARSED REQUEST DATA:")
+        logger.info(json.dumps(request.data, indent=4))
+
+        logger.info("📦 QUERY PARAMS:")
+        logger.info(dict(request.query_params))
+        if 'connections' in request.data:
+         # Ensure 'resources' exists inside request.data
+         if 'resources' not in request.data:
+                  request.data['resources'] = {}
+
+         # Inject connections inside resources manually
+         resources = request.data['resources']
+         resources['connections'] = request.data['connections']
+
+         logger.info("=" * 50)
+         logger.info("🌐 CONNECTIONS DATA FOUND")
+         logger.info(f"   Data: {request.data['connections']}")
+
+         ipv4 = request.data['connections'].get('ipv4', {})
+         ipv6 = request.data['connections'].get('ipv6', {})
+
+         total = (
+                  ipv4.get('tcp', 0) +
+                  ipv4.get('udp', 0) +
+                  ipv6.get('tcp', 0) +
+                  ipv6.get('udp', 0)
+         )
+
+         logger.info(f"   Total connections: {total}")
+         logger.info("=" * 50)
+
+
+        # if 'resources' in request.data:
+        #     res = request.data['resources']
+        #     logger.info(f"🔹 Resources keys: {list(res.keys())}")
+
+        #     # Check for connections data
+        #     if 'connections' in request.data:
+        #         logger.info("=" * 50)
+        #         logger.info("🌐 CONNECTIONS DATA FOUND")
+        #         logger.info(f"   Data: {res['connections']}")
+        #         ipv4 = res['connections'].get('ipv4', {})
+        #         ipv6 = res['connections'].get('ipv6', {})
+        #         total = (ipv4.get('tcp', 0) + ipv4.get('udp', 0) + 
+        #                 ipv6.get('tcp', 0) + ipv6.get('udp', 0))
+        #         logger.info(f"   Total connections: {total}")
+        #         logger.info("=" * 50)
+        
+
+
+        
         self.instance = self.get_object(pk)
         if self.instance._is_deactivated:
+            
             # If the device is deactivated, do not accept data.
             # We don't use "Device.is_deactivated()" to avoid
             # generating query for the related config.
