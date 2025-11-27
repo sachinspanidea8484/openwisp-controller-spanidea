@@ -1,59 +1,73 @@
+#!/usr/bin/env python3
 import os
 import sys
+import json
+import argparse
 from datetime import datetime
 
-# === Expected Software Version ===
-EXPECTED_VERSION = "23.05.5"
-
-# === Possible version file paths ===
 VERSION_PATHS = [
     "/etc/version",
     "/etc/os-release",
     "/usr/lib/os-release"
 ]
 
-# === Logging Utility ===
 def log(message):
     timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
     print(f"{timestamp} {message}")
 
-# === Function to extract version string from file ===
+def parse_configuration(config_str):
+    if config_str.startswith("CONFIGURATION="):
+        config_str = config_str[len("CONFIGURATION="):]
+    try:
+        return json.loads(config_str)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing CONFIGURATION JSON: {e}", file=sys.stderr)
+        sys.exit(1)
+
 def extract_version_from_file(path):
     try:
         with open(path, "r") as f:
             for line in f:
                 line = line.strip()
-                if not line or line.startswith("#"):
+                if not line:
                     continue
 
-                # Common fields in os-release or version files
                 if any(k in line for k in ["VERSION_ID", "VERSION", "version"]):
                     parts = line.split("=", 1)
                     if len(parts) == 2:
-                        value = parts[1].strip().strip('"\'')
-                        return value
+                        return parts[1].strip().strip('"\'')
                     else:
                         return line.strip()
         return None
-    except Exception as e:
-        log(f"[ERROR] Could not read {path}: {e}")
+    except:
         return None
 
-# === Retrieve current software version ===
 def get_software_version():
     for path in VERSION_PATHS:
         if os.path.isfile(path):
             log(f"[INFO] Found version file: {path}")
-            version = extract_version_from_file(path)
-            if version:
-                return version
+            ver = extract_version_from_file(path)
+            if ver:
+                return ver
     return None
 
-# === Main Test ===
 def main():
+    parser = argparse.ArgumentParser(description="BB-SU-005 Software Version Verification Test")
+    parser.add_argument("config", help="CONFIGURATION='{\"expected_version\":\"24.10-SNAPSHOT\"}'")
+    args = parser.parse_args()
+
+    config = parse_configuration(args.config)
+
+    EXPECTED_VERSION = config.get("expected_version")
+    if EXPECTED_VERSION is None:
+        log("[FAIL] Missing 'expected_version' in CONFIGURATION JSON.")
+        sys.exit(1)
+
     log("[STEP 1] Starting Software Version Verification Test")
 
+    # === Actual System Values ===
     current_version = get_software_version()
+    actual_settings = {"expected_version": current_version}
 
     if not current_version:
         log("[FAIL] Unable to retrieve current software version from system.")
@@ -62,11 +76,22 @@ def main():
     log(f"[INFO] Retrieved Software Version: {current_version}")
     log(f"[INFO] Expected Software Version: {EXPECTED_VERSION}")
 
-    if current_version == EXPECTED_VERSION:
+    # === VALIDATION (same as BB-SU-004) ===
+    test_passed = True
+
+    for key, expected_value in config.items():
+        actual_value = actual_settings.get(key)
+
+        if actual_value == expected_value:
+            log(f"[PASS] Config '{key}' matches expected value '{expected_value}'")
+        else:
+            log(f"[FAIL] Config '{key}' expected '{expected_value}' but found '{actual_value}'")
+            test_passed = False
+
+    if test_passed:
         log("[PASS] Software image version matches the expected version.")
         log("[PASS] Test Case PASSED.")
     else:
-        log(f"[FAIL] Software version mismatch: Expected '{EXPECTED_VERSION}', Found '{current_version}'")
         log("[FAIL] Test Case FAILED.")
         sys.exit(1)
 

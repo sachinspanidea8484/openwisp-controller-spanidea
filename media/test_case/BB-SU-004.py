@@ -1,14 +1,9 @@
+#!/usr/bin/env python3
 import os
 import sys
+import json
+import argparse
 from datetime import datetime
-
-# Expected configuration values
-EXPECTED_SETTINGS = {
-    "hostname": "Nokia",
-    "network_mode": "dhcp",
-    "admin_user": "root",
-    "wifi_enabled": "no"
-}
 
 # Mapping keys to UCI config files
 CONFIG_FILES = {
@@ -40,14 +35,33 @@ def read_uci_config(filepath):
             if not line or line.startswith("#") or line.startswith("config") or line.startswith("section"):
                 continue
             if line.startswith("option"):
-                parts = line.split(None, 2)
-                if len(parts) == 3:
-                    _, key, value = parts
+                parts = line.split(None, 3)
+                if len(parts) >= 3:
+                    _, key, value = parts[0:3]
                     config[key.strip()] = value.strip().strip("'\"")
     return config
 
+def parse_configuration(config_str):
+    """Parse CONFIGURATION=... JSON passed via CLI."""
+    if config_str.startswith("CONFIGURATION="):
+        config_str = config_str[len("CONFIGURATION="):]
+    try:
+        return json.loads(config_str)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing CONFIGURATION JSON: {e}", file=sys.stderr)
+        sys.exit(1)
+
 # === Main Test ===
 def main():
+
+    parser = argparse.ArgumentParser(description="BB-SU-004 Initial Default Configuration Test")
+    parser.add_argument("config", help="CONFIGURATION='{\"hostname\":\"NXP\",...}'")
+
+    args = parser.parse_args()
+
+    # Parse CLI JSON input
+    EXPECTED_SETTINGS = parse_configuration(args.config)
+
     log("[STEP 1] Starting Initial/Default Configuration Test")
 
     actual_settings = {}
@@ -79,7 +93,7 @@ def main():
         else:
             actual_settings["wifi_enabled"] = None
 
-    # Admin user (root)
+    # Admin user always "root"
     actual_settings["admin_user"] = "root"
 
     # Step 3: Validate
