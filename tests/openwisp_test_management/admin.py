@@ -238,7 +238,7 @@ class TestCategoryAdmin(BaseVersionAdmin):
         html += "</tbody></table>"
 
         return mark_safe(html)
-    related_testcases.short_description = "Test Cases in this Category"
+    related_testcases.short_description = "Related Test Cases"
 
     def test_case_count(self, obj):
         """Display count of test cases in this category"""

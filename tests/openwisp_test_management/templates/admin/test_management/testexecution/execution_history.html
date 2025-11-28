@@ -900,7 +900,7 @@ function abortAllTests() {
     })
     .then(data => {
         if (data.success) {
-            showMessage(`${data.retried_count} tests abort request sent`, 'success');
+            showMessage(`tests abort request sent`, 'success');
             setTimeout(() => location.reload(), 1500);
         } else {
             showMessage(data.error || 'Failed to abort test execution', 'error');
