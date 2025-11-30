@@ -2,14 +2,7 @@ from django.conf import settings
 from django.utils.module_loading import import_string
 from django.core.exceptions import ImproperlyConfigured
 from pathlib import Path
-# EXECUTOR_SERVER_IP = getattr(
-#     settings, "EXECUTOR_SERVER_IP", "http://44.199.94.165"
-# )
 
-
-# OPENWISP_SERVER_IP = getattr(
-#     settings, "OPENWISP_SERVER_IP", "http://44.193.103.240"
-# )
 CURRENT_DIR= Path(__file__).resolve().parent.parent
 
 EXECUTOR_SERVER_IP = getattr(
@@ -20,6 +13,9 @@ EXECUTOR_SERVER_IP = getattr(
 OPENWISP_SERVER_IP = getattr(
     settings, "OPENWISP_SERVER_IP", "http://172.17.0.1:8000"
 )
+
+
+
 
 TEST_MANAGEMENT_API_ENABLED = getattr(
     settings, "OPENWISP_TEST_MANAGEMENT_API_ENABLED", True

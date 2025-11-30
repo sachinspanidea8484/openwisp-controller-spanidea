@@ -1,51 +1,58 @@
-import os
 import time
 import subprocess
-import logging
 from datetime import datetime
 
-# === Logging Configuration ===
-logging.basicConfig(
-    filename="/tmp/watchdog_test.log",
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
-console = logging.StreamHandler()
-console.setLevel(logging.INFO)
-logging.getLogger().addHandler(console)
+LOG_FILE = "/tmp/watchdog_test.log"
+
+def log(message):
+    timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+    msg = f"{timestamp} {message}"
+    print(msg)
+    with open(LOG_FILE, "a") as f:
+        f.write(msg + "\n")
 
 def run_cmd(cmd, desc):
-    """Run a shell command and log output"""
-    logging.info(f"=== {desc} ===")
+    log(f"[STEP] {desc}")
     try:
         result = subprocess.run(cmd, shell=True, check=True, text=True, capture_output=True)
-        logging.info(result.stdout.strip())
-        if result.stderr:
-            logging.warning(result.stderr.strip())
+        if result.stdout.strip():
+            log(f"[INFO] {result.stdout.strip()}")
+        if result.stderr.strip():
+            log(f"[WARN] {result.stderr.strip()}")
     except subprocess.CalledProcessError as e:
-        logging.error(f"Command failed: {e}")
-        logging.error(e.stderr.strip())
+        log(f"[FAIL] Command execution failed")
+        if e.stderr:
+            log(f"[ERROR] {e.stderr.strip()}")
 
-def main():
-    logging.info("=== Watchdog Timer Test Started ===")
-
-    # Step 1: Confirm Watchdog Is Enabled
-    run_cmd("ubus call system watchdog", "Checking watchdog status")
-
-    # Step 2: Set the Watchdog Timeout (10 seconds)
-    run_cmd("ubus call system watchdog '{\"timeout\":10}'", "Setting watchdog timeout to 10 seconds")
-
-    # Step 3: Simulate System Hang (Stop Feeding Watchdog)
-    run_cmd("ubus call system watchdog '{\"stop\":true}'", "Stopping watchdog feed to simulate system hang")
-
-    # Step 4: Wait for reboot (no feeding)
-    logging.info("System will reboot automatically after timeout (~10s). Waiting...")
-    for i in range(10):
-        logging.info(f"Waiting... {i+1}/10 seconds")
+def wait_sec(seconds, desc):
+    log(f"[STEP] {desc} ({seconds}s)")
+    for i in range(seconds):
+        log(f"[INFO] Waiting... {i+1}/{seconds} seconds")
         time.sleep(1)
 
-    # Step 5: If system didn't reboot (for debugging)
-    logging.warning("If you see this message, watchdog did not trigger a reboot as expected.")
+def main():
+    log("WATCHDOG TEST STARTED")
+
+    # -------- CYCLE 1 --------
+    run_cmd("ubus call system watchdog", "Check Status")
+    run_cmd("ubus call system watchdog '{\"magicclose\": true}'", "Magic Close (Disable Watchdog)")
+    run_cmd("ubus call system watchdog '{\"timeout\":10}'", "Set Timeout 10s")
+    run_cmd("ubus call system watchdog '{\"stop\":true}'", "Stop Feed (Cycle 1)")
+    wait_sec(10, "Waiting Cycle 1")
+
+    # ✅ Added Message After First Cycle
+    log("[INFO] Device is NOT rebooted because watchdog is disabled (magicclose enabled)")
+
+    # -------- CYCLE 2 --------
+    log("SECOND CYCLE")
+    run_cmd("ubus call system watchdog '{\"stop\":false}'", "Resume Feed")
+    run_cmd("ubus call system watchdog '{\"magicclose\": false}'", "Enable Watchdog")
+    run_cmd("ubus call system watchdog '{\"timeout\":10}'", "Reset Timeout")
+    run_cmd("ubus call system watchdog '{\"stop\":true}'", "Stop Feed (Cycle 2)")
+    
+    wait_sec(15, "Waiting Reboot")
+
+    log("[FAIL] Watchdog did NOT reboot device")
 
 if __name__ == "__main__":
     main()

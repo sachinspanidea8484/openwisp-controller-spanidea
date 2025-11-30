@@ -1,4 +1,6 @@
 import swapper
+import logging
+
 from django.core.exceptions import ValidationError
 from django.http import Http404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -32,6 +34,7 @@ import json
 import requests
 import os
 private_storage = FileSystemStorage(location=settings.PRIVATE_STORAGE_ROOT)
+from openwisp_controller.connection.models import DeviceConnection
 
 BatchUpgradeOperation = load_model("BatchUpgradeOperation")
 UpgradeOperation = load_model("UpgradeOperation")
@@ -41,6 +44,7 @@ FirmwareImage = load_model("FirmwareImage")
 DeviceFirmware = load_model("DeviceFirmware")
 Device = swapper.load_model("config", "Device")
 Organization= swapper.load_model("openwisp_users", "Organization")
+logger = logging.getLogger(__name__)
 
 class ListViewPagination(pagination.PageNumberPagination):
     page_size = 10
@@ -350,18 +354,22 @@ class DeviceFirmwareDetailView(
                 raise
 
 from django.db import transaction
-class FirmwareUpgradeView( APIView):
+class FirmwareUpgradeViewOld( APIView):
     """
     API endpoint to create category, build and trigger firmware upgrades
     """
 
     def post(self, request):
+
         raw_details = request.data.get("firmware_details")
         try:
             data = json.loads(raw_details)
             if isinstance(data, str):
                 # means it was double-encoded
                 data = json.loads(data)
+
+
+              
         except json.JSONDecodeError:
             return Response({"error": "Invalid JSON in firmware_details"}, status=400)
         category_data = data.get("category", {})
@@ -519,6 +527,423 @@ class FirmwareUpgradeView( APIView):
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)   
+
+
+
+from django.db import transaction
+class FirmwareUpgradeView(APIView):
+    """
+    API endpoint to create category, build and trigger firmware upgrades.
+    
+    Request Format:
+        - firmware_details: JSON string containing upgrade configuration
+        - firmware_image: File upload (optional if URL/path provided in firmware_details)
+    
+    Response:
+        - 201: Upgrade started successfully with operation details
+        - 400: Validation errors or business logic failures
+        - 500: Server errors
+    """
+
+    def post(self, request):
+        """Handle firmware upgrade request"""
+        
+        # Parse and validate request data
+        firmware_details = self._parse_firmware_details(request.data.get("firmware_details"))
+        if isinstance(firmware_details, Response):
+            return firmware_details
+
+        # Extract request parameters
+        category_data = firmware_details.get("category", {})
+        build_data = firmware_details.get("build", {})
+        device_name = firmware_details.get("device_name")
+        upgrade_options = firmware_details.get("upgrade_options", {})
+        firmware_image_file = request.FILES.get("firmware_image")
+        firmware_image_path_or_url = firmware_details.get("firmware_image")
+        firmware_image_label = firmware_details.get("firmware_image_type")
+
+        # Validate required fields
+        validation_error = self._validate_required_fields(
+            build_data, device_name, firmware_image_file, firmware_image_path_or_url
+        )
+        if validation_error:
+            return validation_error
+
+        try:
+            with transaction.atomic():
+                # Step 1: Validate device exists and has working SSH connection
+                device = self._get_device_with_connection(device_name)
+                if isinstance(device, Response):
+                    return device
+
+                # Step 2: Validate firmware image type compatibility
+                firmware_image_type = self._validate_firmware_image_type(
+                    firmware_image_label, device.model
+                )
+                if isinstance(firmware_image_type, Response):
+                    return firmware_image_type
+
+                # Step 3: Get or create category (with default fallback)
+                category = self._get_or_create_category(category_data)
+                if isinstance(category, Response):
+                    return category
+
+                # Step 4: Create build (check for duplicates)
+                build = self._create_build(build_data, category)
+                if isinstance(build, Response):
+                    return build
+
+                # Step 5: Process and save firmware image
+                firmware_image = self._process_firmware_image(
+                    firmware_image_file, 
+                    firmware_image_path_or_url, 
+                    build, 
+                    firmware_image_type
+                )
+                if isinstance(firmware_image, Response):
+                    return firmware_image
+
+                # Step 6: Validate no duplicate or in-progress upgrades
+                validation_result = self._validate_upgrade_eligibility(device, firmware_image)
+                if validation_result:
+                    return validation_result
+
+                # Step 7: Create upgrade operation and trigger background task
+                operation = self._create_upgrade_operation(device, firmware_image, upgrade_options)
+                if isinstance(operation, Response):
+                    return operation
+
+                # Trigger async upgrade task after transaction commits
+                transaction.on_commit(lambda: upgrade_firmware.delay(operation.pk))
+
+                logger.info(f"✅ Upgrade operation {operation.id} created for device {device.name}")
+                
+                return Response(
+                    {
+                        "category_id": category.id,
+                        "build_id": build.id,
+                        "image_id": firmware_image.id,
+                        "operation_id": operation.id,
+                        "message": "Upgrade started successfully",
+                    },
+                    status=status.HTTP_201_CREATED,
+                )
+
+        except ValidationError as e:
+            logger.error(f"Validation error: {e.message_dict}")
+            return Response(
+                {"error": e.message_dict}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.exception(f"Unexpected error during firmware upgrade: {str(e)}")
+            return Response(
+                {"error": "An unexpected error occurred during firmware upgrade"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    # ========================================================================
+    # Helper Methods
+    # ========================================================================
+
+    def _parse_firmware_details(self, raw_details):
+        """Parse and validate firmware_details JSON"""
+        if not raw_details:
+            return Response(
+                {"error": "firmware_details is required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            data = json.loads(raw_details)
+            # Handle double-encoded JSON
+            if isinstance(data, str):
+                data = json.loads(data)
+            return data
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {str(e)}")
+            return Response(
+                {"error": "Invalid JSON in firmware_details"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    def _validate_required_fields(self, build_data, device_name, firmware_file, firmware_path):
+        """Validate all required fields are present"""
+        if not build_data or not device_name:
+            return Response(
+                {"error": "build and device_name are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        if not firmware_file and not firmware_path:
+            return Response(
+                {"error": "firmware_image (file upload, URL, or path) is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        return None
+
+    def _get_device_with_connection(self, device_name):
+        """Retrieve device and validate it has a working SSH connection"""
+        try:
+            device = Device.objects.get(name=device_name)
+        except Device.DoesNotExist:
+            logger.warning(f"Device not found: {device_name}")
+            return Response(
+                {"error": f"No device found with name '{device_name}'"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate device has working SSH connection
+        try:
+            device_conn = DeviceConnection.get_working_connection(device)
+            logger.info(f"Device {device_name} has working SSH connection")
+        except :
+            logger.warning(f"Device {device_name} has no working SSH connection")
+            return Response(
+                {"error": f"Device '{device_name}' doesn't have a working SSH connection"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return device
+
+    def _validate_firmware_image_type(self, firmware_image_label, device_model):
+        """Validate firmware image type exists and is compatible with device"""
+        if not firmware_image_label:
+            return Response(
+                {"error": "firmware_image_type is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Map label to internal value
+        firmware_image_type = FIRMWARE_IMAGE_LABEL_TO_VALUE_MAP.get(firmware_image_label)
+        if not firmware_image_type:
+            return Response(
+                {"error": f"Invalid firmware_image_type: {firmware_image_label}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Check if image type exists in mapping
+        if firmware_image_type not in FIRMWARE_IMAGE_MAP:
+            return Response(
+                {"error": "Unsupported firmware image type"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate device compatibility
+        compatible_boards = FIRMWARE_IMAGE_MAP[firmware_image_type].get("boards", [])
+        if device_model not in compatible_boards:
+            return Response(
+                {"error": f"Device model '{device_model}' is not compatible with this firmware image type"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return firmware_image_type
+
+    def _get_or_create_category(self, category_data):
+     """Get or create category, auto-creating default if not provided"""
+     # Use default category if none provided
+     if not category_data or category_data == {}:
+          try:
+               category = Category.objects.get(name="default")
+               logger.info("Using existing default category")
+               return category
+          except Category.DoesNotExist:
+               # Auto-create default category with default organization
+               logger.info("Default category not found, creating it automatically")
+               try:
+                    default_org = Organization.objects.get(name="default")
+               except Organization.DoesNotExist:
+                    logger.error("Default organization not found in database")
+                    return Response(
+                         {"error": "Default organization not configured. Please create an organization named 'default'."},
+                         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    )
+               
+               # Create default category
+               category = Category.objects.create(
+                    name="default",
+                    organization=default_org,
+                    description="Default firmware category (auto-created)"
+               )
+               logger.info(f"Created default category with organization: {default_org.name}")
+               return category
+
+     # Get or create custom category
+     org_id = category_data.get("organization_id")
+     if not org_id:
+          try:
+               org_id = Organization.objects.get(name="default").id
+               logger.info("Using default organization for custom category")
+          except Organization.DoesNotExist:
+               logger.error("Default organization not found in database")
+               return Response(
+                    {"error": "Default organization not configured"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+               )
+
+     category, created = Category.objects.get_or_create(
+          name=category_data["name"],
+          organization_id=org_id,
+          defaults={"description": category_data.get("description", "")},
+     )
+     
+     if created:
+          logger.info(f"Created new category: {category.name}")
+     
+     return category
+    
+    def _create_build(self, build_data, category):
+     """Create or get existing build, reusing builds with same OS in organization"""
+     os_identifier = build_data.get("os", "")
+     version = build_data.get("version")
+     
+     # Check for existing build with same OS in organization
+     existing_build = Build.objects.filter(
+          category__organization=category.organization, 
+          os=os_identifier
+     ).first()
+     
+     if existing_build:
+          # Use existing build with same OS instead of creating duplicate
+          logger.info(
+               f"Found existing build with OS '{os_identifier}' in organization "
+               f"'{category.organization.name}'. Using build ID: {existing_build.id}"
+          )
+          return existing_build
+
+     # Create new build if no duplicate OS found
+     build, created = Build.objects.get_or_create(
+          category=category,
+          version=version,
+          defaults={
+               "os": os_identifier,
+               "changelog": build_data.get("changelog", ""),
+          },
+     )
+
+     if created:
+          logger.info(f"Created new build: {build.version} (OS: {os_identifier}) for category {category.name}")
+     else:
+          logger.info(f"Using existing build: {build.version} for category {category.name}")
+     
+     return build
+    
+    def _process_firmware_image(self, firmware_file, firmware_path_or_url, build, image_type):
+        """Download or read firmware image and save to storage"""
+        file_name = None
+        file_content = None
+
+        # Handle uploaded file
+        if firmware_file:
+            file_name = firmware_file.name
+            file_content = firmware_file.read()
+            logger.info(f"Processing uploaded firmware file: {file_name}")
+
+        # Handle URL or local path
+        elif firmware_path_or_url:
+            if firmware_path_or_url.startswith("http"):
+                # Download from URL
+                try:
+                    logger.info(f"Downloading firmware from URL: {firmware_path_or_url}")
+                    response = requests.get(firmware_path_or_url, stream=True, timeout=30)
+                    response.raise_for_status()
+                    file_name = os.path.basename(firmware_path_or_url)
+                    file_content = response.content
+                except requests.RequestException as e:
+                    logger.error(f"Failed to download firmware from {firmware_path_or_url}: {str(e)}")
+                    return Response(
+                        {"error": f"Failed to download firmware image: {str(e)}"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            elif os.path.exists(firmware_path_or_url):
+                # Read from local path
+                file_name = os.path.basename(firmware_path_or_url)
+                try:
+                    logger.info(f"Reading firmware from local path: {firmware_path_or_url}")
+                    with open(firmware_path_or_url, "rb") as f:
+                        file_content = f.read()
+                except IOError as e:
+                    logger.error(f"Failed to read firmware file {firmware_path_or_url}: {str(e)}")
+                    return Response(
+                        {"error": f"Failed to read firmware file: {str(e)}"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            else:
+                return Response(
+                    {"error": "Invalid firmware image path or URL"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # Save to private storage
+        private_path = f"{build.id}/{file_name}"
+        if not private_storage.exists(private_path):
+            saved_path = private_storage.save(private_path, ContentFile(file_content))
+            logger.info(f"Saved firmware image to: {saved_path}")
+        else:
+            saved_path = private_path
+            logger.info(f"Firmware image already exists at {private_path}")
+
+        # Create or get firmware image record
+        firmware_image, created = FirmwareImage.objects.get_or_create(
+            build=build,
+            type=image_type,
+            defaults={"file": saved_path},
+        )
+
+        if created:
+            logger.info(f"Created firmware image record for build {build.id}")
+
+        return firmware_image
+
+    def _validate_upgrade_eligibility(self, device, firmware_image):
+        """Check if device is eligible for upgrade (no in-progress or duplicate upgrades)"""
+        uo_model = load_model("UpgradeOperation")
+
+        # Check for in-progress upgrades
+        if uo_model.objects.filter(device=device, status="in-progress").exists():
+            logger.warning(f"Device {device.name} already has an upgrade in progress")
+            return Response(
+                {"error": f"Device '{device.name}' already has an upgrade in progress"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Check if device already has this firmware version
+        last_success_image = (
+            uo_model.objects.filter(device=device, status="success")
+            .order_by("-modified")
+            .values_list("image", flat=True)
+            .first()
+        )
+
+        if last_success_image == firmware_image.id:
+            logger.warning(f"Device {device.name} already running firmware image {firmware_image.id}")
+            return Response(
+                {"error": "Device is already running this firmware version"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return None
+
+    def _create_upgrade_operation(self, device, firmware_image, upgrade_options):
+        """Create and validate upgrade operation"""
+        uo_model = load_model("UpgradeOperation")
+        
+        operation = uo_model(
+            device=device,
+            image=firmware_image,
+            upgrade_options=upgrade_options,
+        )
+        
+        try:
+            operation.full_clean()
+            operation.save()
+            logger.info(f"Created upgrade operation {operation.id} for device {device.name}")
+            return operation
+        except ValidationError as e:
+            logger.error(f"Upgrade operation validation failed: {e.message_dict}")
+            raise
 
 class FirmwareUpdateOnDevice(APIView):
     def get(self,request):

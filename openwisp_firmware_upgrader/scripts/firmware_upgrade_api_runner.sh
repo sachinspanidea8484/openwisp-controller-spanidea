@@ -1,5 +1,5 @@
 source ../../.env
-API_URL="$API_BASE_URL/api/v1/firmware-upgrader/firmware/upgrade/"
+API_URL="http://172.17.0.1:8000/api/v1/firmware-upgrader/firmware/upgrade/"
 FIRMWARE_IMAGE=$1
 FIRMWARE_IMAGE_TYPE=$2
 DEVICE_NAME=$3

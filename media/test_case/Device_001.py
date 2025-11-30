@@ -6,6 +6,8 @@ Simple 4G PCI Lock Test - Access by Key
 import json
 import argparse
 import sys
+import time
+
 
 
 def parse_config(config_str):
@@ -36,5 +38,7 @@ if __name__ == "__main__":
 
     # Access by key and print
     RPI = config.get('RPI', config.get('RPIS', 'Not provided'))
+    time.sleep(30)
+
 
     print(f"RPI : {RPI}")

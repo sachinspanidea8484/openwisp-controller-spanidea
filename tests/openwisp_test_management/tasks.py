@@ -139,10 +139,12 @@ def execute_tests_on_device(device_execution_id):
         device_conn = None
         has_connection = False
         try:
-            device_conn = DeviceConnection.objects.get(
-                device=device,
-                enabled=True
-            )
+            # device_conn = DeviceConnection.objects.get(
+            #     device=device,
+            #     enabled=True
+            # )
+            device_conn = DeviceConnection.get_working_connection(device)
+
             has_connection = True
             logger.info(f"Found working device connection: {device_conn}")
             print(f"[TASK] execute_tests_on_device - Found working connection: {device_conn}")
@@ -543,10 +545,12 @@ def retry_test_execution(test_execution_id):
         has_connection = False
         
         try:
-            device_conn = DeviceConnection.objects.get(
-                device=device,
-                enabled=True
-            )
+            # device_conn = DeviceConnection.objects.get(
+            #     device=device,
+            #     enabled=True
+            # )
+            device_conn = DeviceConnection.get_working_connection(device)
+
             ssh_params = device_conn.credentials.params
             has_connection = True
         except DeviceConnection.DoesNotExist:
@@ -710,10 +714,14 @@ def abort_test_execution(test_execution_id):
 
         if test_execution.test_case.test_type == 1 or DEVICE_EXECUTION_TYPE==1:
          try:
-            device_conn = DeviceConnection.objects.get(
-                device=device,
-                enabled=True
-            )
+            # device_conn = DeviceConnection.objects.get(
+            #     device=device,
+            #     enabled=True
+            # )
+            device_conn = DeviceConnection.get_working_connection(device)
+            
+
+            
             ssh_params = device_conn.credentials.params
          except DeviceConnection.DoesNotExist:
             logger.warning(f"No working connection found for device {device.name} during retry")
