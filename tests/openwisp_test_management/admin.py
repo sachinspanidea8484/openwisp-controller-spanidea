@@ -201,7 +201,15 @@ class TestCategoryAdmin(BaseVersionAdmin):
         if not testcases.exists():
             return "No test case assigned."
         html = """
-        <table class="related-testcases-table">
+        <style>
+            .field-related_testcases .readonly{
+                width: 90%;
+            }
+            .related-testcases-table th,td{
+                width: 30%;
+            }
+        </style>
+        <table class="related-testcases-table" style="width:90%">
             <thead>
                 <tr>
                     <th>Name</th>
@@ -230,7 +238,7 @@ class TestCategoryAdmin(BaseVersionAdmin):
         html += "</tbody></table>"
 
         return mark_safe(html)
-    related_testcases.short_description = "Test Cases in this Category"
+    related_testcases.short_description = "Related Test Cases"
 
     def test_case_count(self, obj):
         """Display count of test cases in this category"""
