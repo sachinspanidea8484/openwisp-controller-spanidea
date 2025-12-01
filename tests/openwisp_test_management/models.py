@@ -14,7 +14,7 @@ from .base.models import (
     AbstractScheduledExecution
 
 )
-
+from django.utils.translation import gettext_lazy as _
 
 class TestCategory(AbstractTestCategory):
     """
@@ -62,6 +62,8 @@ class TestSuiteExecution(AbstractTestSuiteExecution):
     class Meta(AbstractTestSuiteExecution.Meta):
         abstract = False
         swappable = swappable_setting("test_management", "TestSuiteExecution")
+        verbose_name = _("Test Execution")
+        verbose_name_plural = _("Test Executions")
 
 class ScheduledExecution(AbstractScheduledExecution):
     class Meta(AbstractScheduledExecution.Meta):

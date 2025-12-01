@@ -152,16 +152,16 @@ class AbstractTestCase(TimeStampedEditableModel):
         help_text=_("Optional parameters for test case execution in JSON format. "
                     "These parameters can be used to customize test case behavior.")
     )
-    file = PrivateFileField(
-        "Test Script",
-        upload_to="zip/",
-        max_file_size=app_settings.MAX_FILE_SIZE,
-        storage=zip_storage,
-        max_length=255,
-        null=True,
-        blank=True,
-        help_text='<button type="button" class="guideline-btn" data-bs-toggle="modal" data-bs-target="#guidelineModal">Guidelines to Upload Test Scripts</button>'
-    )
+    # file = PrivateFileField(
+    #     "Test Script",
+    #     upload_to="zip/",
+    #     max_file_size=app_settings.MAX_FILE_SIZE,
+    #     storage=zip_storage,
+    #     max_length=255,
+    #     null=True,
+    #     blank=True,
+    #     help_text='<button type="button" class="guideline-btn" data-bs-toggle="modal" data-bs-target="#guidelineModal">Guidelines to Upload Test Scripts</button>'
+    # )
     class Meta:
         abstract = True
         verbose_name = _("Test Case")

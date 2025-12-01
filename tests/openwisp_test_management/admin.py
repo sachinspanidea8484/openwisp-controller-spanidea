@@ -129,7 +129,7 @@ class TestCasesResource(resources.ModelResource):
             "is_active",
             "test_type",
             "params",
-            "file"
+            # "file"
         )
         export_order = (
             "id",
@@ -140,7 +140,7 @@ class TestCasesResource(resources.ModelResource):
             "is_active",
             "test_type",
             "params",
-            "file"
+            # "file"
         )
 
     def before_import_row(self, row, **kwargs):
@@ -400,6 +400,10 @@ allowed_test_case_id = RegexValidator(
 )
 
 class TestCaseAdminForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['description'].widget.attrs.update({'rows': 15, 'cols': 5})
+
     test_case_id = forms.CharField(
         validators=[allowed_test_case_id],
         widget=forms.TextInput(attrs={
@@ -485,7 +489,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         "params",  # ADD THIS - NEW FIELD
         "json_file",
         "description",
-        "file",
+        # "file",
         "is_active",
         # "created",
         # "modified",
