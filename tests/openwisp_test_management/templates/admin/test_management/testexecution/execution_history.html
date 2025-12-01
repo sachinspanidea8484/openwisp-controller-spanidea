@@ -756,77 +756,98 @@ function displayExecutionData(data) {
             };
 
             // Robot Framework section
-            let robotSection = '';
-            if (robotTests.length) {
-                robotSection = `
-                    <div class="test-section">
-                        <div class="section-header open" onclick="handleHideClick(this,'robot-test-case-table-${device.device_execution_id}')">
-                            <div class="header-left">
-                                <svg class="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" 
-                                    viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                        d="M9 5l7 7-7 7" />
-                                </svg>
-                                <h3>Robot Framework Tests</h3>
-                            </div>
+            // let robotSection = '';
+            // if (robotTests.length) {
+            //     robotSection = `
+            //         <div class="test-section">
+            //             <div class="section-header open" onclick="handleHideClick(this,'robot-test-case-table-${device.device_execution_id}')">
+            //                 <div class="header-left">
+            //                     <svg class="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" 
+            //                         viewBox="0 0 24 24" stroke="currentColor">
+            //                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+            //                             d="M9 5l7 7-7 7" />
+            //                     </svg>
+            //                     <h3>Robot Framework Tests</h3>
+            //                 </div>
 
                            
-                        </div>
-                        <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">
-                            <colgroup>
-                                <col style="width: 20%">
-                                <col style="width: 10%">
-                                <col style="width: 15%">
-                                <col style="width: 15%">
-                                <col style="width: 10%">
-                                <col style="width: 30%">
-                            </colgroup>
-                            ${buildTable(robotTests).replace('<table class="results-table">', '').replace('</table>', '')}
-                        </table>
-                    </div>
-                `;
-            }
+            //             </div>
+            //             <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">
+            //                 <colgroup>
+            //                     <col style="width: 20%">
+            //                     <col style="width: 10%">
+            //                     <col style="width: 15%">
+            //                     <col style="width: 15%">
+            //                     <col style="width: 10%">
+            //                     <col style="width: 30%">
+            //                 </colgroup>
+            //                 ${buildTable(robotTests).replace('<table class="results-table">', '').replace('</table>', '')}
+            //             </table>
+            //         </div>
+            //     `;
+            // }
              
 
 
-            // Device Agent section
-            let agentSection = '';
-            let show_nb_testcase_report= agentTests.filter((test)=> test.status !== "success" && test.status !== "failed").length === 0;
-            if (agentTests.length) {
-                agentSection = `
-                   <div class="test-section">
-                        <div class="section-header open" onclick="handleHideClick(this,'agent-test-case-table-${device.device_execution_id}')">
-                            <div class="header-left">
-                                <svg class="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" 
-                                    viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                        d="M9 5l7 7-7 7" />
-                                </svg>
-                                <h3>Device Tests</h3>
-                            </div>
+            // // Device Agent section
+            // let agentSection = '';
+            // let show_nb_testcase_report= agentTests.filter((test)=> test.status !== "success" && test.status !== "failed").length === 0;
+            // if (agentTests.length) {
+            //     agentSection = `
+            //        <div class="test-section">
+            //             <div class="section-header open" onclick="handleHideClick(this,'agent-test-case-table-${device.device_execution_id}')">
+            //                 <div class="header-left">
+            //                     <svg class="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" 
+            //                         viewBox="0 0 24 24" stroke="currentColor">
+            //                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+            //                             d="M9 5l7 7-7 7" />
+            //                     </svg>
+            //                     <h3>Device Tests</h3>
+            //                 </div>
                            
-                        </div>
-                        <table class="results-table aligned-table agent-test-case-table-${device.device_execution_id}">
-                            <colgroup>
-                                <col style="width: 20%">
-                                <col style="width: 10%">
-                                <col style="width: 15%">
-                                <col style="width: 15%">
-                                <col style="width: 10%">
-                                <col style="width: 30%">
-                            </colgroup>
-                            ${buildTable(agentTests).replace('<table class="results-table">', '').replace('</table>', '')}
-                        </table>
-                    </div>
-                `;
-            }
+            //             </div>
+            //             <table class="results-table aligned-table agent-test-case-table-${device.device_execution_id}">
+            //                 <colgroup>
+            //                     <col style="width: 20%">
+            //                     <col style="width: 10%">
+            //                     <col style="width: 15%">
+            //                     <col style="width: 15%">
+            //                     <col style="width: 10%">
+            //                     <col style="width: 30%">
+            //                 </colgroup>
+            //                 ${buildTable(agentTests).replace('<table class="results-table">', '').replace('</table>', '')}
+            //             </table>
+            //         </div>
+            //     `;
+            // }
            
 
-            if(robotSection==='' && agentSection===''){
-                agentSection = '<div class="empty-state">No test results available for this device.</div>';
+            // if(robotSection==='' && agentSection===''){
+            //     agentSection = '<div class="empty-state">No test results available for this device.</div>';
+            // }
+            let testcaseSection=''
+            if(device?.test_cases?.length){
+                testcaseSection=`
+                <div class="test-section">
+                    <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">
+                        <colgroup>
+                            <col style="width: 20%">
+                            <col style="width: 10%">
+                            <col style="width: 15%">
+                            <col style="width: 15%">
+                            <col style="width: 10%">
+                            <col style="width: 30%">
+                        </colgroup>
+                        ${buildTable(device.test_cases).replace('<table class="results-table">', '').replace('</table>', '')}
+                    </table>
+                </div>
+                `
             }
 
 
+            if(testcaseSection===''){
+                testcaseSection= '<div class="empty-state">No test results available for this device.</div>';
+            }
             // Final device card
             devicesHtml += `
                 <div class="device-card">
@@ -858,8 +879,8 @@ function displayExecutionData(data) {
                         </div>
                     </div>
                     <div style="padding: 20px; display: flex; flex-direction: column; gap : 30px">
-                        ${robotSection || ''}
-                        ${agentSection || ''}
+                        
+                        ${testcaseSection || ''}
                     </div>
                 </div>
             `;
