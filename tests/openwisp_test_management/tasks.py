@@ -366,6 +366,13 @@ def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite
         print(f"     Test Type: {test_type_display}")
         print(f"     Execution ID: {test_case.get('execution_id', 'N/A')}")
     
+
+    sorted_test_cases = sorted(
+    test_suite_data_fixed.get('test_cases', []),
+    key=lambda x: x.get('test_case_name', '')
+    )
+    print(f"     Sort Test Cases: {sorted_test_cases}")
+    sorted_test_cases
     # Prepare API payload
     api_payload = {
         "devices": [device_data_fixed],
@@ -373,7 +380,7 @@ def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite
             "test_suite_name": test_suite_data_fixed.get('test_suite_name'),
             "test_suite_id": test_suite_data_fixed.get('test_suite_id'),
             "test_suite_execution_id": test_suite_data_fixed.get('test_suite_execution_id'),
-            "test_cases": test_suite_data_fixed.get('test_cases', [])
+            "test_cases": sorted_test_cases
         },
         "execution_metadata": {
             "device_execution_id": device_execution_id_str,
