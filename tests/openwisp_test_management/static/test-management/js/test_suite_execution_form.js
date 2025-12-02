@@ -22,6 +22,7 @@
   // Store available devices and selected devices
   let availableDevices = [];
   let selectedDevices = new Map(); // Map of device_id -> device_data
+  let configPushTestCases=[]
   let pendingGroupSelection = null;
   function applyDisabledState() {
     if (window.disabledViewMode) {
@@ -96,6 +97,9 @@
     `);
 
     return container;
+  }
+  function createPushConfigDiv(){
+
   }
 
   // CHANGE: Updated handleGroupSelection to properly manage selectedDevices map
@@ -496,6 +500,10 @@
             `);
 
       tbody.append(row);
+      configPushTestCases = testCases.filter(
+        (t) => t.is_configuration_push_required 
+      );
+      console.log("configcongigffd",configPushTestCases)
     });
   }
   $(document).ready(function () {
@@ -624,6 +632,40 @@
         container.append(deviceItem);
       }
     });
+
+
+    const device_container= $("#device-selection");
+
+    const pushconfigcontainer = $(`
+      <div class="push-config-div"></div>
+    `);
+    selectedDevices.forEach((device,deviceId)=>{
+      const testCasesHTML = configPushTestCases
+        .map(
+          (tc) => `
+            <li class="testcase-row">
+              <span class="tc-name">${tc.name}</span>
+
+              <div class="tc-actions">
+                <input type="file" class="file-input" />
+                <button class="tc-action-btn">Run</button>
+              </div>
+            </li>
+          `
+        )
+        .join("");
+      const device_cont = `
+        <div class="config-device-box">
+          <div class="device-header">${device.name}</div>
+
+          <ul class="testcase-list">
+            ${testCasesHTML}
+          </ul>
+        </div>
+      `;
+      pushconfigcontainer.append(device_cont);
+    })
+    device_container.after(pushconfigcontainer)
   }
 
   // Handle device removal

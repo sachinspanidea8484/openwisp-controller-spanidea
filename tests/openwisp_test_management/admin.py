@@ -491,6 +491,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         "description",
         # "file",
         "is_active",
+        "is_configuration_push_required"
         # "created",
         # "modified",
     ]

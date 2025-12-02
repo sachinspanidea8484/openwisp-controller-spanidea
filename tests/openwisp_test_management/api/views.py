@@ -3897,7 +3897,8 @@ def get_test_suite_details(request, suite_id):
                 'test_type': tc.test_type,
                 'test_type_display': tc.get_test_type_display(),
                 'order': suite_case.order,
-                'is_active': tc.is_active
+                'is_active': tc.is_active,
+                'is_configuration_push_required' : tc.is_configuration_push_required,
             })
 
         # Serialize test suite data
