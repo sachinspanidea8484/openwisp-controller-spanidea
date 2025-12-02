@@ -5,6 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.authentication import SessionAuthentication
 from ..settings import OPENWISP_SERVER_IP
 
+from openwisp_monitoring.monitoring.models import Metric
 
 from rest_framework.decorators import api_view ,authentication_classes, permission_classes
 from rest_framework.views import APIView
@@ -4013,16 +4014,36 @@ def get_available_devices(request):
                 if FILTER_BY_CONNECTION and not has_connection:
                     continue
                 
-                # Determine device status based on available fields
-                device_status = 'Offline'
+                # # Determine device status based on available fields
                 is_deactivated = getattr(device, '_is_deactivated', False)
+
                 
-                if is_deactivated:
-                    device_status = 'Deactivated'
-                elif getattr(device, 'last_ip', None) and getattr(device, 'management_ip', None):
-                    device_status = 'Online'
-                elif getattr(device, 'last_ip', None):
-                    device_status = 'Reachable'
+                # if is_deactivated:
+                #     device_status = 'Deactivated'
+                # elif getattr(device, 'last_ip', None) and getattr(device, 'management_ip', None):
+                #     device_status = 'Online'
+                # elif getattr(device, 'last_ip', None):
+                #     device_status = 'Reachable'
+
+                # Get ping metric status
+                device_status = "Online"
+                try:
+                 ping_metric = Metric.objects.get(
+                                #  content_type__model='device',
+                                 object_id=str(device.id),
+                                 configuration='ping',
+                                 key='ping',
+                 )
+
+                 device_status = "Online" if ping_metric.is_healthy else "Offline"
+
+                except Metric.DoesNotExist:
+                 logger.debug(f"ping_metric {ping_metric} ")
+                 device_status = "Offline"
+
+                # logger.debug(f"device_status ::::::::::::: {device.name} {device_status}")
+                # logger.debug(f"device_status {device_status}")
+                print(f"device_status ::::::::::::: {device.name} {device_status}")
                 
                 device_data = {
                     'id': str(device.id),
