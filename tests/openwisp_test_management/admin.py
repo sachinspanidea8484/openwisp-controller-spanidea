@@ -416,7 +416,7 @@ class TestCaseAdminForm(forms.ModelForm):
         required=False,
         widget=forms.Textarea(attrs={
             'rows': 15,
-            'cols': 80,
+            'cols': 67,
             'placeholder': _('Enter Parameters in JSON format'),
             'id': 'id_params',
             
