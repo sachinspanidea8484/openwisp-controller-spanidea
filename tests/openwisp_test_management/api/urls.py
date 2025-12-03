@@ -200,6 +200,11 @@ urlpatterns = [
                 }),
                 name="device-group-detail",
             ),
+            path(
+                "devices/configuration-push",
+                views.ConfigurationPushOnDevice,
+                name="configuration_push_on_device",
+            )
 
             
             # Commented out endpoints (kept for reference)

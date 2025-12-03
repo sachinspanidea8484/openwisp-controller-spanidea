@@ -17,8 +17,7 @@
     return cookieValue;
   }
 
-  const csrftoken = getCookie("csrftoken");
-
+  const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]")?.value;
   // Store available devices and selected devices
   let availableDevices = [];
   let selectedDevices = new Map(); // Map of device_id -> device_data
@@ -99,6 +98,41 @@
 
     return container;
   }
+
+  function uploadConfigOverDevice(device_id, file) {
+    let formData = new FormData();
+    formData.append("device_id", device_id);
+    formData.append("file", file);
+    const apiUrl = `/api/v1/test-management/devices/configuration-push`;
+    $.ajax({
+      url: apiUrl,
+      method: "POST",
+      headers: {
+        "X-CSRFToken": csrftoken,
+      },
+      data: formData,
+      processData: false,
+      contentType: false,
+      success: function (data) {
+        console.log("successs", data);
+      },
+      error: function (data) {
+        console.log("error", data);
+      },
+    });
+  }
+  $(document).on("click", ".tc-action-btn", function(){
+    const deviceId= $(this).data("device-id");
+
+    const fileInput = $(this).closest(".tc-actions").find(".file-input")[0];
+    const file = fileInput?.files?.[0];
+
+    if (!file) {
+      alert("Please select a file before clicking Run");
+      return;
+    }
+    uploadConfigOverDevice(deviceId, file);
+  });
   function createPushConfigDiv() {
     const pushconfigcontainer = $(".push-config-div");
     pushconfigcontainer.empty();
@@ -112,7 +146,7 @@
 
                 <div class="tc-actions">
                   <input type="file" class="file-input" />
-                  <button class="tc-action-btn">Run</button>
+                  <button type="button" class="tc-action-btn" data-device-id="${device.id}" data-device-name="${device.name}" data-tc-name= "${tc.name}">Upload on Device</button>
                 </div>
               </li>
             `
