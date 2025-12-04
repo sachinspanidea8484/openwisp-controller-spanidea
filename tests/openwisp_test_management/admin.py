@@ -1136,7 +1136,25 @@ class TestSuiteExecutionDeviceInline(admin.TabularInline):
     
 
 
+from django.contrib.admin.widgets import FilteredSelectMultiple
 
+class TestCaseFilteredWidget(FilteredSelectMultiple):
+    def render(self, name, value, attrs=None, renderer=None):
+        html = super().render(name, value, attrs, renderer)
+        # Add JSON with testcase flags
+        data = {
+            str(obj.pk): obj.is_configuration_push_required
+            for obj in self.testcase_queryset
+        }
+        json_data= json.dumps(data)
+
+        script = f"""
+        <script id="testcase-config-json" type="application/json">
+            {json_data}
+        </script>
+        """
+
+        return mark_safe(html + script)
 
 class TestSuiteExecutionAdminForm(forms.ModelForm):
     """Custom form for TestSuiteExecution admin"""
@@ -1549,6 +1567,19 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
         return formfield
    
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "individual_test_cases":
+            qs = db_field.related_model.objects.all()
+            widget = TestCaseFilteredWidget(
+                verbose_name="Test Cases",
+                is_stacked=False,
+            )
+            widget.testcase_queryset = qs
+            print("widget",widget)
+
+            return db_field.formfield(widget=widget, queryset=qs)
+
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
     #  function which trigger to show save and execute button on ui
     def render_change_form(
         self, request, context, *, add=False, change=False, form_url='', obj=None

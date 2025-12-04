@@ -641,9 +641,10 @@
    
 
     // Mutation observer to detect any change to options
-    
-
+    const el= document.querySelector("#testcase-config-json");
+    const casetoconfigmapping= JSON.parse(el.textContent);
     function logValues() {
+      
       configPushTestCases=[]
       configPushTestCases = Array.from(
         document.querySelectorAll("#id_individual_test_cases_to option")
@@ -653,7 +654,7 @@
           title: opt.title,
           name: opt.title.split("-configRequired")[0],
         }))
-        .filter((tc) => tc.title.includes("-configRequired"));
+        .filter((tc) => casetoconfigmapping[tc.value] === true);
 
       createPushConfigDiv();
     }

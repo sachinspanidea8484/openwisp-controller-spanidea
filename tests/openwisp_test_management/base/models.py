@@ -179,7 +179,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         ]
 
     def __str__(self):
-        return f"{self.name}{'-configRequired' if self.is_configuration_push_required else ''}"
+        return f"{self.name}"
 
 
     def clean(self):
