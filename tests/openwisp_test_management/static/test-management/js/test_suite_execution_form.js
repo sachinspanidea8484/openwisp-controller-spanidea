@@ -99,7 +99,7 @@
     return container;
   }
 
-  function uploadConfigOverDevice(device_id, file) {
+  function uploadConfigOverDevice(device_id, file, fileInput) {
     let formData = new FormData();
     formData.append("device_id", device_id);
     formData.append("file", file);
@@ -114,6 +114,7 @@
       processData: false,
       contentType: false,
       success: function (data) {
+        fileInput.value=""
         console.log("successs", data);
       },
       error: function (data) {
@@ -131,7 +132,7 @@
       alert("Please select a file before clicking Run");
       return;
     }
-    uploadConfigOverDevice(deviceId, file);
+    uploadConfigOverDevice(deviceId, file, fileInput);
   });
   function createPushConfigDiv() {
     const pushconfigcontainer = $(".push-config-div");
@@ -242,12 +243,12 @@
                 </div>
               `);
           });
-          createPushConfigDiv();
           // Update device count
           // CHANGE: Use updateDeviceCount function for consistency
           updateDeviceCount();
           // CHANGE: Update hidden input to sync form data
           updateHiddenInput();
+          createPushConfigDiv();
           $("#device-selection select").prop("disabled", true);
           // Swap "Add Devices from Group" with "Remove All"
           $("#add-group-btn").replaceWith(`
@@ -339,9 +340,11 @@
     function () {
       const deviceSelectionField = $(".field-device_selection");
       const selection = $(this).val(); // "0" for single, "1" for group
-
+      selectedDevices.clear();
       // Remove old container
       $("#device-selection").remove();
+      $("#schedule-execution-info").remove();
+      $(".push-config-div").remove();
 
       if (selection === "0") {
         // Single device mode
@@ -354,6 +357,7 @@
 
         loadDeviceGroups(); // CHANGE: Now calling the new loadDeviceGroups function
       }
+      createPushConfigDiv();
     }
   );
 
@@ -759,6 +763,7 @@
     updateDeviceDropdown();
     updateDeviceCount();
     updateHiddenInput();
+    createPushConfigDiv();
   });
 
   // Update device count
