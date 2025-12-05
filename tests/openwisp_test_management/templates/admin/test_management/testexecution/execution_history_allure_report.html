@@ -788,13 +788,13 @@ let refreshInterval = null;
 let isPageVisible = true;
 
 function startAutoRefresh() {
-    if (!refreshInterval && isPageVisible) {
-        refreshInterval = setInterval(() => {
-            if (isPageVisible) {
-                loadExecutionHistory();
-            }
-        }, 30000); // 30 seconds
-    }
+    // if (!refreshInterval && isPageVisible) {
+    //     refreshInterval = setInterval(() => {
+    //         if (isPageVisible) {
+    //             // loadExecutionHistory();
+    //         }
+    //     }, 30000); // 30 seconds
+    // }
 }
 
 function stopAutoRefresh() {

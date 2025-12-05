@@ -865,9 +865,7 @@ function displayExecutionData(data) {
                                     <div class="progress-fill ${progressClass}" style="width: ${progressPercentage}%"></div>
                                 </div>
                             </div>
-                            <span class="status-indicator ${stats.overall_status}">
-                                ${stats.overall_status}
-                            </span>
+                        
 
                             <div class="connection-protocol">${device?.connection_protocol == "0" ? "MQTT" : "SSH" }</div>
                              ${device && device?.has_allure_report && device?.allure_report_full_path ? `
@@ -1162,6 +1160,7 @@ function startAutoRefresh() {
             if (isPageVisible) {
                 loadExecutionHistory();
             }
+            // alert("SCEDULE")
         }, 30000); // 30 seconds
     }
 }
