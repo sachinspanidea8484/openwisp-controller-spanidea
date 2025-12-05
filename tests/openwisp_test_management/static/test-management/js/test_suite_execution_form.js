@@ -17,11 +17,11 @@
     return cookieValue;
   }
 
-  const csrftoken = getCookie("csrftoken");
-
+  const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]")?.value;
   // Store available devices and selected devices
   let availableDevices = [];
   let selectedDevices = new Map(); // Map of device_id -> device_data
+  let configPushTestCases = [];
   let pendingGroupSelection = null;
   function applyDisabledState() {
     if (window.disabledViewMode) {
@@ -93,9 +93,78 @@
             </div>
         </div>
         <div id="schedule-execution-info"></div>
+        <div class="push-config-div"></div>
     `);
 
     return container;
+  }
+
+  function uploadConfigOverDevice(device_id, file, fileInput) {
+    let formData = new FormData();
+    formData.append("device_id", device_id);
+    formData.append("file", file);
+    const apiUrl = `/api/v1/test-management/devices/configuration-push`;
+    $.ajax({
+      url: apiUrl,
+      method: "POST",
+      headers: {
+        "X-CSRFToken": csrftoken,
+      },
+      data: formData,
+      processData: false,
+      contentType: false,
+      success: function (data) {
+        fileInput.value=""
+        console.log("successs", data);
+      },
+      error: function (data) {
+        console.log("error", data);
+      },
+    });
+  }
+  $(document).on("click", ".tc-action-btn", function(){
+    const deviceId= $(this).data("device-id");
+
+    const fileInput = $(this).closest(".tc-actions").find(".file-input")[0];
+    const file = fileInput?.files?.[0];
+
+    if (!file) {
+      alert("Please select a file before clicking Run");
+      return;
+    }
+    uploadConfigOverDevice(deviceId, file, fileInput);
+  });
+  function createPushConfigDiv() {
+    const pushconfigcontainer = $(".push-config-div");
+    pushconfigcontainer.empty();
+    if(configPushTestCases.length >0){
+      selectedDevices.forEach((device, deviceId) => {
+        const testCasesHTML = configPushTestCases
+          .map(
+            (tc) => `
+              <li class="testcase-row">
+                <span class="tc-name">${tc.name}</span>
+
+                <div class="tc-actions">
+                  <input type="file" class="file-input" />
+                  <button type="button" class="tc-action-btn" data-device-id="${device.id}" data-device-name="${device.name}" data-tc-name= "${tc.name}">Upload on Device</button>
+                </div>
+              </li>
+            `
+          )
+          .join("");
+        const device_cont = `
+          <div class="config-device-box">
+            <div class="device-header">${device.name}</div>
+
+            <ul class="testcase-list">
+              ${testCasesHTML}
+            </ul>
+          </div>
+        `;
+        pushconfigcontainer.append(device_cont);
+      });
+    }
   }
 
   // CHANGE: Updated handleGroupSelection to properly manage selectedDevices map
@@ -174,12 +243,12 @@
                 </div>
               `);
           });
-
           // Update device count
           // CHANGE: Use updateDeviceCount function for consistency
           updateDeviceCount();
           // CHANGE: Update hidden input to sync form data
           updateHiddenInput();
+          createPushConfigDiv();
           $("#device-selection select").prop("disabled", true);
           // Swap "Add Devices from Group" with "Remove All"
           $("#add-group-btn").replaceWith(`
@@ -257,6 +326,12 @@
   // CHANGE: Completely replaced the radio button change handler with improved version
   // Remove any existing radio button handlers first to avoid duplicates
   $(document).off("change", "#id_device_selection input[type=radio]");
+  $(document).off("change", "#id_test_selection_type input[type=radio]");
+
+  $(document).on("change", "#id_test_selection_type input[type=radio]", function(){
+    configPushTestCases=[];
+    createPushConfigDiv();
+  });
 
   // Handle radio button changes
   $(document).on(
@@ -265,9 +340,11 @@
     function () {
       const deviceSelectionField = $(".field-device_selection");
       const selection = $(this).val(); // "0" for single, "1" for group
-
+      selectedDevices.clear();
       // Remove old container
       $("#device-selection").remove();
+      $("#schedule-execution-info").remove();
+      $(".push-config-div").remove();
 
       if (selection === "0") {
         // Single device mode
@@ -280,6 +357,7 @@
 
         loadDeviceGroups(); // CHANGE: Now calling the new loadDeviceGroups function
       }
+      createPushConfigDiv();
     }
   );
 
@@ -496,7 +574,12 @@
             `);
 
       tbody.append(row);
+      
     });
+    configPushTestCases = testCases.filter(
+      (t) => t.is_configuration_push_required
+    );
+    createPushConfigDiv();
   }
   $(document).ready(function () {
     if (window.recoveredDevices && window.recoveredDevices.length > 0) {
@@ -528,15 +611,57 @@
         )}:${String(d.getMinutes()).padStart(2, "0")}`;
       })()}`;
     }
-  });
 
-  $(document).on("change", "input[name^='protocol_']", function () {
-    const id = $(this).attr("name").replace("protocol_", "");
-    const dev = selectedDevices.get(id);
-    if (dev) {
-      dev._chosen_protocol = $(this).val(); // Save selected protocol
+
+    const target = document.querySelector(".field-individual_test_cases");
+
+    if (!target) {
+      console.log("M2M field not found");
+      return;
+    }
+
+    const observer1 = new MutationObserver(() => {
+      const chosenBox = document.getElementById("id_individual_test_cases_to");
+
+      if (chosenBox) {
+        // attachM2MListeners();
+        const observer2 = new MutationObserver(() => {
+          logValues();
+        });
+
+        observer2.observe(chosenBox, {
+          childList: true, // options added/removed
+          subtree: true,
+        });
+        observer1.disconnect(); // Stop observing once initialized
+      }
+    });
+
+    observer1.observe(target, { childList: true, subtree: true });
+   
+
+    // Mutation observer to detect any change to options
+    const el= document.querySelector("#testcase-config-json");
+    const casetoconfigmapping= JSON.parse(el.textContent);
+    function logValues() {
+      
+      configPushTestCases=[]
+      configPushTestCases = Array.from(
+        document.querySelectorAll("#id_individual_test_cases_to option")
+      )
+        .map((opt) => ({
+          value: opt.value,
+          title: opt.title,
+          name: opt.title.split("-configRequired")[0],
+        }))
+        .filter((tc) => casetoconfigmapping[tc.value] === true);
+
+      createPushConfigDiv();
     }
   });
+  
+ 
+
   // CHANGE: Converted to delegated event handler for add device button
   $(document).off("click", "#add-device-btn"); // Remove any existing direct handlers
   $(document).on("click", "#add-device-btn", function () {
@@ -565,6 +690,7 @@
     updateDeviceDropdown();
     updateDeviceCount();
     updateHiddenInput();
+    createPushConfigDiv();
 
     // Reset dropdown
     $("#device-dropdown").val("");
@@ -638,6 +764,7 @@
     updateDeviceDropdown();
     updateDeviceCount();
     updateHiddenInput();
+    createPushConfigDiv();
   });
 
   // Update device count

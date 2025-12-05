@@ -139,6 +139,11 @@ class AbstractTestCase(TimeStampedEditableModel):
         default=True,
         help_text=_("Whether this test case is currently active")
     )
+    is_configuration_push_required = models.BooleanField(
+        _("Configuration Push Required"),
+        default=False,
+        help_text=_("Whether a configuration push is required for this test case")
+    )
     test_type = models.IntegerField(
         _("Test Type"),
         choices=TestTypeChoices.choices,

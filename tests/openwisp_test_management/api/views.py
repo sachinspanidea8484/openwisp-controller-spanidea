@@ -7,6 +7,7 @@ from ..settings import OPENWISP_SERVER_IP
 
 from openwisp_monitoring.monitoring.models import Metric
 
+from openwisp_controller.connection.connectors.ssh import Ssh
 from rest_framework.decorators import api_view ,authentication_classes, permission_classes
 from rest_framework.views import APIView
 from django.utils import timezone
@@ -3898,7 +3899,8 @@ def get_test_suite_details(request, suite_id):
                 'test_type': tc.test_type,
                 'test_type_display': tc.get_test_type_display(),
                 'order': suite_case.order,
-                'is_active': tc.is_active
+                'is_active': tc.is_active,
+                'is_configuration_push_required' : tc.is_configuration_push_required,
             })
 
         # Serialize test suite data
@@ -5093,6 +5095,34 @@ class TestDeviceGroupViewSet(viewsets.ModelViewSet):
             else:
                 qs = qs.none()
         return qs
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+# @csrf_exempt
+def ConfigurationPushOnDevice(request):
+    try:
+
+        device_id = request.POST.get("device_id")
+        file= request.FILES.get("file")
+        if not device_id or not file:
+            return Response({"error": "Missing device_id or file"}, status=400)
+        
+        device= Device.objects.get(id=device_id)
+        conn= DeviceConnection.objects.get(device_id= device_id, enabled= True)
+        ssh_params={}
+        if conn:
+            ssh_params = conn.credentials.params
+        ssh_conn= Ssh(ssh_params,[device.management_ip])
+        ssh_conn.connect()
+
+        ssh_conn.upload(file, f"/tmp/{file.name}")
+
+        return Response({"success": "uploaded "},status=200)
+
+    except Exception as e:
+        print("[Error] : erorr uploading file on device",e)
+        return Response({"error": "uploaded "},status=400)
 
 
 # Create view instances

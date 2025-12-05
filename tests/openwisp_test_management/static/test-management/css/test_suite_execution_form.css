@@ -323,3 +323,77 @@
     #schedule-execution-info{
         padding : 32px 0 6px 16px;
     }
+
+.push-config-div {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 20px;
+  border: 1px solid #e3e3e3;
+  border-radius: 4px;
+}
+
+/* Device Card */
+.config-device-box {
+  background: #ffffff;
+  
+  padding: 15px 20px;
+ 
+}
+
+/* Device title */
+.device-header {
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  color: #333;
+}
+
+/* Test Case List */
+.testcase-list {
+  list-style: none;
+  margin: 0 !important;
+  padding: 4px !important;
+}
+
+/* Each test case row */
+.testcase-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.testcase-row:last-child {
+  border-bottom: none;
+}
+
+/* Test case name */
+.tc-name {
+  font-size: 15px;
+  color: #444;
+}
+
+/* Actions section */
+.tc-actions {
+  display: flex;
+  align-items: center;
+}
+
+
+/* Action button */
+.tc-action-btn {
+  background: #4a7fe8;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: 0.2s ease;
+}
+
+.tc-action-btn:hover {
+  background: #2f65d3;
+}
