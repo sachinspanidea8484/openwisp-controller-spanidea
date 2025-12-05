@@ -5102,6 +5102,8 @@ class TestDeviceGroupViewSet(viewsets.ModelViewSet):
 # @csrf_exempt
 def ConfigurationPushOnDevice(request):
     try:
+        print("[Error] : erorr uploading file on device request>>>>>>>>>>>>",)
+
 
         device_id = request.POST.get("device_id")
         file= request.FILES.get("file")
@@ -5117,6 +5119,9 @@ def ConfigurationPushOnDevice(request):
         ssh_conn.connect()
 
         ssh_conn.upload(file, f"/tmp/{file.name}")
+
+
+        print("success uploading file on device >>>>>>>>>>")
 
         return Response({"success": "uploaded "},status=200)
 
