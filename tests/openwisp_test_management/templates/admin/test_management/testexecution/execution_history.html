@@ -712,7 +712,7 @@ function displayExecutionData(data) {
                             </a>
                         `;
                     }
-                    if (test.status === 'running') {
+                    if (test.status === 'running-skip') {
                         actions += `
                             <button class="btn-action warning" onclick="abortTest('${test.id}')">
                                 Abort
