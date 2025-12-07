@@ -572,35 +572,51 @@ def retry_test_execution(test_execution_id):
             device_execution_id = device_execution.id
             device_execution_connection_protocol = getattr(device_execution, 'connection_protocol', 0) or 0
 
-
         except TestSuiteExecutionDevice.DoesNotExist:
             logger.error(f"Device execution not found for test execution {test_execution_id}")
             return
         
-        # Get device connection if exists
+        # Get device connection based on protocol
         device_conn = None
         ssh_params = {}
         has_connection = False
+        connection_error = None
         
-        try:
-            # device_conn = DeviceConnection.objects.get(
-            #     device=device,
-            #     enabled=True
-            # )
-            device_conn = DeviceConnection.get_working_connection(device)
-
-            ssh_params = device_conn.credentials.params
-            has_connection = True
-        except DeviceConnection.DoesNotExist:
-            logger.warning(f"No working connection found for device {device.name} during retry")
-            # Mark as failed if no connection
-            test_execution.status = TestExecutionStatus.FAILED
-            test_execution.stdout = "No working connection found for device"
-            test_execution.error_message = "No working connection found for device"
-            test_execution.exit_code = 1
-            test_execution.completed_at = timezone.now()
-            test_execution.save()
-            return
+        # For SSH (protocol = 1), connection is required
+        if device_execution_connection_protocol == 1:
+            try:
+                device_conn = DeviceConnection.get_working_connection(device)
+                ssh_params = device_conn.credentials.params
+                has_connection = True
+                logger.info(f"Found working SSH connection for retry: {device_conn}")
+                
+            except DeviceConnection.DoesNotExist:
+                connection_error = f"SSH connection required but not found for device {device.name}"
+                logger.error(connection_error)
+                
+            except Exception as e:
+                connection_error = f"Device {device.name} is unreachable via SSH: {str(e)}"
+                logger.error(connection_error)
+            
+            # For SSH, fail immediately if no connection
+            if connection_error:
+                test_execution.status = TestExecutionStatus.FAILED
+                test_execution.stdout = connection_error
+                test_execution.error_message = connection_error
+                test_execution.exit_code = 1
+                test_execution.completed_at = timezone.now()
+                test_execution.save()
+                return
+        
+        # For MQTT (protocol = 0), connection is optional
+        else:
+            try:
+                device_conn = DeviceConnection.get_working_connection(device)
+                ssh_params = device_conn.credentials.params
+                has_connection = True
+                logger.info(f"Found working MQTT connection for retry: {device_conn}")
+            except:
+                logger.info(f"No connection found for MQTT device {device.name} during retry, proceeding without it")
         
         # Reset the test execution status
         test_execution.status = TestExecutionStatus.PENDING
@@ -617,7 +633,7 @@ def retry_test_execution(test_execution_id):
         logger.info(f"Retrying test execution {test_execution_id} (retry #{test_execution.retry_count})")
         print(f"[TASK] retry_test_execution - Retrying test {test_execution_id}, retry count: {test_execution.retry_count}")
         
-        # ===== CHANGED: Always send to executor server for retry =====
+        # Prepare test case data
         test_case = test_execution.test_case
         test_suite_name = ""
         test_suite_id = ""
@@ -626,6 +642,7 @@ def retry_test_execution(test_execution_id):
             test_suite_id = test_suite_execution.test_suite.id
 
         device_config = DeviceConfig.objects.filter(device=device).first()
+        
         # Prepare data for executor server
         device_data = {
             "device_name": device.name,
@@ -646,7 +663,7 @@ def retry_test_execution(test_execution_id):
             "test_cases": [{
                 "test_case_id": test_case.test_case_id,
                 "test_case_name": test_case.name,
-                "test_type": test_case.test_type,  # Include test type
+                "test_type": test_case.test_type,
                 "params": test_case.params,
                 "execution_id": test_execution_id
             }]
@@ -669,6 +686,7 @@ def retry_test_execution(test_execution_id):
     except Exception as e:
         logger.error(f"Error retrying test execution {test_execution_id}: {str(e)}")
         print(f"[ERROR] retry_test_execution - Error: {str(e)}")
+
 
 
 @shared_task
@@ -2083,3 +2101,130 @@ def execute_tests_on_device_old(device_execution_id):
         except:
             logger.error("Failed to update device execution status")
             print(f"[ERROR] execute_tests_on_device - Failed to update status")
+
+
+
+
+@shared_task
+def retry_test_execution_old(test_execution_id):
+    """
+    Retry a single test execution by sending to executor server
+    """
+    from .swapper import load_model
+    TestCaseExecution = load_model("TestCaseExecution")
+    TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+    
+    try:
+        test_execution = TestCaseExecution.objects.get(pk=test_execution_id)
+        
+        # Get device and device execution info
+        device = test_execution.device
+        test_suite_execution = test_execution.test_suite_execution
+        
+        # Find the device execution record
+        try:
+            device_execution = TestSuiteExecutionDevice.objects.get(
+                test_suite_execution=test_suite_execution,
+                device=device
+            )
+            device_execution_id = device_execution.id
+            device_execution_connection_protocol = getattr(device_execution, 'connection_protocol', 0) or 0
+
+
+        except TestSuiteExecutionDevice.DoesNotExist:
+            logger.error(f"Device execution not found for test execution {test_execution_id}")
+            return
+        
+        # Get device connection if exists
+        device_conn = None
+        ssh_params = {}
+        has_connection = False
+        
+        try:
+            # device_conn = DeviceConnection.objects.get(
+            #     device=device,
+            #     enabled=True
+            # )
+            device_conn = DeviceConnection.get_working_connection(device)
+
+            ssh_params = device_conn.credentials.params
+            has_connection = True
+        except DeviceConnection.DoesNotExist:
+            logger.warning(f"No working connection found for device {device.name} during retry")
+            # Mark as failed if no connection
+            test_execution.status = TestExecutionStatus.FAILED
+            test_execution.stdout = "No working connection found for device"
+            test_execution.error_message = "No working connection found for device"
+            test_execution.exit_code = 1
+            test_execution.completed_at = timezone.now()
+            test_execution.save()
+            return
+        
+        # Reset the test execution status
+        test_execution.status = TestExecutionStatus.PENDING
+        test_execution.started_at = None
+        test_execution.completed_at = None
+        test_execution.stdout = ''
+        test_execution.stderr = ''
+        test_execution.exit_code = None
+        test_execution.error_message = ''
+        test_execution.execution_duration = None
+        test_execution.retry_count += 1
+        test_execution.save()
+        
+        logger.info(f"Retrying test execution {test_execution_id} (retry #{test_execution.retry_count})")
+        print(f"[TASK] retry_test_execution - Retrying test {test_execution_id}, retry count: {test_execution.retry_count}")
+        
+        # ===== CHANGED: Always send to executor server for retry =====
+        test_case = test_execution.test_case
+        test_suite_name = ""
+        test_suite_id = ""
+        if test_suite_execution.test_selection_type == 1:
+            test_suite_name = test_suite_execution.test_suite.name
+            test_suite_id = test_suite_execution.test_suite.id
+
+        device_config = DeviceConfig.objects.filter(device=device).first()
+        # Prepare data for executor server
+        device_data = {
+            "device_name": device.name,
+            "management_ip": device.management_ip,
+            "device_id": device.id,
+            "ssh": {
+                "host": device.management_ip,
+                "username": ssh_params.get('username', ''),
+                "password": ssh_params.get('password', '')
+            },
+            "configuration": device_config.context if device_config else {}
+        }
+        
+        test_suite_data = {
+            "test_suite_name": test_suite_name,
+            "test_suite_id": test_suite_id,
+            "test_suite_execution_id": test_suite_execution.id,
+            "test_cases": [{
+                "test_case_id": test_case.test_case_id,
+                "test_case_name": test_case.name,
+                "test_type": test_case.test_type,  # Include test type
+                "params": test_case.params,
+                "execution_id": test_execution_id
+            }]
+        }
+        
+        # Send to executor server
+        logger.info(f"Sending retry to executor server for test: {test_case.name}")
+        execute_tests_on_executor_server.delay(
+            [test_execution_id],
+            device_data,
+            test_suite_data,
+            device_execution_id,
+            device_execution_connection_protocol
+        )
+        
+        logger.info(f"Successfully queued retry for test execution {test_execution_id}")
+        
+    except TestCaseExecution.DoesNotExist:
+        logger.error(f"Test execution {test_execution_id} not found")
+    except Exception as e:
+        logger.error(f"Error retrying test execution {test_execution_id}: {str(e)}")
+        print(f"[ERROR] retry_test_execution - Error: {str(e)}")
+

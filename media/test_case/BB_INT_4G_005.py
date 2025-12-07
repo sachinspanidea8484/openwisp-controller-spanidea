@@ -203,7 +203,7 @@ if __name__ == "__main__":
     # Access by key and print
     TARGET_BAND = config.get('LOCK BAND', config.get('LOCK_BAND', '66'))
  
-    print(f"TARGET_BAND : {BAND}")
+    print(f"TARGET_BAND : {TARGET_BAND}")
     
     log(f"=== Starting 4G BAND LOCK (BB-INT-5G-005) Test with target band {TARGET_BAND} ===")
 
