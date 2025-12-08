@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import subprocess
 from datetime import datetime
@@ -5,37 +7,27 @@ import argparse
 import json
 import sys
 
-# === USER CONFIGURATION ===
+# === EXIT CODES ===
+EXIT_SUCCESS = 0
+EXIT_FAILED = 1
+
 BACKUP_DIR = "/etc/config_backup"
 EXTRACT_DIR = "/"
 LOG_FILE = "/usr/bin/tests/config_push.log"
+DEFAULT_MODIFIED_FILE = "/usr/bin/modified.gz"
 
-# === JSON PARSER ===
+
 def parse_config(config_str):
     if config_str.startswith("CONFIGURATION="):
-        config_str = config_str.split("CONFIGURATION=", 1)[1]
+        config_str = config_str[len("CONFIGURATION="):]
+
     try:
         return json.loads(config_str)
     except json.JSONDecodeError as e:
-        sys.stderr.write(f"Invalid CONFIGURATION JSON: {e}\n")
-        sys.exit(1)
+        print(f"Error parsing CONFIGURATION JSON: {e}", file=sys.stderr)
+        return {}
 
-# === ARGUMENT PARSING ===
-def parse_arguments():
-    parser = argparse.ArgumentParser(description="Configuration Push Testcase")
-    parser.add_argument('config', help="CONFIGURATION JSON string")
-    return parser.parse_args()
 
-args = parse_arguments()
-config = parse_config(args.config)
-
-MODIFIED_FILE = config.get("MODIFIED_FILE")
-
-if not MODIFIED_FILE:
-    print("❌ MODIFIED_FILE not provided in CONFIGURATION JSON")
-    sys.exit(1)
-
-# === HELPER FUNCTIONS ===
 def log_step(message):
     timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
     log_msg = f"{timestamp} {message}"
@@ -43,67 +35,78 @@ def log_step(message):
     with open(LOG_FILE, "a") as f:
         f.write(log_msg + "\n")
 
+
 def run_cmd(cmd):
-    log_step(f"Executing: {cmd}")
+    log_step(f"Executing Command: {cmd}")
     try:
-        result = subprocess.run(cmd, shell=True, check=True,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        result = subprocess.run(
+            cmd, shell=True, check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
         if result.stdout.strip():
             log_step(result.stdout.strip())
         if result.stderr.strip():
             log_step(result.stderr.strip())
     except subprocess.CalledProcessError as e:
-        log_step(f"❌ Command failed: {e}")
+        log_step(f"Command failed: {e}")
         raise
 
-# === MAIN TESTCASE STEPS ===
-def verify_file_exists():
-    log_step(f"Checking if modified configuration exists at {MODIFIED_FILE}")
-    if not os.path.exists(MODIFIED_FILE):
-        raise FileNotFoundError(f"❌ Modified file not found: {MODIFIED_FILE}")
-    log_step("✅ Modified configuration file found.")
+
+def verify_file_exists(modified_file):
+    log_step(f"Checking if modified file exists at {modified_file}")
+    if not os.path.exists(modified_file):
+        raise FileNotFoundError(f"Modified file not found: {modified_file}")
+    log_step("Modified configuration file found.")
+
 
 def backup_existing_config():
-    log_step("Creating backup of existing configuration...")
+    log_step("Creating configuration backup...")
     os.makedirs(BACKUP_DIR, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_path = f"{BACKUP_DIR}/config_backup_{timestamp}.tar.gz"
     run_cmd(f"tar -czf {backup_path} /etc/config")
-    log_step(f"✅ Backup created at: {backup_path}")
+    log_step(f"Backup created at: {backup_path}")
 
-def apply_new_config():
-    log_step("Applying new configuration from modified file...")
-    run_cmd(f"tar -xzf {MODIFIED_FILE} -C {EXTRACT_DIR}")
-    log_step("✅ New configuration applied successfully.")
+
+def apply_new_config(modified_file):
+    log_step("Applying new configuration...")
+    run_cmd(f"tar -xzf {modified_file} -C {EXTRACT_DIR}")
+    log_step("New configuration applied successfully.")
+
 
 def verify_changes():
-    log_step("Verifying updated configuration files...")
+    log_step("Verifying updated configuration...")
     run_cmd("ls -l /etc/config")
-    log_step("✅ Verification complete.")
+    log_step("Verification complete.")
+
 
 def reboot_system():
-    log_step("Rebooting the system to apply configuration...")
-    print("REBOOT_TRIGGER")
+    log_step("Rebooting system...")
     run_cmd("sleep 3 && reboot")
 
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Configuration Push Testcase")
+    parser.add_argument("config", help="CONFIGURATION='{\"MODIFIED_FILE\":\"path\"}'")
+    args = parser.parse_args()
 
+    config = parse_config(args.config)
+    MODIFIED_FILE = config.get("MODIFIED_FILE", DEFAULT_MODIFIED_FILE)
 
-def main():
     log_step("=== Starting Configuration Push Testcase ===")
+
     try:
-        verify_file_exists()
+        verify_file_exists(MODIFIED_FILE)
         backup_existing_config()
-        apply_new_config()
+        apply_new_config(MODIFIED_FILE)
         verify_changes()
         reboot_system()
-    except Exception as e:
-        log_step(f"❌ Test Failed: {e}")
-    else:
-        log_step("✅ Configuration Push Testcase completed successfully.")
-    finally:
-        log_step("=== Testcase Execution Finished ===")
 
-if __name__ == "__main__":
-    main()
+        log_step("=== Testcase Execution Finished Successfully ===")
+        sys.exit(EXIT_SUCCESS)
+
+    except Exception as e:
+        log_step(f"Test Failed: {e}")
+        log_step("=== Testcase Execution Finished With Errors ===")
+        sys.exit(EXIT_FAILED)
 

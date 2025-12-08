@@ -1,16 +1,18 @@
+#!/usr/bin/env python3
 import time
 import subprocess
 from datetime import datetime
- 
+import sys
+# === EXIT CODES ===
+EXIT_SUCCESS = 0
+EXIT_FAILED = 1
 LOG_FILE = "/tmp/watchdog_test.log"
- 
 def log(message):
     timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
     msg = f"{timestamp} {message}"
     print(msg)
     with open(LOG_FILE, "a") as f:
         f.write(msg + "\n")
- 
 def run_cmd(cmd, desc):
     log(f"[STEP] {desc}")
     try:
@@ -23,36 +25,43 @@ def run_cmd(cmd, desc):
         log(f"[FAIL] Command execution failed")
         if e.stderr:
             log(f"[ERROR] {e.stderr.strip()}")
- 
+        raise
 def wait_sec(seconds, desc):
     log(f"[STEP] {desc} ({seconds}s)")
     for i in range(seconds):
         log(f"[INFO] Waiting... {i+1}/{seconds} seconds")
         time.sleep(1)
- 
 def main():
     log("WATCHDOG TEST STARTED")
- 
-    # -------- CYCLE 1 --------
-    run_cmd("ubus call system watchdog", "Check Status")
-    run_cmd("ubus call system watchdog '{\"magicclose\": true}'", "Magic Close (Disable Watchdog)")
-    run_cmd("ubus call system watchdog '{\"timeout\":10}'", "Set Timeout 10s")
-    run_cmd("ubus call system watchdog '{\"stop\":true}'", "Stop Feed (Cycle 1)")
-    wait_sec(10, "Waiting Cycle 1")
- 
-    # ✅ Added Message After First Cycle
-    log("[INFO] Device is NOT rebooted because watchdog is disabled (magicclose enabled)")
- 
-    # -------- CYCLE 2 --------
-    log("SECOND CYCLE")
-    run_cmd("ubus call system watchdog '{\"stop\":false}'", "Resume Feed")
-    run_cmd("ubus call system watchdog '{\"magicclose\": false}'", "Enable Watchdog")
-    run_cmd("ubus call system watchdog '{\"timeout\":10}'", "Reset Timeout")
-    print("REBOOT_TRIGGER")
-    run_cmd("ubus call system watchdog '{\"stop\":true}'", "Stop Feed (Cycle 2)")
-    wait_sec(15, "Waiting Reboot")
- 
-    log("[FAIL] Watchdog did NOT reboot device")
- 
+
+    try:
+        # -------- CYCLE 1 --------
+        run_cmd("ubus call system watchdog", "Check Status")
+        run_cmd("ubus call system watchdog '{\"magicclose\": true}'", "Magic Close (Disable Watchdog)")
+        run_cmd("ubus call system watchdog '{\"timeout\":10}'", "Set Timeout 10s")
+        run_cmd("ubus call system watchdog '{\"stop\":true}'", "Stop Feed (Cycle 1)")
+        wait_sec(10, "Waiting Cycle 1")
+
+        log("[INFO] Device is NOT rebooted because watchdog is disabled (magicclose enabled)")
+
+        # -------- CYCLE 2 --------
+        log("SECOND CYCLE")
+        run_cmd("ubus call system watchdog '{\"stop\":false}'", "Resume Feed")
+        run_cmd("ubus call system watchdog '{\"magicclose\": false}'", "Enable Watchdog")
+        run_cmd("ubus call system watchdog '{\"timeout\":10}'", "Reset Timeout")
+        print("REBOOT_TRIGGER")
+
+        run_cmd("ubus call system watchdog '{\"stop\":true}'", "Stop Feed (Cycle 2)")
+
+        # === SUCCESS EXIT HERE ===
+        log("[PASS] Watchdog reboot triggered successfully")
+        return EXIT_SUCCESS
+
+    except Exception as e:
+        log(f"[ERROR] Test execution failed: {e}")
+        return EXIT_FAILED
+
 if __name__ == "__main__":
-    main()
+    exit_code = main()
+    sys.exit(exit_code)
+
