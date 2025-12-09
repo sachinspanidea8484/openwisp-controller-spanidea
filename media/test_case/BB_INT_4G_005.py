@@ -2,14 +2,32 @@
 """
 4G BAND LOCK TEST (BB-INT-4G-005)
 Dynamic target band input via command-line parameter
+python3 BB_INT_4G_005.py CONFIGURATION='{"LOCK BAND": "66"}'
 """
 
 import re
 import sys
 import time
-import subprocess
+import json
 import argparse
+import subprocess
 from datetime import datetime
+ 
+ 
+def parse_config(config_str):
+    """Parse CONFIGURATION=... style string into a Python dict"""
+ 
+    # Remove 'CONFIGURATION=' prefix if present
+    if config_str.startswith("CONFIGURATION="):
+        config_str = config_str[len("CONFIGURATION="):]
+ 
+    # Try to parse the remaining string as JSON
+    try:
+        return json.loads(config_str)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing CONFIGURATION JSON: {e}", file=sys.stderr)
+        return {}
+
 
 # === CONFIGURATION ===
 BB_AT_PORT = "/dev/ttyUSB3"
@@ -172,18 +190,21 @@ def unlock_band():
     verify_current_band()
 
 # === MAIN ===
-def main():
-    parser = argparse.ArgumentParser(description="4G BAND LOCK TEST (BB-INT-4G-005)")
-    parser.add_argument("--band", "-b", type=int, help="Target LTE band number to lock (e.g. 66)")
+if __name__ == "__main__":
 
-    # Instead of letting argparse error out, we handle missing argument ourselves
-    args, unknown = parser.parse_known_args()
-
-    if args.band is None:
-        log("TEST FAILED!!! — Target LTE band not provided. Use --band <number> (e.g., --band 66)")
-        sys.exit(EXIT_PRECONDITION_FAILED)
-
-    TARGET_BAND = args.band
+    parser = argparse.ArgumentParser(description='4G BAND LOCK TEST (BB-INT-4G-005)')
+    parser.add_argument('config', help='Configuration string')
+ 
+    args = parser.parse_args()
+ 
+    # Parse configuration
+    config = parse_config(args.config)
+ 
+    # Access by key and print
+    TARGET_BAND = config.get('LOCK BAND', config.get('LOCK_BAND', '66'))
+ 
+    print(f"TARGET_BAND : {TARGET_BAND}")
+    
     log(f"=== Starting 4G BAND LOCK (BB-INT-5G-005) Test with target band {TARGET_BAND} ===")
 
     try:
@@ -249,7 +270,4 @@ def main():
         log(f"TEST FAILED - Exception: {e}")
         sys.exit(EXIT_FAILED)
 
-
-if __name__ == "__main__":
-    main()
 

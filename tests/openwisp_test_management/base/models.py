@@ -140,9 +140,9 @@ class AbstractTestCase(TimeStampedEditableModel):
         help_text=_("Whether this test case is currently active")
     )
     is_configuration_push_required = models.BooleanField(
-        _("Configuration Push Required"),
+        _("Is File Required"),
         default=False,
-        help_text=_("Whether a configuration push is required for this test case")
+        help_text=_("Whether a file upload is required for this test case")
     )
     test_type = models.IntegerField(
         _("Test Type"),
@@ -179,7 +179,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         ]
 
     def __str__(self):
-        return f"{self.name}"
+        return f"{self.name} ({self.category.name})"
 
 
     def clean(self):

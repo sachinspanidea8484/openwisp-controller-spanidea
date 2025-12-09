@@ -5,6 +5,8 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.authentication import SessionAuthentication
 from ..settings import OPENWISP_SERVER_IP
 
+from openwisp_monitoring.monitoring.models import Metric
+
 from openwisp_controller.connection.connectors.ssh import Ssh
 from rest_framework.decorators import api_view ,authentication_classes, permission_classes
 from rest_framework.views import APIView
@@ -4014,16 +4016,36 @@ def get_available_devices(request):
                 if FILTER_BY_CONNECTION and not has_connection:
                     continue
                 
-                # Determine device status based on available fields
-                device_status = 'Offline'
+                # # Determine device status based on available fields
                 is_deactivated = getattr(device, '_is_deactivated', False)
+
                 
-                if is_deactivated:
-                    device_status = 'Deactivated'
-                elif getattr(device, 'last_ip', None) and getattr(device, 'management_ip', None):
-                    device_status = 'Online'
-                elif getattr(device, 'last_ip', None):
-                    device_status = 'Reachable'
+                # if is_deactivated:
+                #     device_status = 'Deactivated'
+                # elif getattr(device, 'last_ip', None) and getattr(device, 'management_ip', None):
+                #     device_status = 'Online'
+                # elif getattr(device, 'last_ip', None):
+                #     device_status = 'Reachable'
+
+                # Get ping metric status
+                device_status = "Online"
+                try:
+                 ping_metric = Metric.objects.get(
+                                #  content_type__model='device',
+                                 object_id=str(device.id),
+                                 configuration='ping',
+                                 key='ping',
+                 )
+
+                 device_status = "Online" if ping_metric.is_healthy else "Offline"
+
+                except Metric.DoesNotExist:
+                 logger.debug(f"ping_metric {ping_metric} ")
+                 device_status = "Offline"
+
+                # logger.debug(f"device_status ::::::::::::: {device.name} {device_status}")
+                # logger.debug(f"device_status {device_status}")
+                print(f"device_status ::::::::::::: {device.name} {device_status}")
                 
                 device_data = {
                     'id': str(device.id),
@@ -5078,8 +5100,10 @@ class TestDeviceGroupViewSet(viewsets.ModelViewSet):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 # @csrf_exempt
-def ConfigurationPushOnDevice(request):
+def ConfigurationPushOnDeviceOld(request):
     try:
+        print("[Error] : erorr uploading file on device request>>>>>>>>>>>>",)
+
 
         device_id = request.POST.get("device_id")
         file= request.FILES.get("file")
@@ -5096,6 +5120,9 @@ def ConfigurationPushOnDevice(request):
 
         ssh_conn.upload(file, f"/tmp/{file.name}")
 
+
+        print("success uploading file on device >>>>>>>>>>")
+
         return Response({"success": "uploaded "},status=200)
 
     except Exception as e:
@@ -5103,6 +5130,111 @@ def ConfigurationPushOnDevice(request):
         return Response({"error": "uploaded "},status=400)
 
 
+
+
+
+
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+# @csrf_exempt
+def ConfigurationPushOnDevice(request):
+    try:
+        print("[INFO] ConfigurationPushOnDevice - Request received")
+
+        device_id = request.POST.get("device_id")
+        file = request.FILES.get("file")
+        
+        if not device_id or not file:
+            return Response({"error": "Missing device_id or file"}, status=400)
+        
+        # Get device
+        try:
+            device = Device.objects.get(id=device_id)
+        except Device.DoesNotExist:
+            return Response({"error": f"Device with ID {device_id} not found"}, status=404)
+        
+        # Get device connection
+        try:
+            conn = DeviceConnection.get_working_connection(device)
+            if not conn:
+                return Response({
+                    "error": f"No working connection found for device {device.name}"
+                }, status=400)
+            
+            ssh_params = conn.credentials.params
+            
+        except DeviceConnection.DoesNotExist:
+            return Response({
+                "error": f"No working connection found for device {device.name}"
+            }, status=400)
+        except Exception as e:
+            return Response({
+                "error": f"Device {device.name} is unreachable: {str(e)}"
+            }, status=400)
+        
+        # Get file extension
+        original_filename = file.name
+        file_extension = ""
+        if "." in original_filename:
+            file_extension = original_filename.split(".")[-1]
+        
+        # Create new filename: modified.{extension}
+        new_filename = f"modified.{file_extension}" if file_extension else "modified"
+        upload_path = f"/usr/bin/{new_filename}"
+        
+        print(f"[INFO] Original filename: {original_filename}")
+        print(f"[INFO] New filename: {new_filename}")
+        print(f"[INFO] Upload path: {upload_path}")
+        
+        # Get permissions from request (default to read-write: 755)
+        permissions = request.POST.get("permissions", "755")
+        
+        # Establish SSH connection and upload
+        try:
+            ssh_conn = Ssh(ssh_params, [device.management_ip])
+            ssh_conn.connect()
+            ssh_conn.upload(file, upload_path)
+            
+            # Set file permissions using exec_command or run method
+            chmod_command = f"chmod {permissions} {upload_path}"
+            try:
+                # Try exec_command first (common in paramiko-based implementations)
+                if hasattr(ssh_conn, 'exec_command'):
+                    ssh_conn.exec_command(chmod_command)
+                # Try run method
+                elif hasattr(ssh_conn, 'run'):
+                    ssh_conn.run(chmod_command)
+                # Try shell method
+                elif hasattr(ssh_conn, 'shell'):
+                    ssh_conn.shell(chmod_command)
+                else:
+                    print(f"[WARNING] Could not set permissions - no execute method found")
+            except Exception as chmod_error:
+                print(f"[WARNING] Failed to set permissions: {str(chmod_error)}")
+            
+            print(f"[SUCCESS] File uploaded to device {device.name} at {upload_path} with permissions {permissions}")
+            
+            return Response({
+                "success": "File uploaded successfully",
+                "device": device.name,
+                "filename": new_filename,
+                "path": upload_path,
+                "permissions": permissions
+            }, status=200)
+            
+        except Exception as ssh_error:
+            print(f"[ERROR] SSH upload failed: {str(ssh_error)}")
+            return Response({
+                "error": f"Failed to upload file via SSH: {str(ssh_error)}"
+            }, status=500)
+
+    except Exception as e:
+        print(f"[ERROR] Error uploading file on device: {str(e)}")
+        return Response({
+            "error": f"Failed to upload file: {str(e)}"
+        }, status=500)
 # Create view instances
 test_category_list = TestCategoryListCreateView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()
