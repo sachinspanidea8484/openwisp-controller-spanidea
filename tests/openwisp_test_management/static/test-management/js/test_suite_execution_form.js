@@ -504,6 +504,7 @@
     if (dev) {
       dev._chosen_protocol = $(this).val(); // Save selected protocol
     }
+    updateHiddenInput();
   });
 
   // Handle test suite selection change
