@@ -498,6 +498,13 @@
       $("#add-device-btn").prop("disabled", false);
     }
   }
+  $(document).on("change", "input[name^='protocol_']", function () {
+    const id = $(this).attr("name").replace("protocol_", "");
+    const dev = selectedDevices.get(id);
+    if (dev) {
+      dev._chosen_protocol = $(this).val(); // Save selected protocol
+    }
+  });
 
   // Handle test suite selection change
   $(document).on("change", "#id_test_suite", function () {
