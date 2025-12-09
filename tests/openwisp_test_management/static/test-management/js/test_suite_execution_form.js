@@ -142,24 +142,43 @@
         const testCasesHTML = configPushTestCases
           .map(
             (tc) => `
-              <li class="testcase-row">
-                <span class="tc-name">${tc.name}</span>
-
-                <div class="tc-actions">
-                  <input type="file" class="file-input" />
-                  <button type="button" class="tc-action-btn" data-device-id="${device.id}" data-device-name="${device.name}" data-tc-name= "${tc.name}">Upload on Device</button>
-                </div>
-              </li>
+              <tr>
+                <td>${tc.name}</td>
+                <td> 
+                  <div class="tc-actions">
+                    <input type="file" class="file-input" />
+                    <button type="button" class="tc-action-btn" data-device-id="${device.id}" data-device-name="${device.name}" data-tc-name= "${tc.name}">Upload on Device</button>
+                  </div>
+                </td>
+              </tr>
             `
           )
           .join("");
         const device_cont = `
-          <div class="config-device-box">
-            <div class="device-header">${device.name}</div>
-
-            <ul class="testcase-list">
-              ${testCasesHTML}
-            </ul>
+          <div class="device-card">
+            <div class="device-header">
+              <h3 class="device-title">${device.name}</h3>
+            </div>
+            <div style="padding: 20px; display: flex; flex-direction: column; gap : 30px">
+                <div class="test-section">
+                    <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">
+                        <colgroup>
+                            <col style="width: 30%">
+                            <col style="width: 70%">
+                        </colgroup>
+                        <table class="results-table">
+                        <thead>
+                            <tr>
+                                
+                                <th>Test Case</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>${testCasesHTML}</tbody>
+                    </table>
+                    </table>
+                </div>
+            </div>
           </div>
         `;
         pushconfigcontainer.append(device_cont);
