@@ -2,7 +2,7 @@
 """
 4G BAND LOCK TEST (BB-INT-4G-005)
 Dynamic target band input via command-line parameter
-python3 BB_INT_4G_005.py CONFIGURATION='{"LOCK BAND": "66"}'
+python3 BB_INT_4G_005.py CONFIGURATION='{"LOCK_BAND": "66"}'
 """
 
 import re
@@ -201,9 +201,9 @@ if __name__ == "__main__":
     config = parse_config(args.config)
  
     # Access by key and print
-    TARGET_BAND = config.get('LOCK BAND', config.get('LOCK_BAND', '66'))
+    TARGET_BAND = config.get('LOCK_BAND', config.get('LOCK_BAND', '66'))
  
-    print(f"TARGET_BAND : {TARGET_BAND}")
+    #print(f"TARGET_BAND : {TARGET_BAND}")
     
     log(f"=== Starting 4G BAND LOCK (BB-INT-5G-005) Test with target band {TARGET_BAND} ===")
 
