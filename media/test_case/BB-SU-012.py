@@ -14,7 +14,8 @@ EXIT_FAILED = 1
 BACKUP_DIR = "/etc/config_backup"
 EXTRACT_DIR = "/"
 LOG_FILE = "/usr/bin/tests/config_push.log"
-DEFAULT_MODIFIED_FILE = "/usr/bin/modified.gz"
+DEFAULT_MODIFIED_FILE = "/tmp/modified.gz"
+
 
 
 def parse_config(config_str):
@@ -82,6 +83,7 @@ def verify_changes():
 
 def reboot_system():
     log_step("Rebooting system...")
+    print("REBOOT_TRIGGER")
     run_cmd("sleep 3 && reboot")
 
 

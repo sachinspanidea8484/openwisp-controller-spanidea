@@ -91,4 +91,4 @@ tests/openwisp2/celerybeat-schedule
 # device groups 
 
 
-.env
+# .env
