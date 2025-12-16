@@ -2538,13 +2538,17 @@ class TestResultView(APIView):
                     execution.completed_at = completed_at
                 else:
                     execution.completed_at = timezone.now()
-                execution.error_message = data.get('error_message', 'Test execution was aborted')
+                execution.error_message = data.get('stderr', 'Test execution was aborted')
                 
                 if execution.started_at:
                     execution.execution_duration = execution.completed_at - execution.started_at
-                
+                # Set other fields
+                execution.exit_code = data.get('exit_code')
+                execution.stdout = data.get('stdout', '')
+                execution.stderr = data.get('stderr', '')
                 execution.save(update_fields=[
-                    'status', 'completed_at', 'error_message', 'execution_duration'
+                    'status', 'completed_at', 'stdout', 
+                    'stderr', 'error_message', 'execution_duration'
                 ])
                 print(f"✅ Updated to ABORTED status")
             
