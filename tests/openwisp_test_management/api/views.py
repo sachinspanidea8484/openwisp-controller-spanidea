@@ -5182,7 +5182,10 @@ def ConfigurationPushOnDevice(request):
         
         # Create new filename: modified.{extension}
         new_filename = f"modified.{file_extension}" if file_extension else "modified"
-        upload_path = f"/usr/bin/{new_filename}"
+        # upload_path = f"/usr/bin/{new_filename}"
+        upload_path = f"/tmp/{new_filename}"
+
+
         
         print(f"[INFO] Original filename: {original_filename}")
         print(f"[INFO] New filename: {new_filename}")
