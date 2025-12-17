@@ -23,6 +23,7 @@
   let selectedDevices = new Map(); // Map of device_id -> device_data
   let configPushTestCases = [];
   let pendingGroupSelection = null;
+  let isSubmitting= false;
   function applyDisabledState() {
     if (window.disabledViewMode) {
       $(".device-selector select, .device-selector button").prop(
@@ -31,6 +32,36 @@
       );
       $(".remove-device-btn, .remove-all-btn").prop("disabled", true);
     }
+  }
+
+  function showMessage(message, type) {
+    // Remove any existing messages
+    const existingMsg = document.querySelector(".messagelist");
+    if (existingMsg) {
+      existingMsg.remove();
+    }
+
+    // Create message element
+    const msgClass = type === "success" ? "success" : "error";
+    const msgHtml = `
+        <ul class="messagelist">
+            <li class="${msgClass}">${message}</li>
+        </ul>
+    `;
+
+    // Insert after h1
+    const h1 = document.querySelector("#content");
+    h1.insertAdjacentHTML("beforebegin", msgHtml);
+    
+    const msg = document.querySelector(".messagelist");
+    msg.scrollIntoView({behavior:"smooth", block:"center"})
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (msg) {
+        msg.style.opacity = "0";
+        setTimeout(() => msg.remove(), 300);
+      }
+    }, 5000);
   }
   // Create test cases display section
   function createTestCasesDisplay() {
@@ -99,7 +130,7 @@
     return container;
   }
 
-  function uploadConfigOverDevice(device_id, file, fileInput) {
+  function uploadConfigOverDevice(device_id, file, fileInput, tcName) {
     let formData = new FormData();
     formData.append("device_id", device_id);
     formData.append("file", file);
@@ -122,17 +153,23 @@
       },
     });
   }
-  $(document).on("click", ".tc-action-btn", function(){
-    const deviceId= $(this).data("device-id");
-
+  $(document).on("click", ".tc-action-btn", function () {
+    const deviceId = $(this).data("device-id");
+    const tcName = $(this).data("tc-name");
     const fileInput = $(this).closest(".tc-actions").find(".file-input")[0];
     const file = fileInput?.files?.[0];
-
+    const btn = this;
     if (!file) {
       alert("Please select a file before clicking Run");
       return;
     }
-    uploadConfigOverDevice(deviceId, file, fileInput);
+    console.log(btn.classList)
+    btn.classList.add("loading");
+   
+    uploadConfigOverDevice(deviceId, file, fileInput, tcName);
+    btn.classList.remove("loading");
+   
+
   });
   function createPushConfigDiv() {
     const pushconfigcontainer = $(".push-config-div");
@@ -146,8 +183,13 @@
                 <td>${tc.name}</td>
                 <td> 
                   <div class="tc-actions">
-                    <input type="file" class="file-input" />
-                    <button type="button" class="tc-action-btn" data-device-id="${device.id}" data-device-name="${device.name}" data-tc-name= "${tc.name}">Upload on Device</button>
+                    <input 
+                      type="file" 
+                      class="file-input"
+                      name="artifact_${deviceId}_${tc.id}"
+                      data-device-id="${deviceId}"
+                      data-testcase="${tc.name}"
+                      />
                   </div>
                 </td>
               </tr>
@@ -161,17 +203,17 @@
             </div>
             <div style="padding: 20px; display: flex; flex-direction: column; gap : 30px">
                 <div class="test-section">
-                    <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">
+                    <table class="results-table aligned-table">
                         <colgroup>
-                            <col style="width: 30%">
-                            <col style="width: 70%">
+                            <col style="width: 40%">
+                            <col style="width: 60%">
                         </colgroup>
                         <table class="results-table">
                         <thead>
                             <tr>
                                 
                                 <th>Test Case</th>
-                                <th>Actions</th>
+                                <th>Configuration File</th>
                             </tr>
                         </thead>
                         <tbody>${testCasesHTML}</tbody>
@@ -218,7 +260,11 @@
         } else {
           devices.forEach((device) => {
             const selectedProtocol = device._chosen_protocol;
-            isssh = device.connection_protocol === 1 || (selectedProtocol && selectedProtocol==='1')  ? "checked" : "";
+            isssh =
+              device.connection_protocol === 1 ||
+              (selectedProtocol && selectedProtocol === "1")
+                ? "checked"
+                : "";
             ismqtt =
               device.connection_protocol === 0 ||
               isssh === "" ||
@@ -235,8 +281,8 @@
                         <div class="device-name">${device.name}</div>
                         <div class="device-details">
                           ${device.organization || ""} - ${
-                            device.management_ip || ""
-                          } - ${device.status || ""}
+              device.management_ip || ""
+            } - ${device.status || ""}
                         </div>
                     </div>
 
@@ -252,9 +298,13 @@
                         MQTT
                       </label>
                       <label>
-                        <input type="radio" name="protocol_${device.id}" value="1" ${isssh} 
+                        <input type="radio" name="protocol_${
+                          device.id
+                        }" value="1" ${isssh} 
                         ${window.disabledViewMode ? "disabled" : ""} 
-                        style="cursor : ${window.disabledViewMode ? "not-allowed" : "pointer"}">     
+                        style="cursor : ${
+                          window.disabledViewMode ? "not-allowed" : "pointer"
+                        }">     
                         SSH
                       </label>
                     </div>
@@ -347,10 +397,14 @@
   $(document).off("change", "#id_device_selection input[type=radio]");
   $(document).off("change", "#id_test_selection_type input[type=radio]");
 
-  $(document).on("change", "#id_test_selection_type input[type=radio]", function(){
-    configPushTestCases=[];
-    createPushConfigDiv();
-  });
+  $(document).on(
+    "change",
+    "#id_test_selection_type input[type=radio]",
+    function () {
+      configPushTestCases = [];
+      createPushConfigDiv();
+    }
+  );
 
   // Handle radio button changes
   $(document).on(
@@ -668,11 +722,12 @@
    
 
     // Mutation observer to detect any change to options
-    const el= document.querySelector("#testcase-config-json");
-    const casetoconfigmapping= JSON.parse(el.textContent);
+    const el = document.querySelector("#testcase-config-json");
+    const casetoconfigmapping = JSON.parse(el.textContent);
+
     function logValues() {
-      
-      configPushTestCases=[]
+      if(isSubmitting) return ;
+      configPushTestCases = [];
       configPushTestCases = Array.from(
         document.querySelectorAll("#id_individual_test_cases_to option")
       )
@@ -680,6 +735,7 @@
           value: opt.value,
           title: opt.title,
           name: opt.title.split("-configRequired")[0],
+          id: opt.value,
         }))
         .filter((tc) => casetoconfigmapping[tc.value] === true);
 
@@ -735,20 +791,19 @@
     }
 
     selectedDevices.forEach(function (device, deviceId) {
+      const selectedProtocol = device._chosen_protocol;
 
-       const selectedProtocol = device._chosen_protocol;
-      
-       issshChecked =
-         device.connection_protocol === 1 ||
-         (selectedProtocol && selectedProtocol === "1")
-           ? "checked"
-           : "";
-       ismqttChecked =
-         device.connection_protocol === 0 ||
-         issshChecked === "" ||
-         (selectedProtocol && selectedProtocol === "0")
-           ? "checked"
-           : "";
+      issshChecked =
+        device.connection_protocol === 1 ||
+        (selectedProtocol && selectedProtocol === "1")
+          ? "checked"
+          : "";
+      ismqttChecked =
+        device.connection_protocol === 0 ||
+        issshChecked === "" ||
+        (selectedProtocol && selectedProtocol === "0")
+          ? "checked"
+          : "";
       const deviceItem = $(`
                 <div class="selected-device-item" data-device-id="${deviceId}">
                     <div class="device-info">
@@ -769,8 +824,8 @@
                       </label>
                     </div>
                     <button type="button" class="remove-device-btn" data-device-id="${deviceId}" ${
-                      window.disabledViewMode ? "disabled" : ""
-                    }>Remove</button>
+        window.disabledViewMode ? "disabled" : ""
+      }>Remove</button>
                 </div>
             `);
       if (device?.status !== "Deactivated") {
@@ -819,9 +874,10 @@
     }
 
     // Get device IDs
-    const deviceIds = Array.from(selectedDevices.keys()).map((id)=> {
-      const selectedProtocol = $(`input[name="protocol_${id}"]:checked`).val() || 0;
-      return {id, protocol : selectedProtocol};
+    const deviceIds = Array.from(selectedDevices.keys()).map((id) => {
+      const selectedProtocol =
+        $(`input[name="protocol_${id}"]:checked`).val() || 0;
+      return { id, protocol: selectedProtocol };
     });
     input.val(JSON.stringify(deviceIds));
     console.log("Updated selected devices:", deviceIds);
@@ -848,6 +904,7 @@
 
   // Form submission validation
   $("form").on("submit", function (e) {
+    isSubmitting=true;
     updateHiddenInput();
 
     // Validate test suite selection

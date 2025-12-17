@@ -4,6 +4,7 @@ import reversion
 from django import forms
 from django.conf import settings
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
@@ -1207,10 +1208,51 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
             'individual_test_cases': _('Select Test Cases'),
             'device_selection' :_('Device Selection Type'),
         }
+    def _get_selected_testcases_from_cleaned_data(self, cleaned_data):
+        test_selection_type = cleaned_data.get("test_selection_type")
+        test_suite = cleaned_data.get("test_suite")
+        individual_test_cases = cleaned_data.get("individual_test_cases")
+
+        if test_selection_type == 1 and test_suite:
+            return test_suite.test_cases.filter(
+                is_configuration_push_required=True
+            )
+
+        if test_selection_type == 0 and individual_test_cases:
+            return individual_test_cases.filter(
+                is_configuration_push_required=True
+            )
+
+        return TestCase.objects.none()
     def clean(self):
         """Custom validation"""
         print(">>> CLEAN METHOD STARTED <<<")
         cleaned_data = super().clean()
+        request= getattr(self, "request" , None)
+        
+        files = request.FILES
+        selected_devices = json.loads(
+            request.POST.get("selected_devices_data", "[]")
+        )
+
+        testcases = self._get_selected_testcases_from_cleaned_data(cleaned_data)
+        
+        missing = []
+       
+        for device in selected_devices:
+            device_id = device["id"]
+            from django.forms.models import model_to_dict
+            for tc in testcases:
+                key = f"artifact_{device_id}_{tc.id}"
+                if key not in files:
+                    missing.append(f"Device {device_id} → {tc.name}")
+        if missing:
+            raise forms.ValidationError(
+                "Missing configuration files:\n" + "\n".join(missing)
+            )
+
+
+        print("cleaned data", cleaned_data)
         test_selection_type= cleaned_data.get('test_selection_type')
         test_suite = cleaned_data.get('test_suite')
         individual_test_cases= cleaned_data.get('individual_test_cases')
@@ -1531,6 +1573,12 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     class Meta:
         verbose_name = _("Test Execution")  # Change from "Test Suite Execution"
         verbose_name_plural = _("Test Executions")  # Change from "Test Suite Executions"
+    
+   
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        form.request = request   
+        return form
     
     def test_selection_display(self, obj):
         """Display test selection type with icon"""
