@@ -27,7 +27,7 @@ from openwisp_controller.config.models import Device
 
 from reversion.models import Version
 from django.http import HttpResponse
-
+from django.http import HttpResponseRedirect
 from openwisp_utils.admin import TimeReadonlyAdminMixin
 
 from .filters import (
@@ -46,6 +46,7 @@ from openwisp_users.multitenancy import MultitenantOrgFilter, MultitenantRelated
 from django.contrib.admin.widgets import RelatedFieldWidgetWrapper
 from import_export.widgets import Widget
 from django.utils.safestring import mark_safe
+from .forms import ExecutionArtifactFormSet
 logger = logging.getLogger(__name__)
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
@@ -1228,31 +1229,8 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
         """Custom validation"""
         print(">>> CLEAN METHOD STARTED <<<")
         cleaned_data = super().clean()
-        request= getattr(self, "request" , None)
-        
-        files = request.FILES
-        selected_devices = json.loads(
-            request.POST.get("selected_devices_data", "[]")
-        )
-
-        testcases = self._get_selected_testcases_from_cleaned_data(cleaned_data)
-        
-        missing = []
-       
-        for device in selected_devices:
-            device_id = device["id"]
-            from django.forms.models import model_to_dict
-            for tc in testcases:
-                key = f"artifact_{device_id}_{tc.id}"
-                if key not in files:
-                    missing.append(f"Device {device_id} → {tc.name}")
-        if missing:
-            raise forms.ValidationError(
-                "Missing configuration files:\n" + "\n".join(missing)
-            )
 
 
-        print("cleaned data", cleaned_data)
         test_selection_type= cleaned_data.get('test_selection_type')
         test_suite = cleaned_data.get('test_suite')
         individual_test_cases= cleaned_data.get('individual_test_cases')
@@ -1653,36 +1631,45 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
     # “Save & execute” after ADD call
     def response_add(self, request, obj, post_url_continue=None):
-        if '_save_execute' in request.POST:
-            super().save_model(request, obj, request.POST, True)
-           
-          
-            transaction.on_commit(lambda: self._start_execution(request, obj,False))
+        wants_execute = "_save_execute" in request.POST
+        wants_schedule = "_schedule_execution" in request.POST
 
-            # Send the user back to the change form of what he just created
-            return self.response_post_save_add(request, obj)
-        if '_schedule_execution' in request.POST:
+        if wants_execute:
+            return HttpResponseRedirect(
+            reverse("admin:execution_config_push", args=[obj.pk]) + "?execute=1"
+            )
+        if wants_schedule:
             schedule_datetime = request.POST.get("schedule_datetime")
             if schedule_datetime:
-                self._schedule_execution(request, obj, schedule_datetime)
-            return self.response_post_save_add(request, obj)
-
-        return super().response_add(request, obj, post_url_continue)
+                request.session["execution_schedule_time"]= schedule_datetime
+                return HttpResponseRedirect(
+                    reverse("admin:execution_config_push", args=[obj.pk]) + "?schedule=1"
+                    )
+        
+        return HttpResponseRedirect(
+                reverse("admin:execution_config_push", args=[obj.pk])
+            )
 
     # “Save & execute” after CHANGE call
     def response_change(self, request, obj):
-        if '_save_execute' in request.POST:
-            self._start_execution(request, obj,True)
-            return self.response_post_save_change(request, obj)   # stay on the same page
-        
-        if '_schedule_execution' in request.POST:
-            
+        wants_execute = "_save_execute" in request.POST
+        wants_schedule = "_schedule_execution" in request.POST
+
+        if wants_execute:
+            return HttpResponseRedirect(
+                reverse("admin:execution_config_push", args=[obj.pk]) + "?execute=1"
+            )
+        if wants_schedule:
             schedule_datetime = request.POST.get("schedule_datetime")
             if schedule_datetime:
-                self._schedule_execution(request, obj, schedule_datetime)
-            return self.response_post_save_change(request, obj)
-        return super().response_change(request, obj)
-
+                request.session["execution_schedule_time"]= schedule_datetime
+                return HttpResponseRedirect(
+                    reverse("admin:execution_config_push", args=[obj.pk]) + "?schedule=1"
+                )
+        return HttpResponseRedirect(
+                reverse("admin:execution_config_push", args=[obj.pk])
+            )
+    
     def _schedule_execution(self, request, obj, schedule_datetime):
         from .models import ScheduledExecution
         from django.utils.dateparse import parse_datetime
@@ -1748,6 +1735,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 '<path:object_id>/history/',
                 self.admin_site.admin_view(self.execution_history_view),
                 name='test_management_testexecution_history'
+            ),
+            path(
+                "<uuid:pk>/config-push/",
+                self.admin_site.admin_view(self.config_push_view),
+                name="execution_config_push",
             ),
         ]
         return custom_urls + urls
@@ -1834,7 +1826,98 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         )
     
 
+    def _build_artifacts(self, execution):
+        from .models import ExecutionArtifact, TestSuiteExecutionDevice
+
+        devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        )
+
+        testcases = execution.get_configuration_selected_test_cases()
+
+        for d in devices:
+            for tc in testcases:
+                ExecutionArtifact.objects.get_or_create(
+                    execution=execution,
+                    device_id=d.device_id,  # ✅ SAFE
+                    testcase=tc,
+                )
+    def _missing_config_artifacts(self, execution):
+        """
+        Returns queryset of ExecutionArtifact
+        where config_file is missing but required.
+        """
+        return execution.artifacts.filter(
+            testcase__is_configuration_push_required=True,
+            config_file__isnull=True,
+        )
     
+    def config_push_view(self, request, pk):
+        execution = get_object_or_404(TestSuiteExecution, pk=pk)
+        execute_after_save= request.GET.get("execute")=="1"
+        schedule_ater_save= request.GET.get("schedule")=="1"
+        
+        self._build_artifacts(execution)
+        
+        if request.method == "POST":
+            formset = ExecutionArtifactFormSet(
+                request.POST,
+                request.FILES,
+                instance=execution,
+            )
+            if formset.is_valid():
+
+                has_error = False
+
+                for form in formset.forms:
+                    uploaded_file = form.cleaned_data.get("config_file")
+                    existing_file = form.instance.config_file
+
+                    if not uploaded_file and not existing_file:
+                        form.add_error(
+                            "config_file",
+                            "Configuration file is required."
+                        )
+                        has_error = True
+
+                if not has_error:
+                    # VALIDATE BEFORE SAVE
+                    formset.save()
+
+                    schedule_time= request.session.get("execution_schedule_time")
+                    if execute_after_save:
+                        self._start_execution(request, execution, False)
+                    if schedule_ater_save and schedule_time:
+                        self._schedule_execution(
+                            request,
+                            execution,
+                            schedule_time,
+                        )
+                        request.session.pop("execution_schedule_time", None)
+                    self.message_user(
+                        request,
+                        "Configuration uploaded successfully.",
+                        messages.SUCCESS,
+                    )
+
+                    return HttpResponseRedirect(
+                        reverse("admin:test_management_testsuiteexecution_changelist")
+                    )
+
+        else:
+            formset = ExecutionArtifactFormSet(instance=execution)
+
+        context = dict(
+            self.admin_site.each_context(request),
+            title="Configuration Push",
+            execution=execution,
+            formset=formset,
+        )
+        return render(
+            request,
+            "admin/test_management/config_push.html",
+            context,
+        )
     def view_history(self, obj):
         """Add history view link"""
         if obj.pk:
@@ -1867,9 +1950,9 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         print(f">>> ADMIN save_model called. Change: {change} <<<")
         super().save_model(request, obj, form, change)
         print(f">>> Object saved with ID: {obj.id} <<<")
-        if '_save_execute' in request.POST and not change:
-            # Object is being saved for the first time, and "Save and Execute" was clicked
-            self._start_execution(request, obj,False)
+        # if '_save_execute' in request.POST and not change:
+        #     # Object is being saved for the first time, and "Save and Execute" was clicked
+        #     self._start_execution(request, obj,False)
         # Ensure devices are saved
         if hasattr(form, 'save_devices'):
             form.save_devices(obj)

@@ -1,0 +1,59 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  › <a href="{% url 'admin:test_management_testsuiteexecution_changelist' %}">
+      Test suite executions
+    </a>
+  › <a href="{% url 'admin:test_management_testsuiteexecution_change' execution.pk %}">
+      {{ execution.name }}
+    </a>
+  › Configuration Push
+</div>
+{% endblock %}
+
+{% block content %}
+
+
+
+<p><strong>Execution:</strong> {{ execution.name }}</p>
+
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  {{ formset.management_form }}
+
+  <table class="results">
+    <thead>
+      <tr>
+        <th>Device</th>
+        <th>Test Case</th>
+        <th>Config File</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for form in formset %}
+        <tr>
+          {{form.id}}
+          <td>{{ form.instance.device }}</td>
+          <td>{{ form.instance.testcase }}</td>
+          <td>
+            {{ form.config_file }}
+            {{ form.config_file.errors }}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="submit-row">
+    <a class="button"
+       href="{% url 'admin:test_management_testsuiteexecution_change' execution.pk %}">
+      Back to Execution
+    </a>
+
+    <input type="submit" class="default" value="Save & Push Configuration">
+  </div>
+</form>
+{% endblock %}

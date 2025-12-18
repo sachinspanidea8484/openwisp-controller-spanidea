@@ -171,62 +171,7 @@
    
 
   });
-  function createPushConfigDiv() {
-    const pushconfigcontainer = $(".push-config-div");
-    pushconfigcontainer.empty();
-    if(configPushTestCases.length >0){
-      selectedDevices.forEach((device, deviceId) => {
-        const testCasesHTML = configPushTestCases
-          .map(
-            (tc) => `
-              <tr>
-                <td>${tc.name}</td>
-                <td> 
-                  <div class="tc-actions">
-                    <input 
-                      type="file" 
-                      class="file-input"
-                      name="artifact_${deviceId}_${tc.id}"
-                      data-device-id="${deviceId}"
-                      data-testcase="${tc.name}"
-                      />
-                  </div>
-                </td>
-              </tr>
-            `
-          )
-          .join("");
-        const device_cont = `
-          <div class="device-card">
-            <div class="device-header">
-              <h3 class="device-title">${device.name}</h3>
-            </div>
-            <div style="padding: 20px; display: flex; flex-direction: column; gap : 30px">
-                <div class="test-section">
-                    <table class="results-table aligned-table">
-                        <colgroup>
-                            <col style="width: 40%">
-                            <col style="width: 60%">
-                        </colgroup>
-                        <table class="results-table">
-                        <thead>
-                            <tr>
-                                
-                                <th>Test Case</th>
-                                <th>Configuration File</th>
-                            </tr>
-                        </thead>
-                        <tbody>${testCasesHTML}</tbody>
-                    </table>
-                    </table>
-                </div>
-            </div>
-          </div>
-        `;
-        pushconfigcontainer.append(device_cont);
-      });
-    }
-  }
+
 
   // CHANGE: Updated handleGroupSelection to properly manage selectedDevices map
   function handleGroupSelection(groupId) {
@@ -317,7 +262,7 @@
           updateDeviceCount();
           // CHANGE: Update hidden input to sync form data
           updateHiddenInput();
-          createPushConfigDiv();
+         
           $("#device-selection select").prop("disabled", true);
           // Swap "Add Devices from Group" with "Remove All"
           $("#add-group-btn").replaceWith(`
@@ -402,7 +347,7 @@
     "#id_test_selection_type input[type=radio]",
     function () {
       configPushTestCases = [];
-      createPushConfigDiv();
+       
     }
   );
 
@@ -430,7 +375,7 @@
 
         loadDeviceGroups(); // CHANGE: Now calling the new loadDeviceGroups function
       }
-      createPushConfigDiv();
+       
     }
   );
 
@@ -660,7 +605,7 @@
     configPushTestCases = testCases.filter(
       (t) => t.is_configuration_push_required
     );
-    createPushConfigDiv();
+     
   }
   $(document).ready(function () {
     if (window.recoveredDevices && window.recoveredDevices.length > 0) {
@@ -739,7 +684,7 @@
         }))
         .filter((tc) => casetoconfigmapping[tc.value] === true);
 
-      createPushConfigDiv();
+       
     }
   });
   
@@ -773,7 +718,7 @@
     updateDeviceDropdown();
     updateDeviceCount();
     updateHiddenInput();
-    createPushConfigDiv();
+     
 
     // Reset dropdown
     $("#device-dropdown").val("");
@@ -846,7 +791,7 @@
     updateDeviceDropdown();
     updateDeviceCount();
     updateHiddenInput();
-    createPushConfigDiv();
+     
   });
 
   // Update device count

@@ -1183,6 +1183,7 @@ class AbstractExecutionArtifact(models.Model):
     is_pushed= models.BooleanField(default=False)
 
     class Meta:
+        abstract = True
         constraints= [
             models.UniqueConstraint(
                 fields=["execution", "device", "testcase"],
