@@ -24,28 +24,36 @@
   {% csrf_token %}
   {{ formset.management_form }}
 
-  <table class="results">
-    <thead>
-      <tr>
-        <th>Device</th>
-        <th>Test Case</th>
-        <th>Config File</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for form in formset %}
+  {% if formset.total_form_count > 0 %}
+    <table class="results">
+      <thead>
         <tr>
-          {{form.id}}
-          <td>{{ form.instance.device }}</td>
-          <td>{{ form.instance.testcase }}</td>
-          <td>
-            {{ form.config_file }}
-            {{ form.config_file.errors }}
-          </td>
+          <th>Device</th>
+          <th>Test Case</th>
+          <th>Config File</th>
         </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {% for form in formset %}
+          <tr>
+            {{form.id}}
+            <td>{{ form.instance.device }}</td>
+            <td>{{ form.instance.testcase }}</td>
+            <td>
+              {{ form.config_file }}
+              {{ form.config_file.errors }}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="info">
+      <strong>No test cases require configuration push.</strong><br>
+      You can proceed directly to execution.
+    </p>
+  {% endif %}
+    
 
   <div class="submit-row">
     <a class="button"
@@ -53,7 +61,11 @@
       Back to Execution
     </a>
 
-    <input type="submit" class="default" value="Save & Push Configuration">
+    {% if formset.total_form_count > 0 %}
+      <input type="submit" class="default" value="Push Configuration and Proceed">
+    {% else %}
+      <input type="submit" class="default" value="Proceed">
+    {% endif %}
   </div>
 </form>
 {% endblock %}
