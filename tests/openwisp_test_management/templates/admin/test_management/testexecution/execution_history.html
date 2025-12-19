@@ -698,7 +698,7 @@ function displayExecutionData(data) {
                 let rows = '';
                 tests.forEach(test => {
                     let actions = '';
-                    if ( (test.status === 'success' || test.status === 'failed')) {
+                    if ( (test.status === 'success' || test.status === 'failed'|| test.status === 'aborted')) {
                         actions += `
                             <a href="/api/v1/test-management/test-case-execution/${test.id}/download-log/" 
                             class="btn-action" title="Download log" download>

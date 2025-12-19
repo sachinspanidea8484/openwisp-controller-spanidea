@@ -8,8 +8,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from import_export.formats.base_formats import XLSX,CSV
-ROBOT_API_URL: str = os.getenv('ROBOT_API_URL', "http://44.199.94.165")
-OPENWISP_BASE_URL: str = os.getenv('OPENWISP_BASE_URL', "http://44.193.103.240")
 
 
 EXECUTOR_SERVER_IP: str = os.getenv('EXECUTOR_SERVER_IP', "http://172.17.0.1:8080")

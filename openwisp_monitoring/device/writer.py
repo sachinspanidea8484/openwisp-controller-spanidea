@@ -156,8 +156,8 @@ class DeviceDataWriter(object):
                     # ===== ADD CONNECTIONS PROCESSING =====
             if 'connections' in data['resources']:
                 logger.info("=" * 50)
-                logger.info("🌐 PROCESSING CONNECTIONS DATA")
-                logger.info(f"   Connections: {data['resources']['connections']}")
+                # logger.info("🌐 PROCESSING CONNECTIONS DATA")
+                # logger.info(f"   Connections: {data['resources']['connections']}")
                 self._write_connections(
                         data['resources']['connections'],
                         self.device_data.pk,
@@ -440,7 +440,7 @@ class DeviceDataWriter(object):
             current: bool - is this current/latest data
             time: datetime - timestamp of data
       """
-      logger.info("📊 _write_connections() called")
+    #   logger.info("📊 _write_connections() called")
       
       ipv4 = connections.get('ipv4', {})
       ipv6 = connections.get('ipv6', {})
@@ -453,9 +453,9 @@ class DeviceDataWriter(object):
       # Calculate total connections
       total_connections = tcp_ipv4 + udp_ipv4 + tcp_ipv6 + udp_ipv6
       
-      logger.info(f"   IPv4 - TCP: {tcp_ipv4}, UDP: {udp_ipv4}")
-      logger.info(f"   IPv6 - TCP: {tcp_ipv6}, UDP: {udp_ipv6}")
-      logger.info(f"   Total: {total_connections}")
+    #   logger.info(f"   IPv4 - TCP: {tcp_ipv4}, UDP: {udp_ipv4}")
+    #   logger.info(f"   IPv6 - TCP: {tcp_ipv6}, UDP: {udp_ipv6}")
+    #   logger.info(f"   Total: {total_connections}")
       
       if total_connections == 0:
             logger.warning("⚠️  No connections found, skipping write")
@@ -494,5 +494,5 @@ class DeviceDataWriter(object):
             self._create_resources_alert_settings(metric, resource='connections')
             logger.info("✅ Chart and alert settings created")
       
-      logger.info("✅ _write_connections() completed successfully")
+    #   logger.info("✅ _write_connections() completed successfully")
 

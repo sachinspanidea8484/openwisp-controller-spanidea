@@ -1,5 +1,14 @@
 from django.conf import settings
 
+EXECUTOR_SERVER_IP = getattr(
+    settings, "EXECUTOR_SERVER_IP", "http://172.17.0.1:8080"
+)
+
+
+OPENWISP_SERVER_IP = getattr(
+    settings, "OPENWISP_SERVER_IP", "http://172.17.0.1:8000"
+)
+
 
 def get_settings_value(option, default=None):
     return getattr(settings, f'OPENWISP_MONITORING_{option}', default)

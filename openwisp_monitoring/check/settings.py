@@ -26,6 +26,16 @@ CHECK_CLASSES = get_settings_value(
     ),
 )
 
+EXECUTOR_SERVER_IP = getattr(
+    settings, "EXECUTOR_SERVER_IP", "http://172.17.0.1:8080"
+)
+
+
+OPENWISP_SERVER_IP = getattr(
+    settings, "OPENWISP_SERVER_IP", "http://172.17.0.1:8000"
+)
+
+
 CHECK_CHOICES = []
 CHECK_LIST = []
 for class_string, name, setting_name in CHECK_CLASSES:
