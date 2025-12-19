@@ -147,7 +147,7 @@ class DeviceMetricView(
 
     def get(self, request, pk):
         # ensure valid UUID
-        logger.info("========================== GET API" * 70)
+        # logger.info("========================== GET API" * 70)
         
         try:
             pk = str(uuid.UUID(pk))
@@ -161,8 +161,8 @@ class DeviceMetricView(
    
 
 
-            logger.info(f"🔹 device_metrics_data: {device_metrics_data}")
-            logger.info(f"🔹 charts_data: {charts_data}")
+            # logger.info(f"🔹 device_metrics_data: {device_metrics_data}")
+            # logger.info(f"🔹 charts_data: {charts_data}")
 
             # ---- Temporary manual Network Connections chart ----
 #             charts_data.setdefault("charts", []).append({
@@ -211,22 +211,22 @@ class DeviceMetricView(
 
 
             # ===== ADD DEBUG LOGS =====
-        logger.info("=" * 70)
-        logger.info("📥 MONITORING DATA RECEIVED")
-        logger.info("=" * 70)
-        logger.info(f"🔹 Device UUID: {pk}")
-        logger.info(f"🔹 Timestamp: {request.query_params.get('time')}")
-        logger.info(f"🔹 Current flag: {request.query_params.get('current')}")
-        logger.info(f"🔹 Data keys: {list(request.data.keys())}")
+        # logger.info("=" * 70)
+        # logger.info("📥 MONITORING DATA RECEIVED")
+        # logger.info("=" * 70)
+        # logger.info(f"🔹 Device UUID: {pk}")
+        # logger.info(f"🔹 Timestamp: {request.query_params.get('time')}")
+        # logger.info(f"🔹 Current flag: {request.query_params.get('current')}")
+        # logger.info(f"🔹 Data keys: {list(request.data.keys())}")
 
 
 
 
-        logger.info("📦 PARSED REQUEST DATA:")
-        logger.info(json.dumps(request.data, indent=4))
+        # logger.info("📦 PARSED REQUEST DATA:")
+        # logger.info(json.dumps(request.data, indent=4))
 
-        logger.info("📦 QUERY PARAMS:")
-        logger.info(dict(request.query_params))
+        # logger.info("📦 QUERY PARAMS:")
+        # logger.info(dict(request.query_params))
         if 'connections' in request.data:
          # Ensure 'resources' exists inside request.data
          if 'resources' not in request.data:
@@ -236,9 +236,9 @@ class DeviceMetricView(
          resources = request.data['resources']
          resources['connections'] = request.data['connections']
 
-         logger.info("=" * 50)
-         logger.info("🌐 CONNECTIONS DATA FOUND")
-         logger.info(f"   Data: {request.data['connections']}")
+        #  logger.info("=" * 50)
+        #  logger.info("🌐 CONNECTIONS DATA FOUND")
+        #  logger.info(f"   Data: {request.data['connections']}")
 
          ipv4 = request.data['connections'].get('ipv4', {})
          ipv6 = request.data['connections'].get('ipv6', {})
@@ -250,25 +250,25 @@ class DeviceMetricView(
                   ipv6.get('udp', 0)
          )
 
-         logger.info(f"   Total connections: {total}")
-         logger.info("=" * 50)
+        #  logger.info(f"   Total connections: {total}")
+        #  logger.info("=" * 50)
 
 
         # if 'resources' in request.data:
         #     res = request.data['resources']
-        #     logger.info(f"🔹 Resources keys: {list(res.keys())}")
+            # logger.info(f"🔹 Resources keys: {list(res.keys())}")
 
         #     # Check for connections data
         #     if 'connections' in request.data:
-        #         logger.info("=" * 50)
-        #         logger.info("🌐 CONNECTIONS DATA FOUND")
-        #         logger.info(f"   Data: {res['connections']}")
+                # logger.info("=" * 50)
+                # logger.info("🌐 CONNECTIONS DATA FOUND")
+                # logger.info(f"   Data: {res['connections']}")
         #         ipv4 = res['connections'].get('ipv4', {})
         #         ipv6 = res['connections'].get('ipv6', {})
         #         total = (ipv4.get('tcp', 0) + ipv4.get('udp', 0) + 
         #                 ipv6.get('tcp', 0) + ipv6.get('udp', 0))
-        #         logger.info(f"   Total connections: {total}")
-        #         logger.info("=" * 50)
+                # logger.info(f"   Total connections: {total}")
+                # logger.info("=" * 50)
         
 
 
@@ -285,7 +285,7 @@ class DeviceMetricView(
         try:
             self.instance.validate_data()
         except ValidationError as e:
-            logger.info(e.message)
+            # logger.info(e.message)
             return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
         time_obj = request.query_params.get(
             'time', now().utcnow().strftime('%d-%m-%Y_%H:%M:%S.%f')
