@@ -498,6 +498,71 @@
     transform: rotate(90deg);
 }
 
+
+
+/* Device Status Badge Styles */
+.device-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    transition: all 0.2s ease;
+}
+
+/* Online Status */
+.device-status.status-online {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #a5d6a7;
+}
+
+/* Offline Status */
+.device-status.status-offline {
+    background: #ffebee;
+    color: #c62828;
+    border: 1px solid #ef9a9a;
+}
+
+/* Status Dot Animation */
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-online .status-dot {
+    background: #2e7d32;
+    animation: pulse-online 2s infinite;
+}
+
+.status-offline .status-dot {
+    background: #c62828;
+}
+
+/* Pulse Animation for Online Status */
+@keyframes pulse-online {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(46, 125, 50, 0.7);
+    }
+    50% {
+        opacity: 0.7;
+        box-shadow: 0 0 0 4px rgba(46, 125, 50, 0);
+    }
+}
+
+/* Disabled Button Style */
+.btn-action.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 </style>
 {% endblock %}
 
@@ -855,6 +920,11 @@ function displayExecutionData(data) {
                     <div class="device-header">
                         <div style="display: flex; align-items: baseline; ">
                             <h3 class="device-title">${device.device_name || 'Unknown Device'}</h3>
+                             <!-- Device Status Badge -->
+                <span class="device-status ${device.device_status === 'Online' ? 'status-online' : 'status-offline'}">
+                    <span class="status-dot"></span>
+                    ${device.device_status || 'Unknown'}
+                </span>
                             
                             ${ device.total_time_for_device ? `<h4>(Device Execution Time: ${(device.total_time_for_device).toFixed(2)} s)</h4>` : ''}
                         </div>

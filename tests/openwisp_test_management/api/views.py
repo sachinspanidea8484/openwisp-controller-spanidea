@@ -4265,11 +4265,15 @@ def test_execution_history(request, execution_id):
         print("device_exec>>>>>",execution_devices)
         
         # Get all test case executions
+        # test_case_executions = TestCaseExecution.objects.filter(
+        #     test_suite_execution=execution
+        # ).select_related('device', 'test_case')
         test_case_executions = TestCaseExecution.objects.filter(
             test_suite_execution=execution
-        ).select_related('device', 'test_case').order_by(
-            'test_case__name'
-        )
+        ).select_related('device', 'test_case')
+        # .order_by(
+        #     'test_case__name'
+        # )
         print("<<<test_case_executions>>>",test_case_executions)
         
         # Build response data
@@ -4370,6 +4374,15 @@ def test_execution_history(request, execution_id):
             connection_protocol = device_exec.connection_protocol  
 
             allure_report_full_path = f"{openwisp_base_url}/media/{device_exec.allure_report_path}"
+            device_status = "Online"
+            ping_metric = Metric.objects.get(
+                                #  content_type__model='device',
+                                 object_id=str(device.id),
+                                 configuration='ping',
+                                 key='ping',
+                 )
+
+            device_status = "Online" if ping_metric.is_healthy else "Offline"
 
 
             
@@ -4381,6 +4394,7 @@ def test_execution_history(request, execution_id):
                 'has_allure_report': has_allure_report,
                 'connection_protocol': connection_protocol,''
                 'allure_report_full_path': allure_report_full_path,
+                "device_status" : device_status,
 
 
 

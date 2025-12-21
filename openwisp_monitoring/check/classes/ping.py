@@ -162,6 +162,7 @@ class Ping(BaseCheck):
      
      # Trigger external API on status change
      if status_changed:
+          return
           device = self.related_object
           is_online = current_reachable == 1
           

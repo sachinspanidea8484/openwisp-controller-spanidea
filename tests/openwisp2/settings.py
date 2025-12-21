@@ -493,6 +493,8 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'openwisp_monitoring.check.tasks.run_checks',
         # Executes only ping & config check every 1 min
         'schedule': timedelta(minutes=1),
+        # 'schedule': timedelta(seconds=30),
+
         'args': (
             [  # Checks path
                 'openwisp_monitoring.check.classes.Ping',
