@@ -892,7 +892,7 @@ function displayExecutionData(data) {
             // }
             let testcaseSection=''
             if(device?.test_cases?.length){
-                device.test_cases.sort((a,b)=> a?.test_case_name.localeCompare(b?.test_case_name))
+                // device.test_cases.sort((a,b)=> a?.test_case_name.localeCompare(b?.test_case_name))
                 testcaseSection=`
                 <div class="test-section">
                     <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">

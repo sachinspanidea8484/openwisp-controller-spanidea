@@ -5,7 +5,7 @@ from django.utils import timezone
 from openwisp_controller.connection.connectors.ssh import Ssh
 from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Config as DeviceConfig
-
+from uuid import UUID
 from .swapper import load_model
 from .base.models import TestExecutionStatus
 import requests
@@ -41,7 +41,7 @@ TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestCaseExecution = load_model("TestCaseExecution")
 TestSuiteCase = load_model("TestSuiteCase")
 ScheduledExecution= load_model("ScheduledExecution")
-
+TestCase= load_model("TestCase")
 # Device Execution Type Configuration
 DEVICE_EXECUTION_TYPE = 1 # 1 for SSH, 0 for MQTT (default is SSH)
 
@@ -175,8 +175,18 @@ def execute_tests_on_device(device_execution_id):
         # Get ordered test cases from the test suite
         if test_suite_execution.test_selection_type == 1:
             test_cases = test_suite_execution.test_suite.get_ordered_test_cases()
+            
         elif test_suite_execution.test_selection_type ==0 :
-            test_cases= test_suite_execution.individual_test_cases.all()
+            
+            ordered_ids= [UUID(tc_id) for tc_id in test_suite_execution.test_case_execution_order]
+           
+            testcase_map = TestCase.objects.in_bulk(ordered_ids)
+           
+            test_cases= [
+                testcase_map[tc_id] for tc_id in ordered_ids if tc_id in testcase_map
+            ]
+           
+            # test_cases= test_suite_execution.individual_test_cases.all()
         total_test_cases = len(test_cases)
         
         logger.info(f"Retrieved {total_test_cases} test cases from test suite")

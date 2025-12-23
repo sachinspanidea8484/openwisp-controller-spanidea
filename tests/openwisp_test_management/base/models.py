@@ -430,6 +430,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         verbose_name=_("Select Test Cases"),
         help_text=_("Individual test cases to execute (required if selection type is 'Individual Test Cases')")
     )
+    test_case_execution_order = models.JSONField(default=list, blank=True)
     
     is_executed = models.BooleanField(
         _("is executed"),

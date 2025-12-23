@@ -4280,7 +4280,7 @@ def test_execution_history(request, execution_id):
         devices_data = []
         for device_exec in execution_devices:
             device = device_exec.device
-            device_test_cases = test_case_executions.filter(device=device)
+            device_test_cases = test_case_executions.filter(device=device).order_by("created")
             
             # Calculate statistics
             total = device_test_cases.count()
