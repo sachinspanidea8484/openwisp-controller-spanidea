@@ -56,7 +56,6 @@ class AbstractTestCategory(TimeStampedEditableModel):
     )
     description = models.TextField(
         _("description"),
-        blank=True,
         max_length=1000,
         help_text=_("Detailed description of what tests in this category do")
     )
@@ -268,7 +267,6 @@ class AbstractTestSuite(TimeStampedEditableModel):
     )
     description = models.TextField(
         _("Description"),
-        blank=True,
         max_length=1000,
         help_text=_("Detailed description of what this test group does")  # Changed help text
     )
@@ -1044,7 +1042,6 @@ class AbstractTestDeviceGroup(OrgMixin, TimeStampedEditableModel):
     description = models.TextField(
         _("Description"),
         max_length=500,
-        blank=True,
         help_text=_("Description of this device group (max 500 characters)")
     )
     
