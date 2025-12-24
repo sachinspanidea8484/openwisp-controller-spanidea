@@ -17,6 +17,7 @@
 #
 # Example:
 #   ./firmware_upgrade_api_runner_script.sh \
+#     --baseUrl http://localhost:8000 \
 #     --image /path/to/openwrt-x86-64-generic-ext4-combined.img \
 #     --type "QEMU Standard PC (i440FX + PIIX, 1996)" \
 #     --device GNS321 \
@@ -30,8 +31,8 @@ set -euo pipefail  # Exit on error, undefined variables, and pipe failures
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../../.env"
 
-# API Configuration
-API_URL="${API_URL:-http://172.17.0.1:8000/api/v1/firmware-upgrader/firmware/upgrade/}"
+# # API Configuration
+# API_URL="${API_URL:-http://localhost:8000/api/v1/firmware-upgrader/firmware/upgrade/}"
 
 ################################################################################
 # Display usage information
@@ -41,6 +42,7 @@ usage() {
 Usage: $(basename "$0") [OPTIONS]
 
 Options:
+    --baseUrl <url>    Base URL of firmware upgrade API (required)
     --image <path_or_url>       Path to local firmware image or hosted URL (required)
     --type <image_type>         Firmware image type (required)
     --device <device_name>      Target device name (required)
@@ -51,6 +53,7 @@ Options:
 
 Example:
     $(basename "$0") \\
+        --baseUrl http://localhost:8000 \\
         --image /home/user/firmware.img \\
         --type "QEMU Standard PC" \\
         --device GNS321 \\
@@ -69,6 +72,7 @@ FIRMWARE_IMAGE_TYPE=""
 DEVICE_NAME=""
 VERSION=""
 OS=""
+BASE_URL=""
 KEEP_CONFIG=false
 
 ################################################################################
@@ -96,6 +100,10 @@ while [[ $# -gt 0 ]]; do
             OS="$2"
             shift 2
             ;;
+        --baseUrl)
+            BASE_URL="$2"
+            shift 2
+            ;;
         --keep-config)
             KEEP_CONFIG=true
             shift
@@ -113,7 +121,7 @@ done
 ################################################################################
 # Validate required arguments
 ################################################################################
-if [[ -z "$FIRMWARE_IMAGE" || -z "$FIRMWARE_IMAGE_TYPE" || -z "$DEVICE_NAME" || -z "$VERSION" || -z "$OS" ]]; then
+if [[ -z "$FIRMWARE_IMAGE" || -z "$FIRMWARE_IMAGE_TYPE" || -z "$DEVICE_NAME" || -z "$VERSION" || -z "$OS" || -z "$BASE_URL" ]]; then
     echo "Error: Missing required arguments"
     echo ""
     usage
@@ -124,6 +132,9 @@ if [[ ! "$FIRMWARE_IMAGE" =~ ^https?:// ]] && [[ ! -f "$FIRMWARE_IMAGE" ]]; then
     echo "Error: Firmware image file not found: $FIRMWARE_IMAGE"
     exit 1
 fi
+
+# API Configuration
+API_URL="${API_URL:-${BASE_URL}/api/v1/firmware-upgrader/firmware/upgrade/}"
 
 ################################################################################
 # Build JSON payload

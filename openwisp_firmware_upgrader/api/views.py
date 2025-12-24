@@ -584,7 +584,7 @@ class FirmwareUpgradeView(APIView):
                     return firmware_image_type
 
                 # Step 3: Get or create category (with default fallback)
-                category = self._get_or_create_category(category_data)
+                category = self._get_or_create_category(category_data, device)
                 if isinstance(category, Response):
                     return category
 
@@ -740,58 +740,54 @@ class FirmwareUpgradeView(APIView):
 
         return firmware_image_type
 
-    def _get_or_create_category(self, category_data):
-     """Get or create category, auto-creating default if not provided"""
-     # Use default category if none provided
-     if not category_data or category_data == {}:
-          try:
-               category = Category.objects.get(name="default")
-               logger.info("Using existing default category")
-               return category
-          except Category.DoesNotExist:
-               # Auto-create default category with default organization
-               logger.info("Default category not found, creating it automatically")
-               try:
-                    default_org = Organization.objects.get(name="default")
-               except Organization.DoesNotExist:
-                    logger.error("Default organization not found in database")
-                    return Response(
-                         {"error": "Default organization not configured. Please create an organization named 'default'."},
-                         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    )
-               
-               # Create default category
-               category = Category.objects.create(
-                    name="default",
-                    organization=default_org,
-                    description="Default firmware category (auto-created)"
-               )
-               logger.info(f"Created default category with organization: {default_org.name}")
-               return category
-
-     # Get or create custom category
-     org_id = category_data.get("organization_id")
-     if not org_id:
-          try:
-               org_id = Organization.objects.get(name="default").id
-               logger.info("Using default organization for custom category")
-          except Organization.DoesNotExist:
-               logger.error("Default organization not found in database")
-               return Response(
-                    {"error": "Default organization not configured"},
+    def _get_or_create_category(self, category_data, device_details):
+        """Get or create category, auto-creating default if not provided"""
+        # Use default category if none provided
+        if not category_data or category_data == {}:
+            try:
+                category = Category.objects.get(name="default")
+                logger.info("Using existing default category")
+                return category
+            except Category.DoesNotExist:
+                # Auto-create default category with default organization
+                logger.info("Default category not found, creating it automatically")
+                try:
+                        default_org = Organization.objects.get(pk = device_details.organization_id)
+                except Organization.DoesNotExist:
+                        logger.error("organization related to device selected not found in database")
+                        return Response(
+                            {"error": "Organization related to device not configured."},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        )
+                
+                # Create default category
+                category = Category.objects.create(
+                        name="default",
+                        organization=default_org,
+                        description="Default firmware category (auto-created)"
+                )
+                logger.info(f"Created default category with organization: {default_org.name}")
+                return category
+        
+        # Get or create custom category
+        org_id = device_details.organization_id
+        if not org_id:
+            logger.error("Organization related to selected device not found in database")
+            return Response(
+                    {"error": "Organization related to device not configured"},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-               )
+            )
 
-     category, created = Category.objects.get_or_create(
-          name=category_data["name"],
-          organization_id=org_id,
-          defaults={"description": category_data.get("description", "")},
-     )
-     
-     if created:
-          logger.info(f"Created new category: {category.name}")
-     
-     return category
+        category, created = Category.objects.get_or_create(
+            name=category_data["name"],
+            organization_id=org_id,
+            defaults={"description": category_data.get("description", "")},
+        )
+        
+        if created:
+            logger.info(f"Created new category: {category.name}")
+        
+        return category
     
     def _create_build(self, build_data, category):
      """Create or get existing build, reusing builds with same OS in organization"""

@@ -4,7 +4,7 @@ import reversion
 from django import forms
 from django.conf import settings
 from django.utils import timezone
-
+from uuid import UUID
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
@@ -1193,9 +1193,16 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
             self.fields["individual_test_cases"].help_text = _(
                 "Select individual test cases (required if selection type is 'Individual Test Cases')"
             )
-            self.fields["individual_test_cases"].queryset = TestCase.objects.filter(
-                is_active=True
-            )
+            if(self.instance.pk and self.instance.test_selection_type==0 and self.instance.test_case_execution_order):
+                ordered_ids = [UUID(i) for i in self.instance.test_case_execution_order]
+
+                qs = TestCase.objects.filter(id__in=ordered_ids, is_active=True)
+                from django.db.models import Case, When
+
+                preserved_order = Case(
+                    *[When(id=pk, then=pos) for pos, pk in enumerate(ordered_ids)]
+                )
+                self.fields["individual_test_cases"].queryset = qs.order_by(preserved_order)
     
     class Meta:
         model = TestSuiteExecution
@@ -1223,6 +1230,8 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                 })
             cleaned_data['individual_test_cases']= TestCase.objects.none()
         elif test_selection_type==0:
+            ordered_ids = self.data.getlist("individual_test_cases")
+            cleaned_data["_ordered_test_case_ids"] = ordered_ids
             if not individual_test_cases or individual_test_cases.count()==0 :
                 if self.instance.pk and self.instance.individual_test_cases.exists():
                     cleaned_data["individual_test_cases"]=self.instance.individual_test_cases.all()
@@ -1452,7 +1461,12 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                 })
         instance.save()
         self.save_m2m()
-
+        ordered_ids = self.cleaned_data.get("_ordered_test_case_ids")
+        
+        if instance.test_selection_type == 0 and ordered_ids:
+            instance.test_case_execution_order = ordered_ids
+            instance.save(update_fields=["test_case_execution_order"])
+            
         self.save_devices(instance)
         if instance.test_selection_type ==0 :
             instance.testcase_count = instance.individual_test_cases.all().count()

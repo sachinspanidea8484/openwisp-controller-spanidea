@@ -56,7 +56,6 @@ class AbstractTestCategory(TimeStampedEditableModel):
     )
     description = models.TextField(
         _("description"),
-        blank=True,
         max_length=1000,
         help_text=_("Detailed description of what tests in this category do")
     )
@@ -268,7 +267,6 @@ class AbstractTestSuite(TimeStampedEditableModel):
     )
     description = models.TextField(
         _("Description"),
-        blank=True,
         max_length=1000,
         help_text=_("Detailed description of what this test group does")  # Changed help text
     )
@@ -432,6 +430,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         verbose_name=_("Select Test Cases"),
         help_text=_("Individual test cases to execute (required if selection type is 'Individual Test Cases')")
     )
+    test_case_execution_order = models.JSONField(default=list, blank=True)
     
     is_executed = models.BooleanField(
         _("is executed"),
@@ -610,11 +609,10 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
             return 1  # EXECUTION PROGRESS but no tests yet
 
         total = executions.count()
-        completed_statuses = [TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED, TestExecutionStatus.ABORTED]
+        completed_statuses = [TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED, TestExecutionStatus.ABORTED, TestExecutionStatus.TIMEOUT]
         incomplete_statuses = [
             TestExecutionStatus.PENDING,
             TestExecutionStatus.RUNNING,
-            TestExecutionStatus.TIMEOUT,
             TestExecutionStatus.CANCELLED,
         ]
 
@@ -1044,7 +1042,6 @@ class AbstractTestDeviceGroup(OrgMixin, TimeStampedEditableModel):
     description = models.TextField(
         _("Description"),
         max_length=500,
-        blank=True,
         help_text=_("Description of this device group (max 500 characters)")
     )
     
