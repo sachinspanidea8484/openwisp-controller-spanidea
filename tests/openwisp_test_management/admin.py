@@ -449,6 +449,42 @@ class TestCaseAdminForm(forms.ModelForm):
                 raise forms.ValidationError(_("Invalid JSON format: {}".format(str(e))))
         return {}
     
+    def clean(self):
+
+        cleaned_data= super().clean()
+
+        test_type = cleaned_data.get("test_type")
+        python_script= cleaned_data.get("python_script")
+        robot_script = cleaned_data.get("robot_script")
+
+        if not python_script:
+            self.add_error(
+                "python_script",
+                "Python Script is Required."
+            )
+        if python_script and not python_script.name.endswith(".py"):
+            self.add_error(
+                "python_script",
+                "Only .py files allowed."
+            )
+        
+        if test_type == TestTypeChoices.ROBOT_FRAMEWORK:
+           
+            if not robot_script:
+                self.add_error(
+                    "robot_script",
+                    "Robot Script is Required for Robot Framework."
+                )
+            if robot_script and not robot_script.name.endswith(".robot"):
+                self.add_error(
+                    "robot_script",
+                    "Only .robot files allowed."
+                )
+        elif test_type==TestTypeChoices.AGENT:
+            cleaned_data["robot_script"]= None
+
+        return cleaned_data
+
     # def clean_json_file(self):
     #     json_file = self.cleaned_data.get('json_file')
     #     if json_file:
@@ -486,6 +522,8 @@ class TestCaseAdmin(BaseVersionAdmin):
         "name",
         "test_case_id",
         "test_type",  # ADD THIS
+        "robot_script",
+        "python_script",
         "params",  # ADD THIS - NEW FIELD
         "json_file",
         "description",
@@ -626,7 +664,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         return form
 
     class Media:
-        js = ('test-management/js/json_file_handler.js','https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',)  # Add custom JavaScript
+        js = ('test-management/js/json_file_handler.js', 'test-management/js/testcase_toggle_scripts.js',  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',)  # Add custom JavaScript
         css = {
             'all': ('test-management/css/json_file_handler.css',)  # Optional custom CSS
         }

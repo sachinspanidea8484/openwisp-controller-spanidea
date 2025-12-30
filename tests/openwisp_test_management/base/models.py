@@ -156,6 +156,18 @@ class AbstractTestCase(TimeStampedEditableModel):
         help_text=_("Optional parameters for test case execution in JSON format. "
                     "These parameters can be used to customize test case behavior.")
     )
+    python_script= models.FileField(
+        _("Python Script"),
+        upload_to="test_scripts",
+        null=True,
+        blank=True
+    )
+    robot_script = models.FileField(
+        _("Robot Script"),
+        upload_to="test_scripts",
+        null=True,
+        blank=True
+    )
     # file = PrivateFileField(
     #     "Test Script",
     #     upload_to="zip/",
