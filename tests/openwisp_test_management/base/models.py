@@ -467,6 +467,21 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         verbose_name=_("device group"),
         help_text=_("Device group for execution (required if device selection is 'Device Group')")
     )
+    parent_execution = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        related_name="re_executions",
+        on_delete=models.CASCADE,
+        db_index=True,
+        help_text=_("Original execution if this is a re-execution")
+    )
+
+    re_execution_index = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=_("1 for first re-execution, 2 for second, etc.")
+    )
 
     class Meta:
         abstract = True
@@ -571,7 +586,14 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         self.is_executed = True
         self.save(update_fields=["is_executed"])
         
+    @property
+    def is_re_execution(self):
+        return self.parent_execution_id is not None
 
+    @property
+    def root_execution(self):
+        return self.parent_execution or self
+    
     @property
     def status(self):
         """

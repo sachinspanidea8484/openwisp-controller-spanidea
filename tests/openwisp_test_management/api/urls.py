@@ -204,6 +204,11 @@ urlpatterns = [
                 "devices/configuration-push",
                 views.ConfigurationPushOnDevice,
                 name="configuration_push_on_device",
+            ),
+            path(
+                "test-suite-execution/<uuid:execution_id>/re-execute/",
+                views.re_execute_view,
+                name="re-execute-execution"
             )
 
             

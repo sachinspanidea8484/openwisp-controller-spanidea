@@ -5256,6 +5256,84 @@ def ConfigurationPushOnDevice(request):
         return Response({
             "error": f"Failed to upload file: {str(e)}"
         }, status=500)
+    
+
+
+
+def re_execute_execution(execution):
+    """
+    Creates a full re-execution with identical configuration.
+    """
+    Execution = type(execution)
+    root = execution.parent_execution or execution
+
+    with transaction.atomic():
+        
+        retry_count = Execution.objects.filter(
+            parent_execution=root
+        ).count()
+
+        
+        new_execution = Execution.objects.create(
+            parent_execution=root,
+            re_execution_index=retry_count + 1,
+            test_case_execution_order= execution.test_case_execution_order,
+            name=root.name + f"_{retry_count}",
+            test_selection_type=execution.test_selection_type,
+            test_suite=execution.test_suite,
+            device_selection=execution.device_selection,
+            device_group=execution.device_group,
+        )
+
+        
+        if execution.test_selection_type == 0:
+            new_execution.individual_test_cases.set(
+                execution.individual_test_cases.all()
+            )
+
+        old_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        )
+
+        TestSuiteExecutionDevice.objects.bulk_create([
+            TestSuiteExecutionDevice(
+                test_suite_execution=new_execution,
+                device=ed.device,
+                connection_protocol= ed.connection_protocol,
+                status="pending",
+            )
+            for ed in old_devices
+        ])
+
+        new_execution.device_count = execution.device_count
+
+        new_execution.testcase_count= execution.testcase_count
+        new_execution.save(update_fields=["device_count", "testcase_count"])
+
+
+
+    return new_execution
+
+
+from ..tasks import execute_test_suite as start_execution
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@csrf_exempt
+def re_execute_view(request, execution_id):
+    execution = get_object_or_404(TestSuiteExecution, pk=execution_id)
+    try:
+        new_execution = re_execute_execution(execution)
+
+        new_execution.is_executed= True
+        new_execution.save()
+
+        start_execution.delay(str(new_execution.pk))
+
+        return Response({"re_execution_id":  new_execution.pk}, status=200)
+    except Exception as e:
+        return Response({"Error": f"{str(e)}"}, status=500)
+    
 # Create view instances
 test_category_list = TestCategoryListCreateView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()

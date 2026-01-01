@@ -493,6 +493,29 @@
 }
 
 
+.re-execute-button {
+    background-color: #ebc98f;   
+    color: #464141;
+    border: 1px solid #d97706;
+    padding: 10px 18px;
+    font-size: 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.re-execute-button:hover:not(:disabled) {
+    background-color: #edbc6a;  
+}
+
+.re-execute-button:disabled {
+    background-color: #fde68a;   
+    color: #92400e;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
 /* rotated when expanded */
 .section-header.open .arrow-icon {
     transform: rotate(90deg);
@@ -584,7 +607,9 @@
     </div>
 
     <div style="display : flex; justify-content: end; margin-bottom: 10px; gap: 5px">
-
+         <div id="re-execute-execution">
+        
+        </div>
         <div id="abort-test-execution">
         
         </div>
@@ -639,7 +664,8 @@ function getCookie(name) {
     return cookieValue;
 }
 
-const csrftoken = getCookie('csrftoken');
+// const csrftoken = getCookie('csrftoken');
+const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]")?.value;
 const executionId = '{{ execution_id }}';
 const agentTestStore = {};
 // Display execution data with OpenWISP styling
@@ -732,6 +758,12 @@ function displayExecutionData(data) {
     <button ${data.status !== 2 && data.status !== 1 ? "disabled" : ""} class="abort-button-class" onclick="abortAllTests()">
         Abort Test Execution
     </button>`
+    const reExecuteSection = document.getElementById('re-execute-execution');
+    reExecuteSection.innerHTML=`
+        <button ${data.status === 0 ? "disabled" : ""} class="re-execute-button" onclick="reExecute('${data.execution_id}')">
+        Re-Execute
+    </button>
+    `
     // Display device executions
     const deviceExecutionsDiv = document.getElementById('device-executions');
     
@@ -958,6 +990,42 @@ function displayExecutionData(data) {
     } else {
         deviceExecutionsDiv.innerHTML = '<div class="empty-state">No device executions found.</div>';
     }
+}
+
+function reExecute(execution_id){
+    fetch(`/api/v1/test-management/test-suite-execution/${execution_id}/re-execute/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrftoken, 
+            'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',  
+        body: JSON.stringify({})
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => Promise.reject(err));
+        }
+        return response.json();
+    })
+    .then(data => {
+      
+        if (data.re_execution_id) {
+            showMessage(`Test Execution re-executed Successfully!`, 'success');
+            setTimeout(() => 
+                {
+                    window.location.href = "/admin/test_management/testsuiteexecution/";
+                }
+            , 1000);
+        } else {
+            showMessage(data.error || 'Failed to re-execute execution', 'error');
+            
+        }
+    })
+    .catch(error => {
+        console.error('re-execute error:', error);
+        showMessage(error.detail || error.message || 'Failed to re-execute execution', 'error');
+    });
 }
 // abortAllTests function
 function abortAllTests() {
