@@ -492,7 +492,12 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         else:
             return self.individual_test_cases.all()
 
-
+    def get_configuration_selected_test_cases(self):
+        if self.test_selection_type ==1 and self.test_suite_id:
+            return self.test_suite.test_cases.filter(is_configuration_push_required=True)
+        else:
+            return self.individual_test_cases.filter(is_configuration_push_required=True)
+        
     def save(self, *args, **kwargs):
         is_new = self.pk is None  # check if new execution
         
@@ -1154,5 +1159,41 @@ class AbstractTestDeviceGroupDevice(TimeStampedEditableModel):
 
 
 
+class AbstractExecutionArtifact(models.Model):
+   
+    
+    execution= models.ForeignKey(
+        "test_management.TestSuiteExecution",
+        on_delete=models.CASCADE,
+        related_name="artifacts"
+    )
+
+    device= models.ForeignKey(
+        "config.Device",
+        on_delete=models.CASCADE
+    )
+    testcase= models.ForeignKey(
+        "test_management.TestCase",
+        on_delete=models.CASCADE
+    )
+    config_file= models.FileField(upload_to="execution_artifacts/")
+    is_pushed= models.BooleanField(default=False)
+
+    class Meta:
+        abstract = True
+        constraints= [
+            models.UniqueConstraint(
+                fields=["execution", "device", "testcase"],
+                name="uniq_execution_device_testcase"
+            )
+        ]
+
+    def clean(self):
+        if self.pk:
+            old = self.__class__.objects.get(pk=self.pk)
+            if old.is_pushed and old.config_file != self.config_file:
+                raise ValidationError(
+                    "Configuration file cannot be modified after it has been pushed."
+                )
 
 

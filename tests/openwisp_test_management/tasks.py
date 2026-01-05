@@ -42,6 +42,7 @@ TestCaseExecution = load_model("TestCaseExecution")
 TestSuiteCase = load_model("TestSuiteCase")
 ScheduledExecution= load_model("ScheduledExecution")
 TestCase= load_model("TestCase")
+ExecutionArtifact= load_model("ExecutionArtifact")
 # Device Execution Type Configuration
 DEVICE_EXECUTION_TYPE = 1 # 1 for SSH, 0 for MQTT (default is SSH)
 
@@ -266,14 +267,24 @@ def execute_tests_on_device(device_execution_id):
             
             if test_execution and test_execution.id:
                 print(f"✅ Successfully created TestCaseExecution with ID: {test_execution.id}")
-            
+           
+            artifact= ExecutionArtifact.objects.filter(
+                device= device,
+                testcase=test_case,
+                execution= test_suite_execution
+            ).only("config_file", "is_pushed").first()
+            config_file_path= None
+            if artifact and artifact.config_file and not artifact.is_pushed:
+                config_file_path= artifact.config_file
+           
             # Add to test suite data for executor server
             test_suite_data["test_cases"].append({
                 "test_case_id": test_case.test_case_id,
                 "test_case_name": test_case.name,
                 "test_type": test_case.test_type,
                 "params": test_case.params,
-                "execution_id": test_execution.id
+                "execution_id": test_execution.id,
+                "config_file_path" : config_file_path
             })
             
             logger.debug(f"Created TestCaseExecution ID: {test_execution.id}")

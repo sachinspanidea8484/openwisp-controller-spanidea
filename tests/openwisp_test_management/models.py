@@ -11,7 +11,8 @@ from .base.models import (
     AbstractTestCaseExecution,
     AbstractTestDeviceGroup,
     AbstractTestDeviceGroupDevice,
-    AbstractScheduledExecution
+    AbstractScheduledExecution,
+    AbstractExecutionArtifact
 
 )
 from django.utils.translation import gettext_lazy as _
@@ -110,3 +111,9 @@ class TestDeviceGroupDevice(AbstractTestDeviceGroupDevice):
         abstract = False
         swappable = swappable_setting("test_management", "TestDeviceGroupDevice")
         default_permissions = ()  # Disable default permissions
+
+class ExecutionArtifact(AbstractExecutionArtifact):
+
+    class Meta(AbstractExecutionArtifact.Meta):
+        abstract= False
+        swappable= swappable_setting("test_management", "ExecutionArtifact")
