@@ -218,7 +218,7 @@ python-dotenv==1.0.0
 # openwisp-users @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/openwisp-users-spanidea.git@dev
 # openwisp-utils @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/openwisp-utils-spanidea.git@dev
 
-# Git installations - credentials will be injected via git config during build
+# Git installations - credentials will be injected via git config during build logo
 django-loci @ git+https://git.spanidea.com/nokia-test-automation/django-loci-spanidea.git@dev
 django-x509 @ git+https://git.spanidea.com/nokia-test-automation/django-x509-spanidea.git@dev
 netdiff @ git+https://git.spanidea.com/nokia-test-automation/netdiff-spanidea.git@dev
