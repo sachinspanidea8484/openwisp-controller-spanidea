@@ -636,6 +636,13 @@
                 </div>
             </div>
         </div>
+        
+        <div class="module">
+            <h2>{% trans 'Re-Execution Details' %}</h2>
+            <div id="re-execution-details" style="padding: 12px;">
+                <!-- Populated by JavaScript -->
+            </div>
+        </div>
 
         <!-- Device Executions Module -->
         <div class="module">
@@ -760,7 +767,7 @@ function displayExecutionData(data) {
     </button>`
     const reExecuteSection = document.getElementById('re-execute-execution');
     reExecuteSection.innerHTML=`
-        <button ${data.status === 0 ? "disabled" : ""} class="re-execute-button" onclick="reExecute('${data.execution_id}')">
+        <button ${data.status !== 3 ? "disabled" : ""} class="re-execute-button" onclick="reExecute('${data.execution_id}')">
         Re-Execute
     </button>
     `
@@ -989,6 +996,37 @@ function displayExecutionData(data) {
         deviceExecutionsDiv.innerHTML = devicesHtml;
     } else {
         deviceExecutionsDiv.innerHTML = '<div class="empty-state">No device executions found.</div>';
+    }
+
+
+    const reExecutionDiv = document.getElementById('re-execution-details');
+    const items= data.re_execution_data || [];
+    if(!items.length){
+        reExecutionDiv.innerHTML = `<div class="help">{% trans "No re-executions found." %}</div>`;
+    }
+    else{
+        reExecutionDiv.innerHTML =`
+            <table class="adminlist" style="width:100%">
+                <thead>
+                <tr>
+                   
+                    <th>{% trans "Name" %}</th>
+                    <th>{% trans "Execution Time" %}</th>
+                    <th>{% trans "History" %}</th>
+                </tr>
+                </thead>
+                <tbody>
+                ${items.map((r, idx) => `
+                    <tr>
+                    
+                    <td>${r.name || ""}</td>
+                    <td>${r.created ? new Date(r.created).toLocaleString() : "-"}</td>
+                    <td><a href="${r.history_url}">{% trans "View" %}</a></td>
+                    </tr>
+                `).join("")}
+                </tbody>
+            </table>
+        `;
     }
 }
 

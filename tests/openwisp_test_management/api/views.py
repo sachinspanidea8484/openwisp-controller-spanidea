@@ -6,7 +6,7 @@ from rest_framework.authentication import SessionAuthentication
 from ..settings import OPENWISP_SERVER_IP
 
 from openwisp_monitoring.monitoring.models import Metric
-
+from django.urls import reverse
 from openwisp_controller.connection.connectors.ssh import Ssh
 from rest_framework.decorators import api_view ,authentication_classes, permission_classes
 from rest_framework.views import APIView
@@ -4533,6 +4533,18 @@ def test_execution_history(request, execution_id):
                 'formatted': avg_duration_formatted
             }
         
+        re_execution_data = []
+        for r in execution.re_executions.all().order_by("re_execution_index", "created"):
+            re_execution_data.append({
+                "id": r.id,
+                "name": r.name,
+                "created": r.created.isoformat() if r.created else None,
+                "history_url": reverse("admin:test_management_testsuiteexecution_history", args=[r.id]),
+                # or change page:
+                # "change_url": reverse("admin:test_management_testsuiteexecution_change", args=[r.id]),
+            })
+        execution_data["re_execution_data"]= re_execution_data
+        
         return Response({
             'success': True,
             'data': execution_data
@@ -5278,7 +5290,7 @@ def re_execute_execution(execution):
             parent_execution=root,
             re_execution_index=retry_count + 1,
             test_case_execution_order= execution.test_case_execution_order,
-            name=root.name + f"_{retry_count}",
+            name=root.name + f"_{retry_count+1}",
             test_selection_type=execution.test_selection_type,
             test_suite=execution.test_suite,
             device_selection=execution.device_selection,

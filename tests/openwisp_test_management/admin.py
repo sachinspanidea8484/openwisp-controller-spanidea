@@ -1513,7 +1513,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         "testcase_count",
         "status_label",
         "created",
-        "view_history",
+        "view_history_links",
      ]
     list_filter = [
         TestExecutionStatusFilter,
@@ -1799,19 +1799,60 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             context
         )
     
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Prefetch re-executions so list page doesn't do N+1 queries
+        # return qs.select_related("parent_execution").prefetch_related("re_executions")
+        return (
+            qs.filter(parent_execution__isnull=True)   # only base/original executions
+            .prefetch_related("re_executions")
+        )
+    def _history_url(self, obj):
+        opts = obj._meta
+        return reverse(
+            f"admin:{opts.app_label}_{opts.model_name}_history",
+            args=[obj.pk],
+        )
 
+    def view_history_links(self, obj):
+        """
+        Show: 0 1 2 3 ...
+        0 = history of the original execution
+        1..n = histories of its re-executions (ordered)
+        """
+        if not obj.pk or obj.parent_execution_id:
+            return "-"
+
+        root = obj.parent_execution if obj.parent_execution_id else obj
+
+        links = []
+        # "0" -> root execution history
+        links.append(format_html('<a href="{}">0</a>', self._history_url(root)))
+
+        # "1..n" -> re-executions history
+        reexecs = root.re_executions.all().order_by("re_execution_index", "created", "pk")
+
+        # If you always set re_execution_index, use it; otherwise fallback to enumeration
+        for idx, rex in enumerate(reexecs, start=1):
+            label = rex.re_execution_index if rex.re_execution_index is not None else idx
+            links.append(format_html('<a href="{}">{}</a>', self._history_url(rex), label))
+
+        # join with spaces
+        return format_html(" ".join(["{}"] * len(links)), *links)
+
+    view_history_links.short_description = _("History")
     
-    def view_history(self, obj):
-        """Add history view link"""
-        if obj.pk:
-            # You can customize the URL pattern based on your history view
-            return format_html(
-                '<a href="{}" class="viewlink">View History</a>',
-            f'{obj.pk}/history/',
-            )
-        return "-"
-    view_history.short_description = _("History")
-    view_history.allow_tags = True
+    # def view_history(self, obj):
+    #     """Add history view link"""
+    #     if obj.pk:
+    #         # You can customize the URL pattern based on your history view
+    #         return format_html(
+    #             '<a href="{}" class="viewlink">View History</a>',
+    #         f'{obj.pk}/history/',
+    #         )
+    #     return "-"
+    # view_history.short_description = _("History")
+    # view_history.allow_tags = True
     
     # def execution_status(self, obj):
     #     """Display execution status summary"""
