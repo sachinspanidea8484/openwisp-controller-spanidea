@@ -1,7 +1,7 @@
 import json
 import logging
 from collections.abc import Iterable
-
+import os
 import reversion
 from django import forms
 from django.conf import settings
@@ -15,6 +15,7 @@ from django.core.exceptions import (
     ObjectDoesNotExist,
     ValidationError,
 )
+from django.core.files.storage import default_storage
 from django.http import Http404, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.http.response import HttpResponseForbidden
 from django.shortcuts import get_object_or_404
@@ -29,7 +30,8 @@ from import_export.admin import ImportExportMixin
 from import_export.forms import ExportForm
 from openwisp_ipam.filters import SubnetFilter
 from swapper import load_model
-
+from django.db import transaction
+from django.shortcuts import redirect
 from openwisp_controller.config.views import get_default_values, get_relevant_templates
 from openwisp_users.admin import OrganizationAdmin
 from openwisp_users.multitenancy import MultitenantOrgFilter
@@ -46,7 +48,7 @@ from .exportable import DeviceResource
 from .filters import DeviceGroupFilter, GroupFilter, TemplatesFilter, NoEmptyRelatedFieldListFilter
 from .utils import send_file
 from .widgets import DeviceGroupJsonSchemaWidget, JsonSchemaWidget
-
+from .tasks import upload_file_on_device
 logger = logging.getLogger(__name__)
 prefix = "config/"
 Config = load_model("config", "Config")
@@ -57,6 +59,7 @@ Vpn = load_model("config", "Vpn")
 Organization = load_model("openwisp_users", "Organization")
 OrganizationConfigSettings = load_model("config", "OrganizationConfigSettings")
 OrganizationLimits = load_model("config", "OrganizationLimits")
+DeviceConnection = load_model("connection", "DeviceConnection")
 
 if "reversion" in settings.INSTALLED_APPS:
     from reversion.admin import VersionAdmin as ModelAdmin
@@ -183,8 +186,31 @@ class BaseConfigAdmin(BaseAdmin):
                 self.admin_site.admin_view(self.context_view),
                 name="{0}_context".format(url_prefix),
             ),
+            path(
+                '<path:object_id>/process-file/',
+                self.admin_site.admin_view(self.process_file),
+                name="config_device_process_file",
+            )
         ] + super().get_urls()
+  
+    def process_file(self,request, object_id):
+        obj= self.get_object(request, object_id)
+        uploaded_file= request.FILES.get("config_file")
+        
+        if not uploaded_file:
+            messages.error(request, "No file uploaded.")
+            return redirect(
+                reverse("admin:config_device_change", args=[object_id])
+            )
+        saved_path= default_storage.save(os.path.join("uploads", uploaded_file.name), uploaded_file)
 
+        
+        transaction.on_commit(lambda : upload_file_on_device.delay(obj.pk, saved_path, obj.management_ip, uploaded_file.name))
+        messages.info(request, "File processed successfully!")
+        return redirect(
+            reverse("admin:config_device_change", args=[object_id])
+        )
+        
     def _get_config_model(self):
         model = self.model
         if hasattr(model, "get_backend_instance"):
@@ -344,9 +370,10 @@ class BaseForm(forms.ModelForm):
         exclude = []
         widgets = {"config": JsonSchemaWidget}
 
-
 class ConfigForm(AlwaysHasChangedMixin, BaseForm):
     _old_templates = None
+    config_file = forms.FileField(required=False, help_text="Upload Config file.")
+
     json_file = forms.FileField(
         required=False,
         help_text=_("Upload a JSON file to populate parameters"),
@@ -403,6 +430,7 @@ class ConfigForm(AlwaysHasChangedMixin, BaseForm):
     def save(self, *args, **kwargs):
         templates = self.cleaned_data.get("templates", [])
         instance = super().save(*args, **kwargs)
+        
         # as group templates are not forced so if user remove any selected
         # group template, we need to remove it from the config instance
         # not doing this in save_m2m because save_form_data directly set the
@@ -484,6 +512,9 @@ class ConfigInline(
         if db_field.name == "templates" and request.method != "POST":
             kwargs["queryset"] = Template.objects.none()
         return super().formfield_for_manytomany(db_field, request, **kwargs)
+
+   
+        
 
 
 class ChangeDeviceGroupForm(forms.Form):

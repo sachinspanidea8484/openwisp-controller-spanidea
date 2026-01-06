@@ -13,7 +13,7 @@ from model_utils.fields import StatusField
 from netjsonconfig import OpenWrt
 from packaging import version
 from swapper import get_model_name, load_model
-
+from private_storage.fields import PrivateFileField
 from .. import settings as app_settings
 from ..signals import (
     config_backend_changed,
@@ -25,8 +25,9 @@ from ..signals import (
 from ..sortedm2m.fields import SortedManyToManyField
 from ..utils import get_default_templates_queryset
 from .base import BaseConfig
-
+from django.conf import settings
 logger = logging.getLogger(__name__)
+
 
 
 class TemplatesThrough(object):
@@ -110,7 +111,7 @@ class AbstractConfig(BaseConfig):
         load_kwargs={"object_pairs_hook": collections.OrderedDict},
         dump_kwargs={"indent": 4},
     )
-
+    
     _CHECKSUM_CACHE_TIMEOUT = 60 * 60 * 24 * 30  # 10 days
     _config_context_functions = list()
     _old_backend = None
