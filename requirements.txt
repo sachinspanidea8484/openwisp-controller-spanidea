@@ -228,7 +228,7 @@ openwisp-utils @ git+https://sachin:fzeodnCo6ebQ3KWH4wzW@git.spanidea.com/nokia-
 # openwisp-users @ git+https://git.spanidea.com/nokia-test-automation/openwisp-users-spanidea.git@dev
 # openwisp-utils @ git+https://git.spanidea.com/nokia-test-automation/openwisp-utils-spanidea.git@dev
 
-
+#
 
 # django-loci @ file:///home/spanidea-lt22/Desktop/NOKIA/communications/django-loci
 # django-x509 @ file:///home/spanidea-lt22/Desktop/NOKIA/communications/django-x509
