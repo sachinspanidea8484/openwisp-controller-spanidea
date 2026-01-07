@@ -209,24 +209,24 @@ python-dotenv==1.0.0
 
 
 # # spanidea git  updates
-# django-loci @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/django-loci-spanidea.git@dev
-# django-x509 @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/django-x509-spanidea.git@dev
-# netdiff @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/netdiff-spanidea.git@dev
-# netjsonconfig @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/netjsonconfig-spanidea.git@dev
-# openwisp-ipam @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/openwisp-ipam-spanidea.git@dev
-# openwisp-notifications @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/openwisp-notifications-spanidea.git@dev
-# openwisp-users @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/openwisp-users-spanidea.git@dev
-# openwisp-utils @ git+https://sachin:kkVgLq7Uyd5vgKzTkDEf@git.spanidea.com/nokia-test-automation/openwisp-utils-spanidea.git@dev
+django-loci @ git+https://sachin:-ayqCK-pz-XLzvW1nmjE@git.spanidea.com/nokia-test-automation/django-loci-spanidea.git@dev
+django-x509 @ git+https://sachin:-ayqCK-pz-XLzvW1nmjE@git.spanidea.com/nokia-test-automation/django-x509-spanidea.git@dev
+netdiff @ git+https://sachin:-ayqCK-pz-XLzvW1nmjE@git.spanidea.com/nokia-test-automation/netdiff-spanidea.git@dev
+netjsonconfig @ git+https://sachin:-ayqCK-pz-XLzvW1nmjE@git.spanidea.com/nokia-test-automation/netjsonconfig-spanidea.git@dev
+openwisp-ipam @ git+https://sachin:-ayqCK-pz-XLzvW1nmjE@git.spanidea.com/nokia-test-automation/openwisp-ipam-spanidea.git@dev
+openwisp-notifications @ git+https://sachin:-ayqCK-pz-XLzvW1nmjE@git.spanidea.com/nokia-test-automation/openwisp-notifications-spanidea.git@dev
+openwisp-users @ git+https://sachin:-ayqCK-pz-XLzvW1nmjE@git.spanidea.com/nokia-test-automation/openwisp-users-spanidea.git@dev
+openwisp-utils @ git+https://sachin:-ayqCK-pz-XLzvW1nmjE@git.spanidea.com/nokia-test-automation/openwisp-utils-spanidea.git@dev
 
 # Git installations - credentials will be injected via git config during build
-django-loci @ git+https://git.spanidea.com/nokia-test-automation/django-loci-spanidea.git@dev
-django-x509 @ git+https://git.spanidea.com/nokia-test-automation/django-x509-spanidea.git@dev
-netdiff @ git+https://git.spanidea.com/nokia-test-automation/netdiff-spanidea.git@dev
-netjsonconfig @ git+https://git.spanidea.com/nokia-test-automation/netjsonconfig-spanidea.git@dev
-openwisp-ipam @ git+https://git.spanidea.com/nokia-test-automation/openwisp-ipam-spanidea.git@dev
-openwisp-notifications @ git+https://git.spanidea.com/nokia-test-automation/openwisp-notifications-spanidea.git@dev
-openwisp-users @ git+https://git.spanidea.com/nokia-test-automation/openwisp-users-spanidea.git@dev
-openwisp-utils @ git+https://git.spanidea.com/nokia-test-automation/openwisp-utils-spanidea.git@dev
+# django-loci @ git+https://git.spanidea.com/nokia-test-automation/django-loci-spanidea.git@dev
+# django-x509 @ git+https://git.spanidea.com/nokia-test-automation/django-x509-spanidea.git@dev
+# netdiff @ git+https://git.spanidea.com/nokia-test-automation/netdiff-spanidea.git@dev
+# netjsonconfig @ git+https://git.spanidea.com/nokia-test-automation/netjsonconfig-spanidea.git@dev
+# openwisp-ipam @ git+https://git.spanidea.com/nokia-test-automation/openwisp-ipam-spanidea.git@dev
+# openwisp-notifications @ git+https://git.spanidea.com/nokia-test-automation/openwisp-notifications-spanidea.git@dev
+# openwisp-users @ git+https://git.spanidea.com/nokia-test-automation/openwisp-users-spanidea.git@dev
+# openwisp-utils @ git+https://git.spanidea.com/nokia-test-automation/openwisp-utils-spanidea.git@dev
 
 
 
