@@ -610,37 +610,12 @@
          <div id="re-execute-execution">
         
         </div>
-        <div id="abort-test-execution">
-        
-        </div>
-        <button onclick="location.reload()" class="refresh-btn" title="Refresh History">
-            <svg xmlns="http://www.w3.org/2000/svg" 
-                width="21" height="21" viewBox="0 0 24 24" 
-                fill="none" stroke="currentColor" stroke-width="2" 
-                stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 2v6h-6"/>
-            <path d="M3 12a9 9 0 0 1 15.5-6.36L21 8"/>
-            <path d="M3 22v-6h6"/>
-            <path d="M21 12a9 9 0 0 1-15.5 6.36L3 16"/>
-            </svg>
-        </button>
     </div>
     <!-- Main Content -->
     <div id="main-content-1">
-        <!-- Execution Summary Module -->
         <div class="module">
-            <h2>{% trans 'Execution Summary' %}</h2>
-            <div class="summary-content">
-                <div id="summary-rows">
-                    <!-- Populated by JavaScript -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Device Executions Module -->
-        <div class="module">
-            <h2>{% trans 'Device Execution Details' %}</h2>
-            <div id="device-executions" style="padding: 12px;">
+            <h2>{% trans 'Execution Details' %}</h2>
+            <div id="re-execution-details" style="padding: 12px;">
                 <!-- Populated by JavaScript -->
             </div>
         </div>
@@ -704,153 +679,15 @@ function displayExecutionData(data) {
             total_execution_time = null; // if one is missing, mark overall as null
         }
         });
-    const summaryRows = document.getElementById('summary-rows');
-    summaryRows.innerHTML = `
-        <div class="summary-row">
-            <div class="summary-label">Test Execution:</div>
-            <div class="summary-value">
-                <a href="/admin/test_management/testsuiteexecution/${data.execution_id}/change/">
-                    ${data.execution_name}
-                </a>
-            </div>
-        </div>
-       
-        <div class="summary-row">
-            <div class="summary-label">Total Devices:</div>
-            <div class="summary-value">${data?.device_count}</div>
-        </div>
-
-         <div class="summary-row">
-            <div class="summary-label">Total Test Cases:</div>
-            <div class="summary-value">${data?.testcase_count}</div>
-        </div>
-        ${data.status ===3 && total_execution_time ? `<div class="summary-row">
-            <div class="summary-label">Total Execution Time:</div>
-            <div class="summary-value">${(total_execution_time).toFixed(2)} s</div>
-        </div>` : ''}
-
-        <div class="summary-row">
-            <div class="summary-label">Status:</div>
-            <div class="summary-value">
-                <span class="status-indicator status-${data?.status}">
-                    ${data?.status_display}
-                </span>
-            </div>
-
-            
-        </div>
-
-        ${data?.status === 4 ?
-            `<div class="summary-row">
-                <div class="summary-label">Scheduled Time:</div>
-                <div class="summary-value">${(() => {
-                    const d = new Date(data?.scheduled_time);
-                    return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth()+1).padStart(2, '0')}-${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-                })()}</div>
-            </div> `: ""     
-        }
-         
-
-    `;
     
-    const abortSection = document.getElementById('abort-test-execution');
-    abortSection.innerHTML = `
-    <button ${data.status !== 2 && data.status !== 1 ? "disabled" : ""} class="abort-button-class" onclick="abortAllTests()">
-        Abort Test Execution
-    </button>`
+    
     const reExecuteSection = document.getElementById('re-execute-execution');
     reExecuteSection.innerHTML=`
-        <button  class="re-execute-button" onclick="reExecute('${data.execution_id}')">
+        <button ${data.status !== 3 ? "disabled" : ""} class="re-execute-button" onclick="reExecute('${data.execution_id}')">
         Re-Execute
     </button>
     `
-    // Display device executions
-    const deviceExecutionsDiv = document.getElementById('device-executions');
     
-    if (data.devices && data.devices.length > 0) {
-        let devicesHtml = '';
-        
-        data.devices.forEach(device => {
-            // Calculate progress percentage
-            const stats = device.statistics;
-            const progressPercentage = stats.total > 0 ? stats.percentage : 0;
-            let progressClass = '';
-            if (progressPercentage === 100 && stats.failed === 0) {
-                progressClass = '';
-            } else if (stats.failed > 0) {
-                progressClass = 'danger';
-            } else {
-                progressClass = 'warning';
-            }
-                    
-            // --- Group test cases by type ---
-            const robotTests = (device.test_cases || []).filter(t => t.test_type === "Robot Framework");
-            const agentTests = (device.test_cases || []).filter(t => t.test_type === "Device");
-            agentTestStore[device.device_execution_id] = agentTests;
-            // Function to build a test case table
-            const buildTable = (tests) => {
-                if (!tests.length) {
-                    return '<div class="empty-state">No test results available.</div>';
-                }
-                let rows = '';
-                tests.forEach(test => {
-                    let actions = '';
-                    if ( (test.status === 'success' || test.status === 'failed'|| test.status === 'aborted')) {
-                        actions += `
-                            <a href="/api/v1/test-management/test-case-execution/${test.id}/download-log/" 
-                            class="btn-action" title="Download log" download>
-                                <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20"> <path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/> </svg>
-                                Log
-                            </a>
-                            <a href="/api/v1/test-management/test-case-execution/${test.id}/download-log/" 
-                            class="btn-action" title="View log" target="_blank" rel="noopener noreferrer">
-                                <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20"> <path d="M10 3C5 3 1.73 7.11 1 10c.73 2.89 4 7 9 7s8.27-4.11 9-7c-.73-2.89-4-7-9-7zm0 12c-2.76 0-5-2.24-5-5 s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8a3 3 0 100 6 3 3 0 000-6z"/> </svg>    
-                                View Log
-                            </a>
-                        `;
-                    }
-                    if (test.status === 'running-skip') {
-                        actions += `
-                            <button class="btn-action warning" onclick="abortTest('${test.id}')">
-                                Abort
-                            </button>
-                        `;
-                    }
-                    if (test.can_retry) {
-                        actions += `
-                            <button class="btn-action warning" onclick="retryTest('${test.id}')">
-                                <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20"> <path d="M10 3v2a5 5 0 0 0-3.54 8.54l-1.41 1.41A7 7 0 0 1 10 3zm4.95 2.05A7 7 0 0 1 10 17v-2a5 5 0 0 0 3.54-8.54l1.41-1.41zM10 20l-4-4 4-4v8zm0-12V0l4 4-4 4z"/> </svg>
-                                Retry
-                            </button>
-                        `;
-                    }
-                    rows += `
-                        <tr>
-                            <td>${test.test_case_name || 'N/A'}</td>
-                            <td><span class="test-id-badge">${test.test_case_id || 'N/A'}</span></td>
-                            <td>${test.test_type || 'N/A'}</td>
-                            <td><span class="status-indicator ${test.status}">${test.status_display || test.status}</span></td>
-                            <td>${test?.execution_duration?.seconds ?   `${(test?.execution_duration?.seconds).toFixed(2)} s` :  '-'}</td>
-                            <td><div class="action-buttons">${actions || '-'}</div></td>
-                        </tr>
-                    `;
-                });
-                return `
-                    <table class="results-table">
-                        <thead>
-                            <tr>
-                                <th>Test Case</th>
-                                <th>Test ID</th>
-                                <th>Type</th>
-                                <th>Status</th>
-                                <th>Duration</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>${rows}</tbody>
-                    </table>
-                `;
-            };
 
             // Robot Framework section
             // let robotSection = '';
@@ -922,77 +759,38 @@ function displayExecutionData(data) {
             // if(robotSection==='' && agentSection===''){
             //     agentSection = '<div class="empty-state">No test results available for this device.</div>';
             // }
-            let testcaseSection=''
-            if(device?.test_cases?.length){
-                // device.test_cases.sort((a,b)=> a?.test_case_name.localeCompare(b?.test_case_name))
-                testcaseSection=`
-                <div class="test-section">
-                    <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">
-                        <colgroup>
-                            <col style="width: 20%">
-                            <col style="width: 10%">
-                            <col style="width: 15%">
-                            <col style="width: 15%">
-                            <col style="width: 10%">
-                            <col style="width: 30%">
-                        </colgroup>
-                        ${buildTable(device.test_cases).replace('<table class="results-table">', '').replace('</table>', '')}
-                    </table>
-                </div>
-                `
-            }
+           
 
 
-            if(testcaseSection===''){
-                testcaseSection= '<div class="empty-state">No test results available for this device.</div>';
-            }
-            // Final device card
-            devicesHtml += `
-                <div class="device-card">
-                    <div class="device-header">
-                        <div style="display: flex; align-items: baseline; ">
-                            <h3 class="device-title">${device.device_name || 'Unknown Device'}</h3>
-                             <!-- Device Status Badge -->
-                <span class="device-status ${device.device_status === 'Online' ? 'status-online' : 'status-offline'}">
-                    <span class="status-dot"></span>
-                    ${device.device_status || 'Unknown'}
-                </span>
-                            
-                            ${ device.total_time_for_device ? `<h4>(Device Execution Time: ${(device.total_time_for_device).toFixed(2)} s)</h4>` : ''}
-                        </div>
-                        <div class="device-stats">
-                            <div class="progress-container">
-                                <span class="progress-text">${stats.success}/${stats.total} passed</span>
-                            </div>
-                        
-
-                            <div class="connection-protocol">${device?.connection_protocol == "0" ? "MQTT" : "SSH" }</div>
-                             ${device && device?.has_allure_report && device?.allure_report_full_path ? `
-                                <a href="${device?.allure_report_full_path}" target="_blank" class="btn-action primary">
-                                    Show Report
-                                </a>
-                            ` : `<a class="btn-action primary" title="Ready after suite completion" disabled>
-                                    Show Report
-                                </a>`}
-                        </div>
-                    </div>
-                    <div style="padding: 20px; display: flex; flex-direction: column; gap : 30px">
-                        
-                        ${testcaseSection || ''}
-                    </div>
-                </div>
-            `;
-                    
-          
-        });
-        
-        deviceExecutionsDiv.innerHTML = devicesHtml;
-    } else {
-        deviceExecutionsDiv.innerHTML = '<div class="empty-state">No device executions found.</div>';
+    const reExecutionDiv = document.getElementById('re-execution-details');
+    const items= data.re_execution_data || [];
+    if(!items.length){
+        reExecutionDiv.innerHTML = `<div class="help">{% trans "No executions found." %}</div>`;
     }
-
-
-    
+    else{
+        reExecutionDiv.innerHTML =`
+            <table class="adminlist" style="width:100%">
+                <thead>
+                <tr>
+                   
+                    <th>{% trans "Name" %}</th>
+                    <th>{% trans "Execution Time" %}</th>
+                    <th>{% trans "History" %}</th>
+                </tr>
+                </thead>
+                <tbody>
+                ${items.map((r, idx) => `
+                    <tr>
+                    
+                    <td>${r.name || ""}</td>
+                    <td>${r.created ? new Date(r.created).toLocaleString() : "-"}</td>
+                    <td><a href="${r.history_url}">{% trans "View" %}</a></td>
+                    </tr>
+                `).join("")}
+                </tbody>
+            </table>
+        `;
+    }
 }
 
 function reExecute(execution_id){
@@ -1240,7 +1038,7 @@ function showMessage(message, type) {
 
 // Load execution history
 function loadExecutionHistory() {
-    fetch(`/api/v1/test-management/execution/${executionId}/history/`, {
+    fetch(`/api/v1/test-management/execution/${executionId}/all-history/`, {
         headers: {
             'X-CSRFToken': csrftoken,
             'Content-Type': 'application/json'

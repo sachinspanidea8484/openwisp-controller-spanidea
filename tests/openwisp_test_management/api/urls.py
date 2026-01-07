@@ -81,6 +81,11 @@ urlpatterns = [
                 name="api_test_execution_history",
             ),
             path(
+                "execution/<uuid:execution_id>/all-history/",
+                views.test_execution_all_history,
+                name="api_test_execution_all_history",
+            ),
+            path(
                 "execution-details/",
                 views.get_execution_details,
                 name="api_get_execution_details",
