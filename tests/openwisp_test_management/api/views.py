@@ -4,6 +4,7 @@ from rest_framework import filters, generics, status, viewsets, permissions
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.authentication import SessionAuthentication
 from ..settings import OPENWISP_SERVER_IP
+import csv
 
 from openwisp_monitoring.monitoring.models import Metric
 from django.urls import reverse
@@ -4640,6 +4641,76 @@ def test_execution_all_history(request, execution_id):
             'error': 'Failed to retrieve execution history',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def test_execution_history_export(request, execution_id):
+    """
+    API endpoint to export test execution history to csv format
+    """
+    try:
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = (
+            f'attachment; filename="execution_{execution_id}_history.csv"'
+        )
+
+        writer = csv.writer(response)
+        writer.writerow([
+            'Test Execution ID',
+            'Device Name',
+            'Test Case Name',
+            'Test Case ID',
+            'Test Case Type',
+            'Status',
+            'Duration',
+            'Stdout',
+            'Stderr'
+        ])
+        execution = TestSuiteExecution.objects.get(pk=execution_id)
+
+        # Get all execution devices
+        execution_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device').order_by('device__name')
+        
+        print("device_exec>>>>>",execution_devices)
+        
+        test_case_executions = TestCaseExecution.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device', 'test_case')
+        print("<<<test_case_executions>>>",test_case_executions)
+        
+        for device_exec in execution_devices:
+            device = device_exec.device
+            device_test_cases = test_case_executions.filter(device=device)
+            
+            for test_exec in device_test_cases:
+                # Calculate execution duration
+                execution_duration_seconds = None
+                
+                if test_exec.started_at and test_exec.completed_at:
+                    duration = test_exec.completed_at - test_exec.started_at
+                    execution_duration_seconds = duration.total_seconds()
+                
+                writer.writerow([
+                    str(test_exec.pk),
+                    device.name,
+                    test_exec.test_case.name,
+                    test_exec.test_case.test_case_id,
+                    test_exec.test_case.get_test_type_display(),
+                    test_exec.status,
+                    execution_duration_seconds,
+                    test_exec.stdout,
+                    test_exec.stderr
+                ])
+
+        return response
+
+    except TestSuiteExecution.DoesNotExist:
+        return HttpResponse("Test execution not found", content_type='text/plain', status=404)
+    except Exception as e:
+        logger.error(f"Error in exporting test execution data: {str(e)}")
+        return HttpResponse(f"Error: {str(e)}", content_type='text/plain', status=500)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
