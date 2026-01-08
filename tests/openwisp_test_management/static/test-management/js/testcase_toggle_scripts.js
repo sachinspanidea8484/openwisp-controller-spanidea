@@ -44,12 +44,12 @@
             let extracted = extractBetweenMarkers(fullText);
 
             if (!extracted) {
-              alert(
-                "Markers not found. Expected:\n" +
-                  START_MARKER +
-                  " ... " +
-                  END_MARKER
-              );
+              // alert(
+              //   "Markers not found. Expected:\n" +
+              //     START_MARKER +
+              //     " ... " +
+              //     END_MARKER
+              // );
               return;
             }
 

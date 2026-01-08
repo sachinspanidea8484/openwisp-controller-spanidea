@@ -50,3 +50,10 @@ def extract_zip_after_upload(sender, instance, created, **kwargs):
     #     # if test type is robot
     #     elif instance.test_type==1:
     #         pass
+
+
+@receiver(post_save, sender=TestCase)
+def robot_framework_server_push(sender, instance, created, **kwargs):
+    if instance.test_type== 1:
+        print(">>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<,,")
+        print("file upload", instance)

@@ -436,6 +436,10 @@ class TestCaseAdminForm(forms.ModelForm):
     class Meta:
         model = TestCase
         fields = '__all__'
+        widgets = {
+            'robot_script': forms.ClearableFileInput(attrs={'accept': '.robot'}),
+            'python_script': forms.ClearableFileInput(attrs={'accept': '.py'}),
+        }
     
     def clean_params(self):
         params = self.cleaned_data.get('params')
@@ -504,6 +508,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         "test_case_id",      # 2nd - Test Case ID  
         "category_link",     # 3rd - Category
         "is_active",         # 4th - Is Active
+        "script_push_status",
         "test_type_display", # 5th - Test Type
         "created",           # 6th - Created
         "modified",          # 7th - Modified
@@ -571,13 +576,53 @@ class TestCaseAdmin(BaseVersionAdmin):
 
 
 
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = [
+            (
+                None,
+                {
+                    "fields": (
+                        "category",
+                        "name",
+                        "test_case_id",
+                        "test_type",
+                    )
+                },
+            ),
+            (
+                _("Test Scripts"),
+                {
+                    "fields": (
+                        "robot_script",
+                        "python_script",
+                    )
+                },
+            ),
+            (
+                _("Additional Details"),
+                {
+                    "fields": (
+                        "params",
+                        "json_file",
+                        "description",
+                        "is_active",
+                        "is_configuration_push_required",
+                    )
+                },
+            ),
+        ]
+
+        # Show status only in edit mode, grouped with scripts
+        if obj:
+            fieldsets[1][1]["fields"] += ("script_push_status",)
+
+        return fieldsets
+
     def get_readonly_fields(self, request, obj=None):
-        fields = super().get_readonly_fields(request, obj)
-        # Make test_case_id readonly after creation to maintain consistency
-        # if obj and obj.pk:
-        #     fields = list(fields) + ["test_case_id"]
+        fields = list(super().get_readonly_fields(request, obj))
+        if obj:
+            fields.append("script_push_status")
         return fields
-    
 
     def changelist_view(self, request, extra_context=None):
         """Override to add custom title"""

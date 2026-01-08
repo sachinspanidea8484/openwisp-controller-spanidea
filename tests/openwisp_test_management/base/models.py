@@ -1,6 +1,6 @@
 import logging
 from django.utils import timezone
-
+import os
 
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -100,13 +100,31 @@ class AbstractTestCategory(TimeStampedEditableModel):
         """Check if category can be deleted"""
         # Categories with test cases or test suites cannot be deleted
         return self.test_case_count == 0 
+    
 
-from openwisp_test_management.private_storage.storage import zip_storage
+def rename_script(instance, filename):
+    ext= filename.split('.')[1]
+
+    new_name= f"{instance.test_case_id}.{ext}"
+
+    if ext == 'py' :
+        return os.path.join("test_case", new_name)
+    elif ext== 'robot':
+        return os.path.join("test_case_robot", new_name)
+    
 class AbstractTestCase(TimeStampedEditableModel):
     """
     Abstract model for Test Cases
     Individual test cases that can be executed on devices
     """
+
+    class Status(models.IntegerChoices):
+        PENDING = 0, _('Pending')
+        COMPLETED = 1, _('Completed')
+        FAILED = 2, _('Failed')
+        
+
+
     name = models.CharField(
         _("Test Case"),
         max_length=50,
@@ -158,16 +176,22 @@ class AbstractTestCase(TimeStampedEditableModel):
     )
     python_script= models.FileField(
         _("Python Script"),
-        upload_to="test_scripts",
+        upload_to=rename_script,
         null=True,
         blank=True
     )
     robot_script = models.FileField(
         _("Robot Script"),
-        upload_to="test_scripts",
+        upload_to=rename_script,
         null=True,
         blank=True
     )
+    
+    script_push_status = models.IntegerField(
+        choices=Status.choices,
+        default=Status.PENDING
+    )
+    
     # file = PrivateFileField(
     #     "Test Script",
     #     upload_to="zip/",
@@ -194,57 +218,63 @@ class AbstractTestCase(TimeStampedEditableModel):
 
 
     def clean(self):
-     """Validate the test case"""
-     super().clean()
+        """Validate the test case"""
+        super().clean()
 
-     if not self.params:
-        self.params = {}
-    
-     # Validate JSON params if provided
-     if self.params and self.params != {}:
-        try:
-            if not isinstance(self.params, dict):
+        if not self.params:
+            self.params = {}
+        
+        # Validate JSON params if provided
+        if self.params and self.params != {}:
+            try:
+                if not isinstance(self.params, dict):
+                    raise ValidationError({
+                        "params": _("Parameters must be a valid JSON object")
+                    })
+            except (TypeError, ValueError):
                 raise ValidationError({
-                    "params": _("Parameters must be a valid JSON object")
+                    "params": _("Parameters must be valid JSON format")
                 })
-        except (TypeError, ValueError):
-            raise ValidationError({
-                "params": _("Parameters must be valid JSON format")
-            })
-    
-     # Check for duplicate test_case_id
-     qs = self.__class__.objects.filter(
-        test_case_id=self.test_case_id
-     ).exclude(pk=self.pk)
-    
-     if qs.exists():
-        raise ValidationError({
-            "test_case_id": _(
-                f"A test case with ID '{self.test_case_id}' already exists"
-            )
-        })
-    
-     # Check for duplicate name within the same category
-     if self.category_id:
+        
+        # Check for duplicate test_case_id
         qs = self.__class__.objects.filter(
-            category=self.category,
-            name__iexact=self.name
+            test_case_id=self.test_case_id
         ).exclude(pk=self.pk)
         
         if qs.exists():
             raise ValidationError({
-                "name": _(
-                    f"A test case with this name already exists "
-                    f"in category '{self.category.name}'"
+                "test_case_id": _(
+                    f"A test case with ID '{self.test_case_id}' already exists"
                 )
             })
+        
+        # Check for duplicate name within the same category
+        if self.category_id:
+            qs = self.__class__.objects.filter(
+                category=self.category,
+                name__iexact=self.name
+            ).exclude(pk=self.pk)
+            
+            if qs.exists():
+                raise ValidationError({
+                    "name": _(
+                        f"A test case with this name already exists "
+                        f"in category '{self.category.name}'"
+                    )
+                })
 
     def save(self, *args, **kwargs):
-     # Ensure params is always a dict, never None or empty string
-     if not self.params:
-        self.params = {}
-     self.full_clean()
-     super().save(*args, **kwargs)
+        # Ensure params is always a dict, never None or empty string
+        if not self.params:
+            self.params = {}
+
+        if (
+            self.test_type == TestTypeChoices.AGENT
+            and self.python_script
+        ):
+            self.script_push_status = self.Status.COMPLETED
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     @property
     def suite_count(self):
