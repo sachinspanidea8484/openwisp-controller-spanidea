@@ -101,6 +101,10 @@ class AbstractTestCategory(TimeStampedEditableModel):
         # Categories with test cases or test suites cannot be deleted
         return self.test_case_count == 0 
     
+from ..private_storage import storage
+
+overwrite_storage= storage.OverwriteStorage()
+
 
 def rename_script(instance, filename):
     ext= filename.split('.')[1]
@@ -177,12 +181,14 @@ class AbstractTestCase(TimeStampedEditableModel):
     python_script= models.FileField(
         _("Python Script"),
         upload_to=rename_script,
+        storage= overwrite_storage,
         null=True,
         blank=True
     )
     robot_script = models.FileField(
         _("Robot Script"),
         upload_to=rename_script,
+        storage=overwrite_storage,
         null=True,
         blank=True
     )
