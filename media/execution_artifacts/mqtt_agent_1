@@ -1,0 +1,19 @@
+#!/bin/sh /etc/rc.common
+# MQTT Agent service for OpenWrt
+
+START=99
+STOP=15
+USE_PROCD=1
+
+start_service() {
+    echo "Starting MQTT Agent..."
+    procd_open_instance
+    procd_set_param command /usr/bin/python3 /usr/bin/mqtt_agent.py
+    procd_set_param respawn  # auto-restart if it crashes
+    procd_close_instance
+}
+
+stop_service() {
+    echo "Stopping MQTT Agent..."
+}
+

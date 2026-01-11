@@ -14,6 +14,10 @@ OPENWISP_SERVER_IP = getattr(
     settings, "OPENWISP_SERVER_IP", "http://172.17.0.1:8000"
 )
 
+MEDIA_URL = getattr(
+    settings, "MEDIA_URL", "/media/"
+)
+
 
 
 
