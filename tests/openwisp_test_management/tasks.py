@@ -324,7 +324,8 @@ def execute_tests_on_device(device_execution_id):
         # Start completion checking
         logger.info("Starting completion checking process")
         print(f"[TASK] execute_tests_on_device - Starting completion checking")
-        check_device_execution_completion.delay(device_execution_id)
+        # check_device_execution_completion.delay(device_execution_id)
+        check_execution_completion.delay(device_execution_id)
         
     except TestSuiteExecutionDevice.DoesNotExist:
         error_msg = f"Device execution with ID {device_execution_id} not found"
@@ -1668,6 +1669,88 @@ def execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_exe
         logger.error(error_msg, exc_info=True)
         print(f"[ERROR] execute_test_via_nb_api - {error_msg}")
 
+from django.core.mail import  BadHeaderError , EmailMessage
+from django.conf import settings
+
+@shared_task(bind=True)
+def check_execution_completion(self, device_execution_id, retry_count=0):
+    MAX_RETRIES = 1440  # ~12 hours if 30s interval
+    RETRY_DELAY = 30   # seconds
+
+    try:
+        device_execution = TestSuiteExecutionDevice.objects.select_related(
+            'test_suite_execution'
+        ).get(pk=device_execution_id)
+
+        test_suite_execution = device_execution.test_suite_execution
+
+    except TestSuiteExecutionDevice.DoesNotExist:
+        logger.error(f"DeviceExecution {device_execution_id} not found")
+        return
+
+    # Use constants / readable values
+    STATUS_COMPLETED = 3
+
+    if test_suite_execution.status == STATUS_COMPLETED:
+        # Prevent duplicate emails
+        if test_suite_execution.completion_email_sent:
+            logger.info(
+                f"Completion email already sent for suite {test_suite_execution.id}"
+            )
+            return
+
+        try:
+            subject = "Test Suite Execution Completed"
+            message = (
+                "Hi,\n\n"
+                "All test cases for the test suite have been executed successfully.\n\n"
+                "Thanks,\n"
+                "QA System"
+            )
+            emails = [
+                e.strip()
+                for e in test_suite_execution.notification_emails.split(",")
+                if e.strip()
+            ]
+            email= EmailMessage(
+                subject=subject,
+                body=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=emails,
+            )
+            email.send(fail_silently=False)
+
+            # Mark email as sent
+            test_suite_execution.completion_email_sent = True
+            # test_suite_execution.completed_at = timezone.now()
+            test_suite_execution.save(update_fields=[
+                'completion_email_sent'
+                # 'completed_at'
+            ])
+
+            logger.info(
+                f"Completion email sent for suite {test_suite_execution.id}"
+            )
+
+        except BadHeaderError:
+            logger.error("Invalid email header detected")
+
+        except Exception:
+            logger.exception("Failed to send completion email")
+
+        return
+
+    #  Retry logic
+    if retry_count < MAX_RETRIES:
+        self.apply_async(
+            args=[device_execution_id, retry_count + 1],
+            countdown=RETRY_DELAY,
+        )
+    else:
+        logger.warning(
+            f"Max retries reached for suite {test_suite_execution.id}"
+        )
+
 @shared_task
 def check_device_execution_completion(device_execution_id, retry_count=0):
     """
@@ -1813,8 +1896,8 @@ def check_device_execution_completion(device_execution_id, retry_count=0):
                 if test_exec.error_message:
                     output_lines.append(f"   Error: {test_exec.error_message}")
                     
-                if test_exec.stdout and test_exec.stdout.strip():
-                    output_lines.append(f"   Output: {test_exec.stdout.strip()[:100]}...")
+        #         if test_exec.stdout and test_exec.stdout.strip():
+        #             output_lines.append(f"   Output: {test_exec.stdout.strip()[:100]}...")
         
         # Add summary statistics
         output_lines.append("=" * 60)

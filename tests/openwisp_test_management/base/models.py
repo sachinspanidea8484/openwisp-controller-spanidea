@@ -444,7 +444,11 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         default=0,
         help_text=_("Number of devices in this execution")
     )
-    
+    completion_email_sent = models.BooleanField(default=False)
+    notification_emails = models.TextField(
+        blank=True,
+        help_text="Comma-separated email addresses"
+    )
     testcase_count = models.PositiveIntegerField(
         _("test case count"),
         default=0,

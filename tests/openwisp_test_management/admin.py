@@ -19,7 +19,7 @@ import json
 from django.urls import path
 from django.shortcuts import get_object_or_404, render
 import traceback
-
+from django.core.validators import validate_email
 import json
 from django.utils.translation import gettext_lazy as _
 from import_export.admin import ImportExportMixin
@@ -1875,6 +1875,21 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         self._build_artifacts(execution)
         
         if request.method == "POST":
+            raw_emails = request.POST.get("notification_emails", "").strip()
+
+            # Validate emails
+            try:
+                if raw_emails:
+                    for email in raw_emails.split(","):
+                        validate_email(email.strip())
+            except ValidationError:
+                self.message_user(
+                    request,
+                    "One or more email addresses are invalid.",
+                    messages.ERROR,
+                )
+                return redirect(request.path)
+            
             formset = ExecutionArtifactFormSet(
                 request.POST,
                 request.FILES,
@@ -1898,6 +1913,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 if not has_error:
                     # VALIDATE BEFORE SAVE
                     formset.save()
+                    execution.notification_emails = raw_emails
+                    execution.save(update_fields=["notification_emails"])
 
                     schedule_time= request.session.get("execution_schedule_time")
                     if execute_after_save:

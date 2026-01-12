@@ -54,7 +54,27 @@
     </p>
   {% endif %}
     
+    <fieldset class="module aligned">
+      <h2>Email Notifications</h2>
 
+      <div class="form-row">
+        <label for="notification_emails">
+          Send completion email to:
+        </label>
+
+        <textarea
+          name="notification_emails"
+          id="notification_emails"
+          rows="2"
+          style="width: 60%;"
+          placeholder="email1@example.com, email2@example.com"
+        >{{ execution.notification_emails }}</textarea>
+
+        <p class="help">
+          Enter comma-separated email addresses.
+        </p>
+      </div>
+    </fieldset>
   <div class="submit-row">
     <a class="button"
        href="{% url 'admin:test_management_testsuiteexecution_change' execution.pk %}">
