@@ -1205,7 +1205,7 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                 preserved_order = Case(
                     *[When(id=pk, then=pos) for pos, pk in enumerate(ordered_ids)]
                 )
-                self.fields["individual_test_cases"].queryset = qs.order_by(preserved_order)
+                # self.fields["individual_test_cases"].queryset = qs.order_by(preserved_order)
     
     class Meta:
         model = TestSuiteExecution
@@ -1849,7 +1849,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         )
 
         testcases = execution.get_configuration_selected_test_cases()
-
+        ExecutionArtifact.objects.filter(
+                execution=execution
+            ).exclude(
+                testcase__in=testcases
+            ).delete()
         for d in devices:
             for tc in testcases:
                 ExecutionArtifact.objects.get_or_create(
@@ -2259,7 +2263,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 })
 
             extra_context["execution_devices_json"] = json.dumps(devices_data)
-      
+            if obj.test_case_execution_order:
+                extra_context["ordered_testcase_ids"] = obj.test_case_execution_order
         return super().change_view(request, object_id, form_url, extra_context)
     
     def recover_view(self, request, version_id, extra_context=None):
