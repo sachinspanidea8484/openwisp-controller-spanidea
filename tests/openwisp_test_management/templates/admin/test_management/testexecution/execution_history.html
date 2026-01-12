@@ -642,6 +642,7 @@ function getCookie(name) {
 const csrftoken = getCookie('csrftoken');
 const executionId = '{{ execution_id }}';
 const agentTestStore = {};
+let execution_status= null;
 // Display execution data with OpenWISP styling
 
 function handleHideClick(header,table_id){
@@ -1184,7 +1185,7 @@ function loadExecutionHistory() {
     .then(data => {
         if (data.success) {
             displayExecutionData(data.data);
-            
+            execution_status= data?.data?.status;
             // Show content with smooth transition
             setTimeout(() => {
                 document.getElementById('loading').style.display = 'none';
@@ -1224,7 +1225,11 @@ let isPageVisible = true;
 function startAutoRefresh() {
     if (!refreshInterval && isPageVisible) {
         refreshInterval = setInterval(() => {
-            if (isPageVisible) {
+            if(execution_status == 3){
+                
+                stopAutoRefresh();
+            }
+            else if (isPageVisible) {
                 loadExecutionHistory();
             }
             // alert("SCEDULE")
