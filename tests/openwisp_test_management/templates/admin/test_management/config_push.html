@@ -14,9 +14,67 @@
 </div>
 {% endblock %}
 
+{% block extrahead %}
+{{ block.super }}
+  <style>
+    /* Align label and field like Django admin */
+    .email-row {
+      display: flex;
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .email-label {
+      width: 160px;
+      font-weight: bold;
+      padding-top: 6px;
+    }
+
+    /* Input container */
+    .email-input-wrapper {
+      width: 60%;
+    }
+
+    /* Chips container */
+    .email-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-height: 38px;
+      padding: 6px;
+      /* border: 1px solid #ccc; */
+      /* border-radius: 4px; */
+      background: #fff;
+      margin-bottom: 6px;
+    }
+
+    /* Individual chip */
+    .email-chip {
+      background: #e1f0ff;
+      border: 1px solid #79aec8;
+      color: #0c4b73;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+    }
+
+    .email-chip span {
+      margin-left: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    /* Input field */
+    #email-input {
+      width: 100%;
+      box-sizing: border-box;
+    }
+  </style>
+{% endblock %}
+
 {% block content %}
-
-
 
 <p><strong>Execution:</strong> {{ execution.name }}</p>
 
@@ -54,27 +112,37 @@
     </p>
   {% endif %}
     
-    <fieldset class="module aligned" style="margin-top: 30px;">
-      <h2>Email Notifications</h2>
+  <fieldset class="module aligned" style="margin-top: 30px;">
+    <h2>Email Notifications</h2>
 
-      <div class="form-row">
-        <label for="notification_emails">
-          Send completion email to:
-        </label>
+    <div class="form-row email-row">
+      <label class="email-label">
+        Reciever(s) Email:
+      </label>
 
-        <textarea
+      <div class="email-input-wrapper">
+        <input
+          type="hidden"
           name="notification_emails"
           id="notification_emails"
-          rows="2"
-          style="width: 60%; margin-left: 12px;"
-          placeholder="email1@example.com, email2@example.com"
-        >{{ execution.notification_emails }}</textarea>
+          value="{{ execution.notification_emails|default:'' }}"
+        >
+
+        <div id="email-chips" class="email-chips"></div>
+
+        <input
+          type="text"
+          id="email-input"
+          class="vTextField"
+          placeholder="Type email and press Enter"
+        >
 
         <p class="help">
-          Enter comma-separated email addresses.
+          Press <strong>Enter</strong> after each email address.
         </p>
       </div>
-    </fieldset>
+    </div>
+  </fieldset>
   <div class="submit-row">
     <a class="button"
        href="{% url 'admin:test_management_testsuiteexecution_change' execution.pk %}">
@@ -88,4 +156,59 @@
     {% endif %}
   </div>
 </form>
+
+<script>
+(function() {
+  const input = document.getElementById("email-input");
+  const chipsContainer = document.getElementById("email-chips");
+  const hiddenField = document.getElementById("notification_emails");
+
+  function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  function updateHiddenField() {
+    const emails = [...chipsContainer.querySelectorAll(".email-chip")]
+      .map(chip => chip.dataset.email);
+    hiddenField.value = emails.join(",");
+  }
+
+  function addChip(email) {
+    if (!isValidEmail(email)) {
+      alert("Invalid email: " + email);
+      return;
+    }
+
+    const existing = [...chipsContainer.children]
+      .some(chip => chip.dataset.email === email);
+    if (existing) return;
+
+    const chip = document.createElement("div");
+    chip.className = "email-chip";
+    chip.dataset.email = email;
+    chip.innerHTML = `${email} <span>&times;</span>`;
+
+    chip.querySelector("span").onclick = () => {
+      chip.remove();
+      updateHiddenField();
+    };
+
+    chipsContainer.appendChild(chip);
+    updateHiddenField();
+  }
+
+  input.addEventListener("keydown", function(e) {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      const email = input.value.trim().replace(/,$/, "");
+      if (email) addChip(email);
+      input.value = "";
+    }
+  });
+
+  // ✅ Load existing emails
+  const existing = hiddenField.value.split(",").map(e => e.trim()).filter(Boolean);
+  existing.forEach(addChip);
+})();
+</script>
 {% endblock %}
