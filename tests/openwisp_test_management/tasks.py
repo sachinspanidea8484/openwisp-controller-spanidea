@@ -85,6 +85,10 @@ def execute_test_suite(execution_id):
         logger.info(f"Found {device_count} devices to execute tests on")
         print(f"[TASK] execute_test_suite - Found {device_count} devices")
         
+        #update execution start time
+        execution.execution_start_time= timezone.now()
+        execution.save(update_fields= ["execution_start_time"])
+
         # Launch individual device executions in parallel
         for device_execution in device_executions:
             logger.info(f"Launching tests on device: {device_execution.device.name} (ID: {device_execution.id})")
@@ -325,7 +329,7 @@ def execute_tests_on_device(device_execution_id):
         logger.info("Starting completion checking process")
         print(f"[TASK] execute_tests_on_device - Starting completion checking")
         # check_device_execution_completion.delay(device_execution_id)
-        check_execution_completion.delay(device_execution_id)
+        # check_execution_completion.delay(device_execution_id)
         
     except TestSuiteExecutionDevice.DoesNotExist:
         error_msg = f"Device execution with ID {device_execution_id} not found"
@@ -1672,34 +1676,35 @@ def execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_exe
 from django.core.mail import  BadHeaderError , EmailMessage
 from django.conf import settings
 
-@shared_task(bind=True)
-def check_execution_completion(self, device_execution_id, retry_count=0):
-    MAX_RETRIES = 1440  # ~12 hours if 30s interval
-    RETRY_DELAY = 30   # seconds
 
+@shared_task(bind=True, autoretry_for=(Exception,), retry_kwargs={"max_retries": 3})
+def send_execution_completed_email(self, execution_id):
     try:
-        device_execution = TestSuiteExecutionDevice.objects.select_related(
-            'test_suite_execution'
-        ).get(pk=device_execution_id)
-
-        test_suite_execution = device_execution.test_suite_execution
-
-    except TestSuiteExecutionDevice.DoesNotExist:
-        logger.error(f"DeviceExecution {device_execution_id} not found")
-        return
-
-    # Use constants / readable values
-    STATUS_COMPLETED = 3
-
-    if test_suite_execution.status == STATUS_COMPLETED:
-        # Prevent duplicate emails
-        if test_suite_execution.completion_email_sent:
-            logger.info(
-                f"Completion email already sent for suite {test_suite_execution.id}"
+        with transaction.atomic():
+            execution = (
+                TestSuiteExecution.objects
+                .select_for_update()
+                .get(pk=execution_id)
             )
-            return
 
-        try:
+            if execution.completion_email_sent:
+                logger.info(
+                    f"Completion email already sent for execution {execution.id}"
+                )
+                return
+
+            emails = [
+                e.strip()
+                for e in execution.notification_emails.split(",")
+                if e.strip()
+            ]
+
+            if not emails:
+                logger.warning(
+                    f"No notification emails for execution {execution.id}"
+                )
+                return
+
             subject = "Test Suite Execution Completed"
             message = (
                 "Hi,\n\n"
@@ -1707,49 +1712,33 @@ def check_execution_completion(self, device_execution_id, retry_count=0):
                 "Thanks,\n"
                 "QA System"
             )
-            emails = [
-                e.strip()
-                for e in test_suite_execution.notification_emails.split(",")
-                if e.strip()
-            ]
-            email= EmailMessage(
+
+            email = EmailMessage(
                 subject=subject,
                 body=message,
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 to=emails,
             )
+
             email.send(fail_silently=False)
 
-            # Mark email as sent
-            test_suite_execution.completion_email_sent = True
-            # test_suite_execution.completed_at = timezone.now()
-            test_suite_execution.save(update_fields=[
-                'completion_email_sent'
-                # 'completed_at'
-            ])
+            execution.completion_email_sent = True
+            execution.save(update_fields=["completion_email_sent"])
 
             logger.info(
-                f"Completion email sent for suite {test_suite_execution.id}"
+                f"Completion email sent for execution {execution.id}"
             )
 
-        except BadHeaderError:
-            logger.error("Invalid email header detected")
+    except TestSuiteExecution.DoesNotExist:
+        logger.error(f"Execution {execution_id} not found")
 
-        except Exception:
-            logger.exception("Failed to send completion email")
+    except BadHeaderError:
+        logger.error("Invalid email header detected")
 
-        return
-
-    #  Retry logic
-    if retry_count < MAX_RETRIES:
-        self.apply_async(
-            args=[device_execution_id, retry_count + 1],
-            countdown=RETRY_DELAY,
-        )
-    else:
-        logger.warning(
-            f"Max retries reached for suite {test_suite_execution.id}"
-        )
+    except Exception:
+        logger.exception("Failed to send completion email")
+        raise  # allows Celery retry
+   
 
 @shared_task
 def check_device_execution_completion(device_execution_id, retry_count=0):

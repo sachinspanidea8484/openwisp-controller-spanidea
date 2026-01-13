@@ -1983,7 +1983,9 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
 
     def save_model(self, request, obj, form, change):
-        print(f">>> ADMIN save_model called. Change: {change} <<<")
+        print(f">>> ADMIN save_model called. Change: {obj} <<<")
+        if not change and not obj.created_by:
+            obj.created_by = request.user
         super().save_model(request, obj, form, change)
         print(f">>> Object saved with ID: {obj.id} <<<")
         # if '_save_execute' in request.POST and not change:
