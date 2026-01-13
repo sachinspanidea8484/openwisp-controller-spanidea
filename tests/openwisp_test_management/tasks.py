@@ -473,8 +473,7 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
             test_cases= [
                 testcase_map[tc_id] for tc_id in ordered_ids if tc_id in testcase_map
             ]
-           
-            # test_cases= test_suite_execution.individual_test_cases.all()
+
         total_test_cases = len(selected_test_ids)
         
         logger.info(f"Retrieved {total_test_cases} test cases for execution")
@@ -505,12 +504,15 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
         if test_suite_execution.test_selection_type==1:
             test_suite_data["test_suite_name"] = test_suite_execution.test_suite.name
             test_suite_data["test_suite_id"]= test_suite_execution.test_suite.id
-        
-        selected_test_ids = sorted(selected_test_ids)
+
+        selected_ids = set(selected_test_ids)
+        selected_test_cases = [
+            tc for tc in test_cases
+            if tc.test_case_id in selected_ids
+        ]
+
         # Create execution records for ALL test cases
-        for test_id in selected_test_ids:
-            test_case = TestCase.objects.filter(test_case_id=test_id).first()
-            
+        for test_case in selected_test_cases:
             logger.info(f"Creating execution record for test: {test_case.name} (Type: {test_case.get_test_type_display()})")
             print(f"[TASK] execute_selected_tests_on_device - Creating execution record for: {test_case.name}")
             
