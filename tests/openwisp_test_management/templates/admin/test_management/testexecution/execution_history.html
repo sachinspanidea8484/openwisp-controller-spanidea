@@ -668,6 +668,113 @@ function getCookie(name) {
 const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]")?.value;
 const executionId = '{{ execution_id }}';
 const agentTestStore = {};
+const selectedTestsForDevice = {};
+
+document.addEventListener('change', function (event) {
+    const cb = event.target;
+
+    // Only handle your execution checkboxes
+    if (!cb.matches('input.execution-checkbox[type="checkbox"]')) return;
+
+    onExecutionCheckboxChange(cb);
+});
+
+document.addEventListener('change', function (event) {
+    const cb = event.target;
+
+    // Only handle your execution checkboxes
+    if (!cb.matches('.device-select-all')) return;
+
+    const deviceId = cb.dataset.deviceId;
+    const checked = cb.checked;
+
+    if (!deviceId) {
+        console.error('Missing deviceId on select-all checkbox');
+        return;
+    }
+    console.log('Select all for device:', deviceId, checked);
+    // Find all test checkboxes for this device
+    const testCheckboxes = document.querySelectorAll(
+        `input.execution-checkbox[data-device-id="${deviceId}"]`
+    );
+    if (!selectedTestsForDevice[deviceId]) {
+        selectedTestsForDevice[deviceId] = new Set();
+    }
+    testCheckboxes.forEach(testCb => {
+        testCb.checked = checked;
+
+        const testId = testCb.dataset.testId;
+        if (!testId) return;
+
+        if (checked)
+            selectedTestsForDevice[deviceId].add(testId);
+        else
+            selectedTestsForDevice[deviceId].delete(testId);
+    });
+    updateReExecuteButtonState();
+    console.log('Selected tests:', deviceId, Array.from(selectedTestsForDevice[deviceId]));
+});
+
+function syncDeviceSelectAll(deviceId) {
+    const deviceCb = document.querySelector(
+        `.device-select-all[data-device-id="${deviceId}"]`
+    );
+
+    if (!deviceCb) return;
+
+    const testCheckboxes = document.querySelectorAll(
+        `input.execution-checkbox[data-device-id="${deviceId}"]`
+    );
+
+    const checkedCount = Array.from(testCheckboxes)
+        .filter(cb => cb.checked).length;
+
+    if (checkedCount === 0) {
+        deviceCb.checked = false;
+        deviceCb.indeterminate = false;
+    } else if (checkedCount === testCheckboxes.length) {
+        deviceCb.checked = true;
+        deviceCb.indeterminate = false;
+    } else {
+        deviceCb.checked = false;
+        deviceCb.indeterminate = true;
+    }
+}
+
+function onExecutionCheckboxChange(cb) {
+    const deviceId = cb.dataset.deviceId;
+    const testcaseId = cb.dataset.testId;
+    const checked = cb.checked;
+
+    console.log('Checkbox toggled:', 'device=', deviceId, 'testcase=', testcaseId, 'checked=', checked);
+    if (!selectedTestsForDevice[deviceId]) {
+      selectedTestsForDevice[deviceId] = new Set();
+    }
+
+    if (checked) {
+      selectedTestsForDevice[deviceId].add(testcaseId);
+    } else {
+      selectedTestsForDevice[deviceId].delete(testcaseId);
+    }
+    syncDeviceSelectAll(deviceId);
+    updateReExecuteButtonState();
+}
+
+function isAnyTestSelected() {
+    return Object.values(selectedTestsForDevice)
+        .some(testSet => testSet && testSet.size > 0);
+}
+
+function updateReExecuteButtonState() {
+    if (!reExecuteBtn) return;
+
+    const enabled = isAnyTestSelected();
+
+    reExecuteBtn.disabled = !enabled;
+    reExecuteBtn.classList.toggle('disabled', !enabled);
+
+    console.log( 'Re-Execute button: ', enabled ? 'ENABLED' : 'DISABLED');
+}
 // Display execution data with OpenWISP styling
 
 function handleHideClick(header,table_id){
@@ -714,7 +821,12 @@ function displayExecutionData(data) {
                 </a>
             </div>
         </div>
-       
+
+        <div class="summary-row">
+            <div class="summary-label">Execution Start Time:</div>
+            <div class="summary-value">${data?.created ? new Date(data?.created).toLocaleString() : "-"}</div>
+        </div>
+
         <div class="summary-row">
             <div class="summary-label">Total Devices:</div>
             <div class="summary-value">${data?.device_count}</div>
@@ -760,10 +872,10 @@ function displayExecutionData(data) {
     </button>`
     const reExecuteSection = document.getElementById('re-execute-execution');
     reExecuteSection.innerHTML=`
-        <button  class="re-execute-button" onclick="reExecute('${data.execution_id}')">
-        Re-Execute
-    </button>
-    `
+        <button  id="reExecuteBtn" class="re-execute-button" onclick="reExecuteSelected('${data.execution_id}')">
+            Re-Execute Selected
+        </button>`
+    updateReExecuteButtonState();
     // Display device executions
     const deviceExecutionsDiv = document.getElementById('device-executions');
     
@@ -826,6 +938,7 @@ function displayExecutionData(data) {
                     }
                     rows += `
                         <tr>
+                            <td><input type="checkbox" class="execution-checkbox" data-device-id="${device.device_id}" data-test-id="${ test.test_case_id }"></td>
                             <td>${test.test_case_name || 'N/A'}</td>
                             <td><span class="test-id-badge">${test.test_case_id || 'N/A'}</span></td>
                             <td>${test.test_type || 'N/A'}</td>
@@ -839,6 +952,7 @@ function displayExecutionData(data) {
                     <table class="results-table">
                         <thead>
                             <tr>
+                                <th>Select <input type="checkbox" class="device-select-all" data-device-id="${device.device_id}"></th>
                                 <th>Test Case</th>
                                 <th>Test ID</th>
                                 <th>Type</th>
@@ -929,12 +1043,13 @@ function displayExecutionData(data) {
                 <div class="test-section">
                     <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">
                         <colgroup>
+                            <col style="width: 10%">
                             <col style="width: 20%">
                             <col style="width: 10%">
-                            <col style="width: 15%">
+                            <col style="width: 10%">
                             <col style="width: 15%">
                             <col style="width: 10%">
-                            <col style="width: 30%">
+                            <col style="width: 25%">
                         </colgroup>
                         ${buildTable(device.test_cases).replace('<table class="results-table">', '').replace('</table>', '')}
                     </table>
@@ -1030,6 +1145,53 @@ function reExecute(execution_id){
         showMessage(error.detail || error.message || 'Failed to re-execute execution', 'error');
     });
 }
+
+function reExecuteSelected(execution_id){
+    if (Object.keys(selectedTestsForDevice).length === 0) {
+        alert("No tests selected");
+        return;
+    }
+    const payload = {};
+
+    Object.entries(selectedTestsForDevice).forEach(([deviceId, testSet]) => {
+        if (testSet.size > 0) {
+            payload[deviceId] = Array.from(testSet);
+        }
+    });
+    console.log('Final selected tests execution payload:', payload);
+    fetch(`/api/v1/test-management/test-suite-execution/${execution_id}/re-execute-selected/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrftoken, 
+            'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',  
+        body: JSON.stringify({device_tests_info: payload})
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => Promise.reject(err));
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.re_execution_id) {
+            showMessage(`Test Execution for selected tests re-executed Successfully!`, 'success');
+            setTimeout(() => 
+                {
+                    window.location.href = "/admin/test_management/testsuiteexecution/";
+                }
+            , 1000);
+        } else {
+            showMessage(data.error || 'Failed to re-execute selected tests execution', 'error');    
+        }
+    })
+    .catch(error => {
+        console.error('selected tests re-execute error:', error);
+        showMessage(error.detail || error.message || 'Failed to re-execute selected tests execution', 'error');
+    });
+}
+
 // abortAllTests function
 function abortAllTests() {
     if (!confirm('Are you sure you want to abort this execution?')) {
@@ -1286,6 +1448,7 @@ function loadExecutionHistory() {
             </div>
         `;
     });
+    updateReExecuteButtonState();
 }
 
 // Auto-refresh management

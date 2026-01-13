@@ -214,6 +214,11 @@ urlpatterns = [
                 "test-suite-execution/<uuid:execution_id>/re-execute/",
                 views.re_execute_view,
                 name="re-execute-execution"
+            ),
+            path(
+                "test-suite-execution/<uuid:execution_id>/re-execute-selected/",
+                views.re_execute_selected_view,
+                name="re-execute-selected-execution"
             )
 
             

@@ -593,7 +593,7 @@
 <div class="breadcrumbs">
     <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
     &rsaquo; <a href="{% url 'admin:test_management_testsuiteexecution_changelist' %}">{% trans 'Test Executions' %}</a>
-    &rsaquo; {% trans 'Execution History' %}
+    &rsaquo; {% trans 'All History' %}
 </div>
 {% endblock %}
 
@@ -661,107 +661,7 @@ function displayExecutionData(data) {
     // Update page title
     
     // Update summary
-
-    let total_execution_time = 0;
-    data.devices.forEach(device => {
-        // device-level total
-        let total_time_for_device = device.test_cases.every(
-            item => item?.execution_duration?.seconds != null
-        ) ? device.test_cases.reduce((acc, item) => acc + item.execution_duration.seconds, 0)
-            : null;
-
-        device.total_time_for_device = total_time_for_device; // store it back if needed
-
-        // suite-level total
-        if (total_time_for_device != null && total_execution_time!=null) {
-            total_execution_time = (total_execution_time ?? 0) + total_time_for_device;
-        } else {
-            total_execution_time = null; // if one is missing, mark overall as null
-        }
-        });
     
-    
-    const reExecuteSection = document.getElementById('re-execute-execution');
-    reExecuteSection.innerHTML=`
-        <button ${data.status !== 3 ? "disabled" : ""} class="re-execute-button" onclick="reExecute('${data.execution_id}')">
-        Re-Execute
-    </button>
-    `
-    
-
-            // Robot Framework section
-            // let robotSection = '';
-            // if (robotTests.length) {
-            //     robotSection = `
-            //         <div class="test-section">
-            //             <div class="section-header open" onclick="handleHideClick(this,'robot-test-case-table-${device.device_execution_id}')">
-            //                 <div class="header-left">
-            //                     <svg class="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" 
-            //                         viewBox="0 0 24 24" stroke="currentColor">
-            //                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-            //                             d="M9 5l7 7-7 7" />
-            //                     </svg>
-            //                     <h3>Robot Framework Tests</h3>
-            //                 </div>
-
-                           
-            //             </div>
-            //             <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">
-            //                 <colgroup>
-            //                     <col style="width: 20%">
-            //                     <col style="width: 10%">
-            //                     <col style="width: 15%">
-            //                     <col style="width: 15%">
-            //                     <col style="width: 10%">
-            //                     <col style="width: 30%">
-            //                 </colgroup>
-            //                 ${buildTable(robotTests).replace('<table class="results-table">', '').replace('</table>', '')}
-            //             </table>
-            //         </div>
-            //     `;
-            // }
-             
-
-
-            // // Device Agent section
-            // let agentSection = '';
-            // let show_nb_testcase_report= agentTests.filter((test)=> test.status !== "success" && test.status !== "failed").length === 0;
-            // if (agentTests.length) {
-            //     agentSection = `
-            //        <div class="test-section">
-            //             <div class="section-header open" onclick="handleHideClick(this,'agent-test-case-table-${device.device_execution_id}')">
-            //                 <div class="header-left">
-            //                     <svg class="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" 
-            //                         viewBox="0 0 24 24" stroke="currentColor">
-            //                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-            //                             d="M9 5l7 7-7 7" />
-            //                     </svg>
-            //                     <h3>Device Tests</h3>
-            //                 </div>
-                           
-            //             </div>
-            //             <table class="results-table aligned-table agent-test-case-table-${device.device_execution_id}">
-            //                 <colgroup>
-            //                     <col style="width: 20%">
-            //                     <col style="width: 10%">
-            //                     <col style="width: 15%">
-            //                     <col style="width: 15%">
-            //                     <col style="width: 10%">
-            //                     <col style="width: 30%">
-            //                 </colgroup>
-            //                 ${buildTable(agentTests).replace('<table class="results-table">', '').replace('</table>', '')}
-            //             </table>
-            //         </div>
-            //     `;
-            // }
-           
-
-            // if(robotSection==='' && agentSection===''){
-            //     agentSection = '<div class="empty-state">No test results available for this device.</div>';
-            // }
-           
-
-
     const reExecutionDiv = document.getElementById('re-execution-details');
     const items= data.re_execution_data || [];
     if(!items.length){
