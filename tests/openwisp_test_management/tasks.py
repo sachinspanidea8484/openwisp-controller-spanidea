@@ -11,8 +11,10 @@ from .base.models import TestExecutionStatus
 import requests
 import os
 import subprocess
+import json
 
-from .settings import EXECUTOR_SERVER_IP
+
+from .settings import EXECUTOR_SERVER_IP ,OPENWISP_SERVER_IP ,MEDIA_URL
 
 from django.db import transaction
 from django.core.cache import cache
@@ -42,6 +44,7 @@ TestCaseExecution = load_model("TestCaseExecution")
 TestSuiteCase = load_model("TestSuiteCase")
 ScheduledExecution= load_model("ScheduledExecution")
 TestCase= load_model("TestCase")
+ExecutionArtifact= load_model("ExecutionArtifact")
 # Device Execution Type Configuration
 DEVICE_EXECUTION_TYPE = 1 # 1 for SSH, 0 for MQTT (default is SSH)
 
@@ -266,14 +269,43 @@ def execute_tests_on_device(device_execution_id):
             
             if test_execution and test_execution.id:
                 print(f"✅ Successfully created TestCaseExecution with ID: {test_execution.id}")
-            
+           
+            artifact= ExecutionArtifact.objects.filter(
+             device= device,
+             testcase=test_case,
+             execution= test_suite_execution
+            ).only("config_file", "is_pushed").first()
+
+            # ✅ NEW: Prepare file parameters
+            is_file_required = test_case.is_configuration_push_required
+            file_download_url = None
+
+
+            if artifact and artifact.config_file and not artifact.is_pushed:
+             # Build full download URL
+             from django.conf import settings
+             file_path = artifact.config_file.name  # e.g., "execution_artifacts/test.zip"
+             file_download_url = f"{MEDIA_URL}{file_path}"
+             # If MEDIA_URL is relative, make it absolute
+             if not file_download_url.startswith('http'):
+                          # Get base URL from request or settings
+                          base_url = OPENWISP_SERVER_IP
+                          file_download_url = f"{base_url}{file_download_url}"
+
+
+            logger.debug(f"is_file_required >>>>>>>>: {is_file_required}")
+            logger.debug(f"file_download_url>>>>>>>>: {file_download_url}")
+
+           
             # Add to test suite data for executor server
             test_suite_data["test_cases"].append({
                 "test_case_id": test_case.test_case_id,
                 "test_case_name": test_case.name,
                 "test_type": test_case.test_type,
                 "params": test_case.params,
-                "execution_id": test_execution.id
+                "execution_id": test_execution.id,
+                "is_file_required": is_file_required,  # ✅ NEW
+                "file_download_url": file_download_url  # ✅ NEW
             })
             
             logger.debug(f"Created TestCaseExecution ID: {test_execution.id}")
@@ -294,7 +326,14 @@ def execute_tests_on_device(device_execution_id):
             logger.info(f"Sending {len(all_test_execution_ids)} test cases to executor server")
             print(f"[TASK] Sending {len(all_test_execution_ids)} tests to executor server")
 
-            # Send all tests to executor server
+
+            logger.debug(f"is_file_required >>>>>>>>: {is_file_required}")
+            logger.debug(f"file_download_url>>>>>>>>: {file_download_url}")
+            # print("="*80)
+            # print("Request send from OpenWISP")
+            # print(f"Request data: {json.dumps(test_suite_data.model_dump(), indent=2)}")
+            # print("="*80)
+
             execute_tests_on_executor_server.delay(
                 all_test_execution_ids,
                 device_data,
@@ -667,7 +706,12 @@ def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite
             "test_type": test_case.get('test_type', 1),  # Include test type
             "execution_id": str(test_case.get('execution_id', '')),
             "params": test_case.get('params', {}),
+            "is_file_required": test_case.get('is_file_required', False),
+            "file_download_url": test_case.get('file_download_url', ""),
+
         })
+
+
     
     # Extract device_execution_id
     device_execution_id_str = str(device_execution_id)
@@ -710,7 +754,8 @@ def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite
             "test_suite_name": test_suite_data_fixed.get('test_suite_name'),
             "test_suite_id": test_suite_data_fixed.get('test_suite_id'),
             "test_suite_execution_id": test_suite_data_fixed.get('test_suite_execution_id'),
-            "test_cases": sorted_test_cases
+            "test_cases": test_suite_data_fixed.get('test_cases', [])  # Changed from sorted_test_cases
+
         },
         "execution_metadata": {
             "device_execution_id": device_execution_id_str,
@@ -954,6 +999,25 @@ def retry_test_execution(test_execution_id):
             },
             "configuration": device_config.context if device_config else {}
         }
+        artifact= ExecutionArtifact.objects.filter(
+         device= device,
+         testcase=test_case,
+         execution= test_suite_execution
+        ).only("config_file", "is_pushed").first()
+
+        # ✅ NEW: Prepare file parameters
+        is_file_required = test_case.is_configuration_push_required
+        file_download_url = None
+
+        if artifact and artifact.config_file and not artifact.is_pushed:
+         from django.conf import settings
+         file_path = artifact.config_file.name
+         file_download_url = f"{MEDIA_URL}{file_path}"
+         if not file_download_url.startswith('http'):
+                  base_url = OPENWISP_SERVER_IP
+                  file_download_url = f"{base_url}{file_download_url}"
+        
+
         
         test_suite_data = {
             "test_suite_name": test_suite_name,
@@ -964,7 +1028,9 @@ def retry_test_execution(test_execution_id):
                 "test_case_name": test_case.name,
                 "test_type": test_case.test_type,
                 "params": test_case.params,
-                "execution_id": test_execution_id
+                "execution_id": test_execution_id,
+                "is_file_required": is_file_required,  # ✅ NEW
+                "file_download_url": file_download_url  # ✅ NEW
             }]
         }
         
