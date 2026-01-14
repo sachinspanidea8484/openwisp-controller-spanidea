@@ -180,26 +180,26 @@ urlpatterns = [
             #     views.get_device_group_devices,
             #     name="api_device_group_devices",
             # ),
-            path(
-                "device-groups/",
-                views.TestDeviceGroupViewSet.as_view({
-                    "get": "list",      # GET /device-groups/
-                    "post": "create"    # POST /device-groups/
-                }),
-                name="device-group-list",
-            ),
+            # path(
+            #     "device-groups/",
+            #     views.TestDeviceGroupViewSet.as_view({
+            #         "get": "list",      # GET /device-groups/
+            #         "post": "create"    # POST /device-groups/
+            #     }),
+            #     name="device-group-list",
+            # ),
 
             # Detail endpoint: retrieve + update + delete
-            path(
-                "device-groups/<uuid:pk>/",
-                views.TestDeviceGroupViewSet.as_view({
-                    "get": "retrieve",           # GET /device-groups/{id}/
-                    "patch": "partial_update",   # PATCH /device-groups/{id}/
-                    "delete": "destroy",          # DELETE /device-groups/{id}/
-                    "put": "update",
-                }),
-                name="device-group-detail",
-            ),
+            # path(
+            #     "device-groups/<uuid:pk>/",
+            #     views.TestDeviceGroupViewSet.as_view({
+            #         "get": "retrieve",           # GET /device-groups/{id}/
+            #         "patch": "partial_update",   # PATCH /device-groups/{id}/
+            #         "delete": "destroy",          # DELETE /device-groups/{id}/
+            #         "put": "update",
+            #     }),
+            #     name="device-group-detail",
+            # ),
             # path(
             #     "devices/configuration-push",
             #     views.ConfigurationPushOnDevice,
