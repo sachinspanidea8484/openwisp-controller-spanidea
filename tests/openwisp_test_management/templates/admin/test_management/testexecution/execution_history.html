@@ -831,11 +831,6 @@ function displayExecutionData(data) {
             <div class="summary-label">Total Devices:</div>
             <div class="summary-value">${data?.device_count}</div>
         </div>
-
-         <div class="summary-row">
-            <div class="summary-label">Total Test Cases:</div>
-            <div class="summary-value">${data?.testcase_count}</div>
-        </div>
         ${data.status ===3 && total_execution_time ? `<div class="summary-row">
             <div class="summary-label">Total Execution Time:</div>
             <div class="summary-value">${(total_execution_time).toFixed(2)} s</div>

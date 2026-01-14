@@ -601,13 +601,41 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
             if test_execution and test_execution.id:
                 print(f"✅ Successfully created TestCaseExecution with ID: {test_execution.id}")
             
+            artifact= ExecutionArtifact.objects.filter(
+             device= device,
+             testcase=test_case,
+             execution= test_suite_execution
+            ).only("config_file", "is_pushed").first()
+
+            # ✅ NEW: Prepare file parameters
+            is_file_required = test_case.is_configuration_push_required
+            file_download_url = None
+
+
+            if artifact and artifact.config_file and not artifact.is_pushed:
+             # Build full download URL
+             from django.conf import settings
+             file_path = artifact.config_file.name  # e.g., "execution_artifacts/test.zip"
+             file_download_url = f"{MEDIA_URL}{file_path}"
+             # If MEDIA_URL is relative, make it absolute
+             if not file_download_url.startswith('http'):
+                          # Get base URL from request or settings
+                          base_url = OPENWISP_SERVER_IP
+                          file_download_url = f"{base_url}{file_download_url}"
+
+
+            logger.debug(f"is_file_required >>>>>>>>: {is_file_required}")
+            logger.debug(f"file_download_url>>>>>>>>: {file_download_url}")
+
             # Add to test suite data for executor server
             test_suite_data["test_cases"].append({
                 "test_case_id": test_case.test_case_id,
                 "test_case_name": test_case.name,
                 "test_type": test_case.test_type,
                 "params": test_case.params,
-                "execution_id": test_execution.id
+                "execution_id": test_execution.id,
+                "is_file_required": is_file_required,  # ✅ NEW
+                "file_download_url": file_download_url  # ✅ NEW
             })
             
             logger.debug(f"Created TestCaseExecution ID: {test_execution.id}")
