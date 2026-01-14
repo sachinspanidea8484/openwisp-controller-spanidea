@@ -6,7 +6,7 @@ from django.conf import settings
 from django.utils import timezone
 from uuid import UUID
 from django.core.exceptions import ValidationError
-
+from django.template.response import TemplateResponse
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
@@ -1824,25 +1824,24 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         else:
             test_source_name= f"Individual Tests ({execution.testcase_count})"
         
-        context = {
-            'title': f'Test Execution History',
-            # 'title': f'Test Execution History - {test_source_name}',
-            'execution': execution,
-            'execution_id': str(execution.pk),
+        context = dict(
+        self.admin_site.each_context(request),  # ✅ REQUIRED
+        title="All History",
+        execution=execution,
+        execution_id=str(execution.pk),
+        execution_devices=execution_devices,
+        device_executions=device_executions,
+        test_case_executions=test_case_executions,
+        opts=self.model._meta,                  # ✅ REQUIRED
+        original=execution,                     # ✅ REQUIRED
+        preserved_filters=self.get_preserved_filters(request),
+        has_view_permission=True,
+        )
 
-            'execution_devices': execution_devices,
-            'device_executions': device_executions,
-            'test_case_executions': test_case_executions,
-            'opts': self.model._meta,
-            'has_view_permission': True,
-            'original': execution,
-            'preserved_filters': self.get_preserved_filters(request),
-        }
-        
-        return render(
+        return TemplateResponse(
             request,
             'admin/test_management/testexecution/all_executions_history.html',
-            context
+            context,
         )
     
     def execution_history_view(self, request, object_id):
@@ -1905,26 +1904,26 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         else:
             test_source_name= f"Individual Tests ({execution.testcase_count})"
         
-        context = {
-            'title': f'Test Execution History',
-            # 'title': f'Test Execution History - {test_source_name}',
-            'execution': execution,
-            'execution_id': str(execution.pk),
+        context = dict(
+        self.admin_site.each_context(request),  # ✅ REQUIRED
+        title="Test Execution History",
+        execution=execution,
+        execution_id=str(execution.pk),
+        execution_devices=execution_devices,
+        device_executions=device_executions,
+        test_case_executions=test_case_executions,
+        opts=self.model._meta,                  # ✅ REQUIRED
+        original=execution,                     # ✅ REQUIRED
+        preserved_filters=self.get_preserved_filters(request),
+        has_view_permission=True,
+        )
 
-            'execution_devices': execution_devices,
-            'device_executions': device_executions,
-            'test_case_executions': test_case_executions,
-            'opts': self.model._meta,
-            'has_view_permission': True,
-            'original': execution,
-            'preserved_filters': self.get_preserved_filters(request),
-        }
-        
-        return render(
+        return TemplateResponse(
             request,
             'admin/test_management/testexecution/execution_history.html',
-            context
+            context,
         )
+        
     
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -2026,6 +2025,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
                 if not has_error:
                     # VALIDATE BEFORE SAVE
+                    total_forms = formset.total_form_count()
+                    config_required = total_forms > 0
                     formset.save()
 
                     schedule_time= request.session.get("execution_schedule_time")
@@ -2038,11 +2039,19 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                             schedule_time,
                         )
                         request.session.pop("execution_schedule_time", None)
-                    self.message_user(
-                        request,
-                        "Configuration uploaded successfully.",
-                        messages.SUCCESS,
-                    )
+
+                    if config_required:
+                        self.message_user(
+                            request,
+                            "Configuration uploaded successfully.",
+                            messages.SUCCESS,
+                        )
+                    else: 
+                        self.message_user(
+                            request,
+                            "Additional Details saved successfully.",
+                            messages.SUCCESS,
+                        )
 
                     return HttpResponseRedirect(
                         reverse("admin:test_management_testsuiteexecution_changelist")
@@ -2050,27 +2059,34 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
         else:
             formset = ExecutionArtifactFormSet(instance=execution)
-
+        
         context = dict(
-            self.admin_site.each_context(request),
-            title="Configuration Push",
+            self.admin_site.each_context(request),  # ✅ REQUIRED
+            title="Additional Details",
             execution=execution,
-            formset=formset,
+            opts=self.model._meta,                  # ✅ REQUIRED
+            original=execution,                     # ✅ REQUIRED
+            formset=formset
         )
-        return render(
+
+        return TemplateResponse(
             request,
-            "admin/test_management/config_push.html",
+            'admin/test_management/config_push.html',
             context,
+            
         )
+        
+    
     def view_history(self, obj):
         """Add history view link"""
-        if obj.pk:
-            # You can customize the URL pattern based on your history view
-            return format_html(
-                '<a href="{}" class="viewlink">View History</a>',
-            f'{obj.pk}/all-history/',
-            )
-        return "-"
+        if not obj.pk:
+            return "-"
+
+        url = reverse(
+            "admin:test_management_testexecution_all_history",
+            args=[obj.pk],
+        )
+        return format_html('<a href="{}" class="viewlink">View History</a>', url)
     view_history.short_description = _("History")
     view_history.allow_tags = True
     
