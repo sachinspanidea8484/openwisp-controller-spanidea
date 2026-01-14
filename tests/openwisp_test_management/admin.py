@@ -443,66 +443,394 @@ class TestCaseAdminForm(forms.ModelForm):
             'robot_script': forms.ClearableFileInput(attrs={'accept': '.robot'}),
             'python_script': forms.ClearableFileInput(attrs={'accept': '.py'}),
         }
+
+    def extract_tag_from_robot_file(self, robot_file):
+        """Extract test case ID from [Tags] line, returns None if empty"""
+        try:
+            if hasattr(robot_file, 'read'):
+                robot_file.seek(0)
+                content = robot_file.read().decode('utf-8')
+                robot_file.seek(0)
+            else:
+                content = robot_file
+            
+            import re
+            # Match [Tags] line (with or without content)
+            tag_pattern = r'\[Tags\]\s*(.*)$'
+            match = re.search(tag_pattern, content, re.MULTILINE)
+            
+            if match:
+                tag_content = match.group(1).strip()
+                if tag_content:
+                    # Return only first word/ID
+                    return tag_content.split()[0]
+                else:
+                    # [Tags] exists but empty
+                    return None
+            return None  # No [Tags] found
+        except Exception as e:
+            return None
     
-    def clean_params(self):
-        params = self.cleaned_data.get('params')
-        if params and params.strip():
+    def update_robot_file_tag(self, robot_file, new_test_case_id):
+        """
+        Update [Tags] AND Library path in robot file
+        """
+        try:
+            if hasattr(robot_file, 'read'):
+                robot_file.seek(0)
+                content = robot_file.read().decode('utf-8')
+            else:
+                with open(robot_file.path, 'r') as f:
+                    content = f.read()
+            
+            import re
+            
+            # STEP 1: Update [Tags]
+            existing_tag_pattern = r'(\[Tags\]\s+)([A-Za-z0-9_\-.:/]+)(.*?)$'
+            empty_tag_pattern = r'(\[Tags\])\s*$'
+            
+            if re.search(existing_tag_pattern, content, re.MULTILINE):
+                content = re.sub(
+                    existing_tag_pattern,
+                    rf'\1{new_test_case_id}\3',
+                    content,
+                    count=1,
+                    flags=re.MULTILINE
+                )
+            elif re.search(empty_tag_pattern, content, re.MULTILINE):
+                content = re.sub(
+                    empty_tag_pattern,
+                    rf'\1    {new_test_case_id}',
+                    content,
+                    count=1,
+                    flags=re.MULTILINE
+                )
+            
+            # STEP 2: Update Library path (FIRST occurrence only)
+            library_pattern = r'(Library\s+\.\./\.\./resources/keywords/)([a-zA-Z0-9_\-]+)(\.py)'
+            matches = list(re.finditer(library_pattern, content))
+            
+            if matches:
+                first_match = matches[0]
+                old_filename = first_match.group(2)
+                
+                # Only replace if it's different
+                if old_filename != new_test_case_id:
+                    content = content[:first_match.start()] + \
+                            f'{first_match.group(1)}{new_test_case_id}{first_match.group(3)}' + \
+                            content[first_match.end():]
+            
+            # Create updated file
+            from io import BytesIO
+            from django.core.files.uploadedfile import InMemoryUploadedFile
+            
+            file_io = BytesIO(content.encode('utf-8'))
+            updated_file = InMemoryUploadedFile(
+                file_io,
+                'robot_script',
+                robot_file.name if hasattr(robot_file, 'name') else 'updated.robot',
+                'text/plain',
+                len(content.encode('utf-8')),
+                None
+            )
+            return updated_file
+            
+        except Exception as e:
+            raise forms.ValidationError(_(f"Error updating robot file: {str(e)}"))
+    def update_python_library_path_in_robot(self, robot_file, test_case_id):
+        """
+        Replace ../../resources/keywords/<any_name>.py with ../../resources/keywords/<test_case_id>.py
+        - Only replaces the FIRST occurrence
+        - Skips connection_manager.py or any file NOT directly in keywords/
+        - Handles edge cases safely
+        """
+        try:
+            if hasattr(robot_file, 'read'):
+                robot_file.seek(0)
+                content = robot_file.read().decode('utf-8')
+            else:
+                with open(robot_file.path, 'r') as f:
+                    content = f.read()
+            
+            import re
+            
+            # Pattern to match: Library    ../../resources/keywords/<filename>.py
+            # BUT NOT: Library    ../../resources/keywords/execution/connection_manager.py
+            pattern = r'(Library\s+\.\./\.\./resources/keywords/)([a-zA-Z0-9_\-]+)(\.py)'
+            
+            # Find all matches
+            matches = list(re.finditer(pattern, content))
+            
+            if not matches:
+                # No matching library found, return original
+                return robot_file
+            
+            # Get the first match
+            first_match = matches[0]
+            old_filename = first_match.group(2)
+            
+            # Skip if it's already the test case ID
+            if old_filename == test_case_id:
+                return robot_file
+            
+            # Replace ONLY the first occurrence
+            updated_content = content[:first_match.start()] + \
+                            f'{first_match.group(1)}{test_case_id}{first_match.group(3)}' + \
+                            content[first_match.end():]
+            
+            # Create updated file
+            from io import BytesIO
+            from django.core.files.uploadedfile import InMemoryUploadedFile
+            
+            file_io = BytesIO(updated_content.encode('utf-8'))
+            updated_file = InMemoryUploadedFile(
+                file_io,
+                'robot_script',
+                robot_file.name if hasattr(robot_file, 'name') else 'updated.robot',
+                'text/plain',
+                len(updated_content.encode('utf-8')),
+                None
+            )
+            return updated_file
+            
+        except Exception as e:
+            raise forms.ValidationError(_(f"Error updating library path: {str(e)}"))
+    
+
+    def validate_robot_file_syntax(self, robot_file):
+        """
+        STANDARD WAY: Validate robot file using robot.parsing
+        Falls back to basic validation if robot library not available
+        """
+        try:
+            if hasattr(robot_file, 'read'):
+                robot_file.seek(0)
+                content = robot_file.read().decode('utf-8')
+                robot_file.seek(0)
+            else:
+                with open(robot_file.path, 'r') as f:
+                    content = f.read()
+            
+            # METHOD 1: Use robot.parsing (Most Standard)
             try:
-                # Validate and minify JSON for storage
-                return json.loads(params.strip())
-                # return json.dumps(parsed, separators=(',', ':'))
-                # return params
-            except json.JSONDecodeError as e:
-                raise forms.ValidationError(_("Invalid JSON format: {}".format(str(e))))
-        return {}
+                from robot.parsing.model import TestCaseFile
+                from robot.parsing import get_model
+                from io import StringIO
+                import tempfile
+                import os
+                
+                # Create temporary file (robot library needs actual file)
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.robot', delete=False) as tmp:
+                    tmp.write(content)
+                    tmp_path = tmp.name
+                
+                try:
+                    # Parse the robot file
+                    model = get_model(tmp_path)
+                    
+                    # Detailed validation
+                    errors = []
+                    
+                    # Check for test cases
+                    if not model.sections:
+                        errors.append("No sections found in robot file")
+                    
+                    has_test_cases = False
+                    for section in model.sections:
+                        if hasattr(section, 'header') and section.header:
+                            if 'Test Cases' in str(section.header.data_tokens):
+                                has_test_cases = True
+                                break
+                    
+                    if not has_test_cases:
+                        errors.append("No '*** Test Cases ***' section found")
+                    
+                    if errors:
+                        return False, "; ".join(errors)
+                    
+                    return True, None
+                    
+                finally:
+                    # Clean up temp file
+                    if os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
+                        
+            except ImportError:
+                # METHOD 2: Fallback - Basic regex validation
+                return self._basic_robot_validation(content)
+                
+        except Exception as e:
+            return False, f"Error validating robot file: {str(e)}"
     
-    def clean(self):
-
-        cleaned_data= super().clean()
-
-        test_type = cleaned_data.get("test_type")
-        python_script= cleaned_data.get("python_script")
-        robot_script = cleaned_data.get("robot_script")
-
-        if not python_script:
-            self.add_error(
-                "python_script",
-                "Python Script is Required."
-            )
-        if python_script and not python_script.name.endswith(".py"):
-            self.add_error(
-                "python_script",
-                "Only .py files allowed."
-            )
+    def _basic_robot_validation(self, content):
+        """Fallback validation when robot library not available"""
+        import re
+        errors = []
         
+        # Check for required sections
+        required_sections = [
+            r'\*\*\* Test Cases \*\*\*',
+            r'\[Tags\]'
+        ]
+        
+        if not re.search(required_sections[0], content):
+            errors.append("Missing '*** Test Cases ***' section")
+        
+        if not re.search(required_sections[1], content):
+            errors.append("Missing '[Tags]' in test case")
+        
+        # Check for basic syntax errors
+        if '***' in content:
+            # Validate section headers
+            section_pattern = r'\*\*\* \w+( \w+)* \*\*\*'
+            invalid_sections = re.findall(r'\*\*\*[^\*]+\*\*\*', content)
+            for section in invalid_sections:
+                if not re.match(section_pattern, section):
+                    errors.append(f"Invalid section header: {section}")
+        
+        return len(errors) == 0, "; ".join(errors) if errors else None
+    
+    def validate_python_file_syntax(self, python_file):
+        """
+        STANDARD WAY: Validate Python file using ast and compile
+        """
+        try:
+            if hasattr(python_file, 'read'):
+                python_file.seek(0)
+                content = python_file.read().decode('utf-8')
+                python_file.seek(0)
+            else:
+                with open(python_file.path, 'r') as f:
+                    content = f.read()
+            
+            # METHOD 1: AST parsing (catches syntax errors)
+            import ast
+            try:
+                tree = ast.parse(content)
+                
+                # METHOD 2: Additional validation - check for common issues
+                errors = []
+                
+                # Check if file is not empty
+                if not content.strip():
+                    errors.append("Python file is empty")
+                
+                # Check for basic Python structure
+                if not any(isinstance(node, (ast.FunctionDef, ast.ClassDef)) for node in ast.walk(tree)):
+                    errors.append("No functions or classes found - file may be incomplete")
+                
+                if errors:
+                    return False, "; ".join(errors)
+                
+                # METHOD 3: Try to compile (catches more subtle errors)
+                compile(content, '<string>', 'exec')
+                
+                return True, None
+                
+            except SyntaxError as e:
+                error_msg = f"Syntax Error at line {e.lineno}: {e.msg}"
+                if e.text:
+                    error_msg += f"\n  Code: {e.text.strip()}"
+                    if e.offset:
+                        error_msg += f"\n  " + " " * (e.offset - 1) + "^"
+                return False, error_msg
+            
+            except Exception as e:
+                return False, f"Compilation error: {str(e)}"
+                
+        except Exception as e:
+            return False, f"Error validating Python file: {str(e)}"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        test_type = cleaned_data.get("test_type")
+        python_script = cleaned_data.get("python_script")
+        robot_script = cleaned_data.get("robot_script")
+        test_case_id = cleaned_data.get("test_case_id")
+        
+        # Validate Python script
+        if python_script:
+            if not python_script.name.endswith(".py"):
+                self.add_error("python_script", "Only .py files allowed.")
+            else:
+                is_valid, error_msg = self.validate_python_file_syntax(python_script)
+                if not is_valid:
+                    self.add_error(
+                        "python_script",
+                        f"Python validation failed:\n{error_msg}"
+                    )
+        else:
+            self.add_error("python_script", "Python Script is Required.")
+        
+        # Robot Framework validation
         if test_type == TestTypeChoices.ROBOT_FRAMEWORK:
-           
             if not robot_script:
-                self.add_error(
-                    "robot_script",
-                    "Robot Script is Required for Robot Framework."
-                )
-            if robot_script and not robot_script.name.endswith(".robot"):
-                self.add_error(
-                    "robot_script",
-                    "Only .robot files allowed."
-                )
-        elif test_type==TestTypeChoices.AGENT:
-            cleaned_data["robot_script"]= None
-
+                self.add_error("robot_script", "Robot Script is Required for Robot Framework.")
+            elif not robot_script.name.endswith(".robot"):
+                self.add_error("robot_script", "Only .robot files allowed.")
+            else:
+                # Validate robot file syntax FIRST
+                is_valid, error_msg = self.validate_robot_file_syntax(robot_script)
+                if not is_valid:
+                    self.add_error(
+                        "robot_script",
+                        f"Robot file validation failed:\n{error_msg}"
+                    )
+                else:
+                    # Check for [Tags] line
+                    import re
+                    robot_script.seek(0)
+                    content = robot_script.read().decode('utf-8')
+                    robot_script.seek(0)
+                    
+                    if not re.search(r'\[Tags\]', content):
+                        self.add_error(
+                            "robot_script",
+                            "Robot file must contain a [Tags] line in test case. "
+                            "Example:\n    [Tags]    TEST_ID"
+                        )
+                    else:
+                        # Extract existing tag
+                        extracted_tag = self.extract_tag_from_robot_file(robot_script)
+                        
+                        # **MAIN LOGIC: Add or Update Tag**
+                        if not self.instance.pk:  # NEW test case
+                            if test_case_id:
+                                # User entered ID, add/update it in robot file
+                                cleaned_data['robot_script'] = self.update_robot_file_tag(
+                                    robot_script, test_case_id
+                                )
+                            elif extracted_tag:
+                                # No user ID, use robot file's tag
+                                cleaned_data['test_case_id'] = extracted_tag
+                            else:
+                                # Both empty
+                                self.add_error(
+                                    "test_case_id",
+                                    "Please enter a Test Case ID"
+                                )
+                        else:  # EDIT existing test case
+                            if test_case_id != self.instance.test_case_id:
+                                # User changed ID, update robot file
+                                cleaned_data['robot_script'] = self.update_robot_file_tag(
+                                    robot_script, test_case_id
+                                )
+                            elif extracted_tag and extracted_tag != test_case_id:
+                                # Robot file changed but ID different, sync it
+                                cleaned_data['robot_script'] = self.update_robot_file_tag(
+                                    robot_script, test_case_id
+                                )
+                            elif not extracted_tag:
+                                # Robot file has empty [Tags], add current ID
+                                cleaned_data['robot_script'] = self.update_robot_file_tag(
+                                    robot_script, test_case_id
+                                )
+        
+        elif test_type == TestTypeChoices.AGENT:
+            cleaned_data["robot_script"] = None
+        
         return cleaned_data
-
-    # def clean_json_file(self):
-    #     json_file = self.cleaned_data.get('json_file')
-    #     if json_file:
-    #         try:
-    #             content = json_file.read().decode('utf-8')
-    #             json.loads(content)
-    #             return json_file
-    #         except (UnicodeDecodeError, json.JSONDecodeError) as e:
-    #             raise forms.ValidationError(_("Invalid JSON file: {}".format(str(e))))
-    #     return json_file
-
+ 
 # @admin.register(TestCase)
 class TestCaseAdmin(BaseVersionAdmin):
     form = TestCaseAdminForm
@@ -709,7 +1037,57 @@ class TestCaseAdmin(BaseVersionAdmin):
                 'accept': '.json',
                 'style': 'display: none;'
             })
+
+
+        # **NEW: Add warning messages for EDIT mode**
+        if obj:  # Edit mode
+         if "python_script" in form.base_fields:
+             current_file = obj.python_script.name.split('/')[-1] if obj.python_script else "None"
+             form.base_fields["python_script"].help_text = format_html(
+                  '<span style="color: #856404; background: #fff3cd; padding: 5px 10px; '
+                  'border-radius: 4px; display: inline-block; margin-top: 5px;">'
+                  '⚠️ <strong>Warning:</strong> Uploading a new file will permanently replace: <code>{}</code>'
+                  '</span><br>{}',
+                  current_file,
+                  _("Upload Python script (.py file)")
+             )
+         
+         if "robot_script" in form.base_fields:
+             current_file = obj.robot_script.name.split('/')[-1] if obj.robot_script else "None"
+             form.base_fields["robot_script"].help_text = format_html(
+                  '<span style="color: #856404; background: #fff3cd; padding: 5px 10px; '
+                  'border-radius: 4px; display: inline-block; margin-top: 5px;">'
+                  '⚠️ <strong>Warning:</strong> Uploading a new file will permanently replace: <code>{}</code><br>'
+                  'The [Tags] will be automatically updated to match Test Case ID'
+                  '</span><br>{}',
+                  current_file,
+                  _("Upload Robot script (.robot file)")
+             )
+         
+        #  if "test_case_id" in form.base_fields:
+        #      form.base_fields["test_case_id"].help_text = format_html(
+        #           '<span style="color: #856404; background: #fff3cd; padding: 5px 10px; '
+        #           'border-radius: 4px; display: inline-block; margin-top: 5px;">'
+        #           '⚠️ <strong>Warning:</strong> Changing this will update [Tags] in robot file'
+        #           '</span><br>{}',
+        #           _("Only letters, numbers, _, -, ., :, / are allowed.")
+        #      )    
         return form
+
+
+    
+    def save_model(self, request, obj, form, change):
+        """Override save to ensure robot file is synced before saving"""
+        # Save the object first
+        super().save_model(request, obj, form, change)
+        
+        # If robot file exists and needs update, it's already handled in form.clean()
+        # This is just a safety hook for future enhancements
+        if obj.test_type == TestTypeChoices.ROBOT_FRAMEWORK and obj.robot_script:
+            # Log the synchronization for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Test case {obj.test_case_id} saved with robot script")
 
     class Media:
         js = ('test-management/js/json_file_handler.js', 'test-management/js/testcase_toggle_scripts.js',  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',)  # Add custom JavaScript

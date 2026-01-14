@@ -229,19 +229,37 @@ class AbstractTestCase(TimeStampedEditableModel):
 
         if not self.params:
             self.params = {}
+        # print("User provided params:", self.params)
+
+        # # Validate JSON params if provided
+        # if self.params and self.params != {}:
+        #     try:
+        #         if not isinstance(self.params, dict):
+        #             raise ValidationError({
+        #                 "params": _("Parameters must be a valid JSON object")
+        #             })
+        #     except (TypeError, ValueError):
+        #         raise ValidationError({
+        #             "params": _("Parameters must be valid JSON format")
+        #         })
         
+        if self.params not in (None, {}):
+          print("User provided params:", self.params)
+          
+
         # Validate JSON params if provided
-        if self.params and self.params != {}:
-            try:
-                if not isinstance(self.params, dict):
-                    raise ValidationError({
-                        "params": _("Parameters must be a valid JSON object")
-                    })
-            except (TypeError, ValueError):
-                raise ValidationError({
-                    "params": _("Parameters must be valid JSON format")
-                })
-        
+        # if self.params not in (None, {}):
+        #        try:
+        #                   if not isinstance(self.params, dict):
+        #                                  raise ValidationError({
+        #                                             "params": _("Parameters must be a valid JSON object")
+        #                                  })
+        #        except (TypeError, ValueError):
+        #         print("User provided params:", self.params)
+
+        #         raise ValidationError({
+        #     "params": _("Parameters must be valid JSON format")
+        # })  
         # Check for duplicate test_case_id
         qs = self.__class__.objects.filter(
             test_case_id=self.test_case_id
@@ -264,10 +282,10 @@ class AbstractTestCase(TimeStampedEditableModel):
             if qs.exists():
                 raise ValidationError({
                     "name": _(
-                        f"A test case with this name already exists "
+                        f"A test case with this name already exists"
                         f"in category '{self.category.name}'"
                     )
-                })
+                }) 
 
     def save(self, *args, **kwargs):
         # Ensure params is always a dict, never None or empty string
