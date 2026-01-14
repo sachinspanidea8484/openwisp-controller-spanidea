@@ -674,7 +674,8 @@ function displayExecutionData(data) {
                 <tr>
                    
                     <th>{% trans "Name" %}</th>
-                    <th>{% trans "Execution Time" %}</th>
+                    <th>{% trans "Status" %}</th>
+                    <th>{% trans "Execution Start Time" %}</th>
                     <th>{% trans "History" %}</th>
                 </tr>
                 </thead>
@@ -683,6 +684,7 @@ function displayExecutionData(data) {
                     <tr>
                     
                     <td>${r.name || ""}</td>
+                    <td>${r.status_display || ""}</td>
                     <td>${r.created ? new Date(r.created).toLocaleString() : "-"}</td>
                     <td><a href="${r.history_url}">{% trans "View" %}</a></td>
                     </tr>

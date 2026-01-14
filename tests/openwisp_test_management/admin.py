@@ -1532,7 +1532,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         # "test_suite_name",
         "device_count",
         "testcase_count",
-        "status_label",
+        # "status_label",
         "created",
         "view_history",
      ]

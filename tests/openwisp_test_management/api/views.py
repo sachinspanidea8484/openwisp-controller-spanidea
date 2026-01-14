@@ -4605,12 +4605,14 @@ def test_execution_all_history(request, execution_id):
             re_execution_data.append({
                 "id": r.id,
                 "name": r.name,
+                "status_display": r.status_display,
                 "created": r.created.isoformat() if r.created else None,
                 "history_url": reverse("admin:test_management_testsuiteexecution_history", args=[r.id]),
             })
         re_execution_data.append({
             "id": str(execution.pk),
             "name": execution.name,
+            "status_display": execution.status_display,
             "created": execution.created.isoformat() if execution.created else None,
             "history_url": reverse("admin:test_management_testsuiteexecution_history", args=[execution.pk]),
         })

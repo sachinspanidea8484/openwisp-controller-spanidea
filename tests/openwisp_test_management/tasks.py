@@ -545,12 +545,19 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
             test_suite_data["test_suite_id"]= test_suite_execution.test_suite.id
 
         selected_ids = set(selected_test_ids)
-        selected_test_cases = [
-            tc for tc in test_cases
-            if tc.test_case_id in selected_ids
-        ]
 
-        # Create execution records for ALL test cases
+        if test_suite_execution.test_selection_type == 1:
+            selected_test_cases = [
+                tc.test_case for tc in test_cases
+                if tc.test_case.test_case_id in selected_ids
+            ]
+        else:
+            selected_test_cases = [
+                tc for tc in test_cases
+                if tc.test_case_id in selected_ids
+            ]
+
+        # Create execution records for ALL selected test cases
         for test_case in selected_test_cases:
             logger.info(f"Creating execution record for test: {test_case.name} (Type: {test_case.get_test_type_display()})")
             print(f"[TASK] execute_selected_tests_on_device - Creating execution record for: {test_case.name}")
