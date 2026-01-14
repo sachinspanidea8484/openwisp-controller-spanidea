@@ -9,21 +9,21 @@ urlpatterns = [
         "test-management/",
         include([
             # Test Category endpoints
-            # path(
-            #     "category/",
-            #     views.test_category_list,
-            #     name="api_test_category_list",
-            # ),
-            # path(
-            #     "category/<uuid:pk>/",
-            #     views.test_category_detail,
-            #     name="api_test_category_detail",
-            # ),
-            # path(
-            #     "category/<uuid:category_id>/test-cases/",
-            #     views.get_category_test_cases,
-            #     name="api_category_test_cases",
-            # ),
+            path(
+                "category/",
+                views.test_category_list,
+                name="api_test_category_list",
+            ),
+            path(
+                "category/<uuid:pk>/",
+                views.test_category_detail,
+                name="api_test_category_detail",
+            ),
+            path(
+                "category/<uuid:category_id>/test-cases/",
+                views.get_category_test_cases,
+                name="api_category_test_cases",
+            ),
             path(
                 "category/get-test-cases/",
                 views.get_categories_test_cases,
@@ -31,45 +31,45 @@ urlpatterns = [
             ),
             
             # Test Case endpoints
-            # path(
-            #     "test-case/",
-            #     views.test_case_list,
-            #     name="api_test_case_list",
-            # ),
-            # path(
-            #     "test-case/<uuid:pk>/",
-            #     views.test_case_detail,
-            #     name="api_test_case_detail",
-            # ),
+            path(
+                "test-case/",
+                views.test_case_list,
+                name="api_test_case_list",
+            ),
+            path(
+                "test-case/<uuid:pk>/",
+                views.test_case_detail,
+                name="api_test_case_detail",
+            ),
             
             # Test Suite endpoints
-            # path(
-            #     "test-suite/",
-            #     views.test_suite_list,
-            #     name="api_test_suite_list",
-            # ),
-            # path(
-            #     "test-suite/<uuid:pk>/",
-            #     views.test_suite_detail,
-            #     name="api_test_suite_detail",
-            # ),
-            # path(
-            #     "test-suite/<uuid:suite_id>/details/",
-            #     views.get_test_suite_details,
-            #     name="api_test_suite_details",
-            # ),
+            path(
+                "test-suite/",
+                views.test_suite_list,
+                name="api_test_suite_list",
+            ),
+            path(
+                "test-suite/<uuid:pk>/",
+                views.test_suite_detail,
+                name="api_test_suite_detail",
+            ),
+            path(
+                "test-suite/<uuid:suite_id>/details/",
+                views.get_test_suite_details,
+                name="api_test_suite_details",
+            ),
             
             # Test Suite Execution endpoints
-            # path(
-            #     "execution/",
-            #     views.test_suite_execution_list,
-            #     name="api_test_suite_execution_list",
-            # ),
-            # path(
-            #     "execution/<uuid:pk>/",
-            #     views.test_suite_execution_detail,
-            #     name="api_test_suite_execution_detail",
-            # ),
+            path(
+                "execution/",
+                views.test_suite_execution_list,
+                name="api_test_suite_execution_list",
+            ),
+            path(
+                "execution/<uuid:pk>/",
+                views.test_suite_execution_detail,
+                name="api_test_suite_execution_detail",
+            ),
             path(
                 "execution/available-devices/",
                 views.available_devices,
@@ -115,12 +115,12 @@ urlpatterns = [
             
             # Robot Test Result endpoints
             #old
-            # path(
-            #     "robot-test-result/",
-            #     views.RobotTestResultView.as_view(),
-            #     name="api_robot_test_result",
-            # ),
-            # #new
+            path(
+                "robot-test-result/",
+                views.RobotTestResultView.as_view(),
+                name="api_robot_test_result",
+            ),
+            #new
             path(
                 "test-result/",
                 views.TestResultView.as_view(),
@@ -128,11 +128,11 @@ urlpatterns = [
             ),
             
 
-            # path(
-            #     "robot-test-result/running/",
-            #     views.RobotTestRunningResultView.as_view(),
-            #     name="api_robot_test_running_result",
-            # ),
+            path(
+                "robot-test-result/running/",
+                views.RobotTestRunningResultView.as_view(),
+                name="api_robot_test_running_result",
+            ),
 
                         path(
                 "test-result/running/",
@@ -141,11 +141,11 @@ urlpatterns = [
             ),
             
             # Device Test Result endpoints
-            # path(
-            #     "device-test-result/",
-            #     views.DeviceTestResultView.as_view(),
-            #     name="api_device_test_result",
-            # ),
+            path(
+                "device-test-result/",
+                views.DeviceTestResultView.as_view(),
+                name="api_device_test_result",
+            ),
             path(
                 "device-execution/<uuid:test_group_execution_id>/<uuid:dev_id>/upload-allure-report/",
                 views.upload_allure_report,
@@ -153,11 +153,11 @@ urlpatterns = [
             ),
             
             # Test Suite Execution Management
-            # path(
-            #     "test-suite-execution/<uuid:pk>/delete-all/",
-            #     views.TestSuiteExecutionDeleteAllView.as_view(),
-            #     name="api_test_suite_execution_delete_all",
-            # ),
+            path(
+                "test-suite-execution/<uuid:pk>/delete-all/",
+                views.TestSuiteExecutionDeleteAllView.as_view(),
+                name="api_test_suite_execution_delete_all",
+            ),
             
             # Device Management endpoints
             path(
@@ -170,16 +170,16 @@ urlpatterns = [
                 views.get_organization_devices,
                 name="api_get_organization_devices",
             ),
-            # path(
-            #     "device-groups/<uuid:group_id>/devices/<uuid:execution_id>",
-            #     views.get_device_group_devices,
-            #     name="api_device_group_devices",
-            # ),
-            # path(
-            #     "device-groups/<uuid:group_id>/devices/",
-            #     views.get_device_group_devices,
-            #     name="api_device_group_devices",
-            # ),
+            path(
+                "device-groups/<uuid:group_id>/devices/<uuid:execution_id>",
+                views.get_device_group_devices,
+                name="api_device_group_devices",
+            ),
+            path(
+                "device-groups/<uuid:group_id>/devices/",
+                views.get_device_group_devices,
+                name="api_device_group_devices",
+            ),
             path(
                 "device-groups/",
                 views.TestDeviceGroupViewSet.as_view({
@@ -200,11 +200,11 @@ urlpatterns = [
                 }),
                 name="device-group-detail",
             ),
-            # path(
-            #     "devices/configuration-push",
-            #     views.ConfigurationPushOnDevice,
-            #     name="configuration_push_on_device",
-            # )
+            path(
+                "devices/configuration-push",
+                views.ConfigurationPushOnDevice,
+                name="configuration_push_on_device",
+            )
 
             
             # Commented out endpoints (kept for reference)
