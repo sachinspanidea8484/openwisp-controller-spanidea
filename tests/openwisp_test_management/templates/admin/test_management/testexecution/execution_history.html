@@ -1147,7 +1147,7 @@ function reExecute(execution_id){
             showMessage(`Test Execution re-executed Successfully!`, 'success');
             setTimeout(() => 
                 {
-                    window.location.href = "/admin/test_management/testsuiteexecution/";
+                    window.location.href = `/admin/test_management/testsuiteexecution/${execution_id}/all-history`;
                 }
             , 1000);
         } else {
