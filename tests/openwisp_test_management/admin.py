@@ -33,6 +33,11 @@ from openwisp_controller.config.models import Device
 from reversion.models import Version
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
+
+import os
+import requests
+from urllib.parse import urlparse
+
 from openwisp_utils.admin import TimeReadonlyAdminMixin
 
 from .filters import (
@@ -112,7 +117,87 @@ class ChoicesWidget(Widget):
     def clean(self, value, row=None, **kwargs):
         """Convert readable text → integer for import"""
         return self.reverse_choices.get(value, None)
-   
+
+
+
+def store_script(
+    source,
+    *,
+    test_case_id,
+    script_type,  # "robot" | "python"
+):
+    """
+    Stores script in a deterministic location with deterministic filename.
+
+    Handles:
+    - External URLs
+    - Server-hosted URLs
+    - Relative MEDIA paths
+    """
+
+    if not source:
+        return None
+
+    if script_type not in ("robot", "python"):
+        raise ValueError("script_type must be 'robot' or 'python'")
+
+    # Target path
+    if script_type == "robot":
+        subdir = "test_case_robot"
+        ext = ".robot"
+    else:
+        subdir = "test_case"
+        ext = ".py"
+
+    filename = f"{test_case_id}{ext}"
+    relative_path = os.path.join(subdir, filename)
+    dest_path = os.path.join(settings.MEDIA_ROOT, relative_path)
+
+    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+    source = str(source).strip()
+
+    site_url = str(getattr(settings, "OPENWISP_SERVER_IP", "")).rstrip("/")
+    media_url = str(settings.MEDIA_URL).rstrip("/")
+
+    content = None
+
+    # --------------------------------------------------
+    # 1️External URL → download
+    # --------------------------------------------------
+    if source.startswith("http"):
+        parsed = urlparse(source)
+
+        # Hosted on our server
+        if site_url and source.startswith(site_url):
+            src_path = parsed.path
+            if src_path.startswith(media_url):
+                src_path = src_path[len(media_url):].lstrip("/")
+            src_full = os.path.join(settings.MEDIA_ROOT, src_path)
+
+            with open(src_full, "rb") as f:
+                content = f.read()
+        else:
+            response = requests.get(source, timeout=15)
+            response.raise_for_status()
+            content = response.content
+
+    # --------------------------------------------------
+    # 2️ Relative path → read content
+    # --------------------------------------------------
+    else:
+        src_full = os.path.join(settings.MEDIA_ROOT, source.lstrip("/"))
+        with open(src_full, "rb") as f:
+            content = f.read()
+
+    # --------------------------------------------------
+    # 3️ALWAYS rewrite destination 
+    # --------------------------------------------------
+    with open(dest_path, "wb") as f:
+        f.write(content)
+
+    return relative_path
+
 class TestCasesResource(resources.ModelResource):
     category= fields.Field(
         column_name="category_name",
@@ -124,7 +209,8 @@ class TestCasesResource(resources.ModelResource):
         attribute="test_type",
         widget=ChoicesWidget(TestTypeChoices.choices),
     )
-
+    robot_script = fields.Field(column_name="robot_script", attribute="robot_script")
+    python_script = fields.Field(column_name="python_script", attribute="python_script")
     class Meta:
         model = TestCase
         fields = (
@@ -136,6 +222,9 @@ class TestCasesResource(resources.ModelResource):
             "is_active",
             "test_type",
             "params",
+            "is_configuration_push_required",
+            "robot_script",
+            "python_script",
             # "file"
         )
         export_order = (
@@ -148,7 +237,30 @@ class TestCasesResource(resources.ModelResource):
             "test_type",
             "params",
             # "file"
+            "is_configuration_push_required",
+            "robot_script",
+            "python_script"
         )
+    
+   
+    
+    def _build_file_url(self, value):
+        if not value:
+            return ""
+
+        site_url = str(
+            getattr(settings, "OPENWISP_SERVER_IP", "")
+        ).rstrip("/")
+
+        media_url = str(settings.MEDIA_URL).rstrip("/")
+
+        return f"{site_url}{media_url}/{value}"
+
+    def dehydrate_robot_script(self, obj):
+        return self._build_file_url(obj.robot_script)
+
+    def dehydrate_python_script(self, obj):
+        return self._build_file_url(obj.python_script)
 
     def before_import_row(self, row, **kwargs):
         """
@@ -173,6 +285,21 @@ class TestCasesResource(resources.ModelResource):
 
         if row.get('description') is None:
             row['description'] = ''
+        
+        test_case_id = row.get("test_case_id")
+
+        row["robot_script"] = store_script(
+            row.get("robot_script"),
+            test_case_id=test_case_id,
+            script_type="robot",
+        )
+
+        row["python_script"] = store_script(
+            row.get("python_script"),
+            test_case_id=test_case_id,
+            script_type="python",
+        )
+       
 
 @admin.register(TestCategory)
 class TestCategoryAdmin(BaseVersionAdmin):
