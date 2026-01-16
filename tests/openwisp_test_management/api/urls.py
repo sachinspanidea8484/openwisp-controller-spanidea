@@ -204,8 +204,14 @@ urlpatterns = [
                 "devices/configuration-push",
                 views.ConfigurationPushOnDevice,
                 name="configuration_push_on_device",
-            )
+            ),
 
+
+path(
+    "test-case/check-test-case-id/",
+    views.check_test_case_id_unique,
+    name="api_check_test_case_id_unique",
+),
             
             # Commented out endpoints (kept for reference)
             # path(

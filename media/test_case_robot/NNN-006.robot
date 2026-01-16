@@ -1,5 +1,5 @@
 *** Settings ***
-Library           ../../resources/keywords/NN-002.py
+Library           ../../resources/keywords/NNN-006.py
 Library           JSONLibrary
 Library           OperatingSystem
 Library           Collections
@@ -20,7 +20,7 @@ ${LOG_FOLDER}     ${CURDIR}/../../logs
 *** Test Cases ***
 BB-TRF-4G5G-001 End-to-End Validation
     [Documentation]    Full BB-TRF-4G5G-001 workflow: modem, Ethernet (lan)<---> 4G/5G WAN, RPi ping, metrics, stability
-    [Tags]    <CHANGE_ON_RUNTIME>
+    [Tags]    NNN-006
     
     Log To Console                ===== Starting modem test case===
     Log Message To Custom File    "===== Starting modem test case==="

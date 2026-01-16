@@ -227,8 +227,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         """Validate the test case"""
         super().clean()
 
-        if not self.params:
-            self.params = {}
+
         # print("User provided params:", self.params)
 
         # # Validate JSON params if provided
@@ -243,23 +242,17 @@ class AbstractTestCase(TimeStampedEditableModel):
         #             "params": _("Parameters must be valid JSON format")
         #         })
         
-        if self.params not in (None, {}):
-          print("User provided params:", self.params)
-          
+        print("User provided params:", self.params)
+        # Ensure params is always a dict if provided
+        if self.params in (None, ""):
+                self.params = {}
+                return
 
-        # Validate JSON params if provided
-        # if self.params not in (None, {}):
-        #        try:
-        #                   if not isinstance(self.params, dict):
-        #                                  raise ValidationError({
-        #                                             "params": _("Parameters must be a valid JSON object")
-        #                                  })
-        #        except (TypeError, ValueError):
-        #         print("User provided params:", self.params)
-
+        # if not isinstance(self.params, dict):
         #         raise ValidationError({
-        #     "params": _("Parameters must be valid JSON format")
-        # })  
+        #                 "params": _("Parameters must be a valid JSON object (key-value pairs).")
+        #                 })
+     
         # Check for duplicate test_case_id
         qs = self.__class__.objects.filter(
             test_case_id=self.test_case_id
@@ -289,8 +282,8 @@ class AbstractTestCase(TimeStampedEditableModel):
 
     def save(self, *args, **kwargs):
         # Ensure params is always a dict, never None or empty string
-        if not self.params:
-            self.params = {}
+        if self.params in (None, ""):
+         self.params = {}
 
         if (
             self.test_type == TestTypeChoices.AGENT

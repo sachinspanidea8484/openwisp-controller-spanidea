@@ -1,5 +1,5 @@
 *** Settings ***
-Library           ../../resources/keywords/NN-002.py
+Library           ../../resources/keywords/NI-015.py
 Library           JSONLibrary
 Library           OperatingSystem
 Library           Collections

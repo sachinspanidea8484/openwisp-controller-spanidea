@@ -1,8 +1,9 @@
 *** Settings ***
-Library           ../../resources/keywords/NN-001.py
+Library           ../../resources/keywords/N700.py
 Library           JSONLibrary
 Library           BuiltIn
 Library           Collections
+Suite Setup       Initialize Custom Log File
 
 *** Variables ***
 ${DEVICE_JSON}     ${EMPTY}
@@ -11,9 +12,10 @@ ${LOG_FOLDER}      ${CURDIR}/../../logs
 
 *** Test Cases ***
 Verify SSH Access - PC Then BB
-    [Tags]    NN-001
+    [Tags]    N700
     Load Device Info
-    Log Message To Custom File   Test Case Passed
+    Log Message To Custom File   📁 Loading config from provided variables
+
 
 
 *** Keywords ***

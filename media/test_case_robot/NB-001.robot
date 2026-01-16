@@ -1,5 +1,5 @@
 *** Settings ***
-Library           ../../resources/keywords/NN-001.py
+Library           ../../resources/keywords/NB-001.py
 Library           JSONLibrary
 Library           BuiltIn
 Library           Collections
@@ -11,9 +11,11 @@ ${LOG_FOLDER}      ${CURDIR}/../../logs
 
 *** Test Cases ***
 Verify SSH Access - PC Then BB
-    [Tags]    NN-001
+    [Tags]    NB-001
     Load Device Info
-    Log Message To Custom File   Test Case Passed
+     Log To Console    ==== PING BB ====
+     Log To Console    ==== Test Case Complete ====
+
 
 
 *** Keywords ***

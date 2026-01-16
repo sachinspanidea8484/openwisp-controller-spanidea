@@ -11,16 +11,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 @receiver(pre_save, sender=TestCase)
 def capture_old_testcase_data(sender, instance, **kwargs):
     """Capture old values before save to detect changes"""
     if not instance.pk:
-        # New instance - mark that files need to be pushed
         instance._is_new = True
         instance._needs_push = True
         return
     
-    # Get old values from database
     try:
         old = sender.objects.get(pk=instance.pk)
         instance._old_test_case_id = old.test_case_id
@@ -50,10 +49,12 @@ def capture_old_testcase_data(sender, instance, **kwargs):
         instance._needs_push = True
 
 
-@receiver(post_save, sender=TestCase)
-def robot_framework_server_push(sender, instance, created, **kwargs):
-    """Push robot and python files to executor server when test case is saved"""
 
+@receiver(post_save, sender=TestCase, dispatch_uid="push_to_executor_last")
+def robot_framework_server_push(sender, instance, created, **kwargs):
+    """
+    PRIORITY 2: Push to executor AFTER files are renamed
+    """
     
     # Only push for Robot Framework test type
     if instance.test_type != 1:  # Assuming 1 = ROBOT_FRAMEWORK
@@ -68,12 +69,23 @@ def robot_framework_server_push(sender, instance, created, **kwargs):
         return
     
     try:
+        # ✅ CRITICAL FIX: Reload instance to get UPDATED file paths after rename
+        test_case_id_changed = getattr(instance, '_test_case_id_changed', False)
+        python_changed = getattr(instance, '_python_changed', False)
+        robot_changed = getattr(instance, '_robot_changed', False)
+        old_test_case_id = getattr(instance, '_old_test_case_id', None)
+        
+        if test_case_id_changed and not python_changed and not robot_changed:
+            # Files were renamed, reload from DB to get new paths
+            instance.refresh_from_db()
+            print(f"[DEBUG] ✅ Reloaded instance after file rename")
+        
         if is_new:
             print(f"[DEBUG] NEW test case - Starting file push: {instance.test_case_id}")
         else:
             print(f"[DEBUG] EDIT test case - Starting file push: {instance.test_case_id}")
         
-        # Prepare file URLs
+        # NOW build URLs with correct (renamed) file paths
         robot_file_url = None
         python_file_url = None
         
@@ -84,12 +96,6 @@ def robot_framework_server_push(sender, instance, created, **kwargs):
         if instance.python_script:
             python_file_url = build_absolute_file_url(instance.python_script.name)
             print(f"[DEBUG] Python file URL: {python_file_url}")
-        
-        # Get change information
-        test_case_id_changed = getattr(instance, '_test_case_id_changed', False)
-        python_changed = getattr(instance, '_python_changed', False)
-        robot_changed = getattr(instance, '_robot_changed', False)
-        old_test_case_id = getattr(instance, '_old_test_case_id', None)
         
         # Build API payload
         api_payload = {
@@ -103,7 +109,6 @@ def robot_framework_server_push(sender, instance, created, **kwargs):
             "params": instance.params or {},
             "is_active": instance.is_active,
             
-            # **NEW: Add operation type and change details**
             "operation": "create" if is_new else "update",
             "changes": {
                 "test_case_id_changed": test_case_id_changed,
@@ -119,45 +124,29 @@ def robot_framework_server_push(sender, instance, created, **kwargs):
     except Exception as e:
         logger.error(f"Error pushing files to executor server: {str(e)}")
         print(f"[DEBUG] ❌ Error pushing files: {str(e)}")
-        
-        # Update push status to failed
-        TestCase.objects.filter(pk=instance.pk).update(
-            script_push_status='failed',
-        )
 
 
 def build_absolute_file_url(file_path):
     """
     Build absolute URL for file download
-    Args:
-        file_path: Relative path like "test_scripts/BB-001.py"
-    Returns:
-        Absolute URL like "http://openwisp-server.com/media/test_scripts/BB-001.py"
     """
     from django.conf import settings
     
-    # Get MEDIA_URL (e.g., "/media/")
     media_url = MEDIA_URL
-    
-    # Build full URL path
     file_download_url = f"{media_url}{file_path}"
     
-    # Make absolute if relative
     if not file_download_url.startswith('http'):
-        # Get base URL from settings
-        base_url = OPENWISP_SERVER_IP
-        # Remove trailing slash from base_url if exists
-        base_url = base_url.rstrip('/')
+        base_url = OPENWISP_SERVER_IP.rstrip('/')
         file_download_url = f"{base_url}{file_download_url}"
     
     return file_download_url
+
 
 
 def push_to_executor_server(api_payload, instance):
     """
     Push test case files to executor server via API
     """
-    from django.conf import settings
     from django.utils import timezone
     
     executor_api_url = EXECUTOR_SERVER_IP + "/api/v1/push-test-case"
@@ -166,7 +155,8 @@ def push_to_executor_server(api_payload, instance):
         print(f"[DEBUG] Sending request to executor server: {executor_api_url}")
         print(f"[DEBUG] Operation: {api_payload['operation']}")
         print(f"[DEBUG] Changes: {api_payload['changes']}")
-        return
+        print(f"[DEBUG] Robot URL: {api_payload.get('robot_script_url')}")
+        print(f"[DEBUG] Python URL: {api_payload.get('python_script_url')}")
         
         response = requests.post(
             executor_api_url,
@@ -187,47 +177,23 @@ def push_to_executor_server(api_payload, instance):
         if response.status_code in [200, 201]:
             logger.info(f"Test case {api_payload['test_case_id']} pushed successfully")
             print(f"[DEBUG] ✅ Push successful!")
-            
-            # Update push status in database
-            TestCase.objects.filter(pk=instance.pk).update(
-                script_push_status='success',
-            )
-            
         else:
             logger.error(f"Executor API failed: {response.status_code} - {response.text}")
             print(f"[DEBUG] ❌ Push failed! Status: {response.status_code}")
-            
-            # Update push status to failed
-            TestCase.objects.filter(pk=instance.pk).update(
-                script_push_status='failed',
-            )
             
     except requests.exceptions.Timeout:
         logger.error(f"Executor API timeout for test case {api_payload['test_case_id']}")
         print(f"[DEBUG] ❌ API call timed out!")
         
-        TestCase.objects.filter(pk=instance.pk).update(
-            script_push_status='failed',
-        )
-        
     except requests.exceptions.ConnectionError as e:
         logger.error(f"Cannot connect to executor server: {str(e)}")
         print(f"[DEBUG] ❌ Connection error: {str(e)}")
         
-        TestCase.objects.filter(pk=instance.pk).update(
-            script_push_status='failed',
-        )
-        
     except Exception as e:
         logger.error(f"Unexpected error pushing to executor: {str(e)}")
         print(f"[DEBUG] ❌ Unexpected error: {str(e)}")
+
         
-        TestCase.objects.filter(pk=instance.pk).update(
-            script_push_status='failed',
-        )
-
-
-
 @receiver(post_save, sender=TestCase)
 def handle_id_and_file_changes(sender, instance, created, **kwargs):
     """Rename files when test case ID changes"""
@@ -277,4 +243,61 @@ def capture_old_testcase_id(sender, instance, **kwargs):
 
     old = sender.objects.filter(pk=instance.pk).values("test_case_id").first()
     instance._old_test_case_id = old["test_case_id"] if old else None
+
+
+
+
+
+@receiver(post_save, sender=TestCase, dispatch_uid="rename_files_first")
+def handle_id_and_file_changes(sender, instance, created, **kwargs):
+    """
+    PRIORITY 1: Rename files FIRST when test case ID changes
+    This MUST run before robot_framework_server_push
+    """
+    if created:
+        return
+
+    old_id = getattr(instance, "_old_test_case_id", None)
+    new_id = instance.test_case_id
+
+    if not old_id or old_id == new_id:
+        return
+
+    base_path = settings.MEDIA_ROOT
+    files_renamed = False
+
+    for field in ("python_script", "robot_script"):
+        file_field = getattr(instance, field)
+
+        if not file_field:
+            continue
+
+        # File was replaced → DO NOTHING
+        if file_field._file is not None and not file_field._committed:
+            print(f"[DEBUG] {field} was replaced with new upload, skipping rename")
+            continue
+
+        old_rel_path = file_field.name
+        dir_name = os.path.dirname(old_rel_path)
+        ext = os.path.splitext(old_rel_path)[1]
+
+        old_abs = os.path.join(base_path, old_rel_path)
+        new_rel = os.path.join(dir_name, f"{new_id}{ext}")
+        new_abs = os.path.join(base_path, new_rel)
+
+        if os.path.exists(old_abs):
+            os.rename(old_abs, new_abs)
+            print(f"[DEBUG] ✅ Renamed {field}: {old_abs} → {new_abs}")
+            setattr(instance, field, new_rel)
+            files_renamed = True
+        else:
+            print(f"[DEBUG] ⚠️ File not found: {old_abs}")
+
+    # Update database with new file paths
+    if files_renamed:
+        sender.objects.filter(pk=instance.pk).update(
+            python_script=instance.python_script,
+            robot_script=instance.robot_script,
+        )
+        print(f"[DEBUG] ✅ Database updated with new file paths")
 

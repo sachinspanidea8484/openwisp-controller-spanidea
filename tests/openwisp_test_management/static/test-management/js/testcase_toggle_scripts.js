@@ -135,9 +135,8 @@
                     "⚠️ WARNING: Replacing Robot Script\n\n" +
                     `Current file: ${originalRobotFile}\n` +
                     `New file: ${file.name}\n\n` +
-                    "Important:\n" +
-                    `• The [Tags] in the new file will be updated to: ${testCaseId}\n` +
-                    "• The old robot script will be permanently replaced\n" +
+                    "This will OVERRIDE the existing script in the system.\n" +
+                    "The old script will be permanently replaced.\n\n" +
                     "Do you want to continue?"
                 );
 
@@ -161,20 +160,20 @@
 
             // Check if ID changed AND robot file exists
             if (newId !== originalId && originalRobotFile) {
-                const confirmed = confirm(
-                    "⚠️ WARNING: Test Case ID Changed\n\n" +
-                    `Old ID: ${originalId}\n` +
-                    `New ID: ${newId}\n\n` +
-                    "This will automatically update:\n" +
-                    `• The [Tags] line in ${originalRobotFile}\n` +
-                    "• All references in the system\n\n" +
-                    "Do you want to continue?"
-                );
+                // const confirmed = confirm(
+                //     "⚠️ WARNING: Test Case ID Changed\n\n" +
+                //     `Old ID: ${originalId}\n` +
+                //     `New ID: ${newId}\n\n` +
+                //     "This will automatically update:\n" +
+                //     `• The [Tags] line in ${originalRobotFile}\n` +
+                //     "• All references in the system\n\n" +
+                //     "Do you want to continue?"
+                // );
 
-                if (!confirmed) {
-                    $(this).val(originalId); // Revert to original
-                    return false;
-                }
+                // if (!confirmed) {
+                //     $(this).val(originalId); // Revert to original
+                //     return false;
+                // }
                 
                 // Update the original value
                 $(this).data("original-value", newId);

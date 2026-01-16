@@ -5256,6 +5256,45 @@ def ConfigurationPushOnDevice(request):
         return Response({
             "error": f"Failed to upload file: {str(e)}"
         }, status=500)
+    
+
+
+
+
+
+
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def check_test_case_id_unique(request):
+    """
+    Check if Test Case ID already exists
+    Used for client-side (type-time) validation
+    """
+    test_case_id = request.GET.get("test_case_id")
+    exclude_id = request.GET.get("exclude_id")  # for edit mode
+
+    if not test_case_id:
+        return Response(
+            {"exists": False, "error": "test_case_id is required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    qs = TestCase.objects.filter(test_case_id=test_case_id)
+
+    # Exclude current object when editing
+    if exclude_id:
+        qs = qs.exclude(id=exclude_id)
+
+    return Response({
+        "exists": qs.exists()
+    }, status=status.HTTP_200_OK)
+
+
+
+
+
 # Create view instances
 test_category_list = TestCategoryListCreateView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()

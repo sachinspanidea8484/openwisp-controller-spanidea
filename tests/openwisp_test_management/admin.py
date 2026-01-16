@@ -6,6 +6,10 @@ from django.conf import settings
 from django.utils import timezone
 from uuid import UUID
 from django.core.exceptions import ValidationError
+from django.core.validators import (
+    MinLengthValidator,
+    MaxLengthValidator
+)
 
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
@@ -408,12 +412,23 @@ class TestCaseAdminForm(forms.ModelForm):
         self.fields['description'].widget.attrs.update({'rows': 15, 'cols': 5})
 
     test_case_id = forms.CharField(
-        validators=[allowed_test_case_id],
-        widget=forms.TextInput(attrs={
-            'pattern': r'[A-Za-z0-9_\-.:/]+',
-            'title': _("Only letters, numbers, _, -, ., :, / are allowed")
-        })
-    )
+    validators=[
+        RegexValidator(
+            regex=r'^[A-Za-z][A-Za-z0-9_\-.:/]*$',
+            message=_(
+                "Test Case ID must start with a letter and contain only "
+                "letters, numbers, _, -, ., :, /"
+            )
+        ),
+        MinLengthValidator(3, message=_("Test Case ID must be at least 3 characters long.")),
+        MaxLengthValidator(20, message=_("Test Case ID must not exceed 20 characters."))
+    ],
+    widget=forms.TextInput(attrs={
+        'pattern': r'[A-Za-z][A-Za-z0-9_\-.:/]{2,19}',
+        'title': _("Example: TC-001, LOGIN-TC-01, API:TC:01"),
+        'placeholder': _('Enter Test Case ID')
+    })
+)
 
     params = FormattedJSONField(
         required=False,
@@ -443,6 +458,27 @@ class TestCaseAdminForm(forms.ModelForm):
             'robot_script': forms.ClearableFileInput(attrs={'accept': '.robot'}),
             'python_script': forms.ClearableFileInput(attrs={'accept': '.py'}),
         }
+
+    def clean_test_case_id(self):
+     test_case_id = self.cleaned_data.get("test_case_id")
+
+     if not test_case_id:
+          return test_case_id
+
+     qs = TestCase.objects.filter(test_case_id=test_case_id)
+
+     # Exclude current object during edit
+     if self.instance.pk:
+          qs = qs.exclude(pk=self.instance.pk)
+
+     if qs.exists():
+          raise forms.ValidationError(
+               _("Test Case ID '%(id)s' already exists. Please use a unique ID."),
+               params={"id": test_case_id},
+          )
+
+     return test_case_id
+    
 
     def extract_tag_from_robot_file(self, robot_file):
         """Extract test case ID from [Tags] line, returns None if empty"""
@@ -603,6 +639,15 @@ class TestCaseAdminForm(forms.ModelForm):
         Falls back to basic validation if robot library not available
         """
         try:
+            MAX_ROBOT_FILE_SIZE = 200 * 1024  # 200 KB
+
+            if robot_file.size > MAX_ROBOT_FILE_SIZE:
+                       return False, "Robot file is too large (max 200KB allowed).", "robot_framework"
+
+
+
+            robot_file.seek(0)
+
             if hasattr(robot_file, 'read'):
                 robot_file.seek(0)
                 content = robot_file.read().decode('utf-8')
@@ -613,11 +658,10 @@ class TestCaseAdminForm(forms.ModelForm):
             
             # METHOD 1: Use robot.parsing (Most Standard)
             try:
-                from robot.parsing.model import TestCaseFile
                 from robot.parsing import get_model
-                from io import StringIO
                 import tempfile
                 import os
+                validation_method = "robot_framework"
                 
                 # Create temporary file (robot library needs actual file)
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.robot', delete=False) as tmp:
@@ -646,9 +690,10 @@ class TestCaseAdminForm(forms.ModelForm):
                         errors.append("No '*** Test Cases ***' section found")
                     
                     if errors:
-                        return False, "; ".join(errors)
+                        return False, "; ".join(errors), validation_method
                     
-                    return True, None
+                    return True, None, validation_method
+
                     
                 finally:
                     # Clean up temp file
@@ -657,10 +702,11 @@ class TestCaseAdminForm(forms.ModelForm):
                         
             except ImportError:
                 # METHOD 2: Fallback - Basic regex validation
-                return self._basic_robot_validation(content)
+                is_valid, error, _ = self._basic_robot_validation(content)
+                return is_valid, error, "fallback_regex"
                 
         except Exception as e:
-            return False, f"Error validating robot file: {str(e)}"
+            return False, f"Error validating robot file: {str(e)}" ,"robot_framework"
     
     def _basic_robot_validation(self, content):
         """Fallback validation when robot library not available"""
@@ -688,13 +734,22 @@ class TestCaseAdminForm(forms.ModelForm):
                 if not re.match(section_pattern, section):
                     errors.append(f"Invalid section header: {section}")
         
-        return len(errors) == 0, "; ".join(errors) if errors else None
+        return len(errors) == 0, "; ".join(errors) if errors else None, "fallback_regex"
+
     
     def validate_python_file_syntax(self, python_file):
         """
         STANDARD WAY: Validate Python file using ast and compile
         """
         try:
+            MAX_PYTHON_FILE_SIZE = 100 * 1024  # 100 KB
+
+            if python_file.size > MAX_PYTHON_FILE_SIZE:
+                        return False, "Python file too large (max 100KB allowed).", "python_ast"
+
+
+
+
             if hasattr(python_file, 'read'):
                 python_file.seek(0)
                 content = python_file.read().decode('utf-8')
@@ -711,6 +766,8 @@ class TestCaseAdminForm(forms.ModelForm):
                 # METHOD 2: Additional validation - check for common issues
                 errors = []
                 
+                validation_method = "python_ast"
+
                 # Check if file is not empty
                 if not content.strip():
                     errors.append("Python file is empty")
@@ -720,12 +777,13 @@ class TestCaseAdminForm(forms.ModelForm):
                     errors.append("No functions or classes found - file may be incomplete")
                 
                 if errors:
-                    return False, "; ".join(errors)
+                    return False, "; ".join(errors), validation_method
                 
                 # METHOD 3: Try to compile (catches more subtle errors)
                 compile(content, '<string>', 'exec')
+
                 
-                return True, None
+                return True, None,validation_method
                 
             except SyntaxError as e:
                 error_msg = f"Syntax Error at line {e.lineno}: {e.msg}"
@@ -733,13 +791,14 @@ class TestCaseAdminForm(forms.ModelForm):
                     error_msg += f"\n  Code: {e.text.strip()}"
                     if e.offset:
                         error_msg += f"\n  " + " " * (e.offset - 1) + "^"
-                return False, error_msg
+                return False, error_msg, "python_ast"
+
             
             except Exception as e:
-                return False, f"Compilation error: {str(e)}"
+                return False, f"Error validating Python file: {str(e)}" ,"python_ast"
                 
         except Exception as e:
-            return False, f"Error validating Python file: {str(e)}"
+            return False, f"Error validating Python file: {str(e)}" ,"python_ast"
 
     def clean(self):
         cleaned_data = super().clean()
@@ -753,7 +812,7 @@ class TestCaseAdminForm(forms.ModelForm):
             if not python_script.name.endswith(".py"):
                 self.add_error("python_script", "Only .py files allowed.")
             else:
-                is_valid, error_msg = self.validate_python_file_syntax(python_script)
+                is_valid, error_msg, _ = self.validate_python_file_syntax(python_script)
                 if not is_valid:
                     self.add_error(
                         "python_script",
@@ -770,12 +829,10 @@ class TestCaseAdminForm(forms.ModelForm):
                 self.add_error("robot_script", "Only .robot files allowed.")
             else:
                 # Validate robot file syntax FIRST
-                is_valid, error_msg = self.validate_robot_file_syntax(robot_script)
+                is_valid, error_msg ,method = self.validate_robot_file_syntax(robot_script)
                 if not is_valid:
-                    self.add_error(
-                        "robot_script",
-                        f"Robot file validation failed:\n{error_msg}"
-                    )
+                  self.add_error("robot_script", f"[{method}] {error_msg}")
+
                 else:
                     # Check for [Tags] line
                     import re
@@ -839,7 +896,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         "test_case_id",      # 2nd - Test Case ID  
         "category_link",     # 3rd - Category
         "is_active",         # 4th - Is Active
-        "script_push_status",
+        # "script_push_status",
         "test_type_display", # 5th - Test Type
         "created",           # 6th - Created
         "modified",          # 7th - Modified
@@ -945,15 +1002,15 @@ class TestCaseAdmin(BaseVersionAdmin):
 
         # Show status only in edit mode, grouped with scripts
         if obj:
-            fieldsets[1][1]["fields"] += ("script_push_status",)
+            fieldsets[1][1]["fields"] 
 
         return fieldsets
 
-    def get_readonly_fields(self, request, obj=None):
-        fields = list(super().get_readonly_fields(request, obj))
-        if obj:
-            fields.append("script_push_status")
-        return fields
+    # def get_readonly_fields(self, request, obj=None):
+    #     fields = list(super().get_readonly_fields(request, obj))
+    #     if obj:
+    #         fields.append("script_push_status")
+    #     return fields
 
     def changelist_view(self, request, extra_context=None):
         """Override to add custom title"""
@@ -1040,29 +1097,29 @@ class TestCaseAdmin(BaseVersionAdmin):
 
 
         # **NEW: Add warning messages for EDIT mode**
-        if obj:  # Edit mode
-         if "python_script" in form.base_fields:
-             current_file = obj.python_script.name.split('/')[-1] if obj.python_script else "None"
-             form.base_fields["python_script"].help_text = format_html(
-                  '<span style="color: #856404; background: #fff3cd; padding: 5px 10px; '
-                  'border-radius: 4px; display: inline-block; margin-top: 5px;">'
-                  '⚠️ <strong>Warning:</strong> Uploading a new file will permanently replace: <code>{}</code>'
-                  '</span><br>{}',
-                  current_file,
-                  _("Upload Python script (.py file)")
-             )
+        # if obj:  # Edit mode
+        #  if "python_script" in form.base_fields:
+        #      current_file = obj.python_script.name.split('/')[-1] if obj.python_script else "None"
+        #      form.base_fields["python_script"].help_text = format_html(
+        #           '<span style="color: #856404; background: #fff3cd; padding: 5px 10px; '
+        #           'border-radius: 4px; display: inline-block; margin-top: 5px;">'
+        #           '⚠️ <strong>Warning:</strong> Uploading a new file will permanently replace: <code>{}</code>'
+        #           '</span><br>{}',
+        #           current_file,
+        #           _("Upload Python script (.py file)")
+        #      )
          
-         if "robot_script" in form.base_fields:
-             current_file = obj.robot_script.name.split('/')[-1] if obj.robot_script else "None"
-             form.base_fields["robot_script"].help_text = format_html(
-                  '<span style="color: #856404; background: #fff3cd; padding: 5px 10px; '
-                  'border-radius: 4px; display: inline-block; margin-top: 5px;">'
-                  '⚠️ <strong>Warning:</strong> Uploading a new file will permanently replace: <code>{}</code><br>'
-                  'The [Tags] will be automatically updated to match Test Case ID'
-                  '</span><br>{}',
-                  current_file,
-                  _("Upload Robot script (.robot file)")
-             )
+        #  if "robot_script" in form.base_fields:
+        #      current_file = obj.robot_script.name.split('/')[-1] if obj.robot_script else "None"
+        #      form.base_fields["robot_script"].help_text = format_html(
+        #           '<span style="color: #856404; background: #fff3cd; padding: 5px 10px; '
+        #           'border-radius: 4px; display: inline-block; margin-top: 5px;">'
+        #           '⚠️ <strong>Warning:</strong> Uploading a new file will permanently replace: <code>{}</code><br>'
+        #           'The [Tags] will be automatically updated to match Test Case ID'
+        #           '</span><br>{}',
+        #           current_file,
+        #           _("Upload Robot script (.robot file)")
+        #      )
          
         #  if "test_case_id" in form.base_fields:
         #      form.base_fields["test_case_id"].help_text = format_html(
@@ -1090,7 +1147,7 @@ class TestCaseAdmin(BaseVersionAdmin):
             logger.info(f"Test case {obj.test_case_id} saved with robot script")
 
     class Media:
-        js = ('test-management/js/json_file_handler.js', 'test-management/js/testcase_toggle_scripts.js',  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',)  # Add custom JavaScript
+        js = ('test-management/js/json_file_handler.js', 'test-management/js/testcase_toggle_scripts.js',  'test-management/js/testcase_id_check.js','https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',)  # Add custom JavaScript
         css = {
             'all': ('test-management/css/json_file_handler.css',)  # Optional custom CSS
         }
