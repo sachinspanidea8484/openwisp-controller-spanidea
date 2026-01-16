@@ -11,6 +11,7 @@ from django.core.validators import (
     MaxLengthValidator
 )
 
+from django.template.response import TemplateResponse
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
@@ -2177,7 +2178,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         # "test_suite_name",
         "device_count",
         "testcase_count",
-        "status_label",
+        # "status_label",
         "created",
         "view_history",
      ]
@@ -2392,6 +2393,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         urls = super().get_urls()
         custom_urls = [
             path(
+                '<path:object_id>/all-history/',
+                self.admin_site.admin_view(self.execution_all_history_view),
+                name='test_management_testexecution_all_history'
+            ),
+            path(
                 '<path:object_id>/history/',
                 self.admin_site.admin_view(self.execution_history_view),
                 name='test_management_testexecution_history'
@@ -2404,6 +2410,86 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         ]
         return custom_urls + urls
 
+    def execution_all_history_view(self, request, object_id):
+        """Custom view for execution history with enhanced statistics"""
+        execution = get_object_or_404(TestSuiteExecution, pk=object_id)
+        
+        # Get all execution devices
+        execution_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device').order_by('device__name')
+        
+        # Get all test case executions
+        test_case_executions = TestCaseExecution.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device', 'test_case').order_by(
+            'device__name', 'execution_order'
+        )
+        
+        # Group test case executions by device with statistics
+        device_executions = {}
+        for device_exec in execution_devices:
+            device = device_exec.device
+            device_test_cases = test_case_executions.filter(device=device)
+            
+            # Calculate statistics
+            total = device_test_cases.count()
+            success = device_test_cases.filter(status='success').count()
+            failed = device_test_cases.filter(status='failed').count()
+            completed = success + failed
+            
+            # Determine overall status
+            if total == 0:
+                overall_status = 'pending'
+                percentage = 0
+            elif completed == 0:
+                overall_status = 'pending'
+                percentage = 0
+            elif failed == 0 and success == total:
+                overall_status = 'success'
+                percentage = 100
+            else:
+                overall_status = 'failed'
+                percentage = (success / total * 100) if total > 0 else 0
+            
+            device_executions[device.id] = {
+                'device': device,
+                'device_execution': device_exec,
+                'test_cases': device_test_cases,
+                'stats': {
+                    'total': total,
+                    'success': success,
+                    'failed': failed,
+                    'completed': completed,
+                    'percentage': percentage,
+                    'overall_status': overall_status
+                }
+            }
+        if execution.test_selection_type ==1 and execution.test_suite:
+            test_source_name= execution.test_suite.name
+        else:
+            test_source_name= f"Individual Tests ({execution.testcase_count})"
+        
+        context = dict(
+        self.admin_site.each_context(request),  # ✅ REQUIRED
+        title="All History",
+        execution=execution,
+        execution_id=str(execution.pk),
+        execution_devices=execution_devices,
+        device_executions=device_executions,
+        test_case_executions=test_case_executions,
+        opts=self.model._meta,                  # ✅ REQUIRED
+        original=execution,                     # ✅ REQUIRED
+        preserved_filters=self.get_preserved_filters(request),
+        has_view_permission=True,
+        )
+
+        return TemplateResponse(
+            request,
+            'admin/test_management/testexecution/all_executions_history.html',
+            context,
+        )
+    
     def execution_history_view(self, request, object_id):
         """Custom view for execution history with enhanced statistics"""
         execution = get_object_or_404(TestSuiteExecution, pk=object_id)
@@ -2464,27 +2550,70 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         else:
             test_source_name= f"Individual Tests ({execution.testcase_count})"
         
-        context = {
-            'title': f'Test Execution History',
-            # 'title': f'Test Execution History - {test_source_name}',
-            'execution': execution,
-            'execution_id': str(execution.pk),
+        context = dict(
+        self.admin_site.each_context(request),  # ✅ REQUIRED
+        title="Test Execution History",
+        execution=execution,
+        execution_id=str(execution.pk),
+        execution_devices=execution_devices,
+        device_executions=device_executions,
+        test_case_executions=test_case_executions,
+        opts=self.model._meta,                  # ✅ REQUIRED
+        original=execution,                     # ✅ REQUIRED
+        preserved_filters=self.get_preserved_filters(request),
+        has_view_permission=True,
+        )
 
-            'execution_devices': execution_devices,
-            'device_executions': device_executions,
-            'test_case_executions': test_case_executions,
-            'opts': self.model._meta,
-            'has_view_permission': True,
-            'original': execution,
-            'preserved_filters': self.get_preserved_filters(request),
-        }
-        
-        return render(
+        return TemplateResponse(
             request,
             'admin/test_management/testexecution/execution_history.html',
-            context
+            context,
         )
+        
     
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Prefetch re-executions so list page doesn't do N+1 queries
+        # return qs.select_related("parent_execution").prefetch_related("re_executions")
+        return (
+            qs.filter(parent_execution__isnull=True)   # only base/original executions
+            .prefetch_related("re_executions")
+        )
+    def _history_url(self, obj):
+        opts = obj._meta
+        return reverse(
+            f"admin:{opts.app_label}_{opts.model_name}_history",
+            args=[obj.pk],
+        )
+
+
+    def view_history_links(self, obj):
+        """
+        Show: 0 1 2 3 ...
+        0 = history of the original execution
+        1..n = histories of its re-executions (ordered)
+        """
+        if not obj.pk or obj.parent_execution_id:
+            return "-"
+
+        root = obj.parent_execution if obj.parent_execution_id else obj
+
+        links = []
+        # "0" -> root execution history
+        links.append(format_html('<a href="{}">0</a>', self._history_url(root)))
+
+        # "1..n" -> re-executions history
+        reexecs = root.re_executions.all().order_by("re_execution_index", "created", "pk")
+
+        # If you always set re_execution_index, use it; otherwise fallback to enumeration
+        for idx, rex in enumerate(reexecs, start=1):
+            label = rex.re_execution_index if rex.re_execution_index is not None else idx
+            links.append(format_html('<a href="{}">{}</a>', self._history_url(rex), label))
+
+        # join with spaces
+        return format_html(" ".join(["{}"] * len(links)), *links)
+
+    view_history_links.short_description = _("History")
 
     def _build_artifacts(self, execution):
         from .models import ExecutionArtifact, TestSuiteExecutionDevice
@@ -2542,6 +2671,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
                 if not has_error:
                     # VALIDATE BEFORE SAVE
+                    total_forms = formset.total_form_count()
+                    config_required = total_forms > 0
                     formset.save()
 
                     schedule_time= request.session.get("execution_schedule_time")
@@ -2554,11 +2685,19 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                             schedule_time,
                         )
                         request.session.pop("execution_schedule_time", None)
-                    self.message_user(
-                        request,
-                        "Configuration uploaded successfully.",
-                        messages.SUCCESS,
-                    )
+
+                    if config_required:
+                        self.message_user(
+                            request,
+                            "Configuration uploaded successfully.",
+                            messages.SUCCESS,
+                        )
+                    else: 
+                        self.message_user(
+                            request,
+                            "Additional Details saved successfully.",
+                            messages.SUCCESS,
+                        )
 
                     return HttpResponseRedirect(
                         reverse("admin:test_management_testsuiteexecution_changelist")
@@ -2566,27 +2705,34 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
         else:
             formset = ExecutionArtifactFormSet(instance=execution)
-
+        
         context = dict(
-            self.admin_site.each_context(request),
-            title="Configuration Push",
+            self.admin_site.each_context(request),  # ✅ REQUIRED
+            title="Additional Details",
             execution=execution,
-            formset=formset,
+            opts=self.model._meta,                  # ✅ REQUIRED
+            original=execution,                     # ✅ REQUIRED
+            formset=formset
         )
-        return render(
+
+        return TemplateResponse(
             request,
-            "admin/test_management/config_push.html",
+            'admin/test_management/config_push.html',
             context,
+            
         )
+        
+    
     def view_history(self, obj):
         """Add history view link"""
-        if obj.pk:
-            # You can customize the URL pattern based on your history view
-            return format_html(
-                '<a href="{}" class="viewlink">View History</a>',
-            f'{obj.pk}/history/',
-            )
-        return "-"
+        if not obj.pk:
+            return "-"
+
+        url = reverse(
+            "admin:test_management_testexecution_all_history",
+            args=[obj.pk],
+        )
+        return format_html('<a href="{}" class="viewlink">View History</a>', url)
     view_history.short_description = _("History")
     view_history.allow_tags = True
     

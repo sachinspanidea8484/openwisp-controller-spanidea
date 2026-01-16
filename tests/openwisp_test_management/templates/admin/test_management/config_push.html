@@ -1,16 +1,26 @@
-{% extends "admin/base_site.html" %}
+{% extends "admin/change_form.html" %}
 {% load i18n admin_urls %}
 
 {% block breadcrumbs %}
 <div class="breadcrumbs">
-  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
-  › <a href="{% url 'admin:test_management_testsuiteexecution_changelist' %}">
-      Test suite executions
+
+    <a href="{% url 'admin:index' %}">{% trans "Home" %}</a>
+
+    &rsaquo;
+    <a href="{% url 'admin:app_list' app_label=opts.app_label %}">
+        {{ opts.app_config.verbose_name }}
     </a>
-  › <a href="{% url 'admin:test_management_testsuiteexecution_change' execution.pk %}">
-      {{ execution.name }}
-    </a>
-  › Configuration Push
+
+    &rsaquo;
+    {% with 'admin:'|add:opts.app_label|add:'_'|add:opts.model_name|add:'_changelist' as changelist_url %}
+        <a href="{% url changelist_url %}">
+            {{ opts.verbose_name_plural|capfirst }}
+        </a>
+    {% endwith %}
+
+    &rsaquo;
+    {{ title }}
+
 </div>
 {% endblock %}
 
