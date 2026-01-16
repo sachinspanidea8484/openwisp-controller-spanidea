@@ -4570,7 +4570,8 @@ def test_execution_all_history(request, execution_id):
     API endpoint to get test execution history for all executions
     """
     try:
-        execution = TestSuiteExecution.objects.get(pk=execution_id)
+        current_execution = TestSuiteExecution.objects.get(pk=execution_id)
+        execution = current_execution.parent_execution or current_execution
         
         if execution.test_selection_type == 1:
             test_suite_name= execution.test_suite.name
