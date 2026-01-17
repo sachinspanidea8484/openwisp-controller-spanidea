@@ -58,6 +58,7 @@ from django.contrib.admin.widgets import RelatedFieldWidgetWrapper
 from import_export.widgets import Widget
 from django.utils.safestring import mark_safe
 from .forms import ExecutionArtifactFormSet
+from .utils import build_testcase_scripts_zip
 logger = logging.getLogger(__name__)
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
@@ -1388,13 +1389,31 @@ class TestCaseAdmin(BaseVersionAdmin):
             messages.SUCCESS,
         )
 
+    @admin.action(description=_("Export scripts (ZIP)"))
+    def export_scripts_zip(self, request, queryset):
+        if not queryset.exists():
+            self.message_user(request, _("No test cases selected."), messages.WARNING)
+            return
+
+        zip_buffer = build_testcase_scripts_zip(queryset)
+
+        timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+        response = HttpResponse(
+            zip_buffer,
+            content_type="application/zip"
+        )
+        response["Content-Disposition"] = (
+            f'attachment; filename="testcase_scripts_{timestamp}.zip"'
+        )
+        return response
+    
 from django.shortcuts import redirect
 from django.urls import reverse
 
     
 class TestCasesExportable(ImportExportMixin, TestCaseAdmin):
     resource_class= TestCasesResource
-    actions = TestCaseAdmin.actions + ["export_selected_redirect"]
+    actions = TestCaseAdmin.actions + ["export_selected_redirect" , "export_scripts_zip"]
 
     def export_selected_redirect(self, request, queryset):
         """
@@ -1436,7 +1455,30 @@ class TestCasesExportable(ImportExportMixin, TestCaseAdmin):
         return qs
     export_selected_redirect.short_description = "Export selected test cases"
 
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "export-all-scripts/",
+                self.admin_site.admin_view(self.export_all_scripts),
+                name="testcase_export_all_scripts",
+            ),
+        ]
+        return custom_urls + urls
 
+    def export_all_scripts(self, request):
+        queryset = self.get_queryset(request)
+
+        zip_buffer = build_testcase_scripts_zip(queryset)
+
+        response = HttpResponse(
+            zip_buffer,
+            content_type="application/zip"
+        )
+        response["Content-Disposition"] = (
+            'attachment; filename="all_testcase_scripts.zip"'
+        )
+        return response
 
 class TestSuiteAdminForm(forms.ModelForm):
     """Custom form for TestSuite admin"""
