@@ -220,13 +220,13 @@ urlpatterns = [
                 "test-suite-execution/<uuid:execution_id>/re-execute-selected/",
                 views.re_execute_selected_view,
                 name="re-execute-selected-execution"
-            )
+            ),
 
-path(
-    "test-case/check-test-case-id/",
-    views.check_test_case_id_unique,
-    name="api_check_test_case_id_unique",
-),
+            path(
+                "test-case/check-test-case-id/",
+                views.check_test_case_id_unique,
+                name="api_check_test_case_id_unique",
+            ),
             
             # Commented out endpoints (kept for reference)
             # path(

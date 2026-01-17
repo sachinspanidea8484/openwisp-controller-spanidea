@@ -24,7 +24,7 @@ import json
 from django.urls import path
 from django.shortcuts import get_object_or_404, render
 import traceback
-
+from django.core.validators import validate_email
 import json
 from django.utils.translation import gettext_lazy as _
 from import_export.admin import ImportExportMixin
@@ -1851,7 +1851,7 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                 preserved_order = Case(
                     *[When(id=pk, then=pos) for pos, pk in enumerate(ordered_ids)]
                 )
-                self.fields["individual_test_cases"].queryset = qs.order_by(preserved_order)
+                # self.fields["individual_test_cases"].queryset = qs.order_by(preserved_order)
     
     class Meta:
         model = TestSuiteExecution
@@ -2623,7 +2623,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         )
 
         testcases = execution.get_configuration_selected_test_cases()
-
+        ExecutionArtifact.objects.filter(
+                execution=execution
+            ).exclude(
+                testcase__in=testcases
+            ).delete()
         for d in devices:
             for tc in testcases:
                 ExecutionArtifact.objects.get_or_create(
@@ -2649,6 +2653,21 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         self._build_artifacts(execution)
         
         if request.method == "POST":
+            raw_emails = request.POST.get("notification_emails", "").strip()
+
+            # Validate emails
+            try:
+                if raw_emails:
+                    for email in raw_emails.split(","):
+                        validate_email(email.strip())
+            except ValidationError:
+                self.message_user(
+                    request,
+                    "One or more email addresses are invalid.",
+                    messages.ERROR,
+                )
+                return redirect(request.path)
+            
             formset = ExecutionArtifactFormSet(
                 request.POST,
                 request.FILES,
@@ -2674,6 +2693,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     total_forms = formset.total_form_count()
                     config_required = total_forms > 0
                     formset.save()
+                    execution.notification_emails = raw_emails
+                    execution.save(update_fields=["notification_emails"])
 
                     schedule_time= request.session.get("execution_schedule_time")
                     if execute_after_save:
@@ -2753,7 +2774,9 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
 
     def save_model(self, request, obj, form, change):
-        print(f">>> ADMIN save_model called. Change: {change} <<<")
+        print(f">>> ADMIN save_model called. Change: {obj} <<<")
+        if not change and not obj.created_by:
+            obj.created_by = request.user
         super().save_model(request, obj, form, change)
         print(f">>> Object saved with ID: {obj.id} <<<")
         # if '_save_execute' in request.POST and not change:
@@ -3033,7 +3056,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 })
 
             extra_context["execution_devices_json"] = json.dumps(devices_data)
-      
+            if obj.test_case_execution_order:
+                extra_context["ordered_testcase_ids"] = obj.test_case_execution_order
         return super().change_view(request, object_id, form_url, extra_context)
     
     def recover_view(self, request, version_id, extra_context=None):

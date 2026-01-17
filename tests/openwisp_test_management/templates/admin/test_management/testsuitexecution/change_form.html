@@ -47,6 +47,9 @@
     <script>
         window.disabledViewMode = {{ hide_submit_row|yesno:"true,false" }}; 
     </script>
+    <script>
+      window.ORDERED_TESTCASE_IDS = {{ ordered_testcase_ids|default:"[]" | safe }};
+    </script>
 
 <script src="{% static 'test-management/js/test_suite_execution_form.js' %}"></script>
 {% endblock %}
