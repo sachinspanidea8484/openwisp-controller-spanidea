@@ -10,7 +10,7 @@ from django.core.validators import (
     MinLengthValidator,
     MaxLengthValidator
 )
-
+from django.templatetags.static import static
 from django.template.response import TemplateResponse
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
@@ -1054,7 +1054,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         # "created",
         # "modified",
     ]
-    readonly_fields = ["created", "modified"]
+    readonly_fields = ["created", "modified","test_script_guidelines"]
     autocomplete_fields = ["category"]
     
     # Enable history button
@@ -1062,6 +1062,26 @@ class TestCaseAdmin(BaseVersionAdmin):
     change_list_template = 'admin/test_management/import_export/testcase/change_list.html'
     actions = ["delete_selected", "recover_deleted", "activate_cases", "deactivate_cases"]
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+
+        # Superusers see everything
+        if request.user.is_superuser:
+            return qs
+
+        # Normal users see only their own test cases
+        return qs.filter(created_by=request.user)
+    
+    def has_view_permission(self, request, obj=None):
+        if obj and not request.user.is_superuser:
+            return obj.created_by == request.user
+        return super().has_view_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and not request.user.is_superuser:
+            return obj.created_by == request.user
+        return super().has_change_permission(request, obj)
+    
     def name_with_tooltip(self,obj):
         tooltip_text= obj.description or "No description available"
 
@@ -1091,6 +1111,14 @@ class TestCaseAdmin(BaseVersionAdmin):
     test_type_display.admin_order_field = "test_type"
 
 
+    def test_script_guidelines(self, obj=None):
+        url = static("guidelines/test_script_guidelines.txt")
+        return format_html(
+            '<a href="{}" download class="">Download Test Script Guidelines</a>',
+            url
+        )
+
+    test_script_guidelines.short_description = "Guidelines"
 
     def get_fieldsets(self, request, obj=None):
         fieldsets = [
@@ -1111,6 +1139,7 @@ class TestCaseAdmin(BaseVersionAdmin):
                     "fields": (
                         "robot_script",
                         "python_script",
+                        "test_script_guidelines",
                     )
                 },
             ),
@@ -1264,6 +1293,8 @@ class TestCaseAdmin(BaseVersionAdmin):
     def save_model(self, request, obj, form, change):
         """Override save to ensure robot file is synced before saving"""
         # Save the object first
+        if not change and not obj.created_by:
+            obj.created_by = request.user
         super().save_model(request, obj, form, change)
         
         # If robot file exists and needs update, it's already handled in form.clean()
@@ -2256,15 +2287,24 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
    
     def formfield_for_manytomany(self, db_field, request, **kwargs):
         if db_field.name == "individual_test_cases":
+
+            # Base queryset
             qs = db_field.related_model.objects.all()
+
+            # Restrict for non‑superusers
+            if not request.user.is_superuser:
+                qs = qs.filter(created_by=request.user)
+
             widget = TestCaseFilteredWidget(
                 verbose_name="Test Cases",
                 is_stacked=False,
             )
             widget.testcase_queryset = qs
-            print("widget",widget)
 
-            return db_field.formfield(widget=widget, queryset=qs)
+            kwargs["queryset"] = qs
+            kwargs["widget"] = widget
+
+            return super().formfield_for_manytomany(db_field, request, **kwargs)
 
         return super().formfield_for_manytomany(db_field, request, **kwargs)
     #  function which trigger to show save and execute button on ui
@@ -2572,13 +2612,25 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         
     
     def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        # Prefetch re-executions so list page doesn't do N+1 queries
-        # return qs.select_related("parent_execution").prefetch_related("re_executions")
-        return (
-            qs.filter(parent_execution__isnull=True)   # only base/original executions
-            .prefetch_related("re_executions")
-        )
+        qs = super().get_queryset(request).filter(
+            parent_execution__isnull=True
+        ).prefetch_related("re_executions")
+
+        if request.user.is_superuser:
+            return qs
+
+        return qs.filter(created_by=request.user)
+    
+    def has_view_permission(self, request, obj=None):
+        if obj and not request.user.is_superuser:
+            return obj.created_by == request.user
+        return super().has_view_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and not request.user.is_superuser:
+            return obj.created_by == request.user
+        return super().has_change_permission(request, obj)
+
     def _history_url(self, obj):
         opts = obj._meta
         return reverse(

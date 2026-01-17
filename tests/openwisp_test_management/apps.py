@@ -5,7 +5,11 @@ from swapper import get_model_name
 from openwisp_utils.admin_theme.menu import register_menu_group
 from openwisp_utils.api.apps import ApiAppConfig
 from openwisp_utils.utils import default_or_test
-
+from openwisp_notifications.types import (
+    register_notification_type,
+    
+)
+from swapper import load_model
 from . import settings as app_settings
 
 
@@ -26,7 +30,19 @@ class TestManagementConfig(ApiAppConfig):
         from . import signals
         super().ready(*args, **kwargs)
         self.register_menu_groups()
+        self.register_notification_types()
+        self.connect_signals()
 
+    def connect_signals(self):
+       
+        from . import handlers
+        TestSuiteExecution = load_model("test_management", "TestSuiteExecution")
+
+        post_save.connect(
+            handlers.testsuite_execution_status_notification,
+            sender=TestSuiteExecution,
+            dispatch_uid="testsuite_execution_status_notification",
+        )
     def register_menu_groups(self):
         register_menu_group(
             position=111,
@@ -69,5 +85,22 @@ class TestManagementConfig(ApiAppConfig):
             },
         )
 
+    def register_notification_types(self):
 
+        register_notification_type(
+            "test_suite_execution_completed",
+            {
+                "verbose_name": _("Test Suite Execution"),
+                "verb": _("completed"),
+                "level": "success",
+                "email_subject": _(
+                    '[{site.name}] SUCCESS: Test Suite Execution Completed'
+                ),
+                "message": _(
+                    'Execution "{execution_name}" has completed successfully.'
+                ),
+                "extra_context": ["execution_name"],
+            },
+            models=[load_model("test_management", "TestSuiteExecution")],
+        )
 del ApiAppConfig

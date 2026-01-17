@@ -12,7 +12,8 @@ document.addEventListener("DOMContentLoaded", function () {
             .field-error {
                 color: #dc3545;
                 font-size: 13px;
-                margin-top: 4px;
+                margin-top: 8px;
+                margin-left: 10px;
             }
             .tc-invalid {
                 border-color: #dc3545 !important;
