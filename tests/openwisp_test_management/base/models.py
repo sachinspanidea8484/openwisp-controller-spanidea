@@ -197,6 +197,13 @@ class AbstractTestCase(TimeStampedEditableModel):
         choices=Status.choices,
         default=Status.PENDING
     )
+    created_by = models.ForeignKey(
+        'openwisp_users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_test_cases',
+    )
     
     # file = PrivateFileField(
     #     "Test Script",
@@ -510,6 +517,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         help_text=_("Number of devices in this execution")
     )
     completion_email_sent = models.BooleanField(default=False)
+    completion_notification_sent= models.BooleanField(default=False)
     notification_emails = models.TextField(
         blank=True,
         help_text="Comma-separated email addresses"

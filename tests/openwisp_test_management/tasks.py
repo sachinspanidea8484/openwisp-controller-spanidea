@@ -2700,3 +2700,44 @@ def retry_test_execution_old(test_execution_id):
         logger.error(f"Error retrying test execution {test_execution_id}: {str(e)}")
         print(f"[ERROR] retry_test_execution - Error: {str(e)}")
 
+from django.contrib.auth import get_user_model
+from openwisp_notifications.signals import notify
+User = get_user_model()
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=5, retry_kwargs={"max_retries": 3})
+def send_execution_completed_notification(self, instance_pk, created_by_id):
+    if not created_by_id:
+        return
+
+    with transaction.atomic():
+        #  Lock row
+        instance = (
+            TestSuiteExecution.objects
+            .select_for_update()
+            .get(pk=instance_pk)
+        )
+
+        # Only completed executions
+        if instance.execution_status != 3:
+            return
+
+        #  If already notified, exit
+        if instance.completion_notification_sent:
+            return
+
+        #  Mark as notified BEFORE sending
+        instance.completion_notification_sent = True
+        instance.save(update_fields=["completion_notification_sent"])
+
+    # Send notification AFTER lock is released
+    recipient = User.objects.get(pk=created_by_id)
+
+    notify.send(
+        sender=instance,
+        recipient=recipient,
+        type="test_suite_execution_completed",
+        target=instance,
+        execution_name = instance.name,
+    )
+
+ 

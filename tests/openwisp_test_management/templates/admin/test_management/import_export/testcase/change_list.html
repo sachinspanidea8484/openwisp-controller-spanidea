@@ -2,6 +2,12 @@
 {% load admin_urls i18n %}
 
 {% block object-tools-items %}
+  <li>
+    <a href="{% url 'admin:testcase_export_all_scripts' %}"
+      class="button">
+      Export All Scripts (ZIP)
+    </a>
+  </li>
   {{ block.super }}
   <script>
     document.addEventListener("DOMContentLoaded", function() {
