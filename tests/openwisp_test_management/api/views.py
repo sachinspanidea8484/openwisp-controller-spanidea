@@ -4598,6 +4598,7 @@ def test_execution_all_history(request, execution_id):
             'test_suite_name': test_suite_name,
             'test_suite_id': test_suite_id,
             'created': execution.created.isoformat() if execution.created else None,
+            'execution_start_time' : execution.execution_start_time
         }
         
         
@@ -4609,6 +4610,7 @@ def test_execution_all_history(request, execution_id):
                 "name": r.name,
                 "status_display": r.status_display,
                 "created": r.created.isoformat() if r.created else None,
+                'execution_start_time' : r.execution_start_time.isoformat() if r.execution_start_time else None,
                 "history_url": reverse("admin:test_management_testsuiteexecution_history", args=[r.id]),
             })
         re_execution_data.append({
@@ -4616,6 +4618,7 @@ def test_execution_all_history(request, execution_id):
             "name": execution.name,
             "status_display": execution.status_display,
             "created": execution.created.isoformat() if execution.created else None,
+            'execution_start_time' : execution.execution_start_time.isoformat() if execution.execution_start_time else None,
             "history_url": reverse("admin:test_management_testsuiteexecution_history", args=[execution.pk]),
         })
         execution_data["re_execution_data"]= re_execution_data
@@ -5404,6 +5407,9 @@ def create_test_execution_clone(execution):
             test_suite=execution.test_suite,
             device_selection=execution.device_selection,
             device_group=execution.device_group,
+            notification_emails= execution.notification_emails,
+            execution_start_time= timezone.now(),
+            created_by= execution.created_by,
         )
 
         
@@ -5458,6 +5464,9 @@ def create_test_execution_clone_for_selected_tests(execution, device_tests_info_
             test_suite=execution.test_suite,
             device_selection=execution.device_selection,
             device_group=execution.device_group,
+            notification_emails= execution.notification_emails,
+            execution_start_time= timezone.now(),
+            created_by= execution.created_by,
         )
 
         

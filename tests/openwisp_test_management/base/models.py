@@ -536,6 +536,20 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         verbose_name=_("device group"),
         help_text=_("Device group for execution (required if device selection is 'Device Group')")
     )
+    execution_status= models.IntegerField(
+        _("Execution Status"),
+        choices=EXECUTION_STATUS_CHOICE,
+        default=0,
+        help_text=_("execution status")
+    )
+    execution_start_time= models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        'openwisp_users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_test_executions',
+    )
     parent_execution = models.ForeignKey(
         "self",
         null=True,

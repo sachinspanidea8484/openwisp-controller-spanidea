@@ -699,7 +699,7 @@ function displayExecutionData(data) {
                     
                     <td>${r.name || ""}</td>
                     <td>${r.status_display || ""}</td>
-                    <td>${r.created ? new Date(r.created).toLocaleString() : "-"}</td>
+                    <td>${r.execution_start_time ? new Date(r.execution_start_time).toLocaleString() : "-"}</td>
                     <td><a href="${r.history_url}">{% trans "View" %}</a></td>
                     </tr>
                 `).join("")}
