@@ -586,13 +586,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         blank=True
     )
 
-    created_by = models.ForeignKey(
-        'openwisp_users.User',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='created_test_executions',
-    )
+
 
 
     class Meta:
