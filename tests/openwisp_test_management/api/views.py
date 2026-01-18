@@ -4476,6 +4476,7 @@ def test_execution_history(request, execution_id):
             scheduled_time = None
         execution_data = {
             'execution_id': str(execution.pk),
+            'execution_start_time' : execution.execution_start_time,
             'execution_name' : execution.name,
             'test_suite_name': test_suite_name,
             'test_suite_id': test_suite_id,

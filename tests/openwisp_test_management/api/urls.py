@@ -220,7 +220,8 @@ urlpatterns = [
                 "test-suite-execution/<uuid:execution_id>/re-execute-selected/",
                 views.re_execute_selected_view,
                 name="re-execute-selected-execution"
-            )
+            ),
+            
 
 path(
     "test-case/check-test-case-id/",

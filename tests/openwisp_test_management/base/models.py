@@ -460,6 +460,12 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         (0, _('Individual')),
         (1, _('Group')),
     )
+    EXECUTION_STATUS_CHOICE= (
+        (0, _('Created')),
+        (1,_('Execution Progress')),
+        (2,_('Partially Completed')),
+        (3,_('Completed'))
+    )
     name = models.CharField(
         _("Test Execution Name"), 
         max_length=50,
@@ -503,7 +509,11 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         default=0,
         help_text=_("Number of devices in this execution")
     )
-    
+    completion_email_sent = models.BooleanField(default=False)
+    notification_emails = models.TextField(
+        blank=True,
+        help_text="Comma-separated email addresses"
+    )
     testcase_count = models.PositiveIntegerField(
         _("test case count"),
         default=0,
@@ -542,6 +552,27 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         help_text=_("1 for first re-execution, 2 for second, etc.")
     )
 
+    execution_status = models.IntegerField(
+        _("Execution Status"),
+        choices=EXECUTION_STATUS_CHOICE,
+        default=0,
+        help_text=_("execution status")
+    )
+
+    execution_start_time = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+    created_by = models.ForeignKey(
+        'openwisp_users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_test_executions',
+    )
+
+
     class Meta:
         abstract = True
         verbose_name = _("Test Execution")
@@ -571,7 +602,11 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
             return self.test_suite.test_cases.filter(is_configuration_push_required=True)
         else:
             return self.individual_test_cases.filter(is_configuration_push_required=True)
-        
+    
+    def trigger_mail(self):
+        from ..tasks import send_execution_completed_email
+        send_execution_completed_email.delay(str(self.pk))
+
     def save(self, *args, **kwargs):
         is_new = self.pk is None  # check if new execution
         
@@ -586,9 +621,12 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
         TestCaseExecution = load_model("TestCaseExecution")
 
-
-    
-
+        if (
+            self.execution_status == 3
+            and not self.completion_email_sent
+            and self.notification_emails
+        ):
+            self.trigger_mail()
 
         # ⚡ Only run auto-population for new executions with device group
         if is_new and self.device_selection == 1 and self.device_group_id:

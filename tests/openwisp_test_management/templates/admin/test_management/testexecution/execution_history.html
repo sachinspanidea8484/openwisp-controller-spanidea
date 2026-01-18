@@ -851,6 +851,15 @@ function displayExecutionData(data) {
             <div class="summary-label">Total Devices:</div>
             <div class="summary-value">${data?.device_count}</div>
         </div>
+        ${data.execution_start_time ? 
+            `<div class="summary-row">
+                <div class="summary-label">Execution Start Time:</div>
+                <div class="summary-value">${(() => {
+                    const d = new Date(data?.execution_start_time);
+                    return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth()+1).padStart(2, '0')}-${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                })()}</div>
+            </div> `: ""     
+        }
         ${data.status ===3 && total_execution_time ? `<div class="summary-row">
             <div class="summary-label">Total Execution Time:</div>
             <div class="summary-value">${(total_execution_time).toFixed(2)} s</div>
