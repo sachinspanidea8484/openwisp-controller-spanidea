@@ -492,6 +492,27 @@
     cursor: not-allowed;
 }
 
+.export-button-class {
+    background-color: #e5e7eb; /* light gray */
+    color: #374151;            /* dark gray text */
+    border: 1px solid #d1d5db;
+    padding: 10px 18px;
+    font-size: 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s ease;
+}
+
+.export-button-class:hover:not(:disabled) {
+    background-color: #d1d5db;
+    color: #374151;
+}
+
+.export-button-class:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
 
 .re-execute-button {
     background-color: #ebc98f;   
@@ -626,8 +647,11 @@
         <p>{% trans 'Loading execution history...' %}</p>
     </div>
 
-    <div style="display : flex; justify-content: end; margin-bottom: 10px; gap: 5px">
-         <div id="re-execute-execution">
+    <div style="display : flex; align-items: center; justify-content: end; margin-bottom: 10px; gap: 5px">
+        <div id="re-execute-execution">
+
+        </div>
+        <div id="export-test-execution-data">
         
         </div>
         <div id="abort-test-execution">
@@ -993,7 +1017,13 @@ function displayExecutionData(data) {
          
 
     `;
-    
+    if (data.status !== 2 && data.status !== 1) {
+        const exportButtonSection = document.getElementById('export-test-execution-data');
+        exportButtonSection.innerHTML = `
+        <a class="export-button-class" href="/api/v1/test-management/execution/${executionId}/history/export/" download>
+            Export To CSV
+        </a>`
+    }
     const abortSection = document.getElementById('abort-test-execution');
     abortSection.innerHTML = `
     <button ${data.status !== 2 && data.status !== 1 ? "disabled" : ""} class="abort-button-class" onclick="abortAllTests()">

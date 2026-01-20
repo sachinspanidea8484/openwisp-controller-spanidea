@@ -86,6 +86,11 @@ urlpatterns = [
                 name="api_test_execution_all_history",
             ),
             path(
+                "execution/<uuid:execution_id>/history/export/",
+                views.test_execution_history_export,
+                name="api_test_execution_history_export",
+            ),
+            path(
                 "execution-details/",
                 views.get_execution_details,
                 name="api_get_execution_details",
@@ -93,7 +98,7 @@ urlpatterns = [
             path(
                 "execution/<uuid:execution_id>/abort-execution/",
                 views.test_execution_abort,
-                name="api_test_execution_history",
+                name="api_test_execution_abort",
             ),
             
             # Test Case Execution endpoints
