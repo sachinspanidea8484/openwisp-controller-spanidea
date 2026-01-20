@@ -43,7 +43,12 @@
             return;
         }
 
-        if (file.size > 200 * 1024) {
+        // if (file.size > 200 * 1024) {
+        //     alert("File too large to preview");
+        //     return;
+        // }
+        // 1 MB 
+        if (file.size > 1000 * 1024) {
             alert("File too large to preview");
             return;
         }

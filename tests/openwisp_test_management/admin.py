@@ -514,22 +514,64 @@ class FormattedJSONField(forms.CharField):
     
     def prepare_value(self, value):
         """Format JSON value before displaying in the widget"""
+        print("=" * 50)
+        print("🔍 DEBUG: FormattedJSONField.prepare_value()")
+        print(f"Input value type: {type(value)}")
+        print(f"Input value: {repr(value)}")
+        
         if value is None or value == '':
+            print("✅ Returning empty string")
             return ''
         
         try:
-            if isinstance(value, (dict, list)):
+            # Handle dict
+            if isinstance(value, dict):
                 parsed = value
+                print(f"✅ Value is dict: {parsed}")
+            # Handle string
             elif isinstance(value, str):
+                value = value.strip()
+                if not value or value == '{}':
+                    print("✅ Empty string or empty object")
+                    return ''
                 parsed = json.loads(value)
+                print(f"✅ Parsed from string: {parsed}")
             else:
-                parsed = value
+                print(f"⚠️ Unexpected type, returning as-is: {type(value)}")
+                return value
             
             # Format with proper indentation
-            return json.dumps(parsed, indent=4, ensure_ascii=False, sort_keys=True)
-        except (json.JSONDecodeError, TypeError):
+            formatted = json.dumps(parsed, indent=4, ensure_ascii=False, sort_keys=True)
+            print(f"✅ Formatted output:\n{formatted}")
+            return formatted
+            
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"❌ Error formatting JSON: {e}")
+            print(f"⚠️ Returning original value")
             return value
+        finally:
+            print("=" * 50)
 
+    def to_python(self, value):
+        """Convert widget value to Python object"""
+        print("=" * 50)
+        print("🔍 DEBUG: FormattedJSONField.to_python()")
+        print(f"Input: {repr(value)}")
+        
+        if value in (None, '', '{}'):
+            print("✅ Returning empty dict")
+            result = {}
+        elif isinstance(value, dict):
+            print("✅ Already a dict")
+            result = value
+        else:
+            print(f"✅ Returning string for validation: {repr(value)}")
+            result = value  # Return as string for clean_params to handle
+        
+        print(f"Output: {repr(result)}")
+        print("=" * 50)
+        return result
+    
 allowed_test_case_id = RegexValidator(
     regex=r'^[A-Za-z0-9_\-.:/]+$',
     message=_("Only letters, numbers, underscores (_), hyphens (-), dots (.), colons (:), and slashes (/) are allowed.")
@@ -564,11 +606,12 @@ class TestCaseAdminForm(forms.ModelForm):
         widget=forms.Textarea(attrs={
             'rows': 15,
             'cols': 67,
-            'placeholder': _('Enter Parameters in JSON format'),
+            'placeholder': _('Enter Parameters in JSON format (e.g., {"key": "value"})'),
             'id': 'id_params',
-            
         })
     )
+
+    
     
     json_file = forms.FileField(
         required=False,
@@ -768,10 +811,10 @@ class TestCaseAdminForm(forms.ModelForm):
         Falls back to basic validation if robot library not available
         """
         try:
-            MAX_ROBOT_FILE_SIZE = 200 * 1024  # 200 KB
+            MAX_ROBOT_FILE_SIZE = 1000 * 1024  # 1000 KB
 
             if robot_file.size > MAX_ROBOT_FILE_SIZE:
-                       return False, "Robot file is too large (max 200KB allowed).", "robot_framework"
+                       return False, "Robot file is too large (max 1MB allowed).", "robot_framework"
 
 
 
@@ -871,10 +914,10 @@ class TestCaseAdminForm(forms.ModelForm):
         STANDARD WAY: Validate Python file using ast and compile
         """
         try:
-            MAX_PYTHON_FILE_SIZE = 100 * 1024  # 100 KB
+            MAX_PYTHON_FILE_SIZE = 1000 * 1024  # 1000 KB
 
             if python_file.size > MAX_PYTHON_FILE_SIZE:
-                        return False, "Python file too large (max 100KB allowed).", "python_ast"
+                        return False, "Python file too large (max 1MB allowed).", "python_ast"
 
 
 
@@ -1016,6 +1059,70 @@ class TestCaseAdminForm(forms.ModelForm):
             cleaned_data["robot_script"] = None
         
         return cleaned_data
+    def clean_params(self):
+        """Validate params field - must be valid JSON dict or empty"""
+        params = self.cleaned_data.get('params', '')
+        
+        print("=" * 50)
+        print("🔍 DEBUG: clean_params() started")
+        print(f"Raw params type: {type(params)}")
+        print(f"Raw params value: {repr(params)}")
+        print("=" * 50)
+        
+        # Handle empty values
+        if params in (None, '', '{}', {}):
+            print("✅ Params is empty - returning empty dict")
+            return {}
+        
+        # If already a dict (shouldn't happen but handle it)
+        if isinstance(params, dict):
+            print(f"✅ Params is already a dict: {params}")
+            return params
+        
+        # Must be string at this point
+        if not isinstance(params, str):
+            print(f"❌ Params is not a string, it's: {type(params)}")
+            raise ValidationError(
+                _("Parameters must be a valid JSON object.")
+            )
+        
+        # Clean whitespace
+        params = params.strip()
+        print(f"Trimmed params: {repr(params)}")
+        
+        if not params:
+            print("✅ Params is empty after trim - returning empty dict")
+            return {}
+        
+        # Try to parse JSON
+        try:
+            parsed = json.loads(params)
+            print(f"✅ JSON parsed successfully: {parsed}")
+            print(f"Parsed type: {type(parsed)}")
+            
+            # Must be a dictionary (object), not array or primitive
+            if not isinstance(parsed, dict):
+                print(f"❌ Parsed JSON is not a dict, it's: {type(parsed)}")
+                raise ValidationError(
+                    _("Parameters must be a JSON object (key-value pairs), not an array or primitive value. "
+                      "Example: {\"username\": \"admin\", \"timeout\": 30}")
+                )
+            
+            print(f"✅ Final validated params: {parsed}")
+            return parsed
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ JSON parsing failed: {e}")
+            print(f"Error at position {e.pos}: {e.msg}")
+            raise ValidationError(
+                _(f"Invalid JSON format: {e.msg} at position {e.pos}. "
+                  f"Please enter valid JSON like: {{\"key\": \"value\"}}")
+            )
+        except Exception as e:
+            print(f"❌ Unexpected error: {e}")
+            raise ValidationError(
+                _(f"Error validating parameters: {str(e)}")
+            )
  
 # @admin.register(TestCase)
 class TestCaseAdmin(BaseVersionAdmin):
@@ -1113,7 +1220,7 @@ class TestCaseAdmin(BaseVersionAdmin):
 
 
     def test_script_guidelines(self, obj=None):
-        url = static("guidelines/test_script_guidelines.txt")
+        url = static("guidelines/test_script_guidelines.docx")
         return format_html(
             '<a href="{}" download class="">Download Test Script Guidelines</a>',
             url
@@ -1122,47 +1229,50 @@ class TestCaseAdmin(BaseVersionAdmin):
     test_script_guidelines.short_description = "Guidelines"
 
     def get_fieldsets(self, request, obj=None):
-        fieldsets = [
-            (
-                None,
-                {
+     guidelines_url = static("guidelines/test_script_guidelines.docx")
+     
+     fieldsets = [
+          (
+               None,
+               {
                     "fields": (
-                        "category",
-                        "name",
-                        "test_case_id",
-                        "test_type",
+                         "category",
+                         "name",
+                         "test_case_id",
+                         "test_type",
                     )
-                },
-            ),
-            (
-                _("Test Scripts"),
-                {
+               },
+          ),
+          (
+               _("Test Scripts"),
+               {
                     "fields": (
-                        "robot_script",
-                        "python_script",
-                        "test_script_guidelines",
-                    )
-                },
-            ),
-            (
-                _("Additional Details"),
-                {
+                         "robot_script",
+                         "python_script",
+                    ),
+                     "description": format_html(
+                    '<a href="{}" download class="guidelines-link">'
+                    'Download Test Script Guidelines'
+                    '</a>',
+                    guidelines_url
+                ),
+               },
+          ),
+          (
+               _("Additional Details"),
+               {
                     "fields": (
-                        "params",
-                        "json_file",
-                        "description",
-                        "is_active",
-                        "is_configuration_push_required",
-                    )
-                },
-            ),
-        ]
+                         "params",
+                         "json_file",
+                         "description",
+                         "is_active",
+                         "is_configuration_push_required",
+                    ),
+               },
+          ),
+     ]
 
-        # Show status only in edit mode, grouped with scripts
-        if obj:
-            fieldsets[1][1]["fields"] 
-
-        return fieldsets
+     return fieldsets
 
     # def get_readonly_fields(self, request, obj=None):
     #     fields = list(super().get_readonly_fields(request, obj))
@@ -1309,7 +1419,7 @@ class TestCaseAdmin(BaseVersionAdmin):
     class Media:
         js = ('test-management/js/json_file_handler.js', 'test-management/js/testcase_toggle_scripts.js',  'test-management/js/testcase_id_check.js','https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',)  # Add custom JavaScript
         css = {
-            'all': ('test-management/css/json_file_handler.css',)  # Optional custom CSS
+            'all': ('test-management/css/json_file_handler.css','test-management/css/testcase_admin.css')  # Optional custom CSS
         }
 
     def delete_selected(self, request, queryset):
@@ -2277,7 +2387,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     
     filter_horizontal=["individual_test_cases"]
     readonly_fields = ["created", "modified", "device_count", "testcase_count"]
-    actions = ["execute_test_suite"]
+    actions = ["execute_test_suite", "re_execute_test_suite"]
     class Media:
         js = ('admin/js/jquery.init.js',
               'test-management/js/selection_toggle.js')
@@ -2850,6 +2960,123 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         return format_html('<a href="{}" class="viewlink">View History</a>', url)
     view_history.short_description = _("History")
     view_history.allow_tags = True
+
+    @admin.action(description=_("Re-Execute Selected Test Executions"))
+    def re_execute_test_suite(self, request, queryset):
+     """Create replica of executions and execute immediately"""
+     from .tasks import execute_test_suite as execute_test_suite_task
+     from .models import ExecutionArtifact
+     
+     re_executed_count = 0
+     failed_count = 0
+     
+     # Store successfully created executions to trigger AFTER all transactions complete
+     executions_to_trigger = []
+     
+     for original in queryset:
+          try:
+               with transaction.atomic():
+                    # Get root execution
+                    root = original.parent_execution or original
+                    
+                    # Calculate next re_execution_index
+                    existing_count = root.re_executions.count()
+                    new_index = existing_count + 1
+                    
+                    # Clone the execution
+                    new_execution = TestSuiteExecution(
+                         name=f"{root.name}_{new_index}",
+                         test_selection_type=original.test_selection_type,
+                         test_suite=original.test_suite,
+                         test_case_execution_order=original.test_case_execution_order,
+                         device_selection=original.device_selection,
+                         device_group=original.device_group,
+                         notification_emails=original.notification_emails,
+                         parent_execution=root,
+                         re_execution_index=new_index,
+                         created_by=request.user,
+                         is_executed=False,
+                    )
+                    new_execution.save()
+                    
+                    # Copy M2M for individual test cases
+                    if original.test_selection_type == 0:
+                         new_execution.individual_test_cases.set(
+                              original.individual_test_cases.all()
+                         )
+                    
+                    # Clone devices
+                    for dev in TestSuiteExecutionDevice.objects.filter(
+                         test_suite_execution=original
+                    ):
+                         TestSuiteExecutionDevice.objects.create(
+                              test_suite_execution=new_execution,
+                              device=dev.device,
+                              connection_protocol=dev.connection_protocol,
+                              status='pending'
+                         )
+                    
+                    # Clone artifacts (config files)
+                    for artifact in ExecutionArtifact.objects.filter(
+                         execution=original
+                    ):
+                         ExecutionArtifact.objects.create(
+                              execution=new_execution,
+                              device=artifact.device,
+                              testcase=artifact.testcase,
+                              config_file=artifact.config_file,
+                              is_pushed=False
+                         )
+                    
+                    # Update counts
+                    new_execution.device_count = TestSuiteExecutionDevice.objects.filter(
+                         test_suite_execution=new_execution
+                    ).count()
+                    new_execution.testcase_count = (
+                         new_execution.test_suite.test_case_count 
+                         if new_execution.test_selection_type == 1 and new_execution.test_suite
+                         else new_execution.individual_test_cases.count()
+                    )
+                    new_execution.is_executed = True
+                    new_execution.save(update_fields=['device_count', 'testcase_count', 'is_executed'])
+                    
+                    # DON'T trigger task here - store for later
+                    executions_to_trigger.append(new_execution.id)
+                    re_executed_count += 1
+                    logger.info(f"Re-executed {original.id} -> {new_execution.id}")
+                    
+          except Exception as e:
+               failed_count += 1
+               logger.error(f"Failed to re-execute {original.id}: {e}", exc_info=True)
+               self.message_user(
+                    request,
+                    f"Failed to re-execute {original}: {str(e)}",
+                    messages.ERROR
+               )
+     
+     # NOW trigger all Celery tasks AFTER all transactions have committed
+     for execution_id in executions_to_trigger:
+          try:
+               execute_test_suite_task.delay(str(execution_id))
+               logger.info(f"Queued Celery task for execution {execution_id}")
+          except Exception as e:
+               logger.error(f"Failed to queue task for {execution_id}: {e}")
+               self.message_user(
+                    request,
+                    f"Created execution {execution_id} but failed to start: {str(e)}",
+                    messages.WARNING
+               )
+     
+     if re_executed_count > 0:
+          self.message_user(
+               request,
+               ngettext(
+                    "%d test execution was re-executed.",
+                    "%d test executions were re-executed.",
+                    re_executed_count,
+               ) % re_executed_count,
+               messages.SUCCESS,
+          )
     
     # def execution_status(self, obj):
     #     """Display execution status summary"""
