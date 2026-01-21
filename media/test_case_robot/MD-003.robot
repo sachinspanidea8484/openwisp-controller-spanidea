@@ -1,5 +1,5 @@
 *** Settings ***
-Library           ../../resources/keywords/RR-001.py
+Library           ../../resources/keywords/MD-003.py
 Library           JSONLibrary
 Library           BuiltIn
 Library           Collections
@@ -11,7 +11,7 @@ ${LOG_FOLDER}      ${CURDIR}/../../logs
 
 *** Test Cases ***
 Verify SSH Access - PC Then BB
-    [Tags]    RR-001
+    [Tags]    MD-003
     Load Device Info
      Sleep    20s
      Log To Console    ==== PING BB ====

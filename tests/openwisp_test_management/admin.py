@@ -1499,7 +1499,7 @@ class TestCaseAdmin(BaseVersionAdmin):
             messages.SUCCESS,
         )
 
-    @admin.action(description=_("Export scripts (ZIP)"))
+    @admin.action(description=_("Export scripts"))
     def export_scripts_zip(self, request, queryset):
         if not queryset.exists():
             self.message_user(request, _("No test cases selected."), messages.WARNING)
