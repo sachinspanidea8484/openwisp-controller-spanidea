@@ -3833,14 +3833,16 @@ def get_categories_test_cases(request):
                 )
 
         # Fetch test cases for all these categories
-        if not category_ids:
-            test_cases = TestCase.objects.filter(is_active=True).select_related('category').order_by('name')
-        else:
-            test_cases = TestCase.objects.filter(
-                category_id__in=valid_category_ids,
-                is_active=True
-            ).select_related('category').order_by('name')
+        test_cases = TestCase.objects.filter(is_active=True)
 
+        if category_ids:
+            test_cases = test_cases.filter(category_id__in=valid_category_ids)
+
+        if not request.user.is_superuser:
+            test_cases = test_cases.filter(created_by=request.user)
+
+        test_cases = test_cases.select_related('category').order_by('name')
+        
         test_cases_data = [
             {
                 'id': str(tc.id),

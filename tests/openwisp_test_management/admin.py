@@ -120,13 +120,88 @@ class ChoicesWidget(Widget):
         """Convert readable text → integer for import"""
         return self.reverse_choices.get(value, None)
 
+def extract_description_from_python(content: bytes) -> str | None:
+    START_MARKER = "# START_DESCRIPTION"
+    END_MARKER = "# END_DESCRIPTION"
 
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+    start = text.find(START_MARKER)
+    end = text.find(END_MARKER)
+
+    if start == -1 or end == -1 or end <= start:
+        return None
+
+    extracted = text[start + len(START_MARKER):end].strip()
+
+    lines = extracted.splitlines()
+    cleaned_lines = []
+
+    for line in lines:
+        # Remove leading "#" and spaces
+        cleaned = line.lstrip().lstrip("#").strip()
+        if cleaned:
+            cleaned_lines.append(cleaned)
+
+    return "\n".join(cleaned_lines) if cleaned_lines else None
+
+
+def _update_robot_content(content: bytes, test_case_id: str) -> bytes:
+    import re
+
+    text = content.decode("utf-8")
+
+    # ----------------------------
+    # STEP 1: Update [Tags]
+    # ----------------------------
+    existing_tag_pattern = r'^(\s*\[Tags\]\s+)(\S+)(\s+.*)?$'
+    empty_tag_pattern = r'^\s*\[Tags\]\s*$'
+
+    if re.search(existing_tag_pattern, text, re.MULTILINE):
+        
+        text = re.sub(
+            existing_tag_pattern,
+            rf'\1{test_case_id}\3',
+            text,
+            count=1,
+            flags=re.MULTILINE,
+        )
+    elif re.search(empty_tag_pattern, text, re.MULTILINE):
+        
+        text = re.sub(
+            empty_tag_pattern,
+            rf'[Tags]    {test_case_id}',
+            text,
+            count=1,
+            flags=re.MULTILINE,
+        )
+
+    # ----------------------------
+    # STEP 2: Update Library path (FIRST only)
+    # ----------------------------
+    library_pattern = r'(Library\s+\.\./\.\./resources/keywords/)([A-Za-z0-9_\-]+)(\.py)'
+    match = re.search(library_pattern, text)
+
+    if match:
+        old_name = match.group(2)
+        if old_name != test_case_id:
+            text = (
+                text[:match.start()]
+                + f"{match.group(1)}{test_case_id}{match.group(3)}"
+                + text[match.end():]
+            )
+
+    return text.encode("utf-8")
 
 def store_script(
     source,
     *,
     test_case_id,
     script_type,  # "robot" | "python"
+    extract_description=False,
 ):
     """
     Stores script in a deterministic location with deterministic filename.
@@ -192,13 +267,22 @@ def store_script(
         with open(src_full, "rb") as f:
             content = f.read()
 
+    # update tag and python file path in robot files
+    if script_type == "robot":
+        content = _update_robot_content(content, test_case_id)
+
+    extracted_description = None
+    #update description of test case from py file ONLY if it is not present
+    if script_type == "python" and extract_description:
+        extracted_description = extract_description_from_python(content)
+   
     # --------------------------------------------------
     # 3️ALWAYS rewrite destination 
     # --------------------------------------------------
     with open(dest_path, "wb") as f:
         f.write(content)
 
-    return relative_path
+    return relative_path, extracted_description
 
 class TestCasesResource(resources.ModelResource):
     category= fields.Field(
@@ -290,18 +374,24 @@ class TestCasesResource(resources.ModelResource):
         
         test_case_id = row.get("test_case_id")
 
-        row["robot_script"] = store_script(
+        row["robot_script"] , extracted_description = store_script(
             row.get("robot_script"),
             test_case_id=test_case_id,
             script_type="robot",
         )
 
-        row["python_script"] = store_script(
+        python_path, extracted_description = store_script(
             row.get("python_script"),
             test_case_id=test_case_id,
             script_type="python",
+            extract_description=True,
         )
-       
+
+        row["python_script"] = python_path
+
+        if(not row.get("description")) and extracted_description : 
+            row["description"]= extracted_description
+
 
 @admin.register(TestCategory)
 class TestCategoryAdmin(BaseVersionAdmin):
@@ -632,24 +722,24 @@ class TestCaseAdminForm(forms.ModelForm):
         }
 
     def clean_test_case_id(self):
-     test_case_id = self.cleaned_data.get("test_case_id")
+        test_case_id = self.cleaned_data.get("test_case_id")
 
-     if not test_case_id:
-          return test_case_id
+        if not test_case_id:
+            return test_case_id
 
-     qs = TestCase.objects.filter(test_case_id=test_case_id)
+        qs = TestCase.objects.filter(test_case_id=test_case_id)
 
-     # Exclude current object during edit
-     if self.instance.pk:
-          qs = qs.exclude(pk=self.instance.pk)
+        # Exclude current object during edit
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
 
-     if qs.exists():
-          raise forms.ValidationError(
-               _("Test Case ID '%(id)s' already exists. Please use a unique ID."),
-               params={"id": test_case_id},
-          )
+        if qs.exists():
+            raise forms.ValidationError(
+                _("Test Case ID '%(id)s' already exists. Please use a unique ID."),
+                params={"id": test_case_id},
+            )
 
-     return test_case_id
+        return test_case_id
     
 
     def extract_tag_from_robot_file(self, robot_file):
@@ -1772,6 +1862,27 @@ class TestSuiteAdmin(BaseVersionAdmin):
         return obj.test_case_count
     test_case_count.short_description = _("Test Cases")
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+
+        # Superusers see everything
+        if request.user.is_superuser:
+            return qs
+
+        # Normal users see only their own test cases
+        return qs.filter(created_by=request.user)
+    
+    def has_view_permission(self, request, obj=None):
+        if obj and not request.user.is_superuser:
+            return obj.created_by == request.user
+        return super().has_view_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and not request.user.is_superuser:
+            return obj.created_by == request.user
+        return super().has_change_permission(request, obj)
+    
+    
     def get_readonly_fields(self, request, obj=None):
         """Remove current_test_cases_display from readonly fields"""
         fields = list(super().get_readonly_fields(request, obj))
@@ -1822,6 +1933,8 @@ class TestSuiteAdmin(BaseVersionAdmin):
         return super().add_view(request, form_url, extra_context)
     def save_model(self, request, obj, form, change):
         """Save the model and handle test case relationships"""
+        if not change and not obj.created_by:
+            obj.created_by = request.user
         super().save_model(request, obj, form, change)
         
         # Handle test cases after the model is saved
