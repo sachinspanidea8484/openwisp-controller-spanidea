@@ -4,9 +4,10 @@ from rest_framework import filters, generics, status, viewsets, permissions
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.authentication import SessionAuthentication
 from ..settings import OPENWISP_SERVER_IP
+import csv
 
 from openwisp_monitoring.monitoring.models import Metric
-
+from django.urls import reverse
 from openwisp_controller.connection.connectors.ssh import Ssh
 from rest_framework.decorators import api_view ,authentication_classes, permission_classes
 from rest_framework.views import APIView
@@ -4476,6 +4477,7 @@ def test_execution_history(request, execution_id):
             scheduled_time = None
         execution_data = {
             'execution_id': str(execution.pk),
+            'execution_start_time' : execution.execution_start_time,
             'execution_name' : execution.name,
             'test_suite_name': test_suite_name,
             'test_suite_id': test_suite_id,
@@ -4533,6 +4535,18 @@ def test_execution_history(request, execution_id):
                 'formatted': avg_duration_formatted
             }
         
+        re_execution_data = []
+        for r in execution.re_executions.all().order_by("re_execution_index", "created"):
+            re_execution_data.append({
+                "id": r.id,
+                "name": r.name,
+                "created": r.created.isoformat() if r.created else None,
+                "history_url": reverse("admin:test_management_testsuiteexecution_history", args=[r.id]),
+                # or change page:
+                # "change_url": reverse("admin:test_management_testsuiteexecution_change", args=[r.id]),
+            })
+        execution_data["re_execution_data"]= re_execution_data
+        
         return Response({
             'success': True,
             'data': execution_data
@@ -4550,6 +4564,153 @@ def test_execution_history(request, execution_id):
             'error': 'Failed to retrieve execution history',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+def test_execution_all_history(request, execution_id):
+    """
+    API endpoint to get test execution history for all executions
+    """
+    try:
+        current_execution = TestSuiteExecution.objects.get(pk=execution_id)
+        execution = current_execution.parent_execution or current_execution
+        
+        if execution.test_selection_type == 1:
+            test_suite_name= execution.test_suite.name
+            test_suite_id =str(execution.test_suite.pk)
+            total_test_cases= execution.test_suite.test_case_count
+        elif execution.test_selection_type ==0 :
+            test_suite_name= "individual execution"
+            test_suite_id = None
+            total_test_cases= len(execution.individual_test_cases.all())
+
+        scheduled_time=None
+        try:
+            is_scheduled_execution= ScheduledExecution.objects.filter(execution=execution).first()
+            if is_scheduled_execution:
+                scheduled_time= is_scheduled_execution.scheduled_time
+                
+        except ScheduledExecution.DoesNotExist:
+            is_scheduled_execution = None
+            scheduled_time = None
+        execution_data = {
+            'execution_id': str(execution.pk),
+            'execution_name' : execution.name,
+            'test_suite_name': test_suite_name,
+            'test_suite_id': test_suite_id,
+            'created': execution.created.isoformat() if execution.created else None,
+            'execution_start_time' : execution.execution_start_time
+        }
+        
+        
+        re_execution_data = []
+        
+        for r in execution.re_executions.all().order_by("-re_execution_index", "created"):
+            re_execution_data.append({
+                "id": r.id,
+                "name": r.name,
+                "status_display": r.status_display,
+                "created": r.created.isoformat() if r.created else None,
+                'execution_start_time' : r.execution_start_time.isoformat() if r.execution_start_time else None,
+                "history_url": reverse("admin:test_management_testsuiteexecution_history", args=[r.id]),
+            })
+        re_execution_data.append({
+            "id": str(execution.pk),
+            "name": execution.name,
+            "status_display": execution.status_display,
+            "created": execution.created.isoformat() if execution.created else None,
+            'execution_start_time' : execution.execution_start_time.isoformat() if execution.execution_start_time else None,
+            "history_url": reverse("admin:test_management_testsuiteexecution_history", args=[execution.pk]),
+        })
+        execution_data["re_execution_data"]= re_execution_data
+        
+        return Response({
+            'success': True,
+            'data': execution_data
+        }, status=status.HTTP_200_OK)
+        
+    except TestSuiteExecution.DoesNotExist:
+        return Response({
+            'success': False,
+            'error': 'Test execution not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error getting execution history: {str(e)}")
+        return Response({
+            'success': False,
+            'error': 'Failed to retrieve execution history',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def test_execution_history_export(request, execution_id):
+    """
+    API endpoint to export test execution history to csv format
+    """
+    try:
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = (
+            f'attachment; filename="execution_{execution_id}_history.csv"'
+        )
+
+        writer = csv.writer(response)
+        writer.writerow([
+            'Test Execution ID',
+            'Device Name',
+            'Test Case Name',
+            'Test Case ID',
+            'Test Case Type',
+            'Status',
+            'Duration',
+            'Stdout',
+            'Stderr'
+        ])
+        execution = TestSuiteExecution.objects.get(pk=execution_id)
+
+        # Get all execution devices
+        execution_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device').order_by('device__name')
+        
+        print("device_exec>>>>>",execution_devices)
+        
+        test_case_executions = TestCaseExecution.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device', 'test_case')
+        print("<<<test_case_executions>>>",test_case_executions)
+        
+        for device_exec in execution_devices:
+            device = device_exec.device
+            device_test_cases = test_case_executions.filter(device=device)
+            
+            for test_exec in device_test_cases:
+                # Calculate execution duration
+                execution_duration_seconds = None
+                
+                if test_exec.started_at and test_exec.completed_at:
+                    duration = test_exec.completed_at - test_exec.started_at
+                    execution_duration_seconds = duration.total_seconds()
+                
+                writer.writerow([
+                    str(test_exec.pk),
+                    device.name,
+                    test_exec.test_case.name,
+                    test_exec.test_case.test_case_id,
+                    test_exec.test_case.get_test_type_display(),
+                    test_exec.status,
+                    execution_duration_seconds,
+                    test_exec.stdout,
+                    test_exec.stderr
+                ])
+
+        return response
+
+    except TestSuiteExecution.DoesNotExist:
+        return HttpResponse("Test execution not found", content_type='text/plain', status=404)
+    except Exception as e:
+        logger.error(f"Error in exporting test execution data: {str(e)}")
+        return HttpResponse(f"Error: {str(e)}", content_type='text/plain', status=500)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -4808,6 +4969,7 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
     2. Validates the device execution exists and is in completed/failed state
     3. Saves the file to media/allure_report/ directory
     4. Updates the database with the file path
+    5. ✅ NEW: Checks if all devices completed and updates execution status
     """
     print(f"\n=== UPLOAD ALLURE REPORT START ===")
     print(f"Device Execution ID: {dev_id}")
@@ -4904,6 +5066,9 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
             device_execution, 
             context={'request': request}
         )
+
+        # ✅✅✅ NEW: Step 10 - Check if ALL devices have completed reports ✅✅✅
+        check_and_complete_execution(test_group_execution_id)
         
         print(f"Report uploaded successfully!")
         print(f"=== UPLOAD ALLURE REPORT END ===\n")
@@ -5256,6 +5421,274 @@ def ConfigurationPushOnDevice(request):
         return Response({
             "error": f"Failed to upload file: {str(e)}"
         }, status=500)
+    
+
+
+
+
+
+
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def check_test_case_id_unique(request):
+    """
+    Check if Test Case ID already exists
+    Used for client-side (type-time) validation
+    """
+    test_case_id = request.GET.get("test_case_id")
+    exclude_id = request.GET.get("exclude_id")  # for edit mode
+
+    if not test_case_id:
+        return Response(
+            {"exists": False, "error": "test_case_id is required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    qs = TestCase.objects.filter(test_case_id=test_case_id)
+
+    # Exclude current object when editing
+    if exclude_id:
+        qs = qs.exclude(id=exclude_id)
+
+    return Response({
+        "exists": qs.exists()
+    }, status=status.HTTP_200_OK)
+
+
+
+
+def create_test_execution_clone(execution):
+    """
+    Creates a full re-execution with identical configuration.
+    """
+    Execution = type(execution)
+    root = execution.parent_execution or execution
+
+    with transaction.atomic():
+        
+        retry_count = Execution.objects.filter(
+            parent_execution=root
+        ).count()
+
+        
+        new_execution = Execution.objects.create(
+            parent_execution=root,
+            re_execution_index=retry_count + 1,
+            test_case_execution_order= execution.test_case_execution_order,
+            name=root.name + f"_{retry_count+1}",
+            test_selection_type=execution.test_selection_type,
+            test_suite=execution.test_suite,
+            device_selection=execution.device_selection,
+            device_group=execution.device_group,
+            notification_emails= execution.notification_emails,
+            execution_start_time= timezone.now(),
+            created_by= execution.created_by,
+        )
+
+        
+        if execution.test_selection_type == 0:
+            new_execution.individual_test_cases.set(
+                execution.individual_test_cases.all()
+            )
+
+        old_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        )
+
+        TestSuiteExecutionDevice.objects.bulk_create([
+            TestSuiteExecutionDevice(
+                test_suite_execution=new_execution,
+                device=ed.device,
+                connection_protocol= ed.connection_protocol,
+                status="pending",
+            )
+            for ed in old_devices
+        ])
+
+        new_execution.device_count = execution.device_count
+
+        new_execution.testcase_count= execution.testcase_count
+        new_execution.save(update_fields=["device_count", "testcase_count"])
+
+
+
+    return new_execution
+
+def create_test_execution_clone_for_selected_tests(execution, device_tests_info_list):
+    """
+    Creates a full re-execution with identical configuration.
+    """
+    Execution = type(execution)
+    root = execution.parent_execution or execution
+
+    with transaction.atomic():
+        
+        retry_count = Execution.objects.filter(
+            parent_execution=root
+        ).count()
+
+        
+        new_execution = Execution.objects.create(
+            parent_execution=root,
+            re_execution_index=retry_count + 1,
+            test_case_execution_order= execution.test_case_execution_order,
+            name=root.name + f"_{retry_count+1}",
+            test_selection_type=execution.test_selection_type,
+            test_suite=execution.test_suite,
+            device_selection=execution.device_selection,
+            device_group=execution.device_group,
+            notification_emails= execution.notification_emails,
+            execution_start_time= timezone.now(),
+            created_by= execution.created_by,
+        )
+
+        
+        if execution.test_selection_type == 0:
+            new_execution.individual_test_cases.set(
+                execution.individual_test_cases.all()
+            )
+
+        old_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        )
+        selected_devices = []
+        for dev in old_devices:
+            if len(device_tests_info_list.get(str(dev.device.id), [])) > 0:
+                selected_devices.append(dev)
+
+        TestSuiteExecutionDevice.objects.bulk_create([
+            TestSuiteExecutionDevice(
+                test_suite_execution=new_execution,
+                device=ed.device,
+                connection_protocol= ed.connection_protocol,
+                status="pending",
+            )
+            for ed in selected_devices
+        ])
+
+        new_execution.device_count = len(selected_devices)
+
+        new_execution.testcase_count= execution.testcase_count
+        new_execution.save(update_fields=["device_count", "testcase_count"])
+
+
+
+    return new_execution
+
+from ..tasks import execute_test_suite as start_execution
+from ..tasks import execute_selected_tests_in_test_execution as start_selected_tests_execution
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@csrf_exempt
+def re_execute_view(request, execution_id):
+    execution = get_object_or_404(TestSuiteExecution, pk=execution_id)
+    try:
+        new_execution = create_test_execution_clone(execution)
+
+        new_execution.is_executed= True
+        new_execution.save()
+
+        start_execution.delay(str(new_execution.pk))
+
+        return Response({"re_execution_id":  new_execution.pk}, status=200)
+    except Exception as e:
+        return Response({"Error": f"{str(e)}"}, status=500)
+    
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@csrf_exempt
+def re_execute_selected_view(request, execution_id):
+    execution = get_object_or_404(TestSuiteExecution, pk=execution_id)
+    try:
+        device_tests_info_list = request.data.get('device_tests_info')
+
+        new_execution = create_test_execution_clone_for_selected_tests(execution, device_tests_info_list)
+
+        new_execution.is_executed= True
+        new_execution.save()
+
+        start_selected_tests_execution.delay(str(new_execution.pk), device_tests_info_list)
+
+        return Response({"re_execution_id":  new_execution.pk}, status=200)
+    except Exception as e:
+        return Response({"Error": f"{str(e)}"}, status=500)
+
+
+
+
+
+
+
+
+
+def check_and_complete_execution(test_group_execution_id):
+    """
+    Check if all devices in the test execution have completed their reports.
+    If yes, mark the execution as Completed (status=3) and trigger email.
+    
+    This is called after each device uploads its Allure report.
+    """
+    try:
+        from ..swapper import load_model
+        TestSuiteExecution = load_model("TestSuiteExecution")
+        TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+        
+        print(f"\n[COMPLETION CHECK] Checking if all devices completed...")
+        print(f"  Test Suite Execution ID: {test_group_execution_id}")
+        
+        # Get the test execution
+        execution = TestSuiteExecution.objects.get(pk=test_group_execution_id)
+        
+        # Count total devices in this execution
+        total_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        ).count()
+        
+        # Count devices that have uploaded reports (allure_report_path is not null/empty)
+        devices_with_reports = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution,
+            allure_report_path__isnull=False
+        ).exclude(allure_report_path='').count()
+        
+        print(f"  Total Devices: {total_devices}")
+        print(f"  Devices with Reports: {devices_with_reports}")
+        print(f"[COMPLETION CHECK] {devices_with_reports}/{total_devices} devices completed")
+
+        # Determine appropriate status
+        if total_devices == 0:
+            new_status = 0  # Created
+        elif devices_with_reports == 0:
+            new_status = 1  # Execution Progress
+        elif devices_with_reports < total_devices:
+            new_status = 2  # Partially Completed
+        else:  # devices_with_reports == total_devices
+            new_status = 3  # Completed
+
+        # Update if status changed
+        if execution.execution_status != new_status:
+            execution.execution_status = new_status
+            execution.save(update_fields=['execution_status'])
+            print(f"  ✅✅✅✅✅✅✅✅ Status updated_new  {new_status}: {test_group_execution_id}")
+        
+    except TestSuiteExecution.DoesNotExist:
+        print(f"  ⚠️ Test execution not found: {test_group_execution_id}")
+        logger.error(f"Test execution not found: {test_group_execution_id}")
+    except Exception as e:
+        print(f"  ⚠️ Error checking completion: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        logger.error(f"Error checking execution completion: {str(e)}")
+
+
+
+
+
+
+
+
 # Create view instances
 test_category_list = TestCategoryListCreateView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()

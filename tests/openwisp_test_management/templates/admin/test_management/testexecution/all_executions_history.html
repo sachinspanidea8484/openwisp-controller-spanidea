@@ -1,0 +1,1480 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    /* Reset and Base Styles */
+    .test-execution-history {
+        font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
+        color: #333;
+    }
+    .test-execution-history .main-content-1{
+        margin-left: 10rem;
+    }
+    /* OpenWISP Standard Module Section */
+    .module {
+        background: #fff;
+        border: 1px solid #e3e3e3;
+        border-radius: 4px;
+        margin-bottom: 20px;
+        overflow: hidden;
+    }
+
+    .module h2 {
+        margin: 0;
+        padding: 12px 20px;
+        background: #3c7492;
+        border-bottom: 1px solid #e3e3e3;
+        font-size: 13px;
+        text-transform: uppercase;
+        font-weight: 500;
+        color: #000;
+        letter-spacing: 0.5px;
+    }
+
+    /* Summary Card - OpenWISP Style */
+    .summary-content {
+        padding: 10px 20px 0px;
+    }
+
+    .summary-row {
+        display: flex;
+        padding: 10px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .summary-row:last-child {
+        border-bottom: none;
+    }
+
+    .summary-label {
+        flex: 0 0 180px;
+        font-weight: 500;
+        color: #666;
+        font-size: 13px;
+    }
+
+    .summary-value {
+        flex: 1;
+        color: #333;
+        font-size: 13px;
+    }
+
+    .summary-value a {
+        color: #0066cc;
+        text-decoration: none;
+    }
+
+    .summary-value a:hover {
+        text-decoration: underline;
+    }
+
+    /* OpenWISP Status Indicators */
+    .status-indicator {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 3px;
+        font-size: 11px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .status-indicator.success {
+        background: #dff0d8;
+        color: #3c763d;
+        border: 1px solid #d6e9c6;
+    }
+
+    .status-indicator.failed {
+        background: #f2dede;
+        color: #a94442;
+        border: 1px solid #ebccd1;
+    }
+
+    .status-indicator.pending {
+        background: #fcf8e3;
+        color: #8a6d3b;
+        border: 1px solid #faebcc;
+    }
+
+    .status-indicator.running {
+        background: #d9edf7;
+        color: #31708f;
+        border: 1px solid #bce8f1;
+    }
+    .connection-protocol{
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 3px;
+        font-size: 14px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        background: #d9edf7;
+        color: #31708f;
+        border: 1px solid #bce8f1;
+    }
+
+    .status-indicator.aborting {
+        background: #fff3cd;   
+        color: #856404;        
+        border: 1px solid #ffeeba;
+    }
+    
+    .status-indicator.aborted {
+        background: #f8d7da;   
+        color: #721c24;        
+        border: 1px solid #f5c6cb;
+    }
+
+    /* Device Cards - OpenWISP Style */
+    .device-card {
+        border: 1px solid #e3e3e3;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        background: #fff;
+    }
+
+    .device-header {
+        background: #f8f8f8;
+        border-bottom: 1px solid #e3e3e3;
+        padding: 12px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .device-title {
+        font-size: 14px;
+        font-weight: 500;
+        color: #333;
+        margin: 0;
+    }
+
+    .device-stats {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .stat-item {
+        font-size: 12px;
+        color: #666;
+    }
+
+    .stat-value {
+        font-weight: 500;
+        color: #333;
+    }
+
+    /* Progress Bar - OpenWISP Style */
+    .progress-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .progress-bar {
+        width: 100px;
+        height: 6px;
+        background: #e9ecef;
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: #5cb85c;
+        transition: width 0.3s ease;
+    }
+
+    .progress-fill.warning {
+        background: #f0ad4e;
+    }
+
+    .progress-fill.danger {
+        background: #d9534f;
+    }
+
+    .progress-text {
+        font-size: 12px;
+        color: #666;
+        white-space: nowrap;
+    }
+
+    /* Test Results Table - OpenWISP Style */
+    .results-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        table-layout: fixed;
+    }
+
+    .results-table thead th {
+        background: #fafafa;
+        border-bottom: 1px solid #e3e3e3;
+        padding: 10px 15px;
+        text-align: left;
+        font-weight: 500;
+        color: #666;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        word-wrap: break-word;
+    }
+
+    .results-table tbody td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #f0f0f0;
+        color: #333;
+        word-wrap: break-word;
+    }
+
+    .results-table tbody tr:hover {
+        background: #fafafa;
+    }
+
+    .results-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .test-id-badge {
+        font-family: 'Monaco', 'Courier New', monospace;
+        font-size: 11px;
+        background: #f5f5f5;
+        padding: 2px 6px;
+        border-radius: 3px;
+        color: #666;
+    }
+
+    /* Action Buttons - OpenWISP Style */
+    .action-buttons {
+        display: flex;
+        gap: 8px;
+    }
+
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border: 1px solid #ddd;
+        background: #fff;
+        color: #333;
+        font-size: 12px;
+        font-weight: 400;
+        border-radius: 3px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-action:hover {
+        background: #f8f8f8;
+        border-color: #ccc;
+    }
+
+    .btn-action.primary {
+        background: black;
+        color: #fff;
+        border-color: #0066cc;
+    }
+
+    .btn-action.primary:hover {
+        background: rgb(70, 69, 69);
+        border-color: rgb(22, 20, 20);
+    }
+
+    .btn-action.warning {
+        background: #ad8232;
+        color: #fff;
+        border-color: #f0ad4e;
+    }
+
+    .btn-action.warning:hover {
+        background: #e69500;
+        border-color: #e69500;
+    }
+
+    .btn-action[disabled] {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .btn-icon {
+        width: 14px;
+        height: 14px;
+    }
+
+    /* Error Message - OpenWISP Style */
+    .error-section {
+        background: #f2dede;
+        border-top: 1px solid #ebccd1;
+        padding: 12px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .error-text {
+        color: #a94442;
+        font-size: 13px;
+        flex: 1;
+        margin-right: 20px;
+    }
+
+    /* Loading State - OpenWISP Style */
+    .loading-container {
+        text-align: center;
+        padding: 60px 20px;
+        color: #666;
+    }
+
+    .spinner {
+        display: inline-block;
+        width: 40px;
+        height: 40px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #0066cc;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        /* margin-bottom: 20px; */
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #999;
+        font-style: italic;
+        font-size: 13px;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .summary-row {
+            flex-direction: column;
+        }
+        
+        .summary-label {
+            flex: none;
+            margin-bottom: 5px;
+        }
+        
+        .device-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        
+        .device-stats {
+            width: 100%;
+            justify-content: space-between;
+        }
+    }
+    .retry-loading {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .retry-text{
+        font-size: 10px;
+        vertical-align: middle;
+    }
+    /* Additional OpenWISP alignments */
+    h1 {
+        font-size: 24px;
+        margin: 0 0 20px 0;
+        font-weight: 300;
+        color: #333;
+    }
+
+    .breadcrumbs {
+        margin-bottom: 20px;
+    }
+
+    .refresh-btn {
+    background: black;
+    color: white;
+    border: none;
+    padding: 6px 6px;
+    border-radius: 5px;  
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.status-0 {
+  background-color: gray;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+.status-1 {
+  background-color: orange;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+.status-2 {
+  background-color: blue;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+.status-3 {
+  background-color: green;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+.status-4{
+    background-color: orange;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+.section-header{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+   padding: 7px 5px;
+    cursor: pointer;
+    margin-bottom: 10px;
+    background-color: #faf8f8;
+}
+.section-header .header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.arrow-icon {
+    width: 18px;
+    height: 18px;
+    transition: transform 0.25s ease;
+    color: #374151; /* neutral gray */
+}
+.abort-button-class {
+    background-color: #e5e7eb; /* light gray */
+    color: #374151;            /* dark gray text */
+    border: 1px solid #d1d5db;
+    padding: 10px 18px;
+    font-size: 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s ease;
+}
+
+.abort-button-class:hover:not(:disabled) {
+    background-color: #d1d5db;
+}
+
+.abort-button-class:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+
+.re-execute-button {
+    background-color: #ebc98f;   
+    color: #464141;
+    border: 1px solid #d97706;
+    padding: 10px 18px;
+    font-size: 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.re-execute-button:hover:not(:disabled) {
+    background-color: #edbc6a;  
+}
+
+.re-execute-button:disabled {
+    background-color: #fde68a;   
+    color: #92400e;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+/* rotated when expanded */
+.section-header.open .arrow-icon {
+    transform: rotate(90deg);
+}
+
+
+
+/* Device Status Badge Styles */
+.device-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    transition: all 0.2s ease;
+}
+
+/* Online Status */
+.device-status.status-online {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #a5d6a7;
+}
+
+/* Offline Status */
+.device-status.status-offline {
+    background: #ffebee;
+    color: #c62828;
+    border: 1px solid #ef9a9a;
+}
+
+/* Status Dot Animation */
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-online .status-dot {
+    background: #2e7d32;
+    animation: pulse-online 2s infinite;
+}
+
+.status-offline .status-dot {
+    background: #c62828;
+}
+
+/* Pulse Animation for Online Status */
+@keyframes pulse-online {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(46, 125, 50, 0.7);
+    }
+    50% {
+        opacity: 0.7;
+        box-shadow: 0 0 0 4px rgba(46, 125, 50, 0);
+    }
+}
+
+/* Disabled Button Style */
+.btn-action.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+   <div class="breadcrumbs">
+
+    <a href="{% url 'admin:index' %}">{% trans "Home" %}</a>
+
+    &rsaquo;
+    <a href="{% url 'admin:app_list' app_label=opts.app_label %}">
+        {{ opts.app_config.verbose_name }}
+    </a>
+
+    &rsaquo;
+    {% with 'admin:'|add:opts.app_label|add:'_'|add:opts.model_name|add:'_changelist' as changelist_url %}
+        <a href="{% url changelist_url %}">
+            {{ opts.verbose_name_plural|capfirst }}
+        </a>
+    {% endwith %}
+
+    &rsaquo; {% trans "All History" %}
+
+    </div>
+{% endblock %}
+
+{% block content %}
+<div class="test-execution-history">
+
+    <!-- Loading State -->
+    <div id="loading" class="loading-container">
+        <div class="spinner"></div>
+        <p>{% trans 'Loading execution history...' %}</p>
+    </div>
+
+    <div style="display : flex; justify-content: end; margin-bottom: 10px; gap: 5px">
+         <div id="re-execute-execution">
+        
+        </div>
+    </div>
+    <!-- Main Content -->
+    <div id="main-content-1">
+        <div class="module">
+            <h2>{% trans 'Execution Details' %}</h2>
+            <div id="re-execution-details" style="padding: 12px;">
+                <!-- Populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// CSRF token helper
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// const csrftoken = getCookie('csrftoken');
+const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]")?.value;
+const executionId = '{{ execution_id }}';
+const agentTestStore = {};
+// Display execution data with OpenWISP styling
+
+function handleHideClick(header,table_id){
+    const table= document.querySelector(`.${table_id}`);
+    if (!table) return;
+
+    if (table.style.display === "none") {
+        table.style.display = "table"; // or "block"
+        header.classList.add("open");
+    } else {
+        table.style.display = "none";
+        header.classList.remove("open");
+    }
+}
+function formatDateTime(dateValue) {
+    if (!dateValue) return "-";
+
+    const d = new Date(dateValue);
+
+    return d.toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true
+    });
+}
+
+function displayExecutionData(data) {
+    // Update page title
+    
+    // Update summary
+    
+    const reExecutionDiv = document.getElementById('re-execution-details');
+    const items= data.re_execution_data || [];
+    if(!items.length){
+        reExecutionDiv.innerHTML = `<div class="help">{% trans "No executions found." %}</div>`;
+    }
+    else{
+        reExecutionDiv.innerHTML =`
+            <table class="adminlist" style="width:100%">
+                <thead>
+                <tr>
+                   
+                    <th>{% trans "Name" %}</th>
+                    <th>{% trans "Status" %}</th>
+                    <th>{% trans "Execution Start Time" %}</th>
+                    <th>{% trans "History" %}</th>
+                </tr>
+                </thead>
+                <tbody>
+                ${items.map((r, idx) => `
+                    <tr>
+                    
+                    <td>${r.name || ""}</td>
+                    <td>${r.status_display || ""}</td>
+                    <td>${r?.execution_start_time ? formatDateTime(r.execution_start_time)  : "-"}</td>
+                    <td><a href="${r.history_url}">{% trans "View" %}</a></td>
+                    </tr>
+                `).join("")}
+                </tbody>
+            </table>
+        `;
+    }
+}
+
+function reExecute(execution_id){
+    fetch(`/api/v1/test-management/test-suite-execution/${execution_id}/re-execute/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrftoken, 
+            'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',  
+        body: JSON.stringify({})
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => Promise.reject(err));
+        }
+        return response.json();
+    })
+    .then(data => {
+      
+        if (data.re_execution_id) {
+            showMessage(`Test Execution re-executed Successfully!`, 'success');
+            setTimeout(() => 
+                {
+                    window.location.href = "/admin/test_management/testsuiteexecution/";
+                }
+            , 1000);
+        } else {
+            showMessage(data.error || 'Failed to re-execute execution', 'error');
+            
+        }
+    })
+    .catch(error => {
+        console.error('re-execute error:', error);
+        showMessage(error.detail || error.message || 'Failed to re-execute execution', 'error');
+    });
+}
+// abortAllTests function
+function abortAllTests() {
+    if (!confirm('Are you sure you want to abort this execution?')) {
+        return;
+    }
+    
+    const button = event.target.closest('button');
+    const originalContent = button.innerHTML;
+    button.innerHTML = '<span class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></span> Processing...';
+    button.disabled = true;
+    
+    fetch(`/api/v1/test-management/execution/${executionId}/abort-execution/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',  // Important for CSRF
+        body: JSON.stringify({})
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => Promise.reject(err));
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            showMessage(`tests abort request sent`, 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showMessage(data.error || 'Failed to abort test execution', 'error');
+            button.innerHTML = originalContent;
+            button.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Abort error:', error);
+        showMessage(error.detail || error.message || 'Failed to abort test execution', 'error');
+        button.innerHTML = originalContent;
+        button.disabled = false;
+    });
+}
+
+// abortTest function
+function abortTest(executionId) {
+    if (!confirm('Are you sure you want to abort this running test?')) {
+        return;
+    }
+
+    const button = event.target.closest('button');
+    const originalContent = button.innerHTML;
+    button.innerHTML = '<span class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></span> <span class="retry-text">Retrying...</span>';
+    button.disabled = true;
+    button.classList.add('retry-loading')
+
+    fetch(`/api/v1/test-management/test-case-execution/${executionId}/abort/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',  // Important for CSRF
+        body: JSON.stringify({})
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => Promise.reject(err));
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            showMessage('Test abort initiated successfully', 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showMessage(data.error || 'Failed to abort test', 'error');
+            button.innerHTML = originalContent;
+            button.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Abort error:', error);
+        showMessage(error.detail || error.message || 'Failed to abort test', 'error');
+        button.innerHTML = originalContent;
+        button.disabled = false;
+    });
+}
+
+// Simplified retry function without CSRF token
+// Update the retryTest function
+function retryTest(executionId) {
+    if (!confirm('Are you sure you want to retry this test?')) {
+        return;
+    }
+    
+    const button = event.target.closest('button');
+    const originalContent = button.innerHTML;
+    button.innerHTML = '<span class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></span> <span class="retry-text">Retrying...</span>';
+    button.disabled = true;
+    button.classList.add('retry-loading')
+    
+    fetch(`/api/v1/test-management/test-case-execution/${executionId}/retry/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',  // Important for CSRF
+        body: JSON.stringify({})
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => Promise.reject(err));
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            showMessage('Test retry initiated successfully', 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showMessage(data.error || 'Failed to retry test', 'error');
+            button.innerHTML = originalContent;
+            button.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Retry error:', error);
+        showMessage(error.detail || error.message || 'Failed to retry test', 'error');
+        button.innerHTML = originalContent;
+        button.disabled = false;
+    });
+}
+
+// Update the retryDeviceTests function similarly
+function retryDeviceTests(deviceExecutionId) {
+    if (!confirm('Are you sure you want to retry all failed tests for this device?')) {
+        return;
+    }
+    
+    const button = event.target.closest('button');
+    const originalContent = button.innerHTML;
+    button.innerHTML = '<span class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></span> Processing...';
+    button.disabled = true;
+    
+    fetch(`/api/v1/test-management/device-execution/${deviceExecutionId}/retry-all/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',  // Important for CSRF
+        body: JSON.stringify({})
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => Promise.reject(err));
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            showMessage(`${data.retried_count} tests queued for retry`, 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showMessage(data.error || 'Failed to retry device tests', 'error');
+            button.innerHTML = originalContent;
+            button.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Retry error:', error);
+        showMessage(error.detail || error.message || 'Failed to retry device tests', 'error');
+        button.innerHTML = originalContent;
+        button.disabled = false;
+    });
+}
+// OpenWISP style message display
+function showMessage(message, type) {
+    // Remove any existing messages
+    const existingMsg = document.querySelector('.messagelist');
+    if (existingMsg) {
+        existingMsg.remove();
+    }
+    
+    // Create message element
+    const msgClass = type === 'success' ? 'success' : 'error';
+    const msgHtml = `
+        <ul class="messagelist">
+            <li class="${msgClass}">${message}</li>
+        </ul>
+    `;
+    
+    // Insert after h1
+    const h1 = document.querySelector('h1');
+    h1.insertAdjacentHTML('afterend', msgHtml);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        const msg = document.querySelector('.messagelist');
+        if (msg) {
+            msg.style.opacity = '0';
+            setTimeout(() => msg.remove(), 300);
+        }
+    }, 5000);
+}
+
+// Load execution history
+function loadExecutionHistory() {
+    fetch(`/api/v1/test-management/execution/${executionId}/all-history/`, {
+        headers: {
+            'X-CSRFToken': csrftoken,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            displayExecutionData(data.data);
+            
+            // Show content with smooth transition
+            setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('main-content').style.display = 'block';
+                document.getElementById('main-content').style.opacity = '0';
+                
+                // Fade in
+                setTimeout(() => {
+                    document.getElementById('main-content').style.transition = 'opacity 0.3s ease-in';
+                    document.getElementById('main-content').style.opacity = '1';
+                }, 10);
+            }, 100);
+        } else {
+            throw new Error(data.error || 'Unknown error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('loading').innerHTML = `
+            <div style="color: #a94442; text-align: center; padding: 40px;">
+                <h3>Error Loading Data</h3>
+                <p>${error.message}</p>
+                <button onclick="location.reload()" 
+                        class="btn-action primary" 
+                        style="margin-top: 20px; padding: 8px 20px;">
+                    Reload Page
+                </button>
+            </div>
+        `;
+    });
+}
+
+// Auto-refresh management
+let refreshInterval = null;
+let isPageVisible = true;
+
+function startAutoRefresh() {
+    if (!refreshInterval && isPageVisible) {
+        refreshInterval = setInterval(() => {
+            if (isPageVisible) {
+                loadExecutionHistory();
+            }
+            // alert("SCEDULE")
+        }, 30000); // 30 seconds
+    }
+}
+
+function stopAutoRefresh() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+    }
+}
+
+function openDeviceAgentReport(deviceId) {
+    const agentTests = agentTestStore[deviceId] || [];
+
+    const total = agentTests.length;
+    const passed = agentTests.filter(t => t.status === "success").length;
+    const failed = agentTests.filter(t => t.status === "failed").length;
+    const pending = agentTests.filter(t => t.status === "pending").length;
+
+    const newWin = window.open("", "_blank");
+
+    let rows = agentTests.map(test => `
+        <tr>
+            <td>${test.test_case_name || 'N/A'}</td>
+            <td><span class="test-id-badge">${test.test_case_id || 'N/A'}</span></td>
+            <td>
+                <span class="status-badge ${test.status}">
+                    ${test.status_display || test.status}
+                </span>
+            </td>
+            <td>
+                ${ (test.status === 'success' || test.status === 'failed') ? `
+                    <button class="btn-action view-log" data-log-url="/api/v1/test-management/test-case-execution/${test.id}/download-log/">
+                        <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20"> <path d="M10 3C5 3 1.73 7.11 1 10c.73 2.89 4 7 9 7s8.27-4.11 9-7c-.73-2.89-4-7-9-7zm0 12c-2.76 0-5-2.24-5-5 s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8a3 3 0 100 6 3 3 0 000-6z"/> </svg>
+                        View Log
+                    </button>
+                ` : ''}
+            </td>
+        </tr>
+    `).join("");
+
+    const html = `
+        <html>
+        <head>
+            <title>Device Report</title>
+            <style>
+               body {
+                    margin: 0;
+                    font-family: 'Segoe UI', Tahoma, sans-serif;
+                    background: #f3f4f6;
+                    color: #111827;
+                    height: 100vh;
+                    display: flex;
+                    gap: 6px; /* gap between left and right panels */
+                    padding: 20px; /* padding around whole layout */
+                    box-sizing: border-box;
+                }
+
+                .left-panel {
+                    flex: 3;
+                    background: #fff;
+                    padding: 20px;
+                    overflow-y: auto;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+                    text-align : center;
+                }
+
+                .right-panel {
+                    flex: 1.2;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px; /* gap between top-right and bottom-right */
+                }
+
+                .top-right, .bottom-right {
+                    background: #fff;
+                    padding: 20px;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    align-items : center;
+                    justify-content: center;
+                }
+                .log-heading{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: baseline;
+                    width: 100%;
+                }
+
+                h2 {
+                    margin-top: 0;
+                    margin-bottom: 15px;
+                }
+
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 4rem;
+                }
+
+                th, td {
+                    padding: 10px;
+                    text-align: left;
+                    border-bottom: 1px solid #f3f4f6;
+                }
+
+                th {
+                    background: #f3f4f6;
+                    font-weight: 600;
+                }
+
+                tr:nth-child(even) { background: #f9fafb; }
+
+                .status-badge {
+                    display: inline-block;
+                    padding: 3px 8px;
+                    border-radius: 3px;
+                    font-size: 11px;
+                    font-weight: 500;
+                    text-transform: uppercase;
+                    letter-spacing: 0.3px;
+                }
+                .status-badge.success { 
+                    background: #dff0d8;
+                    color: #3c763d;
+                    border: 1px solid #d6e9c6; 
+                }
+                .status-badge.failed {
+                    background: #f2dede;
+                    color: #a94442;
+                    border: 1px solid #ebccd1;
+                }
+
+                .stats {
+                    display: flex;
+                    gap: 15px;
+                    margin-top: 45px;
+                }
+                .stat-box {
+                    background: #f3f4f6;
+                    padding: 10px 15px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    text-align: center;
+                    box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+                    width: 6rem;
+                }
+                .stat-box span {
+                    display: block;
+                    font-size: 13px;
+                    color: #6b7280;
+                }
+
+                #logContent {
+                    white-space: pre-wrap;
+                    background: #f9fafb;
+                    padding: 10px;
+                    border-radius: 6px;
+                    border: 1px solid #e5e7eb;
+                    font-family: monospace;
+                    font-size: 13px;
+                    flex: 1;
+                    overflow-y: auto;
+                    width:100%;
+                }
+                .full-log-view {
+                    position: fixed;
+                    top: 0; left: 0;
+                    width: 100%; height: 100%;
+                    background: rgba(0,0,0,0.6);
+                    display: none; /* hidden initially */
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 1000;
+                }
+
+                .full-log-content {
+                    background: #fff;
+                    border-radius: 12px;
+                    padding: 0 20px;
+                    width: 80%;
+                    min-height: 80%;
+                    overflow-y: auto;
+                    font-family: monospace;
+                    font-size: 13px;
+                    white-space: pre-wrap;
+                    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+                    position: relative;
+                }
+
+                .full-log-close {
+                   
+                    background: #ef4444;
+                    color: #fff;
+                    border: none;
+                    padding: 5px 10px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 16px;
+                }
+                .full-log-close:hover {
+                    background: #dc2626;
+                }
+                #popupLogContent {
+                    max-height: 60vh;   /* take up to 60% of viewport height */
+                    overflow-y: auto;   /* scroll inside logs only */
+                    padding: 10px;
+                    background: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 6px;
+                    font-family: monospace;
+                    font-size: 13px;
+                    white-space: pre-wrap;
+                }
+                .full-log-heading{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .btn-action {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    padding: 4px 10px;
+                    border: 1px solid #ddd;
+                    background: #fff;
+                    color: #333;
+                    font-size: 14px;
+                    font-weight: 400;
+                    border-radius: 6px;
+                    text-decoration: none;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                }
+                .full-log-actions{
+                    display: flex;
+                    gap: 8px;
+                    align-items: center;
+                }
+                .btn-action:hover {
+                    background: #f8f8f8;
+                    border-color: #ccc;
+                }
+
+                .btn-icon {
+                    width: 14px;
+                    height: 14px;
+                }
+                .test-id-badge {
+                    font-family: 'Monaco', 'Courier New', monospace;
+                    font-size: 11px;
+                    background: #f5f5f5;
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    color: #666;
+                }
+
+            </style>
+        </head>
+        <body>
+            <div class="left-panel">
+                <h2>Device Report</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Test Case</th>
+                            <th>Test ID</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+            <div class="right-panel">
+                <div class="top-right">
+                    <div style="width:200px;height:200px;">
+                        <canvas id="donutChart" width="200" height="200"></canvas>
+                    </div>
+                    <div class="stats">
+                        <div class="stat-box">${total}<span>Total</span></div>
+                        <div class="stat-box">${passed}<span>Passed</span></div>
+                        <div class="stat-box">${failed}<span>Failed</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="full-log-view"></div>
+        </body>
+        </html>
+    `;
+
+    newWin.document.write(html);
+    newWin.document.close();
+
+    // Load Chart.js dynamically
+    const script = newWin.document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/chart.js";
+    script.onload = () => {
+        const ctx = newWin.document.getElementById("donutChart").getContext("2d");
+        if (ctx) {
+            const percentage = total > 0 ? Math.round((passed / total) * 100) : 0;
+            new newWin.Chart(ctx, {
+                type: "doughnut",
+                data: {
+                    labels: ["Passed", "Failed", "Pending"],
+                    datasets: [{
+                        data: [passed, failed, pending],
+                        backgroundColor: ["#22c55e", "#ef4444", "#f59e0b"],
+                    }]
+                },
+                options: {
+                    plugins: { legend: { display: false } },
+                    cutout: "70%"
+                },
+                plugins: [{
+                    id: "centerText",
+                    afterDraw(chart) {
+                        const { width, height, ctx } = chart;
+                        ctx.save();
+                        ctx.font = "bold 18px Segoe UI";
+                        ctx.fillStyle = "#111827";
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "middle";
+                        ctx.fillText(`${percentage}%`, width / 2, height / 2);
+                        ctx.restore();
+                    }
+                }]
+            });
+        }
+    };
+    newWin.document.body.appendChild(script);
+
+    newWin.document.addEventListener("click", async (e) => {
+        if (e.target.classList.contains("view-log")) {
+            const logUrl = e.target.getAttribute("data-log-url");
+            const popup = newWin.document.querySelector(".full-log-view");
+
+            // Show loading message in popup
+            popup.innerHTML = `
+                <div class="full-log-content">
+                    <div class="full-log-heading">
+                        <h3>Log Details</h3>
+                        <div class= "full-log-actions">
+                            <a href= ${logUrl}
+                            class="btn-action" title="Download log" download>
+                                <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20"> <path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/> </svg>
+                                <span>Log</span>
+                            </a>
+                        <button class="full-log-close">Close</button>    
+                        </div>
+                    </div>
+                    <div id="popupLogContent">Loading log...</div>
+                </div>
+            `;
+            popup.style.display = "flex";
+
+            // Attach close handler
+            popup.querySelector(".full-log-close").addEventListener("click", () => {
+                popup.style.display = "none";
+            });
+
+            // Fetch logs
+            (async () => {
+                try {
+                    const response = await fetch(logUrl);
+                    const text= await response.text();
+                    popup.querySelector("#popupLogContent").textContent =
+                        text || "No log available.";
+                } catch {
+                    popup.querySelector("#popupLogContent").textContent =
+                        "Failed to load log.";
+                }
+            })();
+        }
+
+    });
+}
+
+// Handle page visibility
+document.addEventListener('visibilitychange', function() {
+    isPageVisible = !document.hidden;
+    if (!isPageVisible) {
+        stopAutoRefresh();
+    } else {
+        // Check if we should restart auto-refresh
+        const hasPending = document.querySelectorAll('.status-indicator.pending, .status-indicator.running').length > 0;
+        if (hasPending) {
+            startAutoRefresh();
+        }
+    }
+});
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadExecutionHistory();
+    
+    // Start auto-refresh after initial load if there are pending/running tests
+    setTimeout(() => {
+        const hasPending = document.querySelectorAll('.status-indicator.pending, .status-indicator.running').length > 0;
+        if (hasPending) {
+            startAutoRefresh();
+        }
+    }, 2000);
+});
+
+// Add OpenWISP message styles
+const messageStyles = document.createElement('style');
+messageStyles.textContent = `
+    .messagelist {
+        margin: 0 0 20px 0;
+        padding: 0;
+        list-style: none;
+    }
+    
+    .messagelist li {
+        padding: 12px 20px;
+        margin: 0;
+        font-size: 13px;
+        border-radius: 4px;
+    }
+    
+    .messagelist li.success {
+        background: #dff0d8;
+        color: #3c763d;
+        border: 1px solid #d6e9c6;
+    }
+    
+    .messagelist li.error {
+        background: #f2dede;
+        color: #a94442;
+        border: 1px solid #ebccd1;
+    }
+    
+    .messagelist {
+        transition: opacity 0.3s ease;
+    }
+`;
+document.head.appendChild(messageStyles);
+
+</script>
+{% endblock %}
+
+{% block submit_buttons_bottom %}{% endblock %}

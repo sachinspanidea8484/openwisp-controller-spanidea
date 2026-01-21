@@ -116,5 +116,29 @@
     //     }
     //   }
     // });
+  
+    const orderedIds = window.ORDERED_TESTCASE_IDS || [];
+    if (!orderedIds.length) return;
+
+    const observer = new MutationObserver(function () {
+      const $selected = $('select[multiple][id$="_to"]');
+      // console.log("sdfffffff",$selected)
+      if (!$selected.length) return;
+
+      const options = {};
+      $selected.find("option").each(function () {
+        options[this.value] = this;
+      });
+
+      $selected.empty();
+      orderedIds.forEach((id) => options[id] && $selected.append(options[id]));
+
+      // console.log("afterrrrrrrrr", $selected)
+
+      observer.disconnect();
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
   });
 })(django.jQuery);

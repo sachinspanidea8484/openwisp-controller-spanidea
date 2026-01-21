@@ -81,6 +81,16 @@ urlpatterns = [
                 name="api_test_execution_history",
             ),
             path(
+                "execution/<uuid:execution_id>/all-history/",
+                views.test_execution_all_history,
+                name="api_test_execution_all_history",
+            ),
+            path(
+                "execution/<uuid:execution_id>/history/export/",
+                views.test_execution_history_export,
+                name="api_test_execution_history_export",
+            ),
+            path(
                 "execution-details/",
                 views.get_execution_details,
                 name="api_get_execution_details",
@@ -88,7 +98,7 @@ urlpatterns = [
             path(
                 "execution/<uuid:execution_id>/abort-execution/",
                 views.test_execution_abort,
-                name="api_test_execution_history",
+                name="api_test_execution_abort",
             ),
             
             # Test Case Execution endpoints
@@ -190,22 +200,39 @@ urlpatterns = [
             # ),
 
             # Detail endpoint: retrieve + update + delete
-            # path(
-            #     "device-groups/<uuid:pk>/",
-            #     views.TestDeviceGroupViewSet.as_view({
-            #         "get": "retrieve",           # GET /device-groups/{id}/
-            #         "patch": "partial_update",   # PATCH /device-groups/{id}/
-            #         "delete": "destroy",          # DELETE /device-groups/{id}/
-            #         "put": "update",
-            #     }),
-            #     name="device-group-detail",
-            # ),
-            # path(
-            #     "devices/configuration-push",
-            #     views.ConfigurationPushOnDevice,
-            #     name="configuration_push_on_device",
-            # )
+            path(
+                "device-groups/<uuid:pk>/",
+                views.TestDeviceGroupViewSet.as_view({
+                    "get": "retrieve",           # GET /device-groups/{id}/
+                    "patch": "partial_update",   # PATCH /device-groups/{id}/
+                    "delete": "destroy",          # DELETE /device-groups/{id}/
+                    "put": "update",
+                }),
+                name="device-group-detail",
+            ),
+            path(
+                "devices/configuration-push",
+                views.ConfigurationPushOnDevice,
+                name="configuration_push_on_device",
+            ),
 
+            path(
+                "test-suite-execution/<uuid:execution_id>/re-execute/",
+                views.re_execute_view,
+                name="re-execute-execution"
+            ),
+            path(
+                "test-suite-execution/<uuid:execution_id>/re-execute-selected/",
+                views.re_execute_selected_view,
+                name="re-execute-selected-execution"
+            ),
+            
+
+            path(
+                "test-case/check-test-case-id/",
+                views.check_test_case_id_unique,
+                name="api_check_test_case_id_unique",
+            ),
             
             # Commented out endpoints (kept for reference)
             # path(

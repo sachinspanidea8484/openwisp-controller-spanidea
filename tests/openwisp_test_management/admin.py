@@ -6,7 +6,12 @@ from django.conf import settings
 from django.utils import timezone
 from uuid import UUID
 from django.core.exceptions import ValidationError
-
+from django.core.validators import (
+    MinLengthValidator,
+    MaxLengthValidator
+)
+from django.templatetags.static import static
+from django.template.response import TemplateResponse
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
@@ -19,7 +24,7 @@ import json
 from django.urls import path
 from django.shortcuts import get_object_or_404, render
 import traceback
-
+from django.core.validators import validate_email
 import json
 from django.utils.translation import gettext_lazy as _
 from import_export.admin import ImportExportMixin
@@ -29,6 +34,11 @@ from openwisp_controller.config.models import Device
 from reversion.models import Version
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
+
+import os
+import requests
+from urllib.parse import urlparse
+
 from openwisp_utils.admin import TimeReadonlyAdminMixin
 
 from .filters import (
@@ -48,6 +58,7 @@ from django.contrib.admin.widgets import RelatedFieldWidgetWrapper
 from import_export.widgets import Widget
 from django.utils.safestring import mark_safe
 from .forms import ExecutionArtifactFormSet
+from .utils import build_testcase_scripts_zip
 logger = logging.getLogger(__name__)
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
@@ -108,7 +119,87 @@ class ChoicesWidget(Widget):
     def clean(self, value, row=None, **kwargs):
         """Convert readable text → integer for import"""
         return self.reverse_choices.get(value, None)
-   
+
+
+
+def store_script(
+    source,
+    *,
+    test_case_id,
+    script_type,  # "robot" | "python"
+):
+    """
+    Stores script in a deterministic location with deterministic filename.
+
+    Handles:
+    - External URLs
+    - Server-hosted URLs
+    - Relative MEDIA paths
+    """
+
+    if not source:
+        return None
+
+    if script_type not in ("robot", "python"):
+        raise ValueError("script_type must be 'robot' or 'python'")
+
+    # Target path
+    if script_type == "robot":
+        subdir = "test_case_robot"
+        ext = ".robot"
+    else:
+        subdir = "test_case"
+        ext = ".py"
+
+    filename = f"{test_case_id}{ext}"
+    relative_path = os.path.join(subdir, filename)
+    dest_path = os.path.join(settings.MEDIA_ROOT, relative_path)
+
+    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+    source = str(source).strip()
+
+    site_url = str(getattr(settings, "OPENWISP_SERVER_IP", "")).rstrip("/")
+    media_url = str(settings.MEDIA_URL).rstrip("/")
+
+    content = None
+
+    # --------------------------------------------------
+    # 1️External URL → download
+    # --------------------------------------------------
+    if source.startswith("http"):
+        parsed = urlparse(source)
+
+        # Hosted on our server
+        if site_url and source.startswith(site_url):
+            src_path = parsed.path
+            if src_path.startswith(media_url):
+                src_path = src_path[len(media_url):].lstrip("/")
+            src_full = os.path.join(settings.MEDIA_ROOT, src_path)
+
+            with open(src_full, "rb") as f:
+                content = f.read()
+        else:
+            response = requests.get(source, timeout=15)
+            response.raise_for_status()
+            content = response.content
+
+    # --------------------------------------------------
+    # 2️ Relative path → read content
+    # --------------------------------------------------
+    else:
+        src_full = os.path.join(settings.MEDIA_ROOT, source.lstrip("/"))
+        with open(src_full, "rb") as f:
+            content = f.read()
+
+    # --------------------------------------------------
+    # 3️ALWAYS rewrite destination 
+    # --------------------------------------------------
+    with open(dest_path, "wb") as f:
+        f.write(content)
+
+    return relative_path
+
 class TestCasesResource(resources.ModelResource):
     category= fields.Field(
         column_name="category_name",
@@ -120,7 +211,8 @@ class TestCasesResource(resources.ModelResource):
         attribute="test_type",
         widget=ChoicesWidget(TestTypeChoices.choices),
     )
-
+    robot_script = fields.Field(column_name="robot_script", attribute="robot_script")
+    python_script = fields.Field(column_name="python_script", attribute="python_script")
     class Meta:
         model = TestCase
         fields = (
@@ -132,6 +224,9 @@ class TestCasesResource(resources.ModelResource):
             "is_active",
             "test_type",
             "params",
+            "is_configuration_push_required",
+            "robot_script",
+            "python_script",
             # "file"
         )
         export_order = (
@@ -144,7 +239,30 @@ class TestCasesResource(resources.ModelResource):
             "test_type",
             "params",
             # "file"
+            "is_configuration_push_required",
+            "robot_script",
+            "python_script"
         )
+    
+   
+    
+    def _build_file_url(self, value):
+        if not value:
+            return ""
+
+        site_url = str(
+            getattr(settings, "OPENWISP_SERVER_IP", "")
+        ).rstrip("/")
+
+        media_url = str(settings.MEDIA_URL).rstrip("/")
+
+        return f"{site_url}{media_url}/{value}"
+
+    def dehydrate_robot_script(self, obj):
+        return self._build_file_url(obj.robot_script)
+
+    def dehydrate_python_script(self, obj):
+        return self._build_file_url(obj.python_script)
 
     def before_import_row(self, row, **kwargs):
         """
@@ -169,6 +287,21 @@ class TestCasesResource(resources.ModelResource):
 
         if row.get('description') is None:
             row['description'] = ''
+        
+        test_case_id = row.get("test_case_id")
+
+        row["robot_script"] = store_script(
+            row.get("robot_script"),
+            test_case_id=test_case_id,
+            script_type="robot",
+        )
+
+        row["python_script"] = store_script(
+            row.get("python_script"),
+            test_case_id=test_case_id,
+            script_type="python",
+        )
+       
 
 @admin.register(TestCategory)
 class TestCategoryAdmin(BaseVersionAdmin):
@@ -381,22 +514,64 @@ class FormattedJSONField(forms.CharField):
     
     def prepare_value(self, value):
         """Format JSON value before displaying in the widget"""
+        print("=" * 50)
+        print("🔍 DEBUG: FormattedJSONField.prepare_value()")
+        print(f"Input value type: {type(value)}")
+        print(f"Input value: {repr(value)}")
+        
         if value is None or value == '':
+            print("✅ Returning empty string")
             return ''
         
         try:
-            if isinstance(value, (dict, list)):
+            # Handle dict
+            if isinstance(value, dict):
                 parsed = value
+                print(f"✅ Value is dict: {parsed}")
+            # Handle string
             elif isinstance(value, str):
+                value = value.strip()
+                if not value or value == '{}':
+                    print("✅ Empty string or empty object")
+                    return ''
                 parsed = json.loads(value)
+                print(f"✅ Parsed from string: {parsed}")
             else:
-                parsed = value
+                print(f"⚠️ Unexpected type, returning as-is: {type(value)}")
+                return value
             
             # Format with proper indentation
-            return json.dumps(parsed, indent=4, ensure_ascii=False, sort_keys=True)
-        except (json.JSONDecodeError, TypeError):
+            formatted = json.dumps(parsed, indent=4, ensure_ascii=False, sort_keys=True)
+            print(f"✅ Formatted output:\n{formatted}")
+            return formatted
+            
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"❌ Error formatting JSON: {e}")
+            print(f"⚠️ Returning original value")
             return value
+        finally:
+            print("=" * 50)
 
+    def to_python(self, value):
+        """Convert widget value to Python object"""
+        print("=" * 50)
+        print("🔍 DEBUG: FormattedJSONField.to_python()")
+        print(f"Input: {repr(value)}")
+        
+        if value in (None, '', '{}'):
+            print("✅ Returning empty dict")
+            result = {}
+        elif isinstance(value, dict):
+            print("✅ Already a dict")
+            result = value
+        else:
+            print(f"✅ Returning string for validation: {repr(value)}")
+            result = value  # Return as string for clean_params to handle
+        
+        print(f"Output: {repr(result)}")
+        print("=" * 50)
+        return result
+    
 allowed_test_case_id = RegexValidator(
     regex=r'^[A-Za-z0-9_\-.:/]+$',
     message=_("Only letters, numbers, underscores (_), hyphens (-), dots (.), colons (:), and slashes (/) are allowed.")
@@ -408,23 +583,35 @@ class TestCaseAdminForm(forms.ModelForm):
         self.fields['description'].widget.attrs.update({'rows': 15, 'cols': 5})
 
     test_case_id = forms.CharField(
-        validators=[allowed_test_case_id],
-        widget=forms.TextInput(attrs={
-            'pattern': r'[A-Za-z0-9_\-.:/]+',
-            'title': _("Only letters, numbers, _, -, ., :, / are allowed")
-        })
-    )
+    validators=[
+        RegexValidator(
+            regex=r'^[A-Za-z][A-Za-z0-9_\-.:/]*$',
+            message=_(
+                "Test Case ID must start with a letter and contain only "
+                "letters, numbers, _, -, ., :, /"
+            )
+        ),
+        MinLengthValidator(3, message=_("Test Case ID must be at least 3 characters long.")),
+        MaxLengthValidator(20, message=_("Test Case ID must not exceed 20 characters."))
+    ],
+    widget=forms.TextInput(attrs={
+        'pattern': r'[A-Za-z][A-Za-z0-9_\-.:/]{2,19}',
+        'title': _("Example: TC-001, LOGIN-TC-01, API:TC:01"),
+        'placeholder': _('Enter Test Case ID')
+    })
+)
 
     params = FormattedJSONField(
         required=False,
         widget=forms.Textarea(attrs={
             'rows': 15,
             'cols': 67,
-            'placeholder': _('Enter Parameters in JSON format'),
+            'placeholder': _('Enter Parameters in JSON format (e.g., {"key": "value"})'),
             'id': 'id_params',
-            
         })
     )
+
+    
     
     json_file = forms.FileField(
         required=False,
@@ -439,30 +626,504 @@ class TestCaseAdminForm(forms.ModelForm):
     class Meta:
         model = TestCase
         fields = '__all__'
-    
-    def clean_params(self):
-        params = self.cleaned_data.get('params')
-        if params and params.strip():
-            try:
-                # Validate and minify JSON for storage
-                return json.loads(params.strip())
-                # return json.dumps(parsed, separators=(',', ':'))
-                # return params
-            except json.JSONDecodeError as e:
-                raise forms.ValidationError(_("Invalid JSON format: {}".format(str(e))))
-        return {}
-    
-    # def clean_json_file(self):
-    #     json_file = self.cleaned_data.get('json_file')
-    #     if json_file:
-    #         try:
-    #             content = json_file.read().decode('utf-8')
-    #             json.loads(content)
-    #             return json_file
-    #         except (UnicodeDecodeError, json.JSONDecodeError) as e:
-    #             raise forms.ValidationError(_("Invalid JSON file: {}".format(str(e))))
-    #     return json_file
+        widgets = {
+            'robot_script': forms.ClearableFileInput(attrs={'accept': '.robot'}),
+            'python_script': forms.ClearableFileInput(attrs={'accept': '.py'}),
+        }
 
+    def clean_test_case_id(self):
+     test_case_id = self.cleaned_data.get("test_case_id")
+
+     if not test_case_id:
+          return test_case_id
+
+     qs = TestCase.objects.filter(test_case_id=test_case_id)
+
+     # Exclude current object during edit
+     if self.instance.pk:
+          qs = qs.exclude(pk=self.instance.pk)
+
+     if qs.exists():
+          raise forms.ValidationError(
+               _("Test Case ID '%(id)s' already exists. Please use a unique ID."),
+               params={"id": test_case_id},
+          )
+
+     return test_case_id
+    
+
+    def extract_tag_from_robot_file(self, robot_file):
+        """Extract test case ID from [Tags] line, returns None if empty"""
+        try:
+            if hasattr(robot_file, 'read'):
+                robot_file.seek(0)
+                content = robot_file.read().decode('utf-8')
+                robot_file.seek(0)
+            else:
+                content = robot_file
+            
+            import re
+            # Match [Tags] line (with or without content)
+            tag_pattern = r'\[Tags\]\s*(.*)$'
+            match = re.search(tag_pattern, content, re.MULTILINE)
+            
+            if match:
+                tag_content = match.group(1).strip()
+                if tag_content:
+                    # Return only first word/ID
+                    return tag_content.split()[0]
+                else:
+                    # [Tags] exists but empty
+                    return None
+            return None  # No [Tags] found
+        except Exception as e:
+            return None
+    
+    def update_robot_file_tag(self, robot_file, new_test_case_id):
+        """
+        Update [Tags] AND Library path in robot file
+        """
+        try:
+            if hasattr(robot_file, 'read'):
+                robot_file.seek(0)
+                content = robot_file.read().decode('utf-8')
+            else:
+                with open(robot_file.path, 'r') as f:
+                    content = f.read()
+            
+            import re
+            
+            # STEP 1: Update [Tags]
+            existing_tag_pattern = r'(\[Tags\]\s+)([A-Za-z0-9_\-.:/]+)(.*?)$'
+            empty_tag_pattern = r'(\[Tags\])\s*$'
+            
+            if re.search(existing_tag_pattern, content, re.MULTILINE):
+                content = re.sub(
+                    existing_tag_pattern,
+                    rf'\1{new_test_case_id}\3',
+                    content,
+                    count=1,
+                    flags=re.MULTILINE
+                )
+            elif re.search(empty_tag_pattern, content, re.MULTILINE):
+                content = re.sub(
+                    empty_tag_pattern,
+                    rf'\1    {new_test_case_id}',
+                    content,
+                    count=1,
+                    flags=re.MULTILINE
+                )
+            
+            # STEP 2: Update Library path (FIRST occurrence only)
+            library_pattern = r'(Library\s+\.\./\.\./resources/keywords/)([a-zA-Z0-9_\-]+)(\.py)'
+            matches = list(re.finditer(library_pattern, content))
+            
+            if matches:
+                first_match = matches[0]
+                old_filename = first_match.group(2)
+                
+                # Only replace if it's different
+                if old_filename != new_test_case_id:
+                    content = content[:first_match.start()] + \
+                            f'{first_match.group(1)}{new_test_case_id}{first_match.group(3)}' + \
+                            content[first_match.end():]
+            
+            # Create updated file
+            from io import BytesIO
+            from django.core.files.uploadedfile import InMemoryUploadedFile
+            
+            file_io = BytesIO(content.encode('utf-8'))
+            updated_file = InMemoryUploadedFile(
+                file_io,
+                'robot_script',
+                robot_file.name if hasattr(robot_file, 'name') else 'updated.robot',
+                'text/plain',
+                len(content.encode('utf-8')),
+                None
+            )
+            return updated_file
+            
+        except Exception as e:
+            raise forms.ValidationError(_(f"Error updating robot file: {str(e)}"))
+    def update_python_library_path_in_robot(self, robot_file, test_case_id):
+        """
+        Replace ../../resources/keywords/<any_name>.py with ../../resources/keywords/<test_case_id>.py
+        - Only replaces the FIRST occurrence
+        - Skips connection_manager.py or any file NOT directly in keywords/
+        - Handles edge cases safely
+        """
+        try:
+            if hasattr(robot_file, 'read'):
+                robot_file.seek(0)
+                content = robot_file.read().decode('utf-8')
+            else:
+                with open(robot_file.path, 'r') as f:
+                    content = f.read()
+            
+            import re
+            
+            # Pattern to match: Library    ../../resources/keywords/<filename>.py
+            # BUT NOT: Library    ../../resources/keywords/execution/connection_manager.py
+            pattern = r'(Library\s+\.\./\.\./resources/keywords/)([a-zA-Z0-9_\-]+)(\.py)'
+            
+            # Find all matches
+            matches = list(re.finditer(pattern, content))
+            
+            if not matches:
+                # No matching library found, return original
+                return robot_file
+            
+            # Get the first match
+            first_match = matches[0]
+            old_filename = first_match.group(2)
+            
+            # Skip if it's already the test case ID
+            if old_filename == test_case_id:
+                return robot_file
+            
+            # Replace ONLY the first occurrence
+            updated_content = content[:first_match.start()] + \
+                            f'{first_match.group(1)}{test_case_id}{first_match.group(3)}' + \
+                            content[first_match.end():]
+            
+            # Create updated file
+            from io import BytesIO
+            from django.core.files.uploadedfile import InMemoryUploadedFile
+            
+            file_io = BytesIO(updated_content.encode('utf-8'))
+            updated_file = InMemoryUploadedFile(
+                file_io,
+                'robot_script',
+                robot_file.name if hasattr(robot_file, 'name') else 'updated.robot',
+                'text/plain',
+                len(updated_content.encode('utf-8')),
+                None
+            )
+            return updated_file
+            
+        except Exception as e:
+            raise forms.ValidationError(_(f"Error updating library path: {str(e)}"))
+    
+
+    def validate_robot_file_syntax(self, robot_file):
+        """
+        STANDARD WAY: Validate robot file using robot.parsing
+        Falls back to basic validation if robot library not available
+        """
+        try:
+            MAX_ROBOT_FILE_SIZE = 1000 * 1024  # 1000 KB
+
+            if robot_file.size > MAX_ROBOT_FILE_SIZE:
+                       return False, "Robot file is too large (max 1MB allowed).", "robot_framework"
+
+
+
+            robot_file.seek(0)
+
+            if hasattr(robot_file, 'read'):
+                robot_file.seek(0)
+                content = robot_file.read().decode('utf-8')
+                robot_file.seek(0)
+            else:
+                with open(robot_file.path, 'r') as f:
+                    content = f.read()
+            
+            # METHOD 1: Use robot.parsing (Most Standard)
+            try:
+                from robot.parsing import get_model
+                import tempfile
+                import os
+                validation_method = "robot_framework"
+                
+                # Create temporary file (robot library needs actual file)
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.robot', delete=False) as tmp:
+                    tmp.write(content)
+                    tmp_path = tmp.name
+                
+                try:
+                    # Parse the robot file
+                    model = get_model(tmp_path)
+                    
+                    # Detailed validation
+                    errors = []
+                    
+                    # Check for test cases
+                    if not model.sections:
+                        errors.append("No sections found in robot file")
+                    
+                    has_test_cases = False
+                    for section in model.sections:
+                        if hasattr(section, 'header') and section.header:
+                            if 'Test Cases' in str(section.header.data_tokens):
+                                has_test_cases = True
+                                break
+                    
+                    if not has_test_cases:
+                        errors.append("No '*** Test Cases ***' section found")
+                    
+                    if errors:
+                        return False, "; ".join(errors), validation_method
+                    
+                    return True, None, validation_method
+
+                    
+                finally:
+                    # Clean up temp file
+                    if os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
+                        
+            except ImportError:
+                # METHOD 2: Fallback - Basic regex validation
+                is_valid, error, _ = self._basic_robot_validation(content)
+                return is_valid, error, "fallback_regex"
+                
+        except Exception as e:
+            return False, f"Error validating robot file: {str(e)}" ,"robot_framework"
+    
+    def _basic_robot_validation(self, content):
+        """Fallback validation when robot library not available"""
+        import re
+        errors = []
+        
+        # Check for required sections
+        required_sections = [
+            r'\*\*\* Test Cases \*\*\*',
+            r'\[Tags\]'
+        ]
+        
+        if not re.search(required_sections[0], content):
+            errors.append("Missing '*** Test Cases ***' section")
+        
+        if not re.search(required_sections[1], content):
+            errors.append("Missing '[Tags]' in test case")
+        
+        # Check for basic syntax errors
+        if '***' in content:
+            # Validate section headers
+            section_pattern = r'\*\*\* \w+( \w+)* \*\*\*'
+            invalid_sections = re.findall(r'\*\*\*[^\*]+\*\*\*', content)
+            for section in invalid_sections:
+                if not re.match(section_pattern, section):
+                    errors.append(f"Invalid section header: {section}")
+        
+        return len(errors) == 0, "; ".join(errors) if errors else None, "fallback_regex"
+
+    
+    def validate_python_file_syntax(self, python_file):
+        """
+        STANDARD WAY: Validate Python file using ast and compile
+        """
+        try:
+            MAX_PYTHON_FILE_SIZE = 1000 * 1024  # 1000 KB
+
+            if python_file.size > MAX_PYTHON_FILE_SIZE:
+                        return False, "Python file too large (max 1MB allowed).", "python_ast"
+
+
+
+
+            if hasattr(python_file, 'read'):
+                python_file.seek(0)
+                content = python_file.read().decode('utf-8')
+                python_file.seek(0)
+            else:
+                with open(python_file.path, 'r') as f:
+                    content = f.read()
+            
+            # METHOD 1: AST parsing (catches syntax errors)
+            import ast
+            try:
+                tree = ast.parse(content)
+                
+                # METHOD 2: Additional validation - check for common issues
+                errors = []
+                
+                validation_method = "python_ast"
+
+                # Check if file is not empty
+                if not content.strip():
+                    errors.append("Python file is empty")
+                
+                # Check for basic Python structure
+                if not any(isinstance(node, (ast.FunctionDef, ast.ClassDef)) for node in ast.walk(tree)):
+                    errors.append("No functions or classes found - file may be incomplete")
+                
+                if errors:
+                    return False, "; ".join(errors), validation_method
+                
+                # METHOD 3: Try to compile (catches more subtle errors)
+                compile(content, '<string>', 'exec')
+
+                
+                return True, None,validation_method
+                
+            except SyntaxError as e:
+                error_msg = f"Syntax Error at line {e.lineno}: {e.msg}"
+                if e.text:
+                    error_msg += f"\n  Code: {e.text.strip()}"
+                    if e.offset:
+                        error_msg += f"\n  " + " " * (e.offset - 1) + "^"
+                return False, error_msg, "python_ast"
+
+            
+            except Exception as e:
+                return False, f"Error validating Python file: {str(e)}" ,"python_ast"
+                
+        except Exception as e:
+            return False, f"Error validating Python file: {str(e)}" ,"python_ast"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        test_type = cleaned_data.get("test_type")
+        python_script = cleaned_data.get("python_script")
+        robot_script = cleaned_data.get("robot_script")
+        test_case_id = cleaned_data.get("test_case_id")
+        
+        # Validate Python script
+        if python_script:
+            if not python_script.name.endswith(".py"):
+                self.add_error("python_script", "Only .py files allowed.")
+            else:
+                is_valid, error_msg, _ = self.validate_python_file_syntax(python_script)
+                if not is_valid:
+                    self.add_error(
+                        "python_script",
+                        f"Python validation failed:\n{error_msg}"
+                    )
+        else:
+            self.add_error("python_script", "Python Script is Required.")
+        
+        # Robot Framework validation
+        if test_type == TestTypeChoices.ROBOT_FRAMEWORK:
+            if not robot_script:
+                self.add_error("robot_script", "Robot Script is Required for Robot Framework.")
+            elif not robot_script.name.endswith(".robot"):
+                self.add_error("robot_script", "Only .robot files allowed.")
+            else:
+                # Validate robot file syntax FIRST
+                is_valid, error_msg ,method = self.validate_robot_file_syntax(robot_script)
+                if not is_valid:
+                  self.add_error("robot_script", f"[{method}] {error_msg}")
+
+                else:
+                    # Check for [Tags] line
+                    import re
+                    robot_script.seek(0)
+                    content = robot_script.read().decode('utf-8')
+                    robot_script.seek(0)
+                    
+                    if not re.search(r'\[Tags\]', content):
+                        self.add_error(
+                            "robot_script",
+                            "Robot file must contain a [Tags] line in test case. "
+                            "Example:\n    [Tags]    TEST_ID"
+                        )
+                    else:
+                        # Extract existing tag
+                        extracted_tag = self.extract_tag_from_robot_file(robot_script)
+                        
+                        # **MAIN LOGIC: Add or Update Tag**
+                        if not self.instance.pk:  # NEW test case
+                            if test_case_id:
+                                # User entered ID, add/update it in robot file
+                                cleaned_data['robot_script'] = self.update_robot_file_tag(
+                                    robot_script, test_case_id
+                                )
+                            elif extracted_tag:
+                                # No user ID, use robot file's tag
+                                cleaned_data['test_case_id'] = extracted_tag
+                            else:
+                                # Both empty
+                                self.add_error(
+                                    "test_case_id",
+                                    "Please enter a Test Case ID"
+                                )
+                        else:  # EDIT existing test case
+                            if test_case_id != self.instance.test_case_id:
+                                # User changed ID, update robot file
+                                cleaned_data['robot_script'] = self.update_robot_file_tag(
+                                    robot_script, test_case_id
+                                )
+                            elif extracted_tag and extracted_tag != test_case_id:
+                                # Robot file changed but ID different, sync it
+                                cleaned_data['robot_script'] = self.update_robot_file_tag(
+                                    robot_script, test_case_id
+                                )
+                            elif not extracted_tag:
+                                # Robot file has empty [Tags], add current ID
+                                cleaned_data['robot_script'] = self.update_robot_file_tag(
+                                    robot_script, test_case_id
+                                )
+        
+        elif test_type == TestTypeChoices.AGENT:
+            cleaned_data["robot_script"] = None
+        
+        return cleaned_data
+    def clean_params(self):
+        """Validate params field - must be valid JSON dict or empty"""
+        params = self.cleaned_data.get('params', '')
+        
+        print("=" * 50)
+        print("🔍 DEBUG: clean_params() started")
+        print(f"Raw params type: {type(params)}")
+        print(f"Raw params value: {repr(params)}")
+        print("=" * 50)
+        
+        # Handle empty values
+        if params in (None, '', '{}', {}):
+            print("✅ Params is empty - returning empty dict")
+            return {}
+        
+        # If already a dict (shouldn't happen but handle it)
+        if isinstance(params, dict):
+            print(f"✅ Params is already a dict: {params}")
+            return params
+        
+        # Must be string at this point
+        if not isinstance(params, str):
+            print(f"❌ Params is not a string, it's: {type(params)}")
+            raise ValidationError(
+                _("Parameters must be a valid JSON object.")
+            )
+        
+        # Clean whitespace
+        params = params.strip()
+        print(f"Trimmed params: {repr(params)}")
+        
+        if not params:
+            print("✅ Params is empty after trim - returning empty dict")
+            return {}
+        
+        # Try to parse JSON
+        try:
+            parsed = json.loads(params)
+            print(f"✅ JSON parsed successfully: {parsed}")
+            print(f"Parsed type: {type(parsed)}")
+            
+            # Must be a dictionary (object), not array or primitive
+            if not isinstance(parsed, dict):
+                print(f"❌ Parsed JSON is not a dict, it's: {type(parsed)}")
+                raise ValidationError(
+                    _("Parameters must be a JSON object (key-value pairs), not an array or primitive value. "
+                      "Example: {\"username\": \"admin\", \"timeout\": 30}")
+                )
+            
+            print(f"✅ Final validated params: {parsed}")
+            return parsed
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ JSON parsing failed: {e}")
+            print(f"Error at position {e.pos}: {e.msg}")
+            raise ValidationError(
+                _(f"Invalid JSON format: {e.msg} at position {e.pos}. "
+                  f"Please enter valid JSON like: {{\"key\": \"value\"}}")
+            )
+        except Exception as e:
+            print(f"❌ Unexpected error: {e}")
+            raise ValidationError(
+                _(f"Error validating parameters: {str(e)}")
+            )
+ 
 # @admin.register(TestCase)
 class TestCaseAdmin(BaseVersionAdmin):
     form = TestCaseAdminForm
@@ -471,6 +1132,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         "test_case_id",      # 2nd - Test Case ID  
         "category_link",     # 3rd - Category
         "is_active",         # 4th - Is Active
+        # "script_push_status",
         "test_type_display", # 5th - Test Type
         "created",           # 6th - Created
         "modified",          # 7th - Modified
@@ -489,6 +1151,8 @@ class TestCaseAdmin(BaseVersionAdmin):
         "name",
         "test_case_id",
         "test_type",  # ADD THIS
+        "robot_script",
+        "python_script",
         "params",  # ADD THIS - NEW FIELD
         "json_file",
         "description",
@@ -498,7 +1162,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         # "created",
         # "modified",
     ]
-    readonly_fields = ["created", "modified"]
+    readonly_fields = ["created", "modified","test_script_guidelines"]
     autocomplete_fields = ["category"]
     
     # Enable history button
@@ -506,6 +1170,26 @@ class TestCaseAdmin(BaseVersionAdmin):
     change_list_template = 'admin/test_management/import_export/testcase/change_list.html'
     actions = ["delete_selected", "recover_deleted", "activate_cases", "deactivate_cases"]
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+
+        # Superusers see everything
+        if request.user.is_superuser:
+            return qs
+
+        # Normal users see only their own test cases
+        return qs.filter(created_by=request.user)
+    
+    def has_view_permission(self, request, obj=None):
+        if obj and not request.user.is_superuser:
+            return obj.created_by == request.user
+        return super().has_view_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and not request.user.is_superuser:
+            return obj.created_by == request.user
+        return super().has_change_permission(request, obj)
+    
     def name_with_tooltip(self,obj):
         tooltip_text= obj.description or "No description available"
 
@@ -535,14 +1219,66 @@ class TestCaseAdmin(BaseVersionAdmin):
     test_type_display.admin_order_field = "test_type"
 
 
+    def test_script_guidelines(self, obj=None):
+        url = static("guidelines/test_script_guidelines.docx")
+        return format_html(
+            '<a href="{}" download class="">Download Test Script Guidelines</a>',
+            url
+        )
 
-    def get_readonly_fields(self, request, obj=None):
-        fields = super().get_readonly_fields(request, obj)
-        # Make test_case_id readonly after creation to maintain consistency
-        # if obj and obj.pk:
-        #     fields = list(fields) + ["test_case_id"]
-        return fields
-    
+    test_script_guidelines.short_description = "Guidelines"
+
+    def get_fieldsets(self, request, obj=None):
+     guidelines_url = static("guidelines/test_script_guidelines.docx")
+     
+     fieldsets = [
+          (
+               None,
+               {
+                    "fields": (
+                         "category",
+                         "name",
+                         "test_case_id",
+                         "test_type",
+                    )
+               },
+          ),
+          (
+               _("Test Scripts"),
+               {
+                    "fields": (
+                         "robot_script",
+                         "python_script",
+                    ),
+                     "description": format_html(
+                    '<a href="{}" download class="guidelines-link">'
+                    'Download Test Script Guidelines'
+                    '</a>',
+                    guidelines_url
+                ),
+               },
+          ),
+          (
+               _("Additional Details"),
+               {
+                    "fields": (
+                         "params",
+                         "json_file",
+                         "description",
+                         "is_active",
+                         "is_configuration_push_required",
+                    ),
+               },
+          ),
+     ]
+
+     return fieldsets
+
+    # def get_readonly_fields(self, request, obj=None):
+    #     fields = list(super().get_readonly_fields(request, obj))
+    #     if obj:
+    #         fields.append("script_push_status")
+    #     return fields
 
     def changelist_view(self, request, extra_context=None):
         """Override to add custom title"""
@@ -626,12 +1362,64 @@ class TestCaseAdmin(BaseVersionAdmin):
                 'accept': '.json',
                 'style': 'display: none;'
             })
+
+
+        # **NEW: Add warning messages for EDIT mode**
+        # if obj:  # Edit mode
+        #  if "python_script" in form.base_fields:
+        #      current_file = obj.python_script.name.split('/')[-1] if obj.python_script else "None"
+        #      form.base_fields["python_script"].help_text = format_html(
+        #           '<span style="color: #856404; background: #fff3cd; padding: 5px 10px; '
+        #           'border-radius: 4px; display: inline-block; margin-top: 5px;">'
+        #           '⚠️ <strong>Warning:</strong> Uploading a new file will permanently replace: <code>{}</code>'
+        #           '</span><br>{}',
+        #           current_file,
+        #           _("Upload Python script (.py file)")
+        #      )
+         
+        #  if "robot_script" in form.base_fields:
+        #      current_file = obj.robot_script.name.split('/')[-1] if obj.robot_script else "None"
+        #      form.base_fields["robot_script"].help_text = format_html(
+        #           '<span style="color: #856404; background: #fff3cd; padding: 5px 10px; '
+        #           'border-radius: 4px; display: inline-block; margin-top: 5px;">'
+        #           '⚠️ <strong>Warning:</strong> Uploading a new file will permanently replace: <code>{}</code><br>'
+        #           'The [Tags] will be automatically updated to match Test Case ID'
+        #           '</span><br>{}',
+        #           current_file,
+        #           _("Upload Robot script (.robot file)")
+        #      )
+         
+        #  if "test_case_id" in form.base_fields:
+        #      form.base_fields["test_case_id"].help_text = format_html(
+        #           '<span style="color: #856404; background: #fff3cd; padding: 5px 10px; '
+        #           'border-radius: 4px; display: inline-block; margin-top: 5px;">'
+        #           '⚠️ <strong>Warning:</strong> Changing this will update [Tags] in robot file'
+        #           '</span><br>{}',
+        #           _("Only letters, numbers, _, -, ., :, / are allowed.")
+        #      )    
         return form
 
+
+    
+    def save_model(self, request, obj, form, change):
+        """Override save to ensure robot file is synced before saving"""
+        # Save the object first
+        if not change and not obj.created_by:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+        
+        # If robot file exists and needs update, it's already handled in form.clean()
+        # This is just a safety hook for future enhancements
+        if obj.test_type == TestTypeChoices.ROBOT_FRAMEWORK and obj.robot_script:
+            # Log the synchronization for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Test case {obj.test_case_id} saved with robot script")
+
     class Media:
-        js = ('test-management/js/json_file_handler.js','https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',)  # Add custom JavaScript
+        js = ('test-management/js/json_file_handler.js', 'test-management/js/testcase_toggle_scripts.js',  'test-management/js/testcase_id_check.js','https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',)  # Add custom JavaScript
         css = {
-            'all': ('test-management/css/json_file_handler.css',)  # Optional custom CSS
+            'all': ('test-management/css/json_file_handler.css','test-management/css/testcase_admin.css')  # Optional custom CSS
         }
 
     def delete_selected(self, request, queryset):
@@ -711,13 +1499,31 @@ class TestCaseAdmin(BaseVersionAdmin):
             messages.SUCCESS,
         )
 
+    @admin.action(description=_("Export scripts"))
+    def export_scripts_zip(self, request, queryset):
+        if not queryset.exists():
+            self.message_user(request, _("No test cases selected."), messages.WARNING)
+            return
+
+        zip_buffer = build_testcase_scripts_zip(queryset)
+
+        timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+        response = HttpResponse(
+            zip_buffer,
+            content_type="application/zip"
+        )
+        response["Content-Disposition"] = (
+            f'attachment; filename="testcase_scripts_{timestamp}.zip"'
+        )
+        return response
+    
 from django.shortcuts import redirect
 from django.urls import reverse
 
     
 class TestCasesExportable(ImportExportMixin, TestCaseAdmin):
     resource_class= TestCasesResource
-    actions = TestCaseAdmin.actions + ["export_selected_redirect"]
+    actions = TestCaseAdmin.actions + ["export_selected_redirect" , "export_scripts_zip"]
 
     def export_selected_redirect(self, request, queryset):
         """
@@ -759,7 +1565,30 @@ class TestCasesExportable(ImportExportMixin, TestCaseAdmin):
         return qs
     export_selected_redirect.short_description = "Export selected test cases"
 
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "export-all-scripts/",
+                self.admin_site.admin_view(self.export_all_scripts),
+                name="testcase_export_all_scripts",
+            ),
+        ]
+        return custom_urls + urls
 
+    def export_all_scripts(self, request):
+        queryset = self.get_queryset(request)
+
+        zip_buffer = build_testcase_scripts_zip(queryset)
+
+        response = HttpResponse(
+            zip_buffer,
+            content_type="application/zip"
+        )
+        response["Content-Disposition"] = (
+            'attachment; filename="all_testcase_scripts.zip"'
+        )
+        return response
 
 class TestSuiteAdminForm(forms.ModelForm):
     """Custom form for TestSuite admin"""
@@ -1205,7 +2034,7 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                 preserved_order = Case(
                     *[When(id=pk, then=pos) for pos, pk in enumerate(ordered_ids)]
                 )
-                self.fields["individual_test_cases"].queryset = qs.order_by(preserved_order)
+                # self.fields["individual_test_cases"].queryset = qs.order_by(preserved_order)
     
     class Meta:
         model = TestSuiteExecution
@@ -1532,7 +2361,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         # "test_suite_name",
         "device_count",
         "testcase_count",
-        "status_label",
+        # "status_label",
         "created",
         "view_history",
      ]
@@ -1558,7 +2387,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     
     filter_horizontal=["individual_test_cases"]
     readonly_fields = ["created", "modified", "device_count", "testcase_count"]
-    actions = ["execute_test_suite"]
+    actions = ["execute_test_suite", "re_execute_test_suite"]
     class Media:
         js = ('admin/js/jquery.init.js',
               'test-management/js/selection_toggle.js')
@@ -1610,15 +2439,24 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
    
     def formfield_for_manytomany(self, db_field, request, **kwargs):
         if db_field.name == "individual_test_cases":
+
+            # Base queryset
             qs = db_field.related_model.objects.all()
+
+            # Restrict for non‑superusers
+            if not request.user.is_superuser:
+                qs = qs.filter(created_by=request.user)
+
             widget = TestCaseFilteredWidget(
                 verbose_name="Test Cases",
                 is_stacked=False,
             )
             widget.testcase_queryset = qs
-            print("widget",widget)
 
-            return db_field.formfield(widget=widget, queryset=qs)
+            kwargs["queryset"] = qs
+            kwargs["widget"] = widget
+
+            return super().formfield_for_manytomany(db_field, request, **kwargs)
 
         return super().formfield_for_manytomany(db_field, request, **kwargs)
     #  function which trigger to show save and execute button on ui
@@ -1747,6 +2585,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         urls = super().get_urls()
         custom_urls = [
             path(
+                '<path:object_id>/all-history/',
+                self.admin_site.admin_view(self.execution_all_history_view),
+                name='test_management_testexecution_all_history'
+            ),
+            path(
                 '<path:object_id>/history/',
                 self.admin_site.admin_view(self.execution_history_view),
                 name='test_management_testexecution_history'
@@ -1759,6 +2602,86 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         ]
         return custom_urls + urls
 
+    def execution_all_history_view(self, request, object_id):
+        """Custom view for execution history with enhanced statistics"""
+        execution = get_object_or_404(TestSuiteExecution, pk=object_id)
+        
+        # Get all execution devices
+        execution_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device').order_by('device__name')
+        
+        # Get all test case executions
+        test_case_executions = TestCaseExecution.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device', 'test_case').order_by(
+            'device__name', 'execution_order'
+        )
+        
+        # Group test case executions by device with statistics
+        device_executions = {}
+        for device_exec in execution_devices:
+            device = device_exec.device
+            device_test_cases = test_case_executions.filter(device=device)
+            
+            # Calculate statistics
+            total = device_test_cases.count()
+            success = device_test_cases.filter(status='success').count()
+            failed = device_test_cases.filter(status='failed').count()
+            completed = success + failed
+            
+            # Determine overall status
+            if total == 0:
+                overall_status = 'pending'
+                percentage = 0
+            elif completed == 0:
+                overall_status = 'pending'
+                percentage = 0
+            elif failed == 0 and success == total:
+                overall_status = 'success'
+                percentage = 100
+            else:
+                overall_status = 'failed'
+                percentage = (success / total * 100) if total > 0 else 0
+            
+            device_executions[device.id] = {
+                'device': device,
+                'device_execution': device_exec,
+                'test_cases': device_test_cases,
+                'stats': {
+                    'total': total,
+                    'success': success,
+                    'failed': failed,
+                    'completed': completed,
+                    'percentage': percentage,
+                    'overall_status': overall_status
+                }
+            }
+        if execution.test_selection_type ==1 and execution.test_suite:
+            test_source_name= execution.test_suite.name
+        else:
+            test_source_name= f"Individual Tests ({execution.testcase_count})"
+        
+        context = dict(
+        self.admin_site.each_context(request),  # ✅ REQUIRED
+        title="All History",
+        execution=execution,
+        execution_id=str(execution.pk),
+        execution_devices=execution_devices,
+        device_executions=device_executions,
+        test_case_executions=test_case_executions,
+        opts=self.model._meta,                  # ✅ REQUIRED
+        original=execution,                     # ✅ REQUIRED
+        preserved_filters=self.get_preserved_filters(request),
+        has_view_permission=True,
+        )
+
+        return TemplateResponse(
+            request,
+            'admin/test_management/testexecution/all_executions_history.html',
+            context,
+        )
+    
     def execution_history_view(self, request, object_id):
         """Custom view for execution history with enhanced statistics"""
         execution = get_object_or_404(TestSuiteExecution, pk=object_id)
@@ -1819,27 +2742,82 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         else:
             test_source_name= f"Individual Tests ({execution.testcase_count})"
         
-        context = {
-            'title': f'Test Execution History',
-            # 'title': f'Test Execution History - {test_source_name}',
-            'execution': execution,
-            'execution_id': str(execution.pk),
+        context = dict(
+        self.admin_site.each_context(request),  # ✅ REQUIRED
+        title="Test Execution History",
+        execution=execution,
+        execution_id=str(execution.pk),
+        execution_devices=execution_devices,
+        device_executions=device_executions,
+        test_case_executions=test_case_executions,
+        opts=self.model._meta,                  # ✅ REQUIRED
+        original=execution,                     # ✅ REQUIRED
+        preserved_filters=self.get_preserved_filters(request),
+        has_view_permission=True,
+        )
 
-            'execution_devices': execution_devices,
-            'device_executions': device_executions,
-            'test_case_executions': test_case_executions,
-            'opts': self.model._meta,
-            'has_view_permission': True,
-            'original': execution,
-            'preserved_filters': self.get_preserved_filters(request),
-        }
-        
-        return render(
+        return TemplateResponse(
             request,
             'admin/test_management/testexecution/execution_history.html',
-            context
+            context,
         )
+        
     
+    def get_queryset(self, request):
+        qs = super().get_queryset(request).filter(
+            parent_execution__isnull=True
+        ).prefetch_related("re_executions")
+
+        if request.user.is_superuser:
+            return qs
+
+        return qs.filter(created_by=request.user)
+    
+    def has_view_permission(self, request, obj=None):
+        if obj and not request.user.is_superuser:
+            return obj.created_by == request.user
+        return super().has_view_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and not request.user.is_superuser:
+            return obj.created_by == request.user
+        return super().has_change_permission(request, obj)
+
+    def _history_url(self, obj):
+        opts = obj._meta
+        return reverse(
+            f"admin:{opts.app_label}_{opts.model_name}_history",
+            args=[obj.pk],
+        )
+
+
+    def view_history_links(self, obj):
+        """
+        Show: 0 1 2 3 ...
+        0 = history of the original execution
+        1..n = histories of its re-executions (ordered)
+        """
+        if not obj.pk or obj.parent_execution_id:
+            return "-"
+
+        root = obj.parent_execution if obj.parent_execution_id else obj
+
+        links = []
+        # "0" -> root execution history
+        links.append(format_html('<a href="{}">0</a>', self._history_url(root)))
+
+        # "1..n" -> re-executions history
+        reexecs = root.re_executions.all().order_by("re_execution_index", "created", "pk")
+
+        # If you always set re_execution_index, use it; otherwise fallback to enumeration
+        for idx, rex in enumerate(reexecs, start=1):
+            label = rex.re_execution_index if rex.re_execution_index is not None else idx
+            links.append(format_html('<a href="{}">{}</a>', self._history_url(rex), label))
+
+        # join with spaces
+        return format_html(" ".join(["{}"] * len(links)), *links)
+
+    view_history_links.short_description = _("History")
 
     def _build_artifacts(self, execution):
         from .models import ExecutionArtifact, TestSuiteExecutionDevice
@@ -1849,7 +2827,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         )
 
         testcases = execution.get_configuration_selected_test_cases()
-
+        ExecutionArtifact.objects.filter(
+                execution=execution
+            ).exclude(
+                testcase__in=testcases
+            ).delete()
         for d in devices:
             for tc in testcases:
                 ExecutionArtifact.objects.get_or_create(
@@ -1875,6 +2857,21 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         self._build_artifacts(execution)
         
         if request.method == "POST":
+            raw_emails = request.POST.get("notification_emails", "").strip()
+
+            # Validate emails
+            try:
+                if raw_emails:
+                    for email in raw_emails.split(","):
+                        validate_email(email.strip())
+            except ValidationError:
+                self.message_user(
+                    request,
+                    "One or more email addresses are invalid.",
+                    messages.ERROR,
+                )
+                return redirect(request.path)
+            
             formset = ExecutionArtifactFormSet(
                 request.POST,
                 request.FILES,
@@ -1897,7 +2894,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
                 if not has_error:
                     # VALIDATE BEFORE SAVE
+                    total_forms = formset.total_form_count()
+                    config_required = total_forms > 0
                     formset.save()
+                    execution.notification_emails = raw_emails
+                    execution.save(update_fields=["notification_emails"])
 
                     schedule_time= request.session.get("execution_schedule_time")
                     if execute_after_save:
@@ -1909,11 +2910,19 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                             schedule_time,
                         )
                         request.session.pop("execution_schedule_time", None)
-                    self.message_user(
-                        request,
-                        "Configuration uploaded successfully.",
-                        messages.SUCCESS,
-                    )
+
+                    if config_required:
+                        self.message_user(
+                            request,
+                            "Configuration uploaded successfully.",
+                            messages.SUCCESS,
+                        )
+                    else: 
+                        self.message_user(
+                            request,
+                            "Additional Details saved successfully.",
+                            messages.SUCCESS,
+                        )
 
                     return HttpResponseRedirect(
                         reverse("admin:test_management_testsuiteexecution_changelist")
@@ -1921,29 +2930,153 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
         else:
             formset = ExecutionArtifactFormSet(instance=execution)
-
+        
         context = dict(
-            self.admin_site.each_context(request),
-            title="Configuration Push",
+            self.admin_site.each_context(request),  # ✅ REQUIRED
+            title="Additional Details",
             execution=execution,
-            formset=formset,
+            opts=self.model._meta,                  # ✅ REQUIRED
+            original=execution,                     # ✅ REQUIRED
+            formset=formset
         )
-        return render(
+
+        return TemplateResponse(
             request,
-            "admin/test_management/config_push.html",
+            'admin/test_management/config_push.html',
             context,
+            
         )
+        
+    
     def view_history(self, obj):
         """Add history view link"""
-        if obj.pk:
-            # You can customize the URL pattern based on your history view
-            return format_html(
-                '<a href="{}" class="viewlink">View History</a>',
-            f'{obj.pk}/history/',
-            )
-        return "-"
+        if not obj.pk:
+            return "-"
+
+        url = reverse(
+            "admin:test_management_testexecution_all_history",
+            args=[obj.pk],
+        )
+        return format_html('<a href="{}" class="viewlink">View History</a>', url)
     view_history.short_description = _("History")
     view_history.allow_tags = True
+
+    @admin.action(description=_("Re-Execute Selected Test Executions"))
+    def re_execute_test_suite(self, request, queryset):
+     """Create replica of executions and execute immediately"""
+     from .tasks import execute_test_suite as execute_test_suite_task
+     from .models import ExecutionArtifact
+     
+     re_executed_count = 0
+     failed_count = 0
+     
+     # Store successfully created executions to trigger AFTER all transactions complete
+     executions_to_trigger = []
+     
+     for original in queryset:
+          try:
+               with transaction.atomic():
+                    # Get root execution
+                    root = original.parent_execution or original
+                    
+                    # Calculate next re_execution_index
+                    existing_count = root.re_executions.count()
+                    new_index = existing_count + 1
+                    
+                    # Clone the execution
+                    new_execution = TestSuiteExecution(
+                         name=f"{root.name}_{new_index}",
+                         test_selection_type=original.test_selection_type,
+                         test_suite=original.test_suite,
+                         test_case_execution_order=original.test_case_execution_order,
+                         device_selection=original.device_selection,
+                         device_group=original.device_group,
+                         notification_emails=original.notification_emails,
+                         parent_execution=root,
+                         re_execution_index=new_index,
+                         created_by=request.user,
+                         is_executed=False,
+                    )
+                    new_execution.save()
+                    
+                    # Copy M2M for individual test cases
+                    if original.test_selection_type == 0:
+                         new_execution.individual_test_cases.set(
+                              original.individual_test_cases.all()
+                         )
+                    
+                    # Clone devices
+                    for dev in TestSuiteExecutionDevice.objects.filter(
+                         test_suite_execution=original
+                    ):
+                         TestSuiteExecutionDevice.objects.create(
+                              test_suite_execution=new_execution,
+                              device=dev.device,
+                              connection_protocol=dev.connection_protocol,
+                              status='pending'
+                         )
+                    
+                    # Clone artifacts (config files)
+                    for artifact in ExecutionArtifact.objects.filter(
+                         execution=original
+                    ):
+                         ExecutionArtifact.objects.create(
+                              execution=new_execution,
+                              device=artifact.device,
+                              testcase=artifact.testcase,
+                              config_file=artifact.config_file,
+                              is_pushed=False
+                         )
+                    
+                    # Update counts
+                    new_execution.device_count = TestSuiteExecutionDevice.objects.filter(
+                         test_suite_execution=new_execution
+                    ).count()
+                    new_execution.testcase_count = (
+                         new_execution.test_suite.test_case_count 
+                         if new_execution.test_selection_type == 1 and new_execution.test_suite
+                         else new_execution.individual_test_cases.count()
+                    )
+                    new_execution.is_executed = True
+                    new_execution.save(update_fields=['device_count', 'testcase_count', 'is_executed'])
+                    
+                    # DON'T trigger task here - store for later
+                    executions_to_trigger.append(new_execution.id)
+                    re_executed_count += 1
+                    logger.info(f"Re-executed {original.id} -> {new_execution.id}")
+                    
+          except Exception as e:
+               failed_count += 1
+               logger.error(f"Failed to re-execute {original.id}: {e}", exc_info=True)
+               self.message_user(
+                    request,
+                    f"Failed to re-execute {original}: {str(e)}",
+                    messages.ERROR
+               )
+     
+     # NOW trigger all Celery tasks AFTER all transactions have committed
+     for execution_id in executions_to_trigger:
+          try:
+               execute_test_suite_task.delay(str(execution_id))
+               logger.info(f"Queued Celery task for execution {execution_id}")
+          except Exception as e:
+               logger.error(f"Failed to queue task for {execution_id}: {e}")
+               self.message_user(
+                    request,
+                    f"Created execution {execution_id} but failed to start: {str(e)}",
+                    messages.WARNING
+               )
+     
+     if re_executed_count > 0:
+          self.message_user(
+               request,
+               ngettext(
+                    "%d test execution was re-executed.",
+                    "%d test executions were re-executed.",
+                    re_executed_count,
+               ) % re_executed_count,
+               messages.SUCCESS,
+          )
     
     # def execution_status(self, obj):
     #     """Display execution status summary"""
@@ -1962,7 +3095,9 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
 
     def save_model(self, request, obj, form, change):
-        print(f">>> ADMIN save_model called. Change: {change} <<<")
+        print(f">>> ADMIN save_model called. Change: {obj} <<<")
+        if not change and not obj.created_by:
+            obj.created_by = request.user
         super().save_model(request, obj, form, change)
         print(f">>> Object saved with ID: {obj.id} <<<")
         # if '_save_execute' in request.POST and not change:
@@ -2242,7 +3377,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 })
 
             extra_context["execution_devices_json"] = json.dumps(devices_data)
-      
+            if obj.test_case_execution_order:
+                extra_context["ordered_testcase_ids"] = obj.test_case_execution_order
         return super().change_view(request, object_id, form_url, extra_context)
     
     def recover_view(self, request, version_id, extra_context=None):

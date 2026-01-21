@@ -109,7 +109,6 @@ def induce_kernel_event():
 
 def main():
 
-
     try:
         verify_logread()
         print("[✓] Step 1 passed: logread check")

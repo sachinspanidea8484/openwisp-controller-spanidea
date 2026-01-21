@@ -1,6 +1,7 @@
 import logging
 from django.utils import timezone
-
+import os
+from django.urls import reverse
 
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -100,13 +101,35 @@ class AbstractTestCategory(TimeStampedEditableModel):
         """Check if category can be deleted"""
         # Categories with test cases or test suites cannot be deleted
         return self.test_case_count == 0 
+    
+from ..private_storage import storage
 
-from openwisp_test_management.private_storage.storage import zip_storage
+overwrite_storage= storage.OverwriteStorage()
+
+
+def rename_script(instance, filename):
+    ext= filename.split('.')[1]
+
+    new_name= f"{instance.test_case_id}.{ext}"
+
+    if ext == 'py' :
+        return os.path.join("test_case", new_name)
+    elif ext== 'robot':
+        return os.path.join("test_case_robot", new_name)
+    
 class AbstractTestCase(TimeStampedEditableModel):
     """
     Abstract model for Test Cases
     Individual test cases that can be executed on devices
     """
+
+    class Status(models.IntegerChoices):
+        PENDING = 0, _('Pending')
+        COMPLETED = 1, _('Completed')
+        FAILED = 2, _('Failed')
+        
+
+
     name = models.CharField(
         _("Test Case"),
         max_length=50,
@@ -123,6 +146,7 @@ class AbstractTestCase(TimeStampedEditableModel):
     category = models.ForeignKey(
         'test_management.TestCategory',
         on_delete=models.PROTECT,
+        blank=False,  
         related_name='test_cases',
         verbose_name=_("Select Test Category"),  # Changed label
         help_text=_("Category this test case belongs to")
@@ -156,21 +180,38 @@ class AbstractTestCase(TimeStampedEditableModel):
         help_text=_("Optional parameters for test case execution in JSON format. "
                     "These parameters can be used to customize test case behavior.")
     )
-    # file = PrivateFileField(
-    #     "Test Script",
-    #     upload_to="zip/",
-    #     max_file_size=app_settings.MAX_FILE_SIZE,
-    #     storage=zip_storage,
-    #     max_length=255,
-    #     null=True,
-    #     blank=True,
-    #     help_text='<button type="button" class="guideline-btn" data-bs-toggle="modal" data-bs-target="#guidelineModal">Guidelines to Upload Test Scripts</button>'
-    # )
+    python_script= models.FileField(
+        _("Python Script"),
+        upload_to=rename_script,
+        storage= overwrite_storage,
+        null=True,
+        blank=True
+    )
+    robot_script = models.FileField(
+        _("Robot Script"),
+        upload_to=rename_script,
+        storage=overwrite_storage,
+        null=True,
+        blank=True
+    )
+    
+    script_push_status = models.IntegerField(
+        choices=Status.choices,
+        default=Status.PENDING
+    )
+    created_by = models.ForeignKey(
+        'openwisp_users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_test_cases',
+    )
+    
+
     class Meta:
         abstract = True
         verbose_name = _("Test Case")
         verbose_name_plural = _("Test Cases")
-        unique_together = ("category", "name")
         ordering = ["category", "name"]
         indexes = [
             models.Index(fields=["test_case_id"]),
@@ -182,57 +223,58 @@ class AbstractTestCase(TimeStampedEditableModel):
 
 
     def clean(self):
-     """Validate the test case"""
-     super().clean()
+        """Validate the test case"""
+        super().clean()
+ 
 
-     if not self.params:
-        self.params = {}
-    
-     # Validate JSON params if provided
-     if self.params and self.params != {}:
-        try:
-            if not isinstance(self.params, dict):
-                raise ValidationError({
-                    "params": _("Parameters must be a valid JSON object")
-                })
-        except (TypeError, ValueError):
-            raise ValidationError({
-                "params": _("Parameters must be valid JSON format")
-            })
-    
-     # Check for duplicate test_case_id
-     qs = self.__class__.objects.filter(
-        test_case_id=self.test_case_id
-     ).exclude(pk=self.pk)
-    
-     if qs.exists():
-        raise ValidationError({
-            "test_case_id": _(
-                f"A test case with ID '{self.test_case_id}' already exists"
-            )
-        })
-    
-     # Check for duplicate name within the same category
-     if self.category_id:
+        # Validate JSON params if provided
+        if self.params and self.params != {}:
+         print(f"🔍 Validating params...")
+         try:
+             if not isinstance(self.params, dict):
+                  print(f"❌ Params is not a dict, it's: {type(self.params)}")
+                  raise ValidationError({
+                      "params": _("Parameters must be a valid JSON object (key-value pairs).")
+                  })
+             else:
+                  print(f"✅ Params is a valid dict")
+         except (TypeError, ValueError) as e:
+             print(f"❌ Params validation error: {e}")
+             raise ValidationError({
+                  "params": _("Parameters must be valid JSON format")
+             })
+         
+        # Check for duplicate test_case_id
         qs = self.__class__.objects.filter(
-            category=self.category,
-            name__iexact=self.name
+                test_case_id=self.test_case_id
         ).exclude(pk=self.pk)
         
         if qs.exists():
-            raise ValidationError({
-                "name": _(
-                    f"A test case with this name already exists "
-                    f"in category '{self.category.name}'"
-                )
-            })
+                print(f"❌ Duplicate test_case_id found: {self.test_case_id}")
+                raise ValidationError({
+                            "test_case_id": _(
+                                    f"A test case with ID '{self.test_case_id}' already exists"
+                            )
+                }) 
+
+
+             
+        
+        
+
 
     def save(self, *args, **kwargs):
-     # Ensure params is always a dict, never None or empty string
-     if not self.params:
-        self.params = {}
-     self.full_clean()
-     super().save(*args, **kwargs)
+        # Ensure params is always a dict, never None or empty string
+        if self.params in (None, ""):
+         self.params = {}
+
+        if (
+            self.test_type == TestTypeChoices.AGENT
+            and self.python_script
+        ):
+            self.script_push_status = self.Status.COMPLETED
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     @property
     def suite_count(self):
@@ -401,6 +443,12 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         (0, _('Individual')),
         (1, _('Group')),
     )
+    EXECUTION_STATUS_CHOICE= (
+        (0, _('Created')),
+        (1,_('Execution Progress')),
+        (2,_('Partially Completed')),
+        (3,_('Completed'))
+    )
     name = models.CharField(
         _("Test Execution Name"), 
         max_length=50,
@@ -444,7 +492,12 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         default=0,
         help_text=_("Number of devices in this execution")
     )
-    
+    completion_email_sent = models.BooleanField(default=False)
+    completion_notification_sent= models.BooleanField(default=False)
+    notification_emails = models.TextField(
+        blank=True,
+        help_text="Comma-separated email addresses"
+    )
     testcase_count = models.PositiveIntegerField(
         _("test case count"),
         default=0,
@@ -467,6 +520,50 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         verbose_name=_("device group"),
         help_text=_("Device group for execution (required if device selection is 'Device Group')")
     )
+    execution_status= models.IntegerField(
+        _("Execution Status"),
+        choices=EXECUTION_STATUS_CHOICE,
+        default=0,
+        help_text=_("execution status")
+    )
+    execution_start_time= models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        'openwisp_users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_test_executions',
+    )
+    parent_execution = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        related_name="re_executions",
+        on_delete=models.CASCADE,
+        db_index=True,
+        help_text=_("Original execution if this is a re-execution")
+    )
+
+    re_execution_index = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=_("1 for first re-execution, 2 for second, etc.")
+    )
+
+    execution_status = models.IntegerField(
+        _("Execution Status"),
+        choices=EXECUTION_STATUS_CHOICE,
+        default=0,
+        help_text=_("execution status")
+    )
+
+    execution_start_time = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+
+
 
     class Meta:
         abstract = True
@@ -486,6 +583,9 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
     #             })
         ########## Note: M2M validation happens in form (can't access M2M in model.clean() before save)
 
+    def get_absolute_url(self):
+        return f'/admin/test_management/testsuiteexecution/{self.pk}/history/'
+    
     def get_selected_test_cases(self):
         if self.test_selection_type ==1 and self.test_suite_id:
             return self.test_suite.test_cases.all()
@@ -497,7 +597,11 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
             return self.test_suite.test_cases.filter(is_configuration_push_required=True)
         else:
             return self.individual_test_cases.filter(is_configuration_push_required=True)
-        
+    
+    def trigger_mail(self):
+        from ..tasks import send_execution_completed_email
+        send_execution_completed_email.delay(str(self.pk))
+
     def save(self, *args, **kwargs):
         is_new = self.pk is None  # check if new execution
         
@@ -512,9 +616,12 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
         TestCaseExecution = load_model("TestCaseExecution")
 
-
-    
-
+        if (
+            self.execution_status == 3
+            and not self.completion_email_sent
+            and self.notification_emails
+        ):
+            self.trigger_mail()
 
         # ⚡ Only run auto-population for new executions with device group
         if is_new and self.device_selection == 1 and self.device_group_id:
@@ -576,7 +683,14 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         self.is_executed = True
         self.save(update_fields=["is_executed"])
         
+    @property
+    def is_re_execution(self):
+        return self.parent_execution_id is not None
 
+    @property
+    def root_execution(self):
+        return self.parent_execution or self
+    
     @property
     def status(self):
         """
