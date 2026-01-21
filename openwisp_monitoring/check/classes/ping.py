@@ -162,7 +162,6 @@ class Ping(BaseCheck):
      
      # Trigger external API on status change
      if status_changed:
-          return
           device = self.related_object
           is_online = current_reachable == 1
           
@@ -259,29 +258,29 @@ class Ping(BaseCheck):
           
           payload = {
                'device_id': str(device.id),
-               'device_name': device.name,
-               'mac_address': device.mac_address,
-               'management_ip': device.management_ip or '',
-               'status': status,
-               'timestamp': timezone.now().isoformat(),
-               'organization': device.organization.name,
-               'organization_id': str(device.organization.id),
+            #    'device_name': device.name,
+            #    'mac_address': device.mac_address,
+            #    'management_ip': device.management_ip or '',
+               'device_reachable': is_online
+            #    'timestamp': timezone.now().isoformat(),
+            #    'organization': device.organization.name,
+            #    'organization_id': str(device.organization.id),
           }
           
           logger.warning(f"📤 Sending payload to {executor_api_url}:")
           logger.warning(f"   {payload}")
           
           # UNCOMMENT THIS WHEN YOU HAVE REAL API
-          # response = requests.post(
-          #      executor_api_url,
-          #      json=payload,
-          #      timeout=60,
-          #      headers={'Content-Type': 'application/json'}
-          # )
-          # 
-          # logger.warning(f"✅ API Response:")
-          # logger.warning(f"   Status Code: {response.status_code}")
-          # logger.warning(f"   Response: {response.text}")
+          response = requests.post(
+               executor_api_url,
+               json=payload,
+               timeout=60,
+               headers={'Content-Type': 'application/json'}
+          )
+          
+          logger.warning(f"✅ API Response:")
+          logger.warning(f"   Status Code: {response.status_code}")
+          logger.warning(f"   Response: {response.text}")
           
           # FOR NOW: Just log what would be sent
           logger.warning("✅ External API call would be made here (currently disabled)")

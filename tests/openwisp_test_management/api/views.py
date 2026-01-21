@@ -4920,13 +4920,13 @@ def test_execution_abort(request, execution_id):
 
         print("device_exec>>>>>",execution_devices)
         from ..tasks import abort_test_execution as abort_task
-        from ..tasks import abort_test_execution_pending_tests as abort_pending_tests
-        #First abort all pending tests
-        abort_pending_tests(execution_id)
+        from ..tasks import abort_device_pending_tests as abort_pending_tests_task
+
         # Get the device execution
         for device_execution in execution_devices:
             device = device_execution.device
-
+            #First abort all pending tests
+            abort_pending_tests_task(execution_id, str(device.id))
             # Get all running test executions for this device
             running_tests = TestCaseExecution.objects.filter(
                 test_suite_execution=device_execution.test_suite_execution,
@@ -4940,7 +4940,7 @@ def test_execution_abort(request, execution_id):
         return Response({
             'success': True,
             'message': f'Aborting running and pending tests for test execution',
-            'device_execution_id': str(execution_id)
+            'test_group_execution_id': str(execution_id)
         }, status=status.HTTP_200_OK)
 
     except TestSuiteExecution.DoesNotExist:
