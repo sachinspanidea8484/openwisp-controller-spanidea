@@ -7,11 +7,11 @@
 
 /* Guidelines Link - Right Side of Header */
 .description {
-    padding: 0 14px 14px 14px !important;
+    padding: 14px 14px 14px 14px !important;
     margin: 0 !important;
     background: transparent !important;
     border: none !important;
-    text-align: left;
+    text-align: right;
 }
 
 a.guidelines-link {
@@ -37,4 +37,12 @@ a.guidelines-link:hover {
 a.guidelines-link::before {
     content: "📥";
     font-size: 14px;
+}
+
+.form-row.field-robot_script .flex-container {
+    display: ruby-text;
+}
+
+.form-row.field-python_script .flex-container {
+    display: ruby-text;
 }

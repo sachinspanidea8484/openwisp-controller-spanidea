@@ -632,24 +632,24 @@ class TestCaseAdminForm(forms.ModelForm):
         }
 
     def clean_test_case_id(self):
-     test_case_id = self.cleaned_data.get("test_case_id")
+        test_case_id = self.cleaned_data.get("test_case_id")
 
-     if not test_case_id:
-          return test_case_id
+        if not test_case_id:
+            return test_case_id
 
-     qs = TestCase.objects.filter(test_case_id=test_case_id)
+        qs = TestCase.objects.filter(test_case_id=test_case_id)
 
-     # Exclude current object during edit
-     if self.instance.pk:
-          qs = qs.exclude(pk=self.instance.pk)
+        # Exclude current object during edit
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
 
-     if qs.exists():
-          raise forms.ValidationError(
-               _("Test Case ID '%(id)s' already exists. Please use a unique ID."),
-               params={"id": test_case_id},
-          )
+        if qs.exists():
+            raise forms.ValidationError(
+                _("Test Case ID '%(id)s' already exists. Please use a unique ID."),
+                params={"id": test_case_id},
+            )
 
-     return test_case_id
+        return test_case_id
     
 
     def extract_tag_from_robot_file(self, robot_file):
@@ -1772,6 +1772,27 @@ class TestSuiteAdmin(BaseVersionAdmin):
         return obj.test_case_count
     test_case_count.short_description = _("Test Cases")
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+
+        # Superusers see everything
+        if request.user.is_superuser:
+            return qs
+
+        # Normal users see only their own test cases
+        return qs.filter(created_by=request.user)
+    
+    def has_view_permission(self, request, obj=None):
+        if obj and not request.user.is_superuser:
+            return obj.created_by == request.user
+        return super().has_view_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and not request.user.is_superuser:
+            return obj.created_by == request.user
+        return super().has_change_permission(request, obj)
+    
+    
     def get_readonly_fields(self, request, obj=None):
         """Remove current_test_cases_display from readonly fields"""
         fields = list(super().get_readonly_fields(request, obj))
@@ -1822,6 +1843,8 @@ class TestSuiteAdmin(BaseVersionAdmin):
         return super().add_view(request, form_url, extra_context)
     def save_model(self, request, obj, form, change):
         """Save the model and handle test case relationships"""
+        if not change and not obj.created_by:
+            obj.created_by = request.user
         super().save_model(request, obj, form, change)
         
         # Handle test cases after the model is saved
