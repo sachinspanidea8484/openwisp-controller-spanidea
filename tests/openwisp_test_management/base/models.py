@@ -1,6 +1,7 @@
 import logging
 from django.utils import timezone
 import os
+from django.urls import reverse
 
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -145,6 +146,7 @@ class AbstractTestCase(TimeStampedEditableModel):
     category = models.ForeignKey(
         'test_management.TestCategory',
         on_delete=models.PROTECT,
+        blank=False,  
         related_name='test_cases',
         verbose_name=_("Select Test Category"),  # Changed label
         help_text=_("Category this test case belongs to")
@@ -205,21 +207,11 @@ class AbstractTestCase(TimeStampedEditableModel):
         related_name='created_test_cases',
     )
     
-    # file = PrivateFileField(
-    #     "Test Script",
-    #     upload_to="zip/",
-    #     max_file_size=app_settings.MAX_FILE_SIZE,
-    #     storage=zip_storage,
-    #     max_length=255,
-    #     null=True,
-    #     blank=True,
-    #     help_text='<button type="button" class="guideline-btn" data-bs-toggle="modal" data-bs-target="#guidelineModal">Guidelines to Upload Test Scripts</button>'
-    # )
+
     class Meta:
         abstract = True
         verbose_name = _("Test Case")
         verbose_name_plural = _("Test Cases")
-        unique_together = ("category", "name")
         ordering = ["category", "name"]
         indexes = [
             models.Index(fields=["test_case_id"]),
@@ -233,59 +225,43 @@ class AbstractTestCase(TimeStampedEditableModel):
     def clean(self):
         """Validate the test case"""
         super().clean()
+ 
 
-
-        # print("User provided params:", self.params)
-
-        # # Validate JSON params if provided
-        # if self.params and self.params != {}:
-        #     try:
-        #         if not isinstance(self.params, dict):
-        #             raise ValidationError({
-        #                 "params": _("Parameters must be a valid JSON object")
-        #             })
-        #     except (TypeError, ValueError):
-        #         raise ValidationError({
-        #             "params": _("Parameters must be valid JSON format")
-        #         })
-        
-        print("User provided params:", self.params)
-        # Ensure params is always a dict if provided
-        if self.params in (None, ""):
-                self.params = {}
-                return
-
-        # if not isinstance(self.params, dict):
-        #         raise ValidationError({
-        #                 "params": _("Parameters must be a valid JSON object (key-value pairs).")
-        #                 })
-     
+        # Validate JSON params if provided
+        if self.params and self.params != {}:
+         print(f"🔍 Validating params...")
+         try:
+             if not isinstance(self.params, dict):
+                  print(f"❌ Params is not a dict, it's: {type(self.params)}")
+                  raise ValidationError({
+                      "params": _("Parameters must be a valid JSON object (key-value pairs).")
+                  })
+             else:
+                  print(f"✅ Params is a valid dict")
+         except (TypeError, ValueError) as e:
+             print(f"❌ Params validation error: {e}")
+             raise ValidationError({
+                  "params": _("Parameters must be valid JSON format")
+             })
+         
         # Check for duplicate test_case_id
         qs = self.__class__.objects.filter(
-            test_case_id=self.test_case_id
+                test_case_id=self.test_case_id
         ).exclude(pk=self.pk)
         
         if qs.exists():
-            raise ValidationError({
-                "test_case_id": _(
-                    f"A test case with ID '{self.test_case_id}' already exists"
-                )
-            })
-        
-        # Check for duplicate name within the same category
-        if self.category_id:
-            qs = self.__class__.objects.filter(
-                category=self.category,
-                name__iexact=self.name
-            ).exclude(pk=self.pk)
-            
-            if qs.exists():
+                print(f"❌ Duplicate test_case_id found: {self.test_case_id}")
                 raise ValidationError({
-                    "name": _(
-                        f"A test case with this name already exists"
-                        f"in category '{self.category.name}'"
-                    )
+                            "test_case_id": _(
+                                    f"A test case with ID '{self.test_case_id}' already exists"
+                            )
                 }) 
+
+
+             
+        
+        
+
 
     def save(self, *args, **kwargs):
         # Ensure params is always a dict, never None or empty string
@@ -607,6 +583,9 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
     #             })
         ########## Note: M2M validation happens in form (can't access M2M in model.clean() before save)
 
+    def get_absolute_url(self):
+        return f'/admin/test_management/testsuiteexecution/{self.pk}/history/'
+    
     def get_selected_test_cases(self):
         if self.test_selection_type ==1 and self.test_suite_id:
             return self.test_suite.test_cases.all()

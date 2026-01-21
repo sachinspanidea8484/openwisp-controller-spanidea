@@ -671,6 +671,22 @@ function handleHideClick(header,table_id){
         header.classList.remove("open");
     }
 }
+function formatDateTime(dateValue) {
+    if (!dateValue) return "-";
+
+    const d = new Date(dateValue);
+
+    return d.toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true
+    });
+}
+
 function displayExecutionData(data) {
     // Update page title
     
@@ -699,7 +715,7 @@ function displayExecutionData(data) {
                     
                     <td>${r.name || ""}</td>
                     <td>${r.status_display || ""}</td>
-                    <td>${r.execution_start_time ? new Date(r.execution_start_time).toLocaleString() : "-"}</td>
+                    <td>${r?.execution_start_time ? formatDateTime(r.execution_start_time)  : "-"}</td>
                     <td><a href="${r.history_url}">{% trans "View" %}</a></td>
                     </tr>
                 `).join("")}

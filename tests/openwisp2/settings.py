@@ -395,12 +395,21 @@ OPENWISP_ORGANIZATION_USER_ADMIN = True  # tests will fail without this setting
 OPENWISP_ADMIN_DASHBOARD_ENABLED = True
 OPENWISP_CONTROLLER_GROUP_PIE_CHART = True
 # during development only
+# EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = 'ashutoshmathur1711@gmail.com'
+# EMAIL_HOST_PASSWORD = 'aztlnmyjqeovurdc'
+# DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'ashutoshmathur1711@gmail.com'
-EMAIL_HOST_PASSWORD = 'aztlnmyjqeovurdc'
+EMAIL_HOST_USER = 'ashutoshmathu1@gmail.com'
+EMAIL_HOST_PASSWORD = 'aztlnmyjqeovurdcdd'
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 # monitoring
 OPENWISP_MONITORING_MANAGEMENT_IP_ONLY = False

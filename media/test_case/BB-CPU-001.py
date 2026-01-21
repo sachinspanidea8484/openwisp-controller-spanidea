@@ -1,7 +1,3 @@
-# START_DESCRIPTION
-# Logging result
-# END_DESCRIPTION
-
 import sys, os, subprocess,datetime
 import time
 
@@ -113,6 +109,7 @@ def induce_kernel_event():
 
 def main():
 
+
     try:
         verify_logread()
         print("[✓] Step 1 passed: logread check")
@@ -143,7 +140,7 @@ def main():
         sys.exit(2)
 
     print("\nAll logging tests passed successfully.")
-
+    time.sleep(60)
 
 if __name__ == "__main__":
     main()

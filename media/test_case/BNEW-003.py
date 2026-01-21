@@ -1,7 +1,3 @@
-# START_DESCRIPTION
-# Logging result
-# END_DESCRIPTION
-
 import sys, os, subprocess,datetime
 import time
 

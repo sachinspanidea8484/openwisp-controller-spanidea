@@ -2094,6 +2094,7 @@ from django.conf import settings
 @shared_task(bind=True, autoretry_for=(Exception,), retry_kwargs={"max_retries": 3})
 def send_execution_completed_email(self, execution_id):
     try:
+        return
         with transaction.atomic():
             execution = (
                 TestSuiteExecution.objects

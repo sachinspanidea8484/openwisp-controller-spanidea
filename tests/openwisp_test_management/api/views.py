@@ -4969,6 +4969,7 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
     2. Validates the device execution exists and is in completed/failed state
     3. Saves the file to media/allure_report/ directory
     4. Updates the database with the file path
+    5. ✅ NEW: Checks if all devices completed and updates execution status
     """
     print(f"\n=== UPLOAD ALLURE REPORT START ===")
     print(f"Device Execution ID: {dev_id}")
@@ -5065,6 +5066,9 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
             device_execution, 
             context={'request': request}
         )
+
+        # ✅✅✅ NEW: Step 10 - Check if ALL devices have completed reports ✅✅✅
+        check_and_complete_execution(test_group_execution_id)
         
         print(f"Report uploaded successfully!")
         print(f"=== UPLOAD ALLURE REPORT END ===\n")
@@ -5611,6 +5615,79 @@ def re_execute_selected_view(request, execution_id):
         return Response({"re_execution_id":  new_execution.pk}, status=200)
     except Exception as e:
         return Response({"Error": f"{str(e)}"}, status=500)
+
+
+
+
+
+
+
+
+
+def check_and_complete_execution(test_group_execution_id):
+    """
+    Check if all devices in the test execution have completed their reports.
+    If yes, mark the execution as Completed (status=3) and trigger email.
+    
+    This is called after each device uploads its Allure report.
+    """
+    try:
+        from ..swapper import load_model
+        TestSuiteExecution = load_model("TestSuiteExecution")
+        TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+        
+        print(f"\n[COMPLETION CHECK] Checking if all devices completed...")
+        print(f"  Test Suite Execution ID: {test_group_execution_id}")
+        
+        # Get the test execution
+        execution = TestSuiteExecution.objects.get(pk=test_group_execution_id)
+        
+        # Count total devices in this execution
+        total_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        ).count()
+        
+        # Count devices that have uploaded reports (allure_report_path is not null/empty)
+        devices_with_reports = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution,
+            allure_report_path__isnull=False
+        ).exclude(allure_report_path='').count()
+        
+        print(f"  Total Devices: {total_devices}")
+        print(f"  Devices with Reports: {devices_with_reports}")
+        print(f"[COMPLETION CHECK] {devices_with_reports}/{total_devices} devices completed")
+
+        # Determine appropriate status
+        if total_devices == 0:
+            new_status = 0  # Created
+        elif devices_with_reports == 0:
+            new_status = 1  # Execution Progress
+        elif devices_with_reports < total_devices:
+            new_status = 2  # Partially Completed
+        else:  # devices_with_reports == total_devices
+            new_status = 3  # Completed
+
+        # Update if status changed
+        if execution.execution_status != new_status:
+            execution.execution_status = new_status
+            execution.save(update_fields=['execution_status'])
+            print(f"  ✅✅✅✅✅✅✅✅ Status updated_new  {new_status}: {test_group_execution_id}")
+        
+    except TestSuiteExecution.DoesNotExist:
+        print(f"  ⚠️ Test execution not found: {test_group_execution_id}")
+        logger.error(f"Test execution not found: {test_group_execution_id}")
+    except Exception as e:
+        print(f"  ⚠️ Error checking completion: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        logger.error(f"Error checking execution completion: {str(e)}")
+
+
+
+
+
+
+
 
 # Create view instances
 test_category_list = TestCategoryListCreateView.as_view()

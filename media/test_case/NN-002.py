@@ -1,114 +1,116 @@
-import subprocesss
+import subprocess
 import time
-import re
-import sys
-import os
+from datetime import datetime
 
-# Configurable number of readings
-READING_COUNT = 5
+# === CONFIGURATION ===
+BB_AT_PORT = "/dev/ttyUSB3"
+REMOTE_PC_IP = "192.168.1.100"  # Set your remote PC IP here
+TEST_DURATION = 10
+OUTPUT_FILE = "output_iperf_test_at.txt"
+LOG_FILE = "BB_INT_5G_001.log"
 
-def run_command(command):
-    """
-    Runs a shell command locally and returns stdout, stderr.
-    """
-    result = subprocess.run(command, shell=True, capture_output=True, text=True)
-    return result.stdout.strip(), result.stderr.strip()
+# === LOGGING ===
+def timestamp():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def extract_hwmon8_section(output):
-    """
-    Extract only the SA56004_HWMON8 block from the sensor output.
-    """
-    match = re.search(r"(SA56004_HWMON8.*?)(?=\n\S|$)", output, re.DOTALL)
-    return match.group(1).strip() if match else None
+def log(message):
+    line = f"[+] {timestamp()} - {message}"
+    print(line)
+    with open(LOG_FILE, "a") as f:
+        f.write(line + "\n")
 
-def parse_and_format(section):
-    """
-    Parses the SA56004_HWMON8 block and returns dictionary + formatted string.
-    """
-    # Look for "I..C Bus" and "I..C Address" literally
-    i2c_bus_match = re.search(r"I..C\s+Bus\s*:\s*(\S+)", section)
-    i2c_addr_match = re.search(r"I..C\s+Address\s*:\s*(\S+)", section)
-    local_temp_match = re.search(r"Local\s+Temp.*?:\s*([\d\.]+)", section)
-    remote_temp_match = re.search(r"Remote\s+Temp.*?:\s*([\d\.]+)", section)
+def run_at_cmd(command):
+    full_cmd = f"echo -e '{command}\\r' | socat - {BB_AT_PORT},raw,echo=0,crnl"
+    try:
+        result = subprocess.check_output(full_cmd, shell=True, stderr=subprocess.STDOUT)
+        return result.decode().strip()
+    except subprocess.CalledProcessError as e:
+        return e.output.decode().strip()
 
-    i2c_bus = i2c_bus_match.group(1) if i2c_bus_match else "N/A"
-    i2c_addr = i2c_addr_match.group(1) if i2c_addr_match else "N/A"
-    local_temp = float(local_temp_match.group(1)) if local_temp_match else None
-    remote_temp = float(remote_temp_match.group(1)) if remote_temp_match else None
+def is_ip_reachable(ip):
+    log(f"Pinging remote PC at {ip}...")
+    result = subprocess.run(["ping", "-c", "1", "-W", "1", ip],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL)
+    return result.returncode == 0
 
-    formatted = (
-        f"  I..C Bus               : {i2c_bus}\n"
-        f"  I..C Address           : {i2c_addr}\n"
-        f"  Local Temp (..C)       : {local_temp if local_temp is not None else 'N/A'}\n"
-        f"  Remote Temp (..C)      : {remote_temp if remote_temp is not None else 'N/A'}\n"
-    )
+# === MAIN LOGIC ===
+def main():
+    log("Starting 5G WAN test with AT prechecks...")
+    log("Verifying modem responsiveness...")
 
-    return {"local": local_temp, "remote": remote_temp}, formatted
+    modem_ok = run_at_cmd("AT")
+    if "OK" not in modem_ok:
+        log("Modem not responding. Aborting.")
+        return
 
-def verify_cpu_temperature():                                                              
-    sensor_script = "/usr/bin/sensor_monitor.py"                                           
-                                                                                           
-    # STEP 0: Check script presence                                                        
-    if not os.path.exists(sensor_script):                                                  
-        print(f"[ERROR] Sensor script not found at {sensor_script}")                       
-        print("[RESULT] FAILURE ... Missing sensor script.")                               
-        sys.exit(1)                                                                        
-                                                                                           
-    print("[STEP 1] Fetching only SA56004_HWMON8 readings locally...\n")                   
-                                                                                           
-    readings = []  # Store tuples of (local, remote)                                       
-                                                                                           
-    for i in range(READING_COUNT):                                                         
-        output, error = run_command(f"python3 {sensor_script}")                            
-                                                                                           
-        if error:                                                                          
-            print(f"[{i+1}] [ERROR] Sensor command STDERR: {error}\n")                     
-            print("[RESULT] FAILURE ... Device Temperature test failed.")                  
-            sys.exit(1)                                                                    
-                                                                                           
-        section = extract_hwmon8_section(output)                                           
-        if section:                                                                        
-            temps, formatted = parse_and_format(section)                                   
-            print(f"[{i+1}] SA56004_HWMON8")                                               
-            print(formatted)                                                               
-                                                                                           
-            if temps["local"] is not None and temps["remote"] is not None:                 
-                readings.append((temps["local"], temps["remote"]))                         
-                # Range check                                                              
-                if not (-45 <= temps["local"] <= 80):                                      
-                    print(f"[{i+1}] [ERROR] Local temperature {temps['local']}..C out of range (-45 to 80).")
-                    print("[RESULT] FAILURE ... Device Temperature test failed")                             
-                    sys.exit(1)                                                                              
-                if not (-45 <= temps["remote"] <= 80):                                                       
-                    print(f"[{i+1}] [ERROR] Remote temperature {temps['remote']}..C out of range (-45 to 80).")
-                    print("[RESULT] FAILURE ... Device Temperature test failed")                               
-                    sys.exit(1)                                                                                
-            else:                                                                                              
-                print(f"[{i+1}] [ERROR] Could not parse temperatures.\n")                                      
-                print("[RESULT] FAILURE ... Device Temperature test failed")                                   
-                sys.exit(1)                                                                                    
-        else:                                                                                                  
-            print(f"[{i+1}] [ERROR] SA56004_HWMON8 section not found.\n")                                      
-            print("[RESULT] FAILURE ... Device Temperature test failed")                                       
-            sys.exit(1)                                                                                        
-                                                                                                               
-        time.sleep(1)                                                                                          
-                                                                                                               
-    # STEP 2: Identical values check (only if we collected all valid readings)                                 
-    if len(readings) == READING_COUNT:                                                                         
-        if all(r == readings[0] for r in readings):                                                            
-            print("[ERROR] All readings are identical. Possible hard-coded values, not live sensor data.")     
-            print("[RESULT] FAILURE ... Device Temperature test failed")                                       
-            sys.exit(1)                                                                                        
-                                                                                                               
-    # Final test result                                                                                        
-    print("[RESULT] SUCCESS ... All SA56004_HWMON8 checks passed.")                                            
-    sys.exit(0)                                                                                                
-                                                                                                               
-if __name__ == "__main__":                                                                                     
-    verify_cpu_temperature()                               
-        
-        
-        
-        
-        
+    log("Enabling CME ERRORs for better AT feedback...")
+    run_at_cmd("AT+CMEE=1")
+
+    log("Running AT commands...")
+    cmee_status = run_at_cmd("AT+CMEE?")
+    log(f"CME Status: {cmee_status}")
+
+    sim_status = run_at_cmd("AT+CPIN?")
+    log(f"SIM Status: {sim_status}")
+
+    if "+CME ERROR: 10" in sim_status:
+        log("SIM not inserted. Please insert the SIM card. Test aborted.")
+        return
+    elif "+CPIN: SIM PIN" in sim_status:
+        log("SIM is inserted but waiting for PIN entry. Test aborted.")
+        return
+    elif "READY" in sim_status:
+        log("SIM is ready. Proceeding...")
+    else:
+        log(f"Unknown SIM state: {sim_status}. Test aborted.")
+        return
+
+    imsi = run_at_cmd("AT+CIMI")
+    log(f"IMSI: {imsi}")
+
+    reg_status = run_at_cmd("AT+C5GREG?")
+    log(f"5G Registration: {reg_status}")
+
+    if "+C5GREG: 1,1" not in reg_status:
+        log("Not registered on 5G. Test aborted.")
+        return
+
+    ip_addr = run_at_cmd("AT+CGPADDR=1")
+    log(f"IP Address Assigned: {ip_addr}")
+
+    if "+CGPADDR" not in ip_addr:
+        log("No PDP IP address assigned. Test aborted.")
+        return
+
+    pdp_status = run_at_cmd("AT+CGACT?")
+    band_status = run_at_cmd("AT#BND?")
+    serving_cell = run_at_cmd("AT#SERVINFO")
+
+    log(f"PDP Context Active: {pdp_status}")
+    log(f"Band Config: {band_status}")
+    log(f"Serving Cell Info: {serving_cell}")
+
+    log("All preconditions met. Starting iperf3 test...")
+
+    if not is_ip_reachable(REMOTE_PC_IP):
+        log(f"Remote PC {REMOTE_PC_IP} not reachable. Test aborted.")
+        return
+
+    log(f"Running iperf3 client to remote PC: {REMOTE_PC_IP}")
+    with open(OUTPUT_FILE, "w") as outfile:
+        result = subprocess.run(["iperf3", "-c", REMOTE_PC_IP, "-t", str(TEST_DURATION)],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        output = result.stdout.decode()
+        outfile.write(output)
+        with open(LOG_FILE, "a") as logf:
+            logf.write(output)
+
+    if result.returncode != 0:
+        log("iperf3 client failed.")
+
+    log(f"Test completed successfully. Log saved to {LOG_FILE}")
+
+if __name__ == "__main__":
+    main()
+
