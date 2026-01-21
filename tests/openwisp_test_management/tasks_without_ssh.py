@@ -144,44 +144,41 @@ def execute_tests_on_device(device_execution_id):
         print(f"[TASK] execute_tests_on_device - Updated status to 'running' at {device_execution.started_at}")
         
         # Check device connection based on protocol
-        # device_conn = None
-        # has_connection = False
-        # connection_error = None
+        device_conn = None
+        has_connection = False
+        connection_error = None
         
         # For SSH (protocol = 1), connection is required
-        # if device_execution_connection_protocol == 1:
-        #     try:
-        #         device_conn = DeviceConnection.get_working_connection(device)
-        #         has_connection = True
-        #         logger.info(f"Found working SSH connection: {device_conn}")
-        #         print(f"[TASK] execute_tests_on_device - Found working SSH connection: {device_conn}")
+        if device_execution_connection_protocol == 1:
+            try:
+                device_conn = DeviceConnection.get_working_connection(device)
+                has_connection = True
+                logger.info(f"Found working SSH connection: {device_conn}")
+                print(f"[TASK] execute_tests_on_device - Found working SSH connection: {device_conn}")
                     
-        #     except DeviceConnection.DoesNotExist:
-        #         connection_error = f"SSH connection required but not found for device {device.name}"
-        #         logger.error(connection_error)
-        #         print(f"[ERROR] execute_tests_on_device - {connection_error}")
+            except DeviceConnection.DoesNotExist:
+                connection_error = f"SSH connection required but not found for device {device.name}"
+                logger.error(connection_error)
+                print(f"[ERROR] execute_tests_on_device - {connection_error}")
                 
-        #     except Exception as e:
-        #         connection_error = f"Device {device.name} is unreachable via SSH: {str(e)}"
-        #         logger.error(connection_error)
-        #         print(f"[ERROR] execute_tests_on_device - {connection_error}")
+            except Exception as e:
+                connection_error = f"Device {device.name} is unreachable via SSH: {str(e)}"
+                logger.error(connection_error)
+                print(f"[ERROR] execute_tests_on_device - {connection_error}")
         
-        # # For MQTT (protocol = 0), connection is optional
-        # else:
-        #     try:
-        #         device_conn = DeviceConnection.get_working_connection(device)
-        #         has_connection = True
-        #         logger.info(f"Found working MQTT connection: {device_conn}")
-        #         print(f"[TASK] execute_tests_on_device - Found working MQTT connection: {device_conn}")
-        #     except:
-        #         # For MQTT, no connection is acceptable
-        #         logger.info(f"No connection found for MQTT device {device.name}, proceeding without it")
-        #         print(f"[TASK] execute_tests_on_device - MQTT device, no connection required")
+        # For MQTT (protocol = 0), connection is optional
+        else:
+            try:
+                device_conn = DeviceConnection.get_working_connection(device)
+                has_connection = True
+                logger.info(f"Found working MQTT connection: {device_conn}")
+                print(f"[TASK] execute_tests_on_device - Found working MQTT connection: {device_conn}")
+            except:
+                # For MQTT, no connection is acceptable
+                logger.info(f"No connection found for MQTT device {device.name}, proceeding without it")
+                print(f"[TASK] execute_tests_on_device - MQTT device, no connection required")
          
-
-        cred_info = DeviceConnection.get_credentials(device)
-        device_conn = cred_info['connection']
-        has_connection = cred_info['has_connection']
+        
         # Get ordered test cases from the test suite
         if test_suite_execution.test_selection_type == 1:
             test_cases = test_suite_execution.test_suite.get_ordered_test_cases()
@@ -212,8 +209,8 @@ def execute_tests_on_device(device_execution_id):
             "device_id": device.id,
             "ssh": {
                 "host": device.management_ip,
-                "username": cred_info['credentials']['username'],
-                "password": cred_info['credentials']['password']
+                "username": device_conn.credentials.params.get('username', '') if has_connection else '',
+                "password": device_conn.credentials.params.get('password', '') if has_connection else ''
             },
             "configuration": device_config.context if device_config else {}
         }
@@ -239,15 +236,40 @@ def execute_tests_on_device(device_execution_id):
             print(f"[TASK] execute_tests_on_device - Creating execution record for: {test_case.name}")
             
             # Check if we can proceed with execution
-            # Always create pending execution - executor handles connection testing
-            test_execution = TestCaseExecution.objects.create(
-                        test_suite_execution=test_suite_execution,
-                        device=device,
-                        test_case=test_case,
-                        status=TestExecutionStatus.PENDING,
-)
-            test_execution.save()
-            all_test_execution_ids.append(test_execution.id)
+            can_execute = False
+            
+            if device_execution_connection_protocol == 1:  # SSH
+                # For SSH, connection is required
+                can_execute = has_connection and not connection_error
+            else:  # MQTT
+                # For MQTT, can execute with or without connection
+                can_execute = True
+            
+            if can_execute or DEVICE_EXECUTION_TYPE == 2:
+                # Normal execution record
+                test_execution = TestCaseExecution.objects.create(
+                    test_suite_execution=test_suite_execution,
+                    device=device,
+                    test_case=test_case,
+                    status=TestExecutionStatus.PENDING,
+                )
+                test_execution.save()
+                all_test_execution_ids.append(test_execution.id)
+            else:
+                # Create failed execution record
+                error_msg = connection_error or "No working connection found for device"
+                test_execution = TestCaseExecution.objects.create(
+                    test_suite_execution=test_suite_execution,
+                    device=device,
+                    test_case=test_case,
+                    status=TestExecutionStatus.FAILED,
+                    started_at=timezone.now(),
+                    completed_at=timezone.now(),
+                    exit_code=1,
+                    stdout=error_msg,
+                    error_message=error_msg
+                )
+                test_execution.save()
             
             if test_execution and test_execution.id:
                 print(f"✅ Successfully created TestCaseExecution with ID: {test_execution.id}")
@@ -296,19 +318,38 @@ def execute_tests_on_device(device_execution_id):
         logger.info(f"Created {len(all_test_execution_ids)} test execution records out of {total_test_cases} total tests")
         print(f"[TASK] execute_tests_on_device - Created {len(all_test_execution_ids)} tests out of {total_test_cases} total")
         
-        # Always send to executor server - it handles connection testing
-        if all_test_execution_ids:
-                logger.info(f"Sending {len(all_test_execution_ids)} test cases to executor server")
-                print(f"[TASK] Sending {len(all_test_execution_ids)} tests to executor server")
+        # Send tests to executor server if we can execute
+        can_send_to_executor = False
+        
+        if device_execution_connection_protocol == 1:  # SSH
+            can_send_to_executor = has_connection and not connection_error
+        else:  # MQTT
+            can_send_to_executor = True
+        
+        if (can_send_to_executor or DEVICE_EXECUTION_TYPE == 2) and all_test_execution_ids:
+            logger.info(f"Sending {len(all_test_execution_ids)} test cases to executor server")
+            print(f"[TASK] Sending {len(all_test_execution_ids)} tests to executor server")
 
-                execute_tests_on_executor_server.delay(
-                                all_test_execution_ids,
-                                device_data,
-                                test_suite_data,
-                                device_execution_id,
-                                device_execution_connection_protocol
-                )
+
+            logger.debug(f"is_file_required >>>>>>>>: {is_file_required}")
+            logger.debug(f"file_download_url>>>>>>>>: {file_download_url}")
+            # print("="*80)
+            # print("Request send from OpenWISP")
+            # print(f"Request data: {json.dumps(test_suite_data.model_dump(), indent=2)}")
+            # print("="*80)
+
+            execute_tests_on_executor_server.delay(
+                all_test_execution_ids,
+                device_data,
+                test_suite_data,
+                device_execution_id,
+                device_execution_connection_protocol
+            )
         else:
+            if connection_error:
+                logger.error(f"Cannot execute tests: {connection_error}")
+                print(f"[ERROR] execute_tests_on_device - {connection_error}")
+            else:
                 logger.warning("No tests found to execute")
                 print(f"[WARNING] execute_tests_on_device - No tests found")
         
@@ -427,13 +468,40 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
         logger.info(f"Updated device execution status to 'running' at {device_execution.started_at}")
         print(f"[TASK] execute_selected_tests_on_device - Updated status to 'running' at {device_execution.started_at}")
         
-        # Get credentials without testing connection (executor will handle SSH testing)
-        cred_info = DeviceConnection.get_credentials(device)
-        device_conn = cred_info['connection']
-        has_connection = cred_info['has_connection']
-
-        logger.info(f"Retrieved credentials for device: {device.name} (has_connection: {has_connection})")
-        print(f"[TASK] execute_selected_tests_on_device - Credentials retrieved: {has_connection}")
+        # Check device connection based on protocol
+        device_conn = None
+        has_connection = False
+        connection_error = None
+        
+        # For SSH (protocol = 1), connection is required
+        if device_execution_connection_protocol == 1:
+            try:
+                device_conn = DeviceConnection.get_working_connection(device)
+                has_connection = True
+                logger.info(f"Found working SSH connection: {device_conn}")
+                print(f"[TASK] execute_selected_tests_on_device - Found working SSH connection: {device_conn}")
+                    
+            except DeviceConnection.DoesNotExist:
+                connection_error = f"SSH connection required but not found for device {device.name}"
+                logger.error(connection_error)
+                print(f"[ERROR] execute_selected_tests_on_device - {connection_error}")
+                
+            except Exception as e:
+                connection_error = f"Device {device.name} is unreachable via SSH: {str(e)}"
+                logger.error(connection_error)
+                print(f"[ERROR] execute_selected_tests_on_device - {connection_error}")
+        
+        # For MQTT (protocol = 0), connection is optional
+        else:
+            try:
+                device_conn = DeviceConnection.get_working_connection(device)
+                has_connection = True
+                logger.info(f"Found working MQTT connection: {device_conn}")
+                print(f"[TASK] execute_testexecute_selected_tests_on_devices_on_device - Found working MQTT connection: {device_conn}")
+            except:
+                # For MQTT, no connection is acceptable
+                logger.info(f"No connection found for MQTT device {device.name}, proceeding without it")
+                print(f"[TASK] execute_selected_tests_on_device - MQTT device, no connection required")
          
         
         # Get ordered test cases from the test suite
@@ -465,8 +533,8 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
             "device_id": device.id,
             "ssh": {
                 "host": device.management_ip,
-                "username": cred_info['credentials']['username'],
-                "password": cred_info['credentials']['password']
+                "username": device_conn.credentials.params.get('username', '') if has_connection else '',
+                "password": device_conn.credentials.params.get('password', '') if has_connection else ''
             },
             "configuration": device_config.context if device_config else {}
         }
@@ -499,15 +567,41 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
             logger.info(f"Creating execution record for test: {test_case.name} (Type: {test_case.get_test_type_display()})")
             print(f"[TASK] execute_selected_tests_on_device - Creating execution record for: {test_case.name}")
             
-            # Always create pending execution - executor handles connection testing
-            test_execution = TestCaseExecution.objects.create(
-                        test_suite_execution=test_suite_execution,
-                        device=device,
-                        test_case=test_case,
-                        status=TestExecutionStatus.PENDING,
-)
-            test_execution.save()
-            all_test_execution_ids.append(test_execution.id)
+            # Check if we can proceed with execution
+            can_execute = False
+            
+            if device_execution_connection_protocol == 1:  # SSH
+                # For SSH, connection is required
+                can_execute = has_connection and not connection_error
+            else:  # MQTT
+                # For MQTT, can execute with or without connection
+                can_execute = True
+            
+            if can_execute or DEVICE_EXECUTION_TYPE == 2:
+                # Normal execution record
+                test_execution = TestCaseExecution.objects.create(
+                    test_suite_execution=test_suite_execution,
+                    device=device,
+                    test_case=test_case,
+                    status=TestExecutionStatus.PENDING,
+                )
+                test_execution.save()
+                all_test_execution_ids.append(test_execution.id)
+            else:
+                # Create failed execution record
+                error_msg = connection_error or "No working connection found for device"
+                test_execution = TestCaseExecution.objects.create(
+                    test_suite_execution=test_suite_execution,
+                    device=device,
+                    test_case=test_case,
+                    status=TestExecutionStatus.FAILED,
+                    started_at=timezone.now(),
+                    completed_at=timezone.now(),
+                    exit_code=1,
+                    stdout=error_msg,
+                    error_message=error_msg
+                )
+                test_execution.save()
             
             if test_execution and test_execution.id:
                 print(f"✅ Successfully created TestCaseExecution with ID: {test_execution.id}")
@@ -555,20 +649,31 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
         logger.info(f"Created {len(all_test_execution_ids)} test execution records out of {total_test_cases} total tests")
         print(f"[TASK] execute_selected_tests_on_device - Created {len(all_test_execution_ids)} tests out of {total_test_cases} total")
         
-        # Always send to executor server - it handles connection testing
-        if all_test_execution_ids:
-                logger.info(f"Sending {len(all_test_execution_ids)} test cases to executor server")
-                print(f"[TASK] Sending {len(all_test_execution_ids)} tests to executor server")
+        # Send tests to executor server if we can execute
+        can_send_to_executor = False
+        
+        if device_execution_connection_protocol == 1:  # SSH
+            can_send_to_executor = has_connection and not connection_error
+        else:  # MQTT
+            can_send_to_executor = True
+        
+        if (can_send_to_executor or DEVICE_EXECUTION_TYPE == 2) and all_test_execution_ids:
+            logger.info(f"Sending {len(all_test_execution_ids)} test cases to executor server")
+            print(f"[TASK] Sending {len(all_test_execution_ids)} tests to executor server")
 
-                # Send all tests to executor server
-                execute_tests_on_executor_server.delay(
-                                all_test_execution_ids,
-                                device_data,
-                                test_suite_data,
-                                device_execution_id,
-                                device_execution_connection_protocol
-                )
+            # Send all tests to executor server
+            execute_tests_on_executor_server.delay(
+                all_test_execution_ids,
+                device_data,
+                test_suite_data,
+                device_execution_id,
+                device_execution_connection_protocol
+            )
         else:
+            if connection_error:
+                logger.error(f"Cannot execute tests: {connection_error}")
+                print(f"[ERROR] execute_selected_tests_on_device - {connection_error}")
+            else:
                 logger.warning("No tests found to execute")
                 print(f"[WARNING] execute_selected_tests_on_device - No tests found")
         
@@ -855,13 +960,47 @@ def retry_test_execution(test_execution_id):
             logger.error(f"Device execution not found for test execution {test_execution_id}")
             return
         
-        # Get credentials without testing connection (executor will handle SSH testing)
-        cred_info = DeviceConnection.get_credentials(device)
-        device_conn = cred_info['connection']
-        has_connection = cred_info['has_connection']
-
-        logger.info(f"Retrieved credentials for retry: {device.name} (has_connection: {has_connection})")
-        print(f"[TASK] retry_test_execution - Credentials retrieved: {has_connection}")
+        # Get device connection based on protocol
+        device_conn = None
+        ssh_params = {}
+        has_connection = False
+        connection_error = None
+        
+        # For SSH (protocol = 1), connection is required
+        if device_execution_connection_protocol == 1:
+            try:
+                device_conn = DeviceConnection.get_working_connection(device)
+                ssh_params = device_conn.credentials.params
+                has_connection = True
+                logger.info(f"Found working SSH connection for retry: {device_conn}")
+                
+            except DeviceConnection.DoesNotExist:
+                connection_error = f"SSH connection required but not found for device {device.name}"
+                logger.error(connection_error)
+                
+            except Exception as e:
+                connection_error = f"Device {device.name} is unreachable via SSH: {str(e)}"
+                logger.error(connection_error)
+            
+            # For SSH, fail immediately if no connection
+            if connection_error:
+                test_execution.status = TestExecutionStatus.FAILED
+                test_execution.stdout = connection_error
+                test_execution.error_message = connection_error
+                test_execution.exit_code = 1
+                test_execution.completed_at = timezone.now()
+                test_execution.save()
+                return
+        
+        # For MQTT (protocol = 0), connection is optional
+        else:
+            try:
+                device_conn = DeviceConnection.get_working_connection(device)
+                ssh_params = device_conn.credentials.params
+                has_connection = True
+                logger.info(f"Found working MQTT connection for retry: {device_conn}")
+            except:
+                logger.info(f"No connection found for MQTT device {device.name} during retry, proceeding without it")
         
         # Reset the test execution status
         test_execution.status = TestExecutionStatus.PENDING
@@ -895,8 +1034,8 @@ def retry_test_execution(test_execution_id):
             "device_id": device.id,
             "ssh": {
                 "host": device.management_ip,
-                "username": cred_info['credentials']['username'],
-                "password": cred_info['credentials']['password']
+                "username": ssh_params.get('username', ''),
+                "password": ssh_params.get('password', '')
             },
             "configuration": device_config.context if device_config else {}
         }
@@ -1030,13 +1169,31 @@ def abort_test_execution(test_execution_id):
             logger.error(f"Device execution not found for test execution {test_execution_id}")
             return
         
-        # Get credentials without testing connection (executor will handle SSH testing)
-        cred_info = DeviceConnection.get_credentials(device)
-        device_conn = cred_info['connection']
-        has_connection = cred_info['has_connection']
+        # Get device connection if exists
+        device_conn = None
+        ssh_params = {}
 
-        logger.info(f"Retrieved credentials for abort: {device.name} (has_connection: {has_connection})")
-        print(f"[TASK] abort_test_execution - Credentials retrieved: {has_connection}")
+        if test_execution.test_case.test_type == 1 or DEVICE_EXECUTION_TYPE==1:
+         try:
+            # device_conn = DeviceConnection.objects.get(
+            #     device=device,
+            #     enabled=True
+            # )
+            device_conn = DeviceConnection.get_working_connection(device)
+            
+
+            
+            ssh_params = device_conn.credentials.params
+         except DeviceConnection.DoesNotExist:
+            logger.warning(f"No working connection found for device {device.name} during retry")
+            # Mark as failed if no connection
+            test_execution.status = TestExecutionStatus.FAILED
+            test_execution.stdout = "No working connection found for device"
+            test_execution.error_message = "No working connection found for device"
+            test_execution.exit_code = 1
+            test_execution.completed_at = timezone.now()
+            test_execution.save()
+            return
         
         # Reset the test execution status
         test_execution.status = TestExecutionStatus.ABORTING
@@ -1056,8 +1213,8 @@ def abort_test_execution(test_execution_id):
             "device_id": str(test_execution.device.id),
             "ssh": {
                 "host": test_execution.device.management_ip,
-                "username": cred_info['credentials']['username'],
-                "password": cred_info['credentials']['password']
+                "username": ssh_params.get('username', ''),
+                "password": ssh_params.get('password', '')
             }
         }
         

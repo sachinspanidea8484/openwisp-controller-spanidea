@@ -283,6 +283,64 @@ class AbstractDeviceConnection(ConnectorMixin, TimeStampedEditableModel):
         # The device has no working connection
         raise NoWorkingDeviceConnectionError(connection=device_conn)
 
+    
+    @classmethod
+    def get_credentials(cls, device, connector="openwisp_controller.connection.connectors.ssh.Ssh"):
+     """
+     Get credentials for a device without testing connection.
+     Returns a dictionary with credentials info ready to use.
+     Never raises errors - always returns valid dictionary.
+     
+     Priority:
+     1. First working connection (is_working=True)
+     2. First available connection (any is_working status)
+     3. Empty credentials if no connections exist
+     
+     Args:
+          device: Device object
+          connector: Connector type (default: SSH)
+          
+     Returns:
+          dict: {
+               'connection': DeviceConnection object or None,
+               'has_connection': bool,
+               'credentials': {
+                    'username': str,
+                    'password': str,
+                    'params': dict  # Full params
+               }
+          }
+     """
+     # Query all enabled connections for this device and connector
+     qs = cls.objects.filter(
+          device=device,
+        #   enabled=True,
+          credentials__connector=connector,
+     ).order_by("-is_working", "created")  # Working first, then oldest
+     
+     # Get first connection (working or not)
+     first_connection = qs.first()
+     
+     # Build result dictionary
+     result = {
+          'connection': first_connection,
+          'has_connection': first_connection is not None,
+          'credentials': {
+               'username': '',
+               'password': '',
+               'params': {}
+          }
+     }
+     
+     # If connection exists, extract credentials
+     if first_connection and first_connection.credentials:
+          cred_params = first_connection.credentials.params
+          result['credentials']['username'] = cred_params.get('username', '')
+          result['credentials']['password'] = cred_params.get('password', '')
+          result['credentials']['params'] = cred_params
+     
+     return result
+
     def clean(self):
         cred_org = self.credentials.organization
         if cred_org and cred_org != self.device.organization:
