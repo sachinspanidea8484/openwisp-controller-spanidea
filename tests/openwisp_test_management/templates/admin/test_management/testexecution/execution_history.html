@@ -727,7 +727,7 @@ const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]")?.value;
 const executionId = '{{ execution_id }}';
 const agentTestStore = {};
 const selectedTestsForDevice = {};
-
+let execution_status;
 // Global select all handler
 document.addEventListener('change', function (event) {
     const cb = event.target;
@@ -899,13 +899,14 @@ function isAnyTestSelected() {
 
 function updateReExecuteButtonState() {
     if (!reExecuteBtn) return;
-
-    const enabled = isAnyTestSelected();
-
-    reExecuteBtn.disabled = !enabled;
-    reExecuteBtn.classList.toggle('disabled', !enabled);
-
-    console.log( 'Re-Execute button: ', enabled ? 'ENABLED' : 'DISABLED');
+    if (execution_status===3){
+        const enabled = isAnyTestSelected();
+    
+        reExecuteBtn.disabled = !enabled;
+        reExecuteBtn.classList.toggle('disabled', !enabled);
+    
+        console.log( 'Re-Execute button: ', enabled ? 'ENABLED' : 'DISABLED');
+    }
 }
 // Display execution data with OpenWISP styling
 
@@ -943,7 +944,7 @@ function displayExecutionData(data) {
     // Update page title
     
     // Update summary
-
+    execution_status=data.status;
     let total_execution_time = 0;
     data.devices.forEach(device => {
         // device-level total
@@ -1017,7 +1018,7 @@ function displayExecutionData(data) {
          
 
     `;
-    if (data.status !== 2 && data.status !== 1) {
+    if (data.status === 2 || data.status === 3) {
         const exportButtonSection = document.getElementById('export-test-execution-data');
         exportButtonSection.innerHTML = `
         <a class="export-button-class" href="/api/v1/test-management/execution/${executionId}/history/export/" download>
@@ -1031,7 +1032,7 @@ function displayExecutionData(data) {
     </button>`
     const reExecuteSection = document.getElementById('re-execute-execution');
     reExecuteSection.innerHTML=`
-        <button  id="reExecuteBtn" class="re-execute-button" onclick="reExecuteSelected('${data.execution_id}')">
+        <button ${data.status !== 3 ? "disabled" : ""}  id="reExecuteBtn" class="re-execute-button" onclick="reExecuteSelected('${data.execution_id}')">
             Re-Execute Selected
         </button>`
     updateReExecuteButtonState();

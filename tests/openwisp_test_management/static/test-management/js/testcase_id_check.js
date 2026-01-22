@@ -62,31 +62,35 @@ document.addEventListener("DOMContentLoaded", function () {
       clearError();
       return;
     }
+    const NON_VALID_IDS= ["Device", "Robot"];
+    if (NON_VALID_IDS.includes(value)){
+       showError(`'${value}' is not a valid test case id.`);
+       return ;
+    }
+      timer = setTimeout(() => {
+        const objectId = document.body.dataset.objectId || "";
 
-    timer = setTimeout(() => {
-      const objectId = document.body.dataset.objectId || "";
-
-      fetch(
-        `/api/v1/test-management/test-case/check-test-case-id/?test_case_id=${encodeURIComponent(
-          value,
-        )}&exclude_id=${objectId}`,
-        {
-          headers: { "X-Requested-With": "XMLHttpRequest" },
-        },
-      )
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.exists) {
-            showError(
-              `Test Case ID '${value}' already exists. Please use a unique ID.`,
-            );
-          } else {
-            clearError();
-          }
-        })
-        .catch(() => {
-          // fail silently
-        });
-    }, 400);
+        fetch(
+          `/api/v1/test-management/test-case/check-test-case-id/?test_case_id=${encodeURIComponent(
+            value,
+          )}&exclude_id=${objectId}`,
+          {
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+          },
+        )
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.exists) {
+              showError(
+                `Test Case ID '${value}' already exists. Please use a unique ID.`,
+              );
+            } else {
+              clearError();
+            }
+          })
+          .catch(() => {
+            // fail silently
+          });
+      }, 400);
   });
 });

@@ -258,7 +258,12 @@ class AbstractTestCase(TimeStampedEditableModel):
                 }) 
 
 
-             
+    def delete(self, *args, **kwargs):
+        if not self.is_deletable:
+            raise ValidationError(
+                "This Test Case cannot be deleted because it is part of a test suite or execution."
+            )
+        super().delete(*args, **kwargs)      
         
         
 
@@ -279,15 +284,25 @@ class AbstractTestCase(TimeStampedEditableModel):
     @property
     def suite_count(self):
         """Return count of test suites containing this test case"""
-        from ..swapper import load_model
-        TestSuiteCase = load_model("TestSuiteCase")
-        return TestSuiteCase.objects.filter(test_case=self).count()
+        return self.test_suites.count()
 
     @property
     def execution_count(self):
         """Return count of times this test has been executed"""
-        # This will be implemented when TestExecution model is added
-        return 0
+        
+        from ..swapper import load_model
+
+        TestSuiteExecution = load_model("TestSuiteExecution")
+
+        suite_exec_count = TestSuiteExecution.objects.filter(
+            test_suite__suite_cases__test_case=self
+        ).distinct().count()
+
+        individual_exec_count = TestSuiteExecution.objects.filter(
+            individual_test_cases=self
+        ).distinct().count()
+
+        return suite_exec_count + individual_exec_count
 
     @property
     def is_deletable(self):
