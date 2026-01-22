@@ -743,6 +743,11 @@ class TestCaseAdminForm(forms.ModelForm):
                 params={"id": test_case_id},
             )
 
+        if test_case_id in ["Device", "Robot"]:
+            raise forms.ValidationError(
+                _("'%(id)s' is not a valid test case id."),
+                params={"id": test_case_id},
+            )
         return test_case_id
     
 
