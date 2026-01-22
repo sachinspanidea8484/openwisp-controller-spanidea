@@ -99,9 +99,9 @@ class TestManagementConfig(ApiAppConfig):
                 "message": _(
                     'Execution "{execution_name}" has completed successfully.'
                 ),
-                "extra_context": ["execution_name"],
+                "extra_context": ["execution_name", "target_url"],
                 # ⬇️ ADD ONLY THIS LINE ⬇️
-            "target_url": "/admin/test_management/testsuiteexecution/{target.pk}/history/",
+                "target_url": "/admin/test_management/testsuiteexecution/{target.pk}/history/",
             },
             models=[load_model("test_management", "TestSuiteExecution")],
         )

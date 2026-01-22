@@ -12,7 +12,7 @@ import requests
 import os
 import subprocess
 import json
-
+from django.urls import reverse
 
 from .settings import EXECUTOR_SERVER_IP ,OPENWISP_SERVER_IP ,MEDIA_URL
 
@@ -2705,7 +2705,7 @@ from django.contrib.auth import get_user_model
 from openwisp_notifications.signals import notify
 User = get_user_model()
 
-@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=5, retry_kwargs={"max_retries": 3})
+@shared_task(bind=True)
 def send_execution_completed_notification(self, instance_pk, created_by_id):
     if not created_by_id:
         return
@@ -2732,13 +2732,27 @@ def send_execution_completed_notification(self, instance_pk, created_by_id):
 
     # Send notification AFTER lock is released
     recipient = User.objects.get(pk=created_by_id)
+   
+    try:
+      
+        notify.send(
+            sender=instance,
+          
+            recipient=recipient,
+            type="test_suite_execution_completed",
+          
+            execution_name = str(instance.name),
+            data={
+                "target_url": reverse(
+                    "admin:test_management_testexecution_history",
+                    args=[instance_pk],
+                ),
+                "execution_name": str(instance.name),
+            },
+        )
+    except Exception as e:
+        print("exception here in task",e)
 
-    notify.send(
-        sender=instance,
-        recipient=recipient,
-        type="test_suite_execution_completed",
-        target=instance,
-        execution_name = instance.name,
-    )
+    
 
  
