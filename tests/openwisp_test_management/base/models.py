@@ -325,6 +325,13 @@ class AbstractTestSuite(TimeStampedEditableModel):
         verbose_name=_("Test Cases"),  # Changed label
         help_text=_("Test cases included in this group")  # Changed help text
     )
+    created_by = models.ForeignKey(
+        'openwisp_users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_test_case_group',
+    )
 
     class Meta:
         abstract = True
