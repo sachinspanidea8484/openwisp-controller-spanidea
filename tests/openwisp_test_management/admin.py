@@ -295,6 +295,10 @@ class TestCasesResource(resources.ModelResource):
         attribute="test_type",
         widget=ChoicesWidget(TestTypeChoices.choices),
     )
+    is_configuration_push_required = fields.Field(
+        column_name="is_file_required",
+        attribute="is_configuration_push_required",
+    )
     robot_script = fields.Field(column_name="robot_script", attribute="robot_script")
     python_script = fields.Field(column_name="python_script", attribute="python_script")
     class Meta:
@@ -1334,18 +1338,22 @@ class TestCaseAdmin(BaseVersionAdmin):
                },
           ),
           (
-               _("Test Scripts"),
+                format_html(
+                    '<div style="display:flex; justify-content:space-between; align-items:center;">'
+                    '<span>{}</span>'
+                    '<a href="{}" download class="guidelines-link">'
+                    'Download Test Script Guidelines'
+                    '</a>'
+                    '</div>',
+                    _("Test Scripts"),
+                    guidelines_url,
+                ),
                {
                     "fields": (
                          "robot_script",
                          "python_script",
                     ),
-                     "description": format_html(
-                    '<a href="{}" download class="guidelines-link">'
-                    'Download Test Script Guidelines'
-                    '</a>',
-                    guidelines_url
-                ),
+                    
                },
           ),
           (

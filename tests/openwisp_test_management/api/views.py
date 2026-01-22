@@ -5461,7 +5461,7 @@ def check_test_case_id_unique(request):
 
 
 
-def create_test_execution_clone(execution):
+def create_test_execution_clone(execution, request):
     """
     Creates a full re-execution with identical configuration.
     """
@@ -5486,7 +5486,7 @@ def create_test_execution_clone(execution):
             device_group=execution.device_group,
             notification_emails= execution.notification_emails,
             execution_start_time= timezone.now(),
-            created_by= execution.created_by,
+            created_by= request.user,
         )
 
         
@@ -5518,7 +5518,7 @@ def create_test_execution_clone(execution):
 
     return new_execution
 
-def create_test_execution_clone_for_selected_tests(execution, device_tests_info_list):
+def create_test_execution_clone_for_selected_tests(execution, device_tests_info_list, request):
     """
     Creates a full re-execution with identical configuration.
     """
@@ -5543,7 +5543,7 @@ def create_test_execution_clone_for_selected_tests(execution, device_tests_info_
             device_group=execution.device_group,
             notification_emails= execution.notification_emails,
             execution_start_time= timezone.now(),
-            created_by= execution.created_by,
+            created_by= request.user,
         )
 
         
@@ -5588,7 +5588,7 @@ from ..tasks import execute_selected_tests_in_test_execution as start_selected_t
 def re_execute_view(request, execution_id):
     execution = get_object_or_404(TestSuiteExecution, pk=execution_id)
     try:
-        new_execution = create_test_execution_clone(execution)
+        new_execution = create_test_execution_clone(execution, request)
 
         new_execution.is_executed= True
         new_execution.save()
@@ -5607,7 +5607,7 @@ def re_execute_selected_view(request, execution_id):
     try:
         device_tests_info_list = request.data.get('device_tests_info')
 
-        new_execution = create_test_execution_clone_for_selected_tests(execution, device_tests_info_list)
+        new_execution = create_test_execution_clone_for_selected_tests(execution, device_tests_info_list, request)
 
         new_execution.is_executed= True
         new_execution.save()
