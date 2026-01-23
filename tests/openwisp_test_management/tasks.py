@@ -223,12 +223,6 @@ def execute_tests_on_device(device_execution_id):
         all_test_execution_ids = []
         device_config = DeviceConfig.objects.filter(device=device).first()
 
-        # Offline case need to be handled here
-        if connection_error:
-            device_conn = DeviceConnection.objects.get(
-                device=device,
-                enabled=True
-            )
         device_data = {
             "device_name": device.name,
             "management_ip": device.management_ip,
@@ -1064,14 +1058,6 @@ def abort_test_execution(test_execution_id):
         
         # Reset the test execution status
         test_execution.status = TestExecutionStatus.ABORTING
-        test_execution.started_at = None
-        test_execution.completed_at = None
-        test_execution.stdout = ''
-        test_execution.stderr = ''
-        test_execution.exit_code = None
-        test_execution.error_message = ''
-        test_execution.execution_duration = None
-        test_execution.retry_count += 1
         test_execution.save()
 
         device_data = {

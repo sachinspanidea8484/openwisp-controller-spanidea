@@ -2551,7 +2551,7 @@ class TestResultView(APIView):
                     'status', 'completed_at', 'stdout', 
                     'stderr', 'error_message', 'execution_duration'
                 ])
-                print(f"✅ Updated to ABORTED status")
+                print(f"✅ Updated to ABORTED status for execution id: {execution_id} status: {execution.status}")
             
             # Check if all test cases are completed for this suite execution
             self._check_suite_execution_completion(execution.test_suite_execution, execution.device)
