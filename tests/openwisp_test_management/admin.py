@@ -10,6 +10,7 @@ from django.core.validators import (
     MinLengthValidator,
     MaxLengthValidator
 )
+from django.contrib.admin.widgets import AdminFileWidget
 from django.templatetags.static import static
 from django.template.response import TemplateResponse
 from django.contrib import admin, messages
@@ -1222,7 +1223,19 @@ class TestCaseAdminForm(forms.ModelForm):
             raise ValidationError(
                 _(f"Error validating parameters: {str(e)}")
             )
- 
+        
+class ForceDownloadFileWidget(AdminFileWidget):
+    def render(self, name, value, attrs=None, renderer=None):
+        html = super().render(name, value, attrs, renderer)
+
+        if value:
+            # Safely add download attribute without breaking markup
+            html = html.replace(
+                '<a href="', '<a download href="', 1
+            )
+
+        return mark_safe(html)
+    
 # @admin.register(TestCase)
 class TestCaseAdmin(BaseVersionAdmin):
     form = TestCaseAdminForm
@@ -1466,7 +1479,9 @@ class TestCaseAdmin(BaseVersionAdmin):
                 'style': 'display: none;'
             })
 
-
+        for field_name in ("python_script", "robot_script"):
+            if field_name in form.base_fields:
+                form.base_fields[field_name].widget = ForceDownloadFileWidget()
         # **NEW: Add warning messages for EDIT mode**
         # if obj:  # Edit mode
         #  if "python_script" in form.base_fields:
