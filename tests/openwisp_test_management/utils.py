@@ -33,7 +33,7 @@ def build_testcase_scripts_zip(queryset):
             folder_name = test_case_id
 
             # ================= ROBOT SCRIPT =================
-            if tc.robot_script:
+            if tc.robot_script and tc.test_type == 1:
                 robot_name = tc.robot_script.name  # storage-relative path
 
                 if default_storage.exists(robot_name):
