@@ -31,7 +31,7 @@ from django.utils.translation import gettext_lazy as _
 from import_export.admin import ImportExportMixin
 from django.core.validators import RegexValidator
 from openwisp_controller.config.models import Device
-
+from django.db.models import Prefetch
 from reversion.models import Version
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
@@ -2500,7 +2500,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         "name",
         # "test_selection_display",
         # "test_suite_name",
-        "device_count",
+        "active_device_count",
         "testcase_count",
         # "status_label",
         "created",
@@ -2537,6 +2537,10 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         verbose_name = _("Test Execution")  # Change from "Test Suite Execution"
         verbose_name_plural = _("Test Executions")  # Change from "Test Suite Executions"
     
+    def active_device_count(self, obj):
+        """Return human readable execution status"""
+        return obj.active_device_count
+    active_device_count.short_description = _("Device Count")
    
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -3380,7 +3384,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 else:
                     test_count = execution.individual_test_cases.count()
 
-                device_count = execution.device_count
+                device_count = execution.active_device_count
                 
                 # if test_count == 0:
                 #     logger.warning(f"No tests found for execution {execution.id}")
@@ -3392,15 +3396,15 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 #         )
                 #     continue
                 
-                # if device_count == 0:
-                #     logger.warning(f"No devices for execution {execution.id}")
-                #     if request:
-                #         self.message_user(
-                #             request,
-                #             f"Skipped {execution}: No devices configured",
-                #             messages.WARNING
-                #         )
-                #     continue
+                if device_count == 0:
+                    logger.warning(f"No devices for execution {execution.id}")
+                    if request:
+                        self.message_user(
+                            request,
+                            f"Skipped {execution}: No devices configured",
+                            messages.WARNING
+                        )
+                    continue
                 
                 # Mark as executed
                 execution.is_executed = True
@@ -3476,14 +3480,16 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             print("....ax",scheduled_dt)
             # Pass it to the template context
             extra_context['scheduled_datetime'] = scheduled_dt
-            related_devices= TestSuiteExecutionDevice.objects.filter(
+            related_devices = TestSuiteExecutionDevice.objects.filter(
                 test_suite_execution=obj
             ).select_related("device")
 
             device_protocol_map={
                 str(dev.device_id) : dev.connection_protocol for dev in related_devices
             }
-            devices_query = Device.objects.filter(
+
+            device_manager = Device.all_objects if obj.status != 0 else Device.objects
+            devices_query = device_manager.filter(
                 id__in=device_protocol_map.keys()
             ).select_related("organization")
             devices_data = []
@@ -3498,6 +3504,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 elif getattr(device, "last_ip", None):
                     device_status = "Reachable"
 
+                if device.is_deleted:
+                    device_status= "Deleted"
                 devices_data.append({
                     "id": str(device.id),
                     "name": device.name,

@@ -186,30 +186,30 @@ class BaseConfigAdmin(BaseAdmin):
                 self.admin_site.admin_view(self.context_view),
                 name="{0}_context".format(url_prefix),
             ),
-            path(
-                '<path:object_id>/process-file/',
-                self.admin_site.admin_view(self.process_file),
-                name="config_device_process_file",
-            )
+            # path(
+            #     '<path:object_id>/process-file/',
+            #     self.admin_site.admin_view(self.process_file),
+            #     name="config_device_process_file",
+            # )
         ] + super().get_urls()
   
-    def process_file(self,request, object_id):
-        obj= self.get_object(request, object_id)
-        uploaded_file= request.FILES.get("config_file")
+    # def process_file(self,request, object_id):
+    #     obj= self.get_object(request, object_id)
+    #     uploaded_file= request.FILES.get("config_file")
         
-        if not uploaded_file:
-            messages.error(request, "No file uploaded.")
-            return redirect(
-                reverse("admin:config_device_change", args=[object_id])
-            )
-        saved_path= default_storage.save(os.path.join("uploads", uploaded_file.name), uploaded_file)
+    #     if not uploaded_file:
+    #         messages.error(request, "No file uploaded.")
+    #         return redirect(
+    #             reverse("admin:config_device_change", args=[object_id])
+    #         )
+    #     saved_path= default_storage.save(os.path.join("uploads", uploaded_file.name), uploaded_file)
 
         
-        transaction.on_commit(lambda : upload_file_on_device.delay(obj.pk, saved_path, obj.management_ip, uploaded_file.name))
-        messages.info(request, "File processed successfully!")
-        return redirect(
-            reverse("admin:config_device_change", args=[object_id])
-        )
+    #     transaction.on_commit(lambda : upload_file_on_device.delay(obj.pk, saved_path, obj.management_ip, uploaded_file.name))
+    #     messages.info(request, "File processed successfully!")
+    #     return redirect(
+    #         reverse("admin:config_device_change", args=[object_id])
+    #     )
         
     def _get_config_model(self):
         model = self.model
@@ -811,6 +811,10 @@ class DeviceAdmin(MultitenantAdminMixin, BaseConfigAdmin, UUIDAdmin):
             request, success_devices, method, messages.SUCCESS
         )
         self._message_user_device_status(request, error_devices, method, messages.ERROR)
+
+    def delete_queryset(self, request, queryset):
+        for obj in queryset.iterator():
+            obj.delete()
 
     @admin.action(description=_("Deactivate selected devices"), permissions=["change"])
     def deactivate_device(self, request, queryset):

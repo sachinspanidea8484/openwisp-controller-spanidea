@@ -13,6 +13,7 @@
 {% block extrahead %}
 {{ block.super }}
 
+{% comment %}
 <script>
 django.jQuery(function($) {
     $(document).one("tabshown", function() {
@@ -34,6 +35,7 @@ django.jQuery(function($) {
     });
 });
 </script>
+{% endcomment %}
 
 {% endblock extrahead %}
 {% block content %}

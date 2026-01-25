@@ -684,7 +684,7 @@
 <div class="module">
     <h2 style="display: flex; align-items: center; gap: 10px;">
         {% trans 'Device Execution Details' %}
-        <label style="font-weight: bold; font-size: 14px; margin-left: auto; display: flex; align-items: center; gap: 5px; color: white;">
+        <label id="global-select-label" style="font-weight: bold; font-size: 14px; margin-left: auto; display: flex; align-items: center; gap: 5px; color: white;">
             <input type="checkbox" id="global-select-all" style="margin: 0;">
             Select All Tests
         </label>
@@ -946,6 +946,14 @@ function displayExecutionData(data) {
     // Update summary
     execution_status=data.status;
     let total_execution_time = 0;
+
+    // hide select all test case check when all devices are deleted
+    const hasActiveDevice= data.devices.some(device => !device.is_deleted)
+    const globalSelectLabel= document.getElementById('global-select-label');
+    if(!hasActiveDevice){
+        globalSelectLabel.style.display= 'none';
+    }
+
     data.devices.forEach(device => {
         // device-level total
         let total_time_for_device = device.test_cases.every(
@@ -1098,7 +1106,9 @@ function displayExecutionData(data) {
                     }
                     rows += `
                         <tr>
-                            <td><input type="checkbox" class="execution-checkbox" data-device-id="${device.device_id}" data-test-id="${ test.test_case_id }"></td>
+                            ${!device.is_deleted ? 
+                            `<td><input type="checkbox" class="execution-checkbox" data-device-id="${device.device_id}" data-test-id="${ test.test_case_id }"></td>`
+                        :""}
                             <td>${test.test_case_name || 'N/A'}</td>
                             <td><span class="test-id-badge">${test.test_case_id || 'N/A'}</span></td>
                             <td>${test.test_type || 'N/A'}</td>
@@ -1112,7 +1122,9 @@ function displayExecutionData(data) {
                     <table class="results-table">
                         <thead>
                             <tr>
-                                <th><input type="checkbox" class="device-select-all" data-device-id="${device.device_id}"></th>
+                                ${!device.is_deleted ? 
+                                `<th><input type="checkbox" class="device-select-all" data-device-id="${device.device_id}"></th>`
+                            :''}
                                 <th>Test Case</th>
                                 <th>Test ID</th>
                                 <th>Type</th>
@@ -1196,21 +1208,35 @@ function displayExecutionData(data) {
             // if(robotSection==='' && agentSection===''){
             //     agentSection = '<div class="empty-state">No test results available for this device.</div>';
             // }
+            const colgroup = device.is_deleted
+                ? `
+                    <colgroup>
+                        <col style="width: 20%">
+                        <col style="width: 15%">
+                        <col style="width: 10%">
+                        <col style="width: 15%">
+                        <col style="width: 15%">
+                        <col style="width: 25%">
+                    </colgroup>
+                `
+                : `
+                    <colgroup>
+                        <col style="width: 10%">   <!-- checkbox -->
+                        <col style="width: 20%">
+                        <col style="width: 10%">
+                        <col style="width: 10%">
+                        <col style="width: 15%">
+                        <col style="width: 10%">
+                        <col style="width: 25%">
+                    </colgroup>
+                `;
             let testcaseSection=''
             if(device?.test_cases?.length){
                 // device.test_cases.sort((a,b)=> a?.test_case_name.localeCompare(b?.test_case_name))
                 testcaseSection=`
                 <div class="test-section">
                     <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">
-                        <colgroup>
-                            <col style="width: 10%">
-                            <col style="width: 20%">
-                            <col style="width: 10%">
-                            <col style="width: 10%">
-                            <col style="width: 15%">
-                            <col style="width: 10%">
-                            <col style="width: 25%">
-                        </colgroup>
+                        ${colgroup}
                         ${buildTable(device.test_cases).replace('<table class="results-table">', '').replace('</table>', '')}
                     </table>
                 </div>

@@ -19,7 +19,25 @@ from ..signals import (
 )
 from ..validators import device_name_validator, mac_address_validator
 from .base import BaseModel
+from django.utils import timezone
 
+class DeviceQuerySet(models.QuerySet):
+    def alive(self):
+        return self.filter(is_deleted=False)
+
+    def deleted(self):
+        return self.filter(is_deleted=True)
+    
+    def delete(self, *args, **kwargs):
+        count = 0
+        for obj in self:
+            obj.delete()
+            count += 1
+        return count, {self.model._meta.label: count}
+
+class DeviceManager(models.Manager):
+    def get_queryset(self):
+        return DeviceQuerySet(self.model, using=self._db).alive()
 
 class AbstractDevice(OrgMixin, BaseModel):
     """
@@ -27,7 +45,8 @@ class AbstractDevice(OrgMixin, BaseModel):
     Stores information related to the
     physical properties of a network device
     """
-
+    objects = DeviceManager()
+    all_objects = models.Manager()
     _changed_checked_fields = ["name", "group_id", "management_ip", "organization_id"]
 
     name = models.CharField(
@@ -106,6 +125,10 @@ class AbstractDevice(OrgMixin, BaseModel):
     # the device has been deactivated. This field should not be changed
     # directly, use the deactivate() method instead.
     _is_deactivated = models.BooleanField(default=False)
+
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
 
     class Meta:
         unique_together = (
@@ -288,12 +311,11 @@ class AbstractDevice(OrgMixin, BaseModel):
             self._check_changed_fields()
 
     def delete(self, using=None, keep_parents=False, check_deactivated=True):
-        if check_deactivated and (
-            not self.is_deactivated()
-            or (self._has_config() and not self.config.is_deactivated())
-        ):
-            raise PermissionDenied("The device must be deactivated prior to deletion")
-        return super().delete(using, keep_parents)
+        
+        self.is_deleted= True
+        self.deleted_at= timezone.now()
+        self.save(update_fields= ["is_deleted", "deleted_at"])
+        # return super().delete(using, keep_parents)
 
     def _check_changed_fields(self):
         self._get_initial_values_for_checked_fields()
