@@ -12,6 +12,8 @@ from import_export.formats.base_formats import XLSX,CSV
 
 EXECUTOR_SERVER_IP: str = os.getenv('EXECUTOR_SERVER_IP', "http://172.17.0.1:8080")
 OPENWISP_SERVER_IP: str = os.getenv('OPENWISP_SERVER_IP', "http://172.17.0.1:8000")
+OPENWISP_CONTROLLER_API_HOST: str = os.getenv('OPENWISP_SERVER_IP', "http://172.17.0.1:8000")
+
 
 
 
@@ -395,23 +397,23 @@ OPENWISP_ORGANIZATION_USER_ADMIN = True  # tests will fail without this setting
 OPENWISP_ADMIN_DASHBOARD_ENABLED = True
 OPENWISP_CONTROLLER_GROUP_PIE_CHART = True
 # during development only
-# EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-# EMAIL_HOST = 'smtp.gmail.com'
-# EMAIL_PORT = 587
-# EMAIL_USE_TLS = True
-# EMAIL_HOST_USER = 'ashutoshmathur1711@gmail.com'
-# EMAIL_HOST_PASSWORD = 'aztlnmyjqeovurdc'
-# DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-
-
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'ashutoshmathu1@gmail.com'
-EMAIL_HOST_PASSWORD = 'aztlnmyjqeovurdcdd'
+EMAIL_HOST_USER = 'ashutoshmathur1711@gmail.com'
+EMAIL_HOST_PASSWORD = 'aztlnmyjqeovurdc'
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-# monitoring
+
+
+# EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = 'ashutoshmathu1@gmail.com'
+# EMAIL_HOST_PASSWORD = 'aztlnmyjqeovurdcdd'
+# DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+# # monitoring
 OPENWISP_MONITORING_MANAGEMENT_IP_ONLY = False
 
 # radius
@@ -538,6 +540,18 @@ CELERY_BEAT_SCHEDULE = {
     'cleanup-old-executions': {
         'task': 'openwisp_test_management.tasks.cleanup_old_executions',
         'schedule': crontab(hour=2, minute=0),  # Run at 2 AM daily
+    },
+
+
+     'retry-failed-emails-hourly': {
+        'task': 'openwisp_test_management.tasks.retry_failed_emails',
+        'schedule': 3600,  # Every hour
+        'kwargs': {'max_age_hours': 24}
+    },
+    'cleanup-old-email-logs-weekly': {
+        'task': 'openwisp_test_management.tasks.cleanup_old_email_logs',
+        'schedule': 604800,  # Every week
+        'kwargs': {'days_to_keep': 30}
     },
 }
 

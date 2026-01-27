@@ -236,7 +236,7 @@ class TestAdditionInfoView(TestSamlMixin, TestCase):
             user.emailaddress_set.filter(email="test@openwisp.org").count(), 1
         )
         self.assertEqual(
-            mail.outbox[0].subject, "[example.com] Please Confirm Your Email Address"
+            mail.outbox[0].subject, "Please Confirm Your Email Address"
         )
 
 

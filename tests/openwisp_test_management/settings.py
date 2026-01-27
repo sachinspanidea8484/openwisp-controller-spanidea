@@ -19,6 +19,12 @@ MEDIA_URL = getattr(
 )
 
 
+EMAIL_HOST_USER = getattr(
+    settings, "EMAIL_HOST_USER", ""
+)
+
+
+
 
 
 TEST_MANAGEMENT_API_ENABLED = getattr(

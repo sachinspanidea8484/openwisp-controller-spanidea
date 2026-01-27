@@ -206,7 +206,7 @@ python-dotenv==1.0.0
 
 
 
-# # spanidea git  updates
+# # spanidea git  updates v1
 django-loci @ git+https://sachin:fzeodnCo6ebQ3KWH4wzW@git.spanidea.com/nokia-test-automation/django-loci-spanidea.git@dev
 django-x509 @ git+https://sachin:fzeodnCo6ebQ3KWH4wzW@git.spanidea.com/nokia-test-automation/django-x509-spanidea.git@dev
 netdiff @ git+https://sachin:fzeodnCo6ebQ3KWH4wzW@git.spanidea.com/nokia-test-automation/netdiff-spanidea.git@dev

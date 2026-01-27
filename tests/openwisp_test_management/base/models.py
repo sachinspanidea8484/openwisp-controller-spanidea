@@ -1333,3 +1333,67 @@ class AbstractExecutionArtifact(models.Model):
                 )
 
 
+
+class AbstractExecutionEmailLog(TimeStampedEditableModel):
+    """
+    Tracks individual email send status for each recipient per execution
+    """
+    class EmailStatus(models.IntegerChoices):
+        PENDING = 0, _('Pending')
+        QUEUED = 1, _('Queued')
+        SENT = 2, _('Sent')
+        FAILED = 3, _('Failed')
+        RETRY = 4, _('Retry')
+
+    execution = models.ForeignKey(
+        'test_management.TestSuiteExecution',
+        on_delete=models.CASCADE,
+        related_name='email_logs',
+        verbose_name=_("Test Execution")
+    )
+    email_address = models.EmailField(
+        _("Email Address"),
+        db_index=True
+    )
+    status = models.IntegerField(
+        _("Status"),
+        choices=EmailStatus.choices,
+        default=EmailStatus.PENDING
+    )
+    celery_task_id = models.CharField(
+        _("Celery Task ID"),
+        max_length=255,
+        blank=True,
+        null=True
+    )
+    attempt_count = models.PositiveIntegerField(
+        _("Attempt Count"),
+        default=0
+    )
+    last_attempt_at = models.DateTimeField(
+        _("Last Attempt At"),
+        null=True,
+        blank=True
+    )
+    sent_at = models.DateTimeField(
+        _("Sent At"),
+        null=True,
+        blank=True
+    )
+    error_message = models.TextField(
+        _("Error Message"),
+        blank=True
+    )
+
+    class Meta:
+        abstract = True
+        verbose_name = _("Execution Email Log")
+        verbose_name_plural = _("Execution Email Logs")
+        unique_together = ("execution", "email_address")
+        indexes = [
+            models.Index(fields=["execution", "status"]),
+            models.Index(fields=["status", "last_attempt_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.execution.name} -> {self.email_address} ({self.get_status_display()})"

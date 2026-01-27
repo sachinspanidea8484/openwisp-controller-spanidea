@@ -58,7 +58,7 @@ from django.contrib.admin.widgets import RelatedFieldWidgetWrapper
 from import_export.widgets import Widget
 from django.utils.safestring import mark_safe
 from .forms import ExecutionArtifactFormSet
-from .utils import build_testcase_scripts_zip
+from .utils import build_all_testcases_zip
 logger = logging.getLogger(__name__)
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
@@ -1608,7 +1608,7 @@ class TestCaseAdmin(BaseVersionAdmin):
             self.message_user(request, _("No test cases selected."), messages.WARNING)
             return
 
-        zip_buffer = build_testcase_scripts_zip(queryset)
+        zip_buffer = build_all_testcases_zip(queryset)
 
         timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
         response = HttpResponse(
@@ -1682,7 +1682,7 @@ class TestCasesExportable(ImportExportMixin, TestCaseAdmin):
     def export_all_scripts(self, request):
         queryset = self.get_queryset(request)
 
-        zip_buffer = build_testcase_scripts_zip(queryset)
+        zip_buffer = build_all_testcases_zip(queryset)
 
         response = HttpResponse(
             zip_buffer,

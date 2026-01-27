@@ -12,9 +12,16 @@ import requests
 import os
 import subprocess
 import json
+from django.core.mail import EmailMultiAlternatives
+import csv
+from datetime import datetime
+from django.template.loader import render_to_string, get_template, TemplateDoesNotExist
+import io
+from datetime import timedelta
 
+from .settings import EXECUTOR_SERVER_IP ,OPENWISP_SERVER_IP ,MEDIA_URL ,EMAIL_HOST_USER
+from .base.models import TestExecutionStatus
 
-from .settings import EXECUTOR_SERVER_IP ,OPENWISP_SERVER_IP ,MEDIA_URL
 
 from django.db import transaction
 from django.core.cache import cache
@@ -45,8 +52,20 @@ TestSuiteCase = load_model("TestSuiteCase")
 ScheduledExecution= load_model("ScheduledExecution")
 TestCase= load_model("TestCase")
 ExecutionArtifact= load_model("ExecutionArtifact")
+ExecutionEmailLog = load_model("ExecutionEmailLog")
+
 # Device Execution Type Configuration
 DEVICE_EXECUTION_TYPE = 1 # 1 for SSH, 0 for MQTT (default is SSH)
+
+# ============================================================================
+# CONSTANTS & CONFIGURATION
+# ============================================================================
+
+EMAIL_BATCH_SIZE = 10  # Process emails in batches
+EMAIL_RATE_LIMIT = "10/m"  # Rate limit: 10 emails per minute
+EMAIL_MAX_RETRIES = 3
+EMAIL_RETRY_DELAY = 60  # seconds
+LOCK_TIMEOUT = 300  # 5 minutes lock timeout
 
 @shared_task
 def execute_test_suite(execution_id):
@@ -1895,73 +1914,6 @@ def execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_exe
         logger.error(error_msg, exc_info=True)
         print(f"[ERROR] execute_test_via_nb_api - {error_msg}")
 
-from django.core.mail import  BadHeaderError , EmailMessage
-from django.conf import settings
-
-
-@shared_task(bind=True, autoretry_for=(Exception,), retry_kwargs={"max_retries": 3})
-def send_execution_completed_email(self, execution_id):
-    try:
-        return
-        with transaction.atomic():
-            execution = (
-                TestSuiteExecution.objects
-                .select_for_update()
-                .get(pk=execution_id)
-            )
-
-            if execution.completion_email_sent:
-                logger.info(
-                    f"Completion email already sent for execution {execution.id}"
-                )
-                return
-
-            emails = [
-                e.strip()
-                for e in execution.notification_emails.split(",")
-                if e.strip()
-            ]
-
-            if not emails:
-                logger.warning(
-                    f"No notification emails for execution {execution.id}"
-                )
-                return
-
-            subject = "Test Suite Execution Completed"
-            message = (
-                "Hi,\n\n"
-                "All test cases for the test suite have been executed successfully.\n\n"
-                "Thanks,\n"
-                "QA System"
-            )
-
-            email = EmailMessage(
-                subject=subject,
-                body=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                to=emails,
-            )
-
-            email.send(fail_silently=False)
-
-            execution.completion_email_sent = True
-            execution.save(update_fields=["completion_email_sent"])
-
-            logger.info(
-                f"Completion email sent for execution {execution.id}"
-            )
-
-    except TestSuiteExecution.DoesNotExist:
-        logger.error(f"Execution {execution_id} not found")
-
-    except BadHeaderError:
-        logger.error("Invalid email header detected")
-
-    except Exception:
-        logger.exception("Failed to send completion email")
-        raise  # allows Celery retry
-   
 
 @shared_task
 def check_device_execution_completion(device_execution_id, retry_count=0):
@@ -2230,319 +2182,6 @@ def check_suite_execution_completion(suite_execution_id):
 
 
 
-@shared_task
-def execute_tests_on_device_old(device_execution_id):
-    """
-    Execute all test cases on a single device by sending them to executor server.
-    """
-    logger.info(f"Starting device execution with ID: {device_execution_id}")
-    print(f"[TASK] execute_tests_on_device - Starting device execution ID: {device_execution_id}")
-
-    try:
-        # Retrieve the device execution record
-        device_execution = TestSuiteExecutionDevice.objects.get(pk=device_execution_id)
-        device_execution_connection_protocol = getattr(device_execution, 'connection_protocol', 0) or 0
-        logger.info(f"Retrieved device execution: {device_execution}")
-        print(f"[TASK] execute_tests_on_device - Retrieved device execution: {device_execution}")
-        
-        device = device_execution.device
-        test_suite_execution = device_execution.test_suite_execution
-        
-        logger.info(f"Device: {device.name} (ID: {device.id})")
-        
-        
-        # Update device execution status to running
-        device_execution.status = 'running'
-        device_execution.started_at = timezone.now()
-        device_execution.save()
-        
-        logger.info(f"Updated device execution status to 'running' at {device_execution.started_at}")
-        print(f"[TASK] execute_tests_on_device - Updated status to 'running' at {device_execution.started_at}")
-        
-        # Check device connection
-        device_conn = None
-        has_connection = False
-        try:
-            # device_conn = DeviceConnection.objects.get(
-            #     device=device,
-            #     enabled=True
-            # )
-            device_conn = DeviceConnection.get_working_connection(device)
-
-            has_connection = True
-            logger.info(f"Found working device connection: {device_conn}")
-            print(f"[TASK] execute_tests_on_device - Found working connection: {device_conn}")
-                
-        except DeviceConnection.DoesNotExist:
-            has_connection = False
-            error_msg = f"No working connection found for device {device.name}"
-            logger.warning(error_msg)
-            print(f"[WARNING] execute_tests_on_device - {error_msg}")
-
-        print(f"[TASK] execute_tests_on_device - Found working connection: {device_conn}")
-         
-        
-        # Get ordered test cases from the test suite
-        if test_suite_execution.test_selection_type == 1:
-            test_cases = test_suite_execution.test_suite.get_ordered_test_cases()
-        elif test_suite_execution.test_selection_type ==0 :
-            test_cases= test_suite_execution.individual_test_cases.all()
-        total_test_cases = len(test_cases)
-        
-        logger.info(f"Retrieved {total_test_cases} test cases from test suite")
-        print(f"[TASK] execute_tests_on_device - Retrieved {total_test_cases} test cases")
-        
-        all_test_execution_ids = []
-        device_config = DeviceConfig.objects.filter(device=device).first()
-
-        
-        device_data = {
-            "device_name": device.name,
-            "management_ip": device.management_ip,
-            "device_id": device.id,
-            "ssh": {
-                "host": device.management_ip,
-                "username": device_conn.credentials.params.get('username', '') if has_connection else '',
-                "password": device_conn.credentials.params.get('password', '') if has_connection else ''
-            },
-            "configuration": device_config.context if device_config else {}
-        }
-
-        print("device_data>>>>>>>>", device_data)
-        
-        test_suite_data = {
-            "test_suite_execution_id": test_suite_execution.id,
-            "test_cases": []
-        }
-        if test_suite_execution.test_selection_type==1:
-            test_suite_data["test_suite_name"] = test_suite_execution.test_suite.name
-            test_suite_data["test_suite_id"]= test_suite_execution.test_suite.id
-        
-        # ===== CHANGED: Create execution records for ALL test cases (no separation) =====
-        for suite_case in test_cases:
-            if test_suite_execution.test_selection_type==1:
-                test_case = suite_case.test_case
-            else:
-                test_case=suite_case
-            
-            logger.info(f"Creating execution record for test: {test_case.name} (Type: {test_case.get_test_type_display()})")
-            print(f"[TASK] execute_tests_on_device - Creating execution record for: {test_case.name}")
-            
-            if has_connection or DEVICE_EXECUTION_TYPE == 2:
-                # Normal execution record for devices with connection
-                test_execution = TestCaseExecution.objects.create(
-                    test_suite_execution=test_suite_execution,
-                    device=device,
-                    test_case=test_case,
-                    status=TestExecutionStatus.PENDING,
-                )
-                test_execution.save()
-                all_test_execution_ids.append(test_execution.id)
-            else:
-                # Create failed execution record for devices without connection
-                test_execution = TestCaseExecution.objects.create(
-                    test_suite_execution=test_suite_execution,
-                    device=device,
-                    test_case=test_case,
-                    status=TestExecutionStatus.FAILED,
-                    started_at=timezone.now(),
-                    completed_at=timezone.now(),
-                    exit_code=1,
-                    stdout="No working connection found for device",
-                    error_message="No working connection found for device"
-                )
-                test_execution.save()
-            
-            if test_execution and test_execution.id:
-                print(f"✅ Successfully created TestCaseExecution with ID: {test_execution.id}")
-            
-            # Add to test suite data for executor server
-            test_suite_data["test_cases"].append({
-                "test_case_id": test_case.test_case_id,
-                "test_case_name": test_case.name,
-                "test_type": test_case.test_type,  # Include test type
-                "params": test_case.params,
-                "execution_id": test_execution.id
-            })
-            
-            logger.debug(f"Created TestCaseExecution ID: {test_execution.id}")
-            print(f"[DEBUG] execute_tests_on_device - Created TestCaseExecution ID: {test_execution.id}")
-        
-        logger.info(f"Created {len(all_test_execution_ids)} test execution records out of {total_test_cases} total tests")
-        print(f"[TASK] execute_tests_on_device - Created {len(all_test_execution_ids)} tests out of {total_test_cases} total")
-        
-        # ===== CHANGED: Send ALL tests to executor server =====
-        if has_connection or DEVICE_EXECUTION_TYPE == 2:
-            if all_test_execution_ids:
-                logger.info(f"Sending {len(all_test_execution_ids)} test cases to executor server")
-                print(f"[TASK] Sending {len(all_test_execution_ids)} tests to executor server")
-
-                # Send all tests to executor server
-                execute_tests_on_executor_server.delay(
-                    all_test_execution_ids,
-                    device_data,
-                    test_suite_data,
-                    device_execution_id,
-                    device_execution_connection_protocol
-                )
-            else:
-                logger.warning("No tests found to execute")
-                print(f"[WARNING] execute_tests_on_device - No tests found")
-        else:
-            logger.info("Device has no connection, all tests marked as failed")
-            print(f"[TASK] execute_tests_on_device - Device has no connection, all tests marked as failed")
-        
-        # Start completion checking
-        logger.info("Starting completion checking process")
-        print(f"[TASK] execute_tests_on_device - Starting completion checking")
-        check_device_execution_completion.delay(device_execution_id)
-        
-    except TestSuiteExecutionDevice.DoesNotExist:
-        error_msg = f"Device execution with ID {device_execution_id} not found"
-        logger.error(error_msg)
-        print(f"[ERROR] execute_tests_on_device - {error_msg}")
-        
-    except Exception as e:
-        error_msg = f"Error setting up tests on device: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        print(f"[ERROR] execute_tests_on_device - {error_msg}")
-        
-        try:
-            device_execution.status = 'failed'
-            device_execution.output = f"Setup error: {str(e)}"
-            device_execution.completed_at = timezone.now()
-            device_execution.save()
-            logger.info("Updated device execution status to 'failed'")
-            print(f"[TASK] execute_tests_on_device - Updated status to 'failed'")
-        except:
-            logger.error("Failed to update device execution status")
-            print(f"[ERROR] execute_tests_on_device - Failed to update status")
-
-
-
-
-@shared_task
-def retry_test_execution_old(test_execution_id):
-    """
-    Retry a single test execution by sending to executor server
-    """
-    from .swapper import load_model
-    TestCaseExecution = load_model("TestCaseExecution")
-    TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
-    
-    try:
-        test_execution = TestCaseExecution.objects.get(pk=test_execution_id)
-        
-        # Get device and device execution info
-        device = test_execution.device
-        test_suite_execution = test_execution.test_suite_execution
-        
-        # Find the device execution record
-        try:
-            device_execution = TestSuiteExecutionDevice.objects.get(
-                test_suite_execution=test_suite_execution,
-                device=device
-            )
-            device_execution_id = device_execution.id
-            device_execution_connection_protocol = getattr(device_execution, 'connection_protocol', 0) or 0
-
-
-        except TestSuiteExecutionDevice.DoesNotExist:
-            logger.error(f"Device execution not found for test execution {test_execution_id}")
-            return
-        
-        # Get device connection if exists
-        device_conn = None
-        ssh_params = {}
-        has_connection = False
-        
-        try:
-            # device_conn = DeviceConnection.objects.get(
-            #     device=device,
-            #     enabled=True
-            # )
-            device_conn = DeviceConnection.get_working_connection(device)
-
-            ssh_params = device_conn.credentials.params
-            has_connection = True
-        except DeviceConnection.DoesNotExist:
-            logger.warning(f"No working connection found for device {device.name} during retry")
-            # Mark as failed if no connection
-            test_execution.status = TestExecutionStatus.FAILED
-            test_execution.stdout = "No working connection found for device"
-            test_execution.error_message = "No working connection found for device"
-            test_execution.exit_code = 1
-            test_execution.completed_at = timezone.now()
-            test_execution.save()
-            return
-        
-        # Reset the test execution status
-        test_execution.status = TestExecutionStatus.PENDING
-        test_execution.started_at = None
-        test_execution.completed_at = None
-        test_execution.stdout = ''
-        test_execution.stderr = ''
-        test_execution.exit_code = None
-        test_execution.error_message = ''
-        test_execution.execution_duration = None
-        test_execution.retry_count += 1
-        test_execution.save()
-        
-        logger.info(f"Retrying test execution {test_execution_id} (retry #{test_execution.retry_count})")
-        print(f"[TASK] retry_test_execution - Retrying test {test_execution_id}, retry count: {test_execution.retry_count}")
-        
-        # ===== CHANGED: Always send to executor server for retry =====
-        test_case = test_execution.test_case
-        test_suite_name = ""
-        test_suite_id = ""
-        if test_suite_execution.test_selection_type == 1:
-            test_suite_name = test_suite_execution.test_suite.name
-            test_suite_id = test_suite_execution.test_suite.id
-
-        device_config = DeviceConfig.objects.filter(device=device).first()
-        # Prepare data for executor server
-        device_data = {
-            "device_name": device.name,
-            "management_ip": device.management_ip,
-            "device_id": device.id,
-            "ssh": {
-                "host": device.management_ip,
-                "username": ssh_params.get('username', ''),
-                "password": ssh_params.get('password', '')
-            },
-            "configuration": device_config.context if device_config else {}
-        }
-        
-        test_suite_data = {
-            "test_suite_name": test_suite_name,
-            "test_suite_id": test_suite_id,
-            "test_suite_execution_id": test_suite_execution.id,
-            "test_cases": [{
-                "test_case_id": test_case.test_case_id,
-                "test_case_name": test_case.name,
-                "test_type": test_case.test_type,  # Include test type
-                "params": test_case.params,
-                "execution_id": test_execution_id
-            }]
-        }
-        
-        # Send to executor server
-        logger.info(f"Sending retry to executor server for test: {test_case.name}")
-        execute_tests_on_executor_server.delay(
-            [test_execution_id],
-            device_data,
-            test_suite_data,
-            device_execution_id,
-            device_execution_connection_protocol
-        )
-        
-        logger.info(f"Successfully queued retry for test execution {test_execution_id}")
-        
-    except TestCaseExecution.DoesNotExist:
-        logger.error(f"Test execution {test_execution_id} not found")
-    except Exception as e:
-        logger.error(f"Error retrying test execution {test_execution_id}: {str(e)}")
-        print(f"[ERROR] retry_test_execution - Error: {str(e)}")
 
 from django.contrib.auth import get_user_model
 from openwisp_notifications.signals import notify
@@ -2585,3 +2224,675 @@ def send_execution_completed_notification(self, instance_pk, created_by_id):
     )
 
  
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def format_duration(start, end):
+    """Format duration between two timestamps"""
+    if not start or not end:
+        return "N/A"
+    duration = end - start
+    total_seconds = int(duration.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    parts = []
+    if hours > 0:
+        parts.append(f"{hours}h")
+    if minutes > 0:
+        parts.append(f"{minutes}m")
+    parts.append(f"{seconds}s")
+    return " ".join(parts)
+
+
+def get_execution_lock_key(execution_id):
+    """Generate cache key for execution email lock"""
+    return f"execution_email_lock_{execution_id}"
+
+
+def get_email_lock_key(execution_id, email):
+    """Generate cache key for individual email lock"""
+    return f"email_lock_{execution_id}_{email}"
+
+
+def acquire_lock(lock_key, timeout=LOCK_TIMEOUT):
+    """Acquire a distributed lock using cache"""
+    return cache.add(lock_key, "locked", timeout)
+
+
+def release_lock(lock_key):
+    """Release a distributed lock"""
+    cache.delete(lock_key)
+
+
+# ============================================================================
+# EMAIL DATA PREPARATION (Shared logic - computed once per execution)
+# ============================================================================
+
+def prepare_email_data(execution_id):
+    """
+    Prepare all email data for an execution.
+    This is computed once and shared across all email recipients.
+    Returns dict with all necessary data or None if execution not found.
+    """
+    logger.debug(f"[Email Prep] Preparing data for execution {execution_id}")
+    
+    try:
+        execution = TestSuiteExecution.objects.select_related(
+            'test_suite', 'device_group', 'created_by'
+        ).get(pk=execution_id)
+    except TestSuiteExecution.DoesNotExist:
+        logger.error(f"[Email Prep] Execution {execution_id} not found")
+        return None
+    
+    # Get related data
+    execution_devices = TestSuiteExecutionDevice.objects.filter(
+        test_suite_execution=execution
+    ).select_related('device')
+    
+    test_cases = TestCaseExecution.objects.filter(
+        test_suite_execution=execution
+    ).select_related('device', 'test_case').order_by('device__name', 'execution_order')
+    
+    # Calculate statistics
+    total_tests = test_cases.count()
+    passed_tests = test_cases.filter(status='success').count()
+    failed_tests = test_cases.filter(status='failed').count()
+    
+    # Time calculations
+    start_time = execution.execution_start_time or execution.created
+    end_time = timezone.now()
+    completed_times = [d.completed_at for d in execution_devices if d.completed_at]
+    if completed_times:
+        end_time = max(completed_times)
+    
+    formatted_duration = format_duration(start_time, end_time)
+    
+    # Device statistics
+    base_url = OPENWISP_SERVER_IP.rstrip('/')
+    device_stats = []
+    
+    for dev_exec in execution_devices:
+        dev_cases = test_cases.filter(device=dev_exec.device)
+        d_pass = dev_cases.filter(status='success').count()
+        d_total = dev_cases.count()
+        
+        report_url = None
+        if dev_exec.allure_report_path:
+            media_path = dev_exec.allure_report_path.lstrip('/')
+            report_url = f"{base_url}{MEDIA_URL}{media_path}"
+        
+        device_stats.append({
+            'name': dev_exec.device.name,
+            'status': dev_exec.status,
+            'passed': d_pass,
+            'total': d_total,
+            'report_url': report_url
+        })
+    
+    # Generate CSV content
+    csv_buffer = io.StringIO()
+    writer = csv.writer(csv_buffer)
+    
+    writer.writerow([
+        'Execution ID', 'Execution Name', 'Device Name', 'Test Case ID',
+        'Test Case Name', 'Test Type', 'Status', 'Exit Code',
+        'Duration (s)', 'Error Message', 'Stdout', 'Stderr', 'Allure Report URL'
+    ])
+    
+    for tc in test_cases:
+        dev_exec = next((d for d in execution_devices if d.device_id == tc.device_id), None)
+        allure_link = ""
+        if dev_exec and dev_exec.allure_report_path:
+            media_path = dev_exec.allure_report_path.lstrip('/')
+            allure_link = f"{base_url}{MEDIA_URL}{media_path}"
+        
+        duration_sec = tc.execution_duration.total_seconds() if tc.execution_duration else ""
+        std_out_safe = (tc.stdout[:5000] if tc.stdout else "")
+        std_err_safe = (tc.stderr[:5000] if tc.stderr else "")
+        
+        writer.writerow([
+            str(execution.id), execution.name, tc.device.name, tc.test_case.test_case_id,
+            tc.test_case.name, tc.test_case.get_test_type_display(), tc.get_status_display(),
+            tc.exit_code, duration_sec, tc.error_message, std_out_safe, std_err_safe, allure_link
+        ])
+    
+    csv_content = csv_buffer.getvalue()
+    
+    # Prepare context for HTML template
+    history_url = f"{base_url}/admin/test_management/testsuiteexecution/{execution.id}/history/"
+    
+    status_display = "Completed"
+    if hasattr(execution, 'get_execution_status_display'):
+        try:
+            status_display = execution.get_execution_status_display()
+        except Exception:
+            pass
+    
+    context = {
+        'execution_name': execution.name,
+        'start_time': start_time.strftime("%Y-%m-%d %H:%M:%S"),
+        'duration': formatted_duration,
+        'total_devices': execution.device_count,
+        'total_tests': total_tests,
+        'passed_count': passed_tests,
+        'failed_count': failed_tests,
+        'device_stats': device_stats,
+        'history_url': history_url,
+        'current_year': timezone.now().year,
+        'logo_url': f"{base_url}/static/test_management/logo.png"
+    }
+    
+    logger.debug(f"[Email Prep] Data prepared successfully for execution {execution_id}")
+    
+    return {
+        'execution_id': str(execution.id),
+        'execution_name': execution.name,
+        'status_display': status_display,
+        'context': context,
+        'csv_content': csv_content,
+        'csv_filename': f"Report_{execution.name}_{datetime.now().strftime('%Y%m%d')}.csv"
+    }
+
+
+# ============================================================================
+# MAIN EMAIL ORCHESTRATION TASK
+# ============================================================================
+
+@shared_task(bind=True, max_retries=1, soft_time_limit=120, time_limit=180)
+def send_execution_completed_email(self, execution_id, created_by_id=None):
+    """
+    Main orchestration task - creates email logs and dispatches individual email tasks.
+    This task:
+    1. Validates execution exists and needs emails
+    2. Creates ExecutionEmailLog entries for each recipient
+    3. Dispatches individual email tasks in batches
+    """
+    task_id = self.request.id
+    logger.info(f"[Task {task_id}] 📧 Starting email orchestration for Execution: {execution_id}")
+    
+    lock_key = get_execution_lock_key(execution_id)
+    
+    # Acquire lock to prevent duplicate processing
+    if not acquire_lock(lock_key):
+        logger.warning(f"[Task {task_id}] Execution {execution_id} is already being processed. Skipping.")
+        return {"status": "skipped", "reason": "already_processing"}
+    
+    try:
+        # Validate execution
+        try:
+            execution = TestSuiteExecution.objects.get(pk=execution_id)
+        except TestSuiteExecution.DoesNotExist:
+            logger.error(f"[Task {task_id}] Execution {execution_id} not found")
+            return {"status": "error", "reason": "execution_not_found"}
+        
+        # Check if already completed
+        if execution.completion_email_sent:
+            logger.info(f"[Task {task_id}] Emails already sent for execution {execution_id}. Skipping.")
+            return {"status": "skipped", "reason": "already_sent"}
+        
+        # Parse email addresses
+        notification_emails = execution.notification_emails or ""
+        emails_list = [e.strip().lower() for e in notification_emails.split(",") if e.strip()]
+        
+        if not emails_list:
+            logger.warning(f"[Task {task_id}] No notification emails configured for execution {execution_id}")
+            return {"status": "skipped", "reason": "no_emails"}
+        
+        # Remove duplicates while preserving order
+        emails_list = list(dict.fromkeys(emails_list))
+        
+        logger.info(f"[Task {task_id}] Processing {len(emails_list)} unique emails for execution {execution_id}")
+        
+        # Create or get email log entries
+        email_logs_created = 0
+        email_logs_existing = 0
+        
+        for email in emails_list:
+            log, created = ExecutionEmailLog.objects.get_or_create(
+                execution=execution,
+                email_address=email,
+                defaults={
+                    'status': ExecutionEmailLog.EmailStatus.PENDING,
+                }
+            )
+            if created:
+                email_logs_created += 1
+            else:
+                email_logs_existing += 1
+        
+        logger.debug(f"[Task {task_id}] Email logs - Created: {email_logs_created}, Existing: {email_logs_existing}")
+        
+        # Get pending emails that need to be sent
+        pending_logs = ExecutionEmailLog.objects.filter(
+            execution=execution,
+            status__in=[
+                ExecutionEmailLog.EmailStatus.PENDING,
+                ExecutionEmailLog.EmailStatus.RETRY
+            ]
+        ).values_list('email_address', flat=True)
+        
+        pending_emails = list(pending_logs)
+        
+        if not pending_emails:
+            logger.info(f"[Task {task_id}] No pending emails to send for execution {execution_id}")
+            # Check if all sent successfully
+            all_sent = not ExecutionEmailLog.objects.filter(
+                execution=execution,
+                status=ExecutionEmailLog.EmailStatus.FAILED
+            ).exists()
+            if all_sent:
+                execution.completion_email_sent = True
+                execution.save(update_fields=['completion_email_sent'])
+            return {"status": "completed", "reason": "no_pending"}
+        
+        logger.info(f"[Task {task_id}] Dispatching {len(pending_emails)} email tasks")
+        
+        # Dispatch individual email tasks in batches
+        batch_count = 0
+        for i in range(0, len(pending_emails), EMAIL_BATCH_SIZE):
+            batch = pending_emails[i:i + EMAIL_BATCH_SIZE]
+            batch_count += 1
+            
+            for email in batch:
+                # Update status to QUEUED
+                ExecutionEmailLog.objects.filter(
+                    execution=execution,
+                    email_address=email
+                ).update(status=ExecutionEmailLog.EmailStatus.QUEUED)
+                
+                # Dispatch individual email task with countdown for rate limiting
+                countdown = (batch_count - 1) * 6  # 6 seconds between batches
+                task = send_single_execution_email.apply_async(
+                    args=[str(execution_id), email],
+                    countdown=countdown
+                )
+                
+                # Store task ID
+                ExecutionEmailLog.objects.filter(
+                    execution=execution,
+                    email_address=email
+                ).update(celery_task_id=task.id)
+        
+        logger.info(f"[Task {task_id}] ✅ Dispatched {len(pending_emails)} emails in {batch_count} batches")
+        
+        return {
+            "status": "dispatched",
+            "total_emails": len(pending_emails),
+            "batches": batch_count
+        }
+        
+    except Exception as e:
+        logger.exception(f"[Task {task_id}] ❌ Failed to orchestrate emails: {str(e)}")
+        raise
+    
+    finally:
+        release_lock(lock_key)
+
+
+# ============================================================================
+# INDIVIDUAL EMAIL SEND TASK
+# ============================================================================
+
+@shared_task(
+    bind=True,
+    max_retries=EMAIL_MAX_RETRIES,
+    soft_time_limit=60,
+    time_limit=90,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=300,
+    retry_jitter=True
+)
+def send_single_execution_email(self, execution_id, email_address):
+    """
+    Send a single email for an execution to one recipient.
+    This task handles:
+    1. Email lock to prevent duplicates
+    2. Preparing email content (cached)
+    3. Sending the email
+    4. Updating email log status
+    """
+    task_id = self.request.id
+    logger.info(f"[Task {task_id}] 📨 Sending email to {email_address} for execution {execution_id}")
+    
+    # Acquire lock for this specific email
+    lock_key = get_email_lock_key(execution_id, email_address)
+    if not acquire_lock(lock_key, timeout=120):
+        logger.warning(f"[Task {task_id}] Email {email_address} is being processed. Skipping.")
+        return {"status": "skipped", "reason": "locked"}
+    
+    try:
+        # Get or create email log
+        try:
+            email_log = ExecutionEmailLog.objects.get(
+                execution_id=execution_id,
+                email_address=email_address
+            )
+        except ExecutionEmailLog.DoesNotExist:
+            logger.error(f"[Task {task_id}] Email log not found for {email_address}")
+            return {"status": "error", "reason": "log_not_found"}
+        
+        # Check if already sent
+        if email_log.status == ExecutionEmailLog.EmailStatus.SENT:
+            logger.info(f"[Task {task_id}] Email already sent to {email_address}")
+            return {"status": "skipped", "reason": "already_sent"}
+        
+        # Update attempt count and status
+        email_log.attempt_count += 1
+        email_log.last_attempt_at = timezone.now()
+        email_log.status = ExecutionEmailLog.EmailStatus.QUEUED
+        email_log.celery_task_id = task_id
+        email_log.save(update_fields=['attempt_count', 'last_attempt_at', 'status', 'celery_task_id'])
+        
+        logger.debug(f"[Task {task_id}] Attempt #{email_log.attempt_count} for {email_address}")
+        
+        # Prepare email data (use cache to avoid repeated DB queries for same execution)
+        cache_key = f"email_data_{execution_id}"
+        email_data = cache.get(cache_key)
+        
+        if not email_data:
+            logger.debug(f"[Task {task_id}] Cache miss - preparing email data")
+            email_data = prepare_email_data(execution_id)
+            if email_data:
+                cache.set(cache_key, email_data, timeout=600)  # Cache for 10 minutes
+        else:
+            logger.debug(f"[Task {task_id}] Cache hit - using cached email data")
+        
+        if not email_data:
+            email_log.status = ExecutionEmailLog.EmailStatus.FAILED
+            email_log.error_message = "Failed to prepare email data - execution not found"
+            email_log.save(update_fields=['status', 'error_message'])
+            return {"status": "error", "reason": "data_preparation_failed"}
+        
+        # Validate template
+        template_name = 'email/execution_report_email.html'
+        try:
+            get_template(template_name)
+        except TemplateDoesNotExist:
+            error_msg = f"Template not found: {template_name}"
+            logger.error(f"[Task {task_id}] {error_msg}")
+            email_log.status = ExecutionEmailLog.EmailStatus.FAILED
+            email_log.error_message = error_msg
+            email_log.save(update_fields=['status', 'error_message'])
+            return {"status": "error", "reason": "template_not_found"}
+        
+        # Render HTML content
+        try:
+            html_content = render_to_string(template_name, email_data['context'])
+        except Exception as e:
+            error_msg = f"Template rendering failed: {str(e)}"
+            logger.error(f"[Task {task_id}] {error_msg}")
+            email_log.status = ExecutionEmailLog.EmailStatus.FAILED
+            email_log.error_message = error_msg
+            email_log.save(update_fields=['status', 'error_message'])
+            raise
+        
+        # Construct subject
+        subject = f"Execution Report: {email_data['execution_name']} - {email_data['status_display']}"
+        
+        # Create and send email
+        try:
+            email = EmailMultiAlternatives(
+                subject=subject,
+                body="Please view this email in an HTML compatible client.",
+                from_email=EMAIL_HOST_USER,
+                to=[email_address]
+            )
+            email.attach_alternative(html_content, "text/html")
+            email.attach(
+                email_data['csv_filename'],
+                email_data['csv_content'],
+                'text/csv'
+            )
+            
+            email.send(fail_silently=False)
+            
+            # Success - update log
+            email_log.status = ExecutionEmailLog.EmailStatus.SENT
+            email_log.sent_at = timezone.now()
+            email_log.error_message = ""
+            email_log.save(update_fields=['status', 'sent_at', 'error_message'])
+            
+            logger.info(f"[Task {task_id}] ✅ Email sent successfully to {email_address}")
+            
+            # Check if all emails for this execution are now sent
+            check_and_update_execution_email_status.delay(execution_id)
+            
+            return {"status": "sent", "email": email_address}
+            
+        except Exception as e:
+            error_msg = f"SMTP send failed: {str(e)}"
+            logger.error(f"[Task {task_id}] {error_msg}")
+            
+            # Determine if we should retry
+            if self.request.retries < EMAIL_MAX_RETRIES:
+                email_log.status = ExecutionEmailLog.EmailStatus.RETRY
+                email_log.error_message = error_msg
+                email_log.save(update_fields=['status', 'error_message'])
+                raise  # Re-raise to trigger Celery retry
+            else:
+                email_log.status = ExecutionEmailLog.EmailStatus.FAILED
+                email_log.error_message = f"Failed after {EMAIL_MAX_RETRIES} attempts: {error_msg}"
+                email_log.save(update_fields=['status', 'error_message'])
+                return {"status": "failed", "error": error_msg}
+            
+    except Exception as e:
+        logger.exception(f"[Task {task_id}] ❌ Unexpected error sending to {email_address}: {str(e)}")
+        raise
+    
+    finally:
+        release_lock(lock_key)
+
+
+# ============================================================================
+# STATUS CHECK TASK
+# ============================================================================
+
+@shared_task(bind=True, max_retries=3)
+def check_and_update_execution_email_status(self, execution_id):
+    """
+    Check if all emails for an execution have been sent and update the flag.
+    Called after each successful email send.
+    """
+    task_id = self.request.id
+    logger.debug(f"[Task {task_id}] Checking email completion for execution {execution_id}")
+    
+    try:
+        execution = TestSuiteExecution.objects.get(pk=execution_id)
+        
+        # Already marked as complete
+        if execution.completion_email_sent:
+            return {"status": "already_complete"}
+        
+        # Check email log status
+        total_logs = ExecutionEmailLog.objects.filter(execution=execution).count()
+        
+        if total_logs == 0:
+            logger.warning(f"[Task {task_id}] No email logs found for execution {execution_id}")
+            return {"status": "no_logs"}
+        
+        sent_count = ExecutionEmailLog.objects.filter(
+            execution=execution,
+            status=ExecutionEmailLog.EmailStatus.SENT
+        ).count()
+        
+        pending_count = ExecutionEmailLog.objects.filter(
+            execution=execution,
+            status__in=[
+                ExecutionEmailLog.EmailStatus.PENDING,
+                ExecutionEmailLog.EmailStatus.QUEUED,
+                ExecutionEmailLog.EmailStatus.RETRY
+            ]
+        ).count()
+        
+        failed_count = ExecutionEmailLog.objects.filter(
+            execution=execution,
+            status=ExecutionEmailLog.EmailStatus.FAILED
+        ).count()
+        
+        logger.debug(
+            f"[Task {task_id}] Email status for {execution_id}: "
+            f"Total={total_logs}, Sent={sent_count}, Pending={pending_count}, Failed={failed_count}"
+        )
+        
+        # If no more pending, mark as complete (even if some failed)
+        if pending_count == 0:
+            execution.completion_email_sent = True
+            execution.save(update_fields=['completion_email_sent'])
+            
+            logger.info(
+                f"[Task {task_id}] ✅ Execution {execution_id} email completion marked. "
+                f"Sent: {sent_count}, Failed: {failed_count}"
+            )
+            
+            return {
+                "status": "completed",
+                "sent": sent_count,
+                "failed": failed_count
+            }
+        
+        return {
+            "status": "in_progress",
+            "sent": sent_count,
+            "pending": pending_count,
+            "failed": failed_count
+        }
+        
+    except TestSuiteExecution.DoesNotExist:
+        logger.error(f"[Task {task_id}] Execution {execution_id} not found")
+        return {"status": "error", "reason": "not_found"}
+    except Exception as e:
+        logger.exception(f"[Task {task_id}] Error checking email status: {str(e)}")
+        raise
+
+
+# ============================================================================
+# RETRY FAILED EMAILS TASK
+# ============================================================================
+
+@shared_task(bind=True)
+def retry_failed_emails(self, execution_id=None, max_age_hours=24):
+    """
+    Retry failed emails for a specific execution or all recent executions.
+    Can be called manually or scheduled as a periodic task.
+    """
+    task_id = self.request.id
+    logger.info(f"[Task {task_id}] 🔄 Retrying failed emails")
+    
+    cutoff_time = timezone.now() - timedelta(hours=max_age_hours)
+    
+    # Build query
+    query = ExecutionEmailLog.objects.filter(
+        status=ExecutionEmailLog.EmailStatus.FAILED,
+        attempt_count__lt=EMAIL_MAX_RETRIES,
+        last_attempt_at__gte=cutoff_time
+    )
+    
+    if execution_id:
+        query = query.filter(execution_id=execution_id)
+    
+    failed_logs = list(query.select_related('execution'))
+    
+    if not failed_logs:
+        logger.info(f"[Task {task_id}] No failed emails to retry")
+        return {"status": "no_retries", "count": 0}
+    
+    logger.info(f"[Task {task_id}] Found {len(failed_logs)} failed emails to retry")
+    
+    retried_count = 0
+    for log in failed_logs:
+        log.status = ExecutionEmailLog.EmailStatus.RETRY
+        log.save(update_fields=['status'])
+        
+        send_single_execution_email.apply_async(
+            args=[str(log.execution_id), log.email_address],
+            countdown=retried_count * 2  # Stagger retries
+        )
+        retried_count += 1
+    
+    logger.info(f"[Task {task_id}] ✅ Queued {retried_count} emails for retry")
+    
+    return {"status": "retried", "count": retried_count}
+
+
+# ============================================================================
+# CLEANUP TASK
+# ============================================================================
+
+@shared_task(bind=True)
+def cleanup_old_email_logs(self, days_to_keep=30):
+    """
+    Clean up old email logs to prevent database bloat.
+    Schedule this as a periodic task (e.g., weekly).
+    """
+    task_id = self.request.id
+    logger.info(f"[Task {task_id}] 🧹 Cleaning up email logs older than {days_to_keep} days")
+    
+    cutoff_date = timezone.now() - timedelta(days=days_to_keep)
+    
+    deleted_count, _ = ExecutionEmailLog.objects.filter(
+        created__lt=cutoff_date,
+        status=ExecutionEmailLog.EmailStatus.SENT  # Only delete successful ones
+    ).delete()
+    
+    logger.info(f"[Task {task_id}] ✅ Deleted {deleted_count} old email logs")
+    
+    return {"status": "cleaned", "deleted": deleted_count}
+
+
+# ============================================================================
+# BULK EMAIL TASK (For 50+ executions scenario)
+# ============================================================================
+
+@shared_task(bind=True, soft_time_limit=300, time_limit=360)
+def send_bulk_execution_emails(self, execution_ids):
+    """
+    Handle bulk email sending for multiple executions.
+    Use this when you have 50+ executions to process.
+    """
+    task_id = self.request.id
+    logger.info(f"[Task {task_id}] 📧 Starting bulk email for {len(execution_ids)} executions")
+    
+    results = {
+        'total': len(execution_ids),
+        'dispatched': 0,
+        'skipped': 0,
+        'errors': 0
+    }
+    
+    for i, exec_id in enumerate(execution_ids):
+        try:
+            # Stagger execution to avoid overwhelming the system
+            countdown = i * 2  # 2 seconds between each execution
+            
+            send_execution_completed_email.apply_async(
+                args=[str(exec_id)],
+                countdown=countdown
+            )
+            results['dispatched'] += 1
+            
+        except Exception as e:
+            logger.error(f"[Task {task_id}] Failed to dispatch for execution {exec_id}: {str(e)}")
+            results['errors'] += 1
+    
+    logger.info(
+        f"[Task {task_id}] ✅ Bulk dispatch complete: "
+        f"Dispatched={results['dispatched']}, Errors={results['errors']}"
+    )
+    
+    return results

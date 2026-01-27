@@ -1,14 +1,20 @@
 [
-    
     {
         "model": "sites.site",
         "pk": 1,
         "fields": {
-            "domain": "44.193.103.240",
-            "name": "44.193.103.240"
+            "domain": "example.com",
+            "name": "example.com"
         }
     },
-   
+     {
+        "model": "sites.site",
+        "pk": 1,
+        "fields": {
+            "domain": "example.com",
+            "name": "example.com"
+        }
+    },
     {
         "model": "sites.site",
         "pk": 2,

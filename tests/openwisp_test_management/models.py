@@ -12,7 +12,8 @@ from .base.models import (
     AbstractTestDeviceGroup,
     AbstractTestDeviceGroupDevice,
     AbstractScheduledExecution,
-    AbstractExecutionArtifact
+    AbstractExecutionArtifact,
+    AbstractExecutionEmailLog
 
 )
 from django.utils.translation import gettext_lazy as _
@@ -117,3 +118,9 @@ class ExecutionArtifact(AbstractExecutionArtifact):
     class Meta(AbstractExecutionArtifact.Meta):
         abstract= False
         swappable= swappable_setting("test_management", "ExecutionArtifact")
+
+class ExecutionEmailLog(AbstractExecutionEmailLog):
+
+    class Meta(AbstractExecutionEmailLog.Meta):
+        abstract= False
+        swappable= swappable_setting("test_management", "ExecutionEmailLog")
