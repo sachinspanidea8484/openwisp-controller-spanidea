@@ -73,7 +73,7 @@ from .serializers import (
 )
 
 from ..base.models import TestExecutionStatus
-
+from django.db.models import Prefetch
 from django.utils.dateparse import parse_datetime
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
@@ -4263,10 +4263,15 @@ def test_execution_history(request, execution_id):
         # Get all execution devices
         execution_devices = TestSuiteExecutionDevice.objects.filter(
             test_suite_execution=execution
-        ).select_related('device').order_by('device__name')
+        ).order_by('device__name')
         
         print("device_exec>>>>>",execution_devices)
-        
+        device_ids = execution_devices.values_list('device_id', flat=True)
+
+        devices_map = {
+            d.id: d
+            for d in Device.all_objects.filter(id__in=device_ids)
+        }
         # Get all test case executions
         # test_case_executions = TestCaseExecution.objects.filter(
         #     test_suite_execution=execution
@@ -4282,8 +4287,8 @@ def test_execution_history(request, execution_id):
         # Build response data
         devices_data = []
         for device_exec in execution_devices:
-            device = device_exec.device
-            device_test_cases = test_case_executions.filter(device=device).order_by("created")
+            device = devices_map.get(device_exec.device_id)
+            device_test_cases = test_case_executions.filter(device_id=device_exec.device_id).order_by("created")
             
             # Calculate statistics
             total = device_test_cases.count()
@@ -4378,15 +4383,16 @@ def test_execution_history(request, execution_id):
 
             allure_report_full_path = f"{openwisp_base_url}/media/{device_exec.allure_report_path}"
             device_status = "Online"
-            ping_metric = Metric.objects.get(
-                                #  content_type__model='device',
-                                 object_id=str(device.id),
-                                 configuration='ping',
-                                 key='ping',
-                 )
+            ping_metric = Metric.objects.filter(
+                    #  content_type__model='device',
+                        object_id=str(device.id),
+                        configuration='ping',
+                        key='ping',
+                 ).first()
 
-            device_status = "Online" if ping_metric.is_healthy else "Offline"
-
+            device_status = "Online" if ping_metric and ping_metric.is_healthy else "Offline"
+            if device and device.is_deleted:
+                device_status= "Deleted"
 
             
             device_data = {
@@ -4398,7 +4404,7 @@ def test_execution_history(request, execution_id):
                 'connection_protocol': connection_protocol,''
                 'allure_report_full_path': allure_report_full_path,
                 "device_status" : device_status,
-
+                "is_deleted" : device.is_deleted,
 
 
                 'device_execution_status': device_exec.status,
@@ -5214,8 +5220,20 @@ def get_device_group_devices(request, group_id,execution_id=None):
     """
     try:
         group = get_object_or_404(TestDeviceGroup, pk=group_id)
-        
-        devices_qs = TestDeviceGroupDevice.objects.filter(group=group).select_related("device")
+
+        execution = None
+        execution_status = 0
+
+        if execution_id:
+            execution = TestSuiteExecution.objects.get(pk=execution_id)
+            execution_status = execution.status
+        include_deleted = execution_status != 0
+        devices_qs = (
+            TestDeviceGroupDevice.objects
+            .filter(group=group)
+            .select_related("device")
+        )
+                
         group_details={
             "id": str(group.pk),
             "name": group.name,
@@ -5225,8 +5243,16 @@ def get_device_group_devices(request, group_id,execution_id=None):
         devices = []
         for gd in devices_qs:
             d = gd.device
+            if not d:
+                continue
+            if d.is_deleted and include_deleted == 0:
+                continue
             if execution_id:
-                connection_protocol = TestSuiteExecutionDevice.objects.get(device=d, test_suite_execution_id=execution_id).connection_protocol 
+                exec_device = TestSuiteExecutionDevice.objects.filter(
+                    device=d,
+                    test_suite_execution_id=execution_id
+                ).first()
+                connection_protocol = exec_device.connection_protocol if exec_device else 0
             else:
                 connection_protocol=0
             devices.append({
@@ -5236,9 +5262,11 @@ def get_device_group_devices(request, group_id,execution_id=None):
                 "management_ip": getattr(d, "management_ip", None) or "-",
                 "last_ip": getattr(d, "last_ip", None) or "-",
                 "mac_address": getattr(d, "mac_address", None) or "-",
-                "status": "Deactivated" if getattr(d, "_is_deactivated", False) else "Active",
-                "connection_protocol" :connection_protocol
+                "status": "Deleted" if d.is_deleted else ("Deactivated" if getattr(d, "_is_deactivated", False) else "Active"),
+                "connection_protocol" :connection_protocol,
+                "is_deleted" : d.is_deleted,
             })
+
         
         return Response({"devices": devices, "count": len(devices), "group_details": group_details})
     except Exception as e:

@@ -10,6 +10,7 @@ from django.core.validators import (
     MinLengthValidator,
     MaxLengthValidator
 )
+from django.contrib.admin.widgets import AdminFileWidget
 from django.templatetags.static import static
 from django.template.response import TemplateResponse
 from django.contrib import admin, messages
@@ -30,7 +31,7 @@ from django.utils.translation import gettext_lazy as _
 from import_export.admin import ImportExportMixin
 from django.core.validators import RegexValidator
 from openwisp_controller.config.models import Device
-
+from django.db.models import Prefetch
 from reversion.models import Version
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
@@ -1222,7 +1223,19 @@ class TestCaseAdminForm(forms.ModelForm):
             raise ValidationError(
                 _(f"Error validating parameters: {str(e)}")
             )
- 
+        
+class ForceDownloadFileWidget(AdminFileWidget):
+    def render(self, name, value, attrs=None, renderer=None):
+        html = super().render(name, value, attrs, renderer)
+
+        if value:
+            # Safely add download attribute without breaking markup
+            html = html.replace(
+                '<a href="', '<a download href="', 1
+            )
+
+        return mark_safe(html)
+    
 # @admin.register(TestCase)
 class TestCaseAdmin(BaseVersionAdmin):
     form = TestCaseAdminForm
@@ -1466,7 +1479,9 @@ class TestCaseAdmin(BaseVersionAdmin):
                 'style': 'display: none;'
             })
 
-
+        for field_name in ("python_script", "robot_script"):
+            if field_name in form.base_fields:
+                form.base_fields[field_name].widget = ForceDownloadFileWidget()
         # **NEW: Add warning messages for EDIT mode**
         # if obj:  # Edit mode
         #  if "python_script" in form.base_fields:
@@ -2485,7 +2500,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         "name",
         # "test_selection_display",
         # "test_suite_name",
-        "device_count",
+        "active_device_count",
         "testcase_count",
         # "status_label",
         "created",
@@ -2522,6 +2537,10 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         verbose_name = _("Test Execution")  # Change from "Test Suite Execution"
         verbose_name_plural = _("Test Executions")  # Change from "Test Suite Executions"
     
+    def active_device_count(self, obj):
+        """Return human readable execution status"""
+        return obj.active_device_count
+    active_device_count.short_description = _("Device Count")
    
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -3089,19 +3108,19 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
     @admin.action(description=_("Re-Execute Selected Test Executions"))
     def re_execute_test_suite(self, request, queryset):
-     """Create replica of executions and execute immediately"""
-     from .tasks import execute_test_suite as execute_test_suite_task
-     from .models import ExecutionArtifact
-     
-     re_executed_count = 0
-     failed_count = 0
-     
-     # Store successfully created executions to trigger AFTER all transactions complete
-     executions_to_trigger = []
-     
-     for original in queryset:
-          try:
-               with transaction.atomic():
+        """Create replica of executions and execute immediately"""
+        from .tasks import execute_test_suite as execute_test_suite_task
+        from .models import ExecutionArtifact
+        
+        re_executed_count = 0
+        failed_count = 0
+        
+        # Store successfully created executions to trigger AFTER all transactions complete
+        executions_to_trigger = []
+        
+        for original in queryset:
+            try:
+                with transaction.atomic():
                     # Get root execution
                     root = original.parent_execution or original
                     
@@ -3111,98 +3130,105 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     
                     # Clone the execution
                     new_execution = TestSuiteExecution(
-                         name=f"{root.name}_{new_index}",
-                         test_selection_type=original.test_selection_type,
-                         test_suite=original.test_suite,
-                         test_case_execution_order=original.test_case_execution_order,
-                         device_selection=original.device_selection,
-                         device_group=original.device_group,
-                         notification_emails=original.notification_emails,
-                         parent_execution=root,
-                         re_execution_index=new_index,
-                         created_by=request.user,
-                         is_executed=False,
+                        name=f"{root.name}_{new_index}",
+                        test_selection_type=original.test_selection_type,
+                        test_suite=original.test_suite,
+                        test_case_execution_order=original.test_case_execution_order,
+                        device_selection=original.device_selection,
+                        device_group=original.device_group,
+                        notification_emails=original.notification_emails,
+                        parent_execution=root,
+                        re_execution_index=new_index,
+                        created_by=request.user,
+                        is_executed=False,
                     )
                     new_execution.save()
                     
                     # Copy M2M for individual test cases
                     if original.test_selection_type == 0:
-                         new_execution.individual_test_cases.set(
-                              original.individual_test_cases.all()
-                         )
+                        new_execution.individual_test_cases.set(
+                            original.individual_test_cases.all()
+                        )
                     
                     # Clone devices
                     for dev in TestSuiteExecutionDevice.objects.filter(
-                         test_suite_execution=original
+                        test_suite_execution=original
                     ):
-                         TestSuiteExecutionDevice.objects.create(
-                              test_suite_execution=new_execution,
-                              device=dev.device,
-                              connection_protocol=dev.connection_protocol,
-                              status='pending'
-                         )
+                        if not dev.device.is_deleted:
+                            TestSuiteExecutionDevice.objects.create(
+                                test_suite_execution=new_execution,
+                                device=dev.device,
+                                connection_protocol=dev.connection_protocol,
+                                status='pending'
+                            )
                     
                     # Clone artifacts (config files)
                     for artifact in ExecutionArtifact.objects.filter(
-                         execution=original
+                        execution=original
                     ):
-                         ExecutionArtifact.objects.create(
-                              execution=new_execution,
-                              device=artifact.device,
-                              testcase=artifact.testcase,
-                              config_file=artifact.config_file,
-                              is_pushed=False
-                         )
+                        ExecutionArtifact.objects.create(
+                            execution=new_execution,
+                            device=artifact.device,
+                            testcase=artifact.testcase,
+                            config_file=artifact.config_file,
+                            is_pushed=False
+                        )
                     
                     # Update counts
                     new_execution.device_count = TestSuiteExecutionDevice.objects.filter(
-                         test_suite_execution=new_execution
+                        test_suite_execution=new_execution
                     ).count()
                     new_execution.testcase_count = (
-                         new_execution.test_suite.test_case_count 
-                         if new_execution.test_selection_type == 1 and new_execution.test_suite
-                         else new_execution.individual_test_cases.count()
+                        new_execution.test_suite.test_case_count 
+                        if new_execution.test_selection_type == 1 and new_execution.test_suite
+                        else new_execution.individual_test_cases.count()
                     )
                     new_execution.is_executed = True
                     new_execution.save(update_fields=['device_count', 'testcase_count', 'is_executed'])
                     
                     # DON'T trigger task here - store for later
-                    executions_to_trigger.append(new_execution.id)
+                    # executions_to_trigger.append(new_execution.id)
+
+                    execution_id = str(new_execution.id)
+
+                    transaction.on_commit(
+                        lambda eid=execution_id: execute_test_suite_task.delay(eid)
+                    )
                     re_executed_count += 1
                     logger.info(f"Re-executed {original.id} -> {new_execution.id}")
-                    
-          except Exception as e:
-               failed_count += 1
-               logger.error(f"Failed to re-execute {original.id}: {e}", exc_info=True)
-               self.message_user(
-                    request,
-                    f"Failed to re-execute {original}: {str(e)}",
-                    messages.ERROR
-               )
+                        
+            except Exception as e:
+                failed_count += 1
+                logger.error(f"Failed to re-execute {original.id}: {e}", exc_info=True)
+                self.message_user(
+                        request,
+                        f"Failed to re-execute {original}: {str(e)}",
+                        messages.ERROR
+                )
      
-     # NOW trigger all Celery tasks AFTER all transactions have committed
-     for execution_id in executions_to_trigger:
-          try:
-               execute_test_suite_task.delay(str(execution_id))
-               logger.info(f"Queued Celery task for execution {execution_id}")
-          except Exception as e:
-               logger.error(f"Failed to queue task for {execution_id}: {e}")
-               self.message_user(
-                    request,
-                    f"Created execution {execution_id} but failed to start: {str(e)}",
-                    messages.WARNING
-               )
-     
-     if re_executed_count > 0:
-          self.message_user(
-               request,
-               ngettext(
-                    "%d test execution was re-executed.",
-                    "%d test executions were re-executed.",
-                    re_executed_count,
-               ) % re_executed_count,
-               messages.SUCCESS,
-          )
+        # NOW trigger all Celery tasks AFTER all transactions have committed
+        # for execution_id in executions_to_trigger:
+        #     try:
+        #         execute_test_suite_task.delay(str(execution_id))
+        #         logger.info(f"Queued Celery task for execution {execution_id}")
+        #     except Exception as e:
+        #         logger.error(f"Failed to queue task for {execution_id}: {e}")
+        #         self.message_user(
+        #                 request,
+        #                 f"Created execution {execution_id} but failed to start: {str(e)}",
+        #                 messages.WARNING
+        #         )
+        
+        if re_executed_count > 0:
+            self.message_user(
+                request,
+                ngettext(
+                        "%d test execution was re-executed.",
+                        "%d test executions were re-executed.",
+                        re_executed_count,
+                ) % re_executed_count,
+                messages.SUCCESS,
+            )
     
     # def execution_status(self, obj):
     #     """Display execution status summary"""
@@ -3365,7 +3391,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 else:
                     test_count = execution.individual_test_cases.count()
 
-                device_count = execution.device_count
+                device_count = execution.active_device_count
                 
                 # if test_count == 0:
                 #     logger.warning(f"No tests found for execution {execution.id}")
@@ -3377,15 +3403,15 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 #         )
                 #     continue
                 
-                # if device_count == 0:
-                #     logger.warning(f"No devices for execution {execution.id}")
-                #     if request:
-                #         self.message_user(
-                #             request,
-                #             f"Skipped {execution}: No devices configured",
-                #             messages.WARNING
-                #         )
-                #     continue
+                if device_count == 0:
+                    logger.warning(f"No devices for execution {execution.id}")
+                    if request:
+                        self.message_user(
+                            request,
+                            f"Skipped {execution}: No devices configured",
+                            messages.WARNING
+                        )
+                    continue
                 
                 # Mark as executed
                 execution.is_executed = True
@@ -3461,14 +3487,16 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             print("....ax",scheduled_dt)
             # Pass it to the template context
             extra_context['scheduled_datetime'] = scheduled_dt
-            related_devices= TestSuiteExecutionDevice.objects.filter(
+            related_devices = TestSuiteExecutionDevice.objects.filter(
                 test_suite_execution=obj
             ).select_related("device")
 
             device_protocol_map={
                 str(dev.device_id) : dev.connection_protocol for dev in related_devices
             }
-            devices_query = Device.objects.filter(
+
+            device_manager = Device.all_objects if obj.status != 0 else Device.objects
+            devices_query = device_manager.filter(
                 id__in=device_protocol_map.keys()
             ).select_related("organization")
             devices_data = []
@@ -3483,6 +3511,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 elif getattr(device, "last_ip", None):
                     device_status = "Reachable"
 
+                if device.is_deleted:
+                    device_status= "Deleted"
                 devices_data.append({
                     "id": str(device.id),
                     "name": device.name,

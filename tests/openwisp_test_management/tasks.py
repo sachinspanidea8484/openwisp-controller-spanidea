@@ -24,6 +24,7 @@ from datetime import timedelta
 from .settings import EXECUTOR_SERVER_IP ,OPENWISP_SERVER_IP ,MEDIA_URL ,EMAIL_HOST_USER
 from .base.models import TestExecutionStatus
 
+from django.urls import reverse
 
 from django.db import transaction
 from django.core.cache import cache
@@ -118,7 +119,8 @@ def execute_test_suite(execution_id):
             print(f"[TASK] execute_test_suite - Launching device execution ID: {device_execution.id} for device: {device_execution.device.name}")
             
             # Queue the device execution task
-            execute_tests_on_device.delay(device_execution.id)
+            if not device_execution.device.is_deleted:
+                execute_tests_on_device.delay(device_execution.id)
             
         logger.info(f"Successfully queued test execution for {device_count} devices")
         print(f"[TASK] execute_test_suite - Successfully queued {device_count} device executions")

@@ -19,7 +19,25 @@ from ..signals import (
 )
 from ..validators import device_name_validator, mac_address_validator
 from .base import BaseModel
+from django.utils import timezone
 
+class DeviceQuerySet(models.QuerySet):
+    def alive(self):
+        return self.filter(is_deleted=False)
+
+    def deleted(self):
+        return self.filter(is_deleted=True)
+    
+    def delete(self, *args, **kwargs):
+        count = 0
+        for obj in self:
+            obj.delete()
+            count += 1
+        return count, {self.model._meta.label: count}
+
+class DeviceManager(models.Manager):
+    def get_queryset(self):
+        return DeviceQuerySet(self.model, using=self._db).alive()
 
 class AbstractDevice(OrgMixin, BaseModel):
     """
@@ -27,12 +45,12 @@ class AbstractDevice(OrgMixin, BaseModel):
     Stores information related to the
     physical properties of a network device
     """
-
+    objects = DeviceManager()
+    all_objects = models.Manager()
     _changed_checked_fields = ["name", "group_id", "management_ip", "organization_id"]
 
     name = models.CharField(
         max_length=64,
-        unique=True,
         validators=[device_name_validator],
         db_index=True,
         help_text=_("must be either a valid hostname or mac address"),
@@ -45,7 +63,6 @@ class AbstractDevice(OrgMixin, BaseModel):
         help_text=_("primary mac address"),
     )
     key = KeyField(
-        unique=True,
         blank=True,
         default=None,
         db_index=True,
@@ -107,12 +124,35 @@ class AbstractDevice(OrgMixin, BaseModel):
     # directly, use the deactivate() method instead.
     _is_deactivated = models.BooleanField(default=False)
 
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+
     class Meta:
-        unique_together = (
-            ("mac_address", "organization"),
-            ("hardware_id", "organization"),
-        )
+       
         abstract = True
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name"],
+                condition=Q(is_deleted=False),
+                name="unique_device_name_alive",
+            ),
+            models.UniqueConstraint(
+                fields=["key"],
+                condition=Q(is_deleted=False) & Q(key__isnull=False),
+                name="unique_device_key_alive_not_null",
+            ),
+            models.UniqueConstraint(
+                fields=["mac_address", "organization"],
+                condition=Q(is_deleted=False),
+                name="unique_mac_org_alive",
+            ),
+            models.UniqueConstraint(
+                fields=["hardware_id", "organization"],
+                condition=Q(is_deleted=False),
+                name="unique_hardware_org_alive",
+            ),
+        ]
         verbose_name = app_settings.DEVICE_VERBOSE_NAME[0]
         verbose_name_plural = app_settings.DEVICE_VERBOSE_NAME[1]
 
@@ -288,12 +328,13 @@ class AbstractDevice(OrgMixin, BaseModel):
             self._check_changed_fields()
 
     def delete(self, using=None, keep_parents=False, check_deactivated=True):
-        if check_deactivated and (
-            not self.is_deactivated()
-            or (self._has_config() and not self.config.is_deactivated())
-        ):
-            raise PermissionDenied("The device must be deactivated prior to deletion")
-        return super().delete(using, keep_parents)
+        with transaction.atomic():
+            if check_deactivated:
+                self.deactivate()
+            self.is_deleted= True
+            self.deleted_at= timezone.now()
+            self.save(update_fields= ["is_deleted", "deleted_at"])
+        # return super().delete(using, keep_parents)
 
     def _check_changed_fields(self):
         self._get_initial_values_for_checked_fields()
