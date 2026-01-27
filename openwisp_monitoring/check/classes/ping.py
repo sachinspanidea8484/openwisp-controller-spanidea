@@ -269,6 +269,8 @@ class Ping(BaseCheck):
           
           logger.warning(f"📤 Sending payload to {executor_api_url}:")
           logger.warning(f"   {payload}")
+
+        #   return phase ii ms1 
           
           # UNCOMMENT THIS WHEN YOU HAVE REAL API
           response = requests.post(
