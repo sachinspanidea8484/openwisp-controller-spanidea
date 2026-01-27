@@ -51,7 +51,6 @@ class AbstractDevice(OrgMixin, BaseModel):
 
     name = models.CharField(
         max_length=64,
-        unique=True,
         validators=[device_name_validator],
         db_index=True,
         help_text=_("must be either a valid hostname or mac address"),
@@ -64,7 +63,6 @@ class AbstractDevice(OrgMixin, BaseModel):
         help_text=_("primary mac address"),
     )
     key = KeyField(
-        unique=True,
         blank=True,
         default=None,
         db_index=True,
@@ -131,11 +129,30 @@ class AbstractDevice(OrgMixin, BaseModel):
 
 
     class Meta:
-        unique_together = (
-            ("mac_address", "organization"),
-            ("hardware_id", "organization"),
-        )
+       
         abstract = True
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name"],
+                condition=Q(is_deleted=False),
+                name="unique_device_name_alive",
+            ),
+            models.UniqueConstraint(
+                fields=["key"],
+                condition=Q(is_deleted=False) & Q(key__isnull=False),
+                name="unique_device_key_alive_not_null",
+            ),
+            models.UniqueConstraint(
+                fields=["mac_address", "organization"],
+                condition=Q(is_deleted=False),
+                name="unique_mac_org_alive",
+            ),
+            models.UniqueConstraint(
+                fields=["hardware_id", "organization"],
+                condition=Q(is_deleted=False),
+                name="unique_hardware_org_alive",
+            ),
+        ]
         verbose_name = app_settings.DEVICE_VERBOSE_NAME[0]
         verbose_name_plural = app_settings.DEVICE_VERBOSE_NAME[1]
 
