@@ -328,10 +328,12 @@ class AbstractDevice(OrgMixin, BaseModel):
             self._check_changed_fields()
 
     def delete(self, using=None, keep_parents=False, check_deactivated=True):
-        
-        self.is_deleted= True
-        self.deleted_at= timezone.now()
-        self.save(update_fields= ["is_deleted", "deleted_at"])
+        with transaction.atomic():
+            if check_deactivated:
+                self.deactivate()
+            self.is_deleted= True
+            self.deleted_at= timezone.now()
+            self.save(update_fields= ["is_deleted", "deleted_at"])
         # return super().delete(using, keep_parents)
 
     def _check_changed_fields(self):

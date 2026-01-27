@@ -859,8 +859,11 @@ class DeviceAdmin(MultitenantAdminMixin, BaseConfigAdmin, UUIDAdmin):
                 perms_needed = set()
             else:
                 perms_needed = {"active_devices"}
-        return to_delete, model_count, perms_needed, protected
+        # return to_delete, model_count, perms_needed, protected
+        return [], {}, set(), []
 
+    
+ 
     def get_fields(self, request, obj=None):
         """
         Do not show readonly fields in add form
