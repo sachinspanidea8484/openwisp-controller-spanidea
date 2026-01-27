@@ -5,6 +5,8 @@ from django.utils import timezone
 from openwisp_controller.connection.connectors.ssh import Ssh
 from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Config as DeviceConfig
+from openwisp_monitoring.monitoring.models import Metric
+
 from uuid import UUID
 from .swapper import load_model
 from .base.models import TestExecutionStatus
@@ -131,7 +133,25 @@ def execute_test_suite(execution_id):
         logger.error(error_msg, exc_info=True)
         print(f"[ERROR] execute_test_suite - {error_msg}")
 
+def is_device_reachable(device_id):
+    # Get ping metric status
+    device_status = "Offline"
+    try:
+        ping_metric = Metric.objects.get(
+            object_id=device_id,
+            configuration='ping',
+            key='ping',
+        )
 
+        device_status = "Online" if ping_metric.is_healthy else "Offline"
+
+    except Metric.DoesNotExist:
+        logger.debug(f"ping_metric {ping_metric} ")
+        device_status = "Offline"
+    if device_status == "Online":
+        return True
+    else:
+        return False
 
 @shared_task
 def execute_tests_on_device(device_execution_id):
@@ -224,7 +244,6 @@ def execute_tests_on_device(device_execution_id):
         all_test_execution_ids = []
         device_config = DeviceConfig.objects.filter(device=device).first()
 
-        
         device_data = {
             "device_name": device.name,
             "management_ip": device.management_ip,
@@ -477,7 +496,6 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
         all_test_execution_ids = []
         device_config = DeviceConfig.objects.filter(device=device).first()
 
-        
         device_data = {
             "device_name": device.name,
             "management_ip": device.management_ip,
@@ -638,6 +656,7 @@ def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite
         "device_name": device_data.get('device_name', 'N/A'),
         "management_ip": device_data.get('management_ip', 'N/A'),
         "device_id": str(device_data.get('device_id', '')),
+        "reachable": is_device_reachable(str(device_data.get('device_id', ''))),
         "ssh": device_data.get('ssh', {}),
         "configuration": device_data.get('configuration', {}),
         "connection_protocol" : device_execution_connection_protocol
@@ -975,14 +994,15 @@ def retry_test_execution(test_execution_id):
 
 
 @shared_task
-def abort_test_execution_pending_tests(test_group_execution_id):
+def abort_device_pending_tests(test_group_execution_id, device_id):
     """
     Abort all pending tests for test execution
     """
     try:
         abort_pending_tests_api_url = f"{EXECUTOR_SERVER_IP}/api/v1/abort-pending-tests/"
         abort_pending_tests_api_payload = {
-            "test_group_execution_id": str(test_group_execution_id)
+            "test_group_execution_id": str(test_group_execution_id),
+            "device_id": device_id
         }
         # Check if API is reachable first
         try:
@@ -1018,8 +1038,8 @@ def abort_test_execution_pending_tests(test_group_execution_id):
             logger.error(f"Executor server API call failed: {response.status_code}")
             print(f"\n[DEBUG] ❌ API call failed! Status: {response.status_code}")
     except Exception as e:
-        logger.error(f"Error aborting pending tests for test execution {test_group_execution_id}: {str(e)}")
-        print(f"[ERROR] abort_test_execution_pending_tests - Error: {str(e)}")
+        logger.error(f"Error aborting pending tests for device execution {device_id }: {str(e)}")
+        print(f"[ERROR] abort_device_pending_tests - Error: {str(e)}")
 
 
 @shared_task
@@ -1059,14 +1079,6 @@ def abort_test_execution(test_execution_id):
         
         # Reset the test execution status
         test_execution.status = TestExecutionStatus.ABORTING
-        test_execution.started_at = None
-        test_execution.completed_at = None
-        test_execution.stdout = ''
-        test_execution.stderr = ''
-        test_execution.exit_code = None
-        test_execution.error_message = ''
-        test_execution.execution_duration = None
-        test_execution.retry_count += 1
         test_execution.save()
 
         device_data = {
