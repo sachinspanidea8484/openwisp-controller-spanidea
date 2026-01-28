@@ -30,6 +30,9 @@ class BaseSerializer(ValidatedModelSerializer):
 
 
 
+# ============================================================================
+# TEST CATEGORY SERIALIZERS
+# ============================================================================
 
 class TestCategorySerializer(ValidatedModelSerializer):
     """
@@ -138,6 +141,249 @@ class TestCategoryDetailSerializer(ValidatedModelSerializer):
 
 
 
+
+
+
+
+
+# ============================================================================
+# TEST SUITE (TEST GROUP) SERIALIZERS
+# ============================================================================
+
+class TestSuiteCaseSerializer(serializers.ModelSerializer):
+    """Serializer for TestSuiteCase (join table with order)"""
+    test_case_name = serializers.CharField(source='test_case.name', read_only=True)
+    test_case_id = serializers.CharField(source='test_case.test_case_id', read_only=True)
+    
+    class Meta:
+        model = TestSuiteCase
+        fields = ['id', 'test_case', 'test_case_name', 'test_case_id', 'order', 'created', 'modified']
+        read_only_fields = ['id', 'created', 'modified', 'test_case_name', 'test_case_id']
+
+
+class TestCaseForGroupSerializer(serializers.ModelSerializer):
+    """Minimal test case serializer for test group"""
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    
+    class Meta:
+        model = TestCase
+        fields = [
+            'id',
+            'name',
+            'test_case_id',
+            'category',
+            'category_name',
+            'test_type',
+            'is_active',
+            'created_by',
+            'created',
+        ]
+        read_only_fields = fields
+
+
+class TestSuiteSerializer(ValidatedModelSerializer):
+    """Serializer for TestSuite (Test Group) List and Create"""
+    test_case_count = serializers.SerializerMethodField()
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
+    
+    class Meta(BaseMeta):
+        model = TestSuite
+        fields = [
+            'id',
+            'name',
+            'description',
+            'is_active',
+            'test_case_count',
+            'created_by',
+            'created_by_username',
+            'created',
+            'modified',
+        ]
+        read_only_fields = ['created', 'modified', 'test_case_count', 'created_by_username']
+    
+    def get_test_case_count(self, obj):
+        """Get count of test cases in this group"""
+        return obj.test_cases.count()
+    
+    def validate_name(self, value):
+        """Validate test group name uniqueness (case-insensitive)"""
+        qs = TestSuite.objects.filter(name__iexact=value)
+        
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        
+        if qs.exists():
+            raise serializers.ValidationError(
+                _("A test group with this name already exists")
+            )
+        
+        return value
+    
+    def create(self, validated_data):
+        """Set created_by from request user"""
+        request = self.context.get('request')
+        if request and request.user:
+            validated_data['created_by'] = request.user
+        return super().create(validated_data)
+
+
+class TestSuiteDetailSerializer(ValidatedModelSerializer):
+    """Detailed serializer for TestSuite retrieve with test cases"""
+    test_cases_detail = serializers.SerializerMethodField()
+    test_case_count = serializers.SerializerMethodField()
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
+    
+    # M2M field for test cases (IDs only for update)
+    test_case_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=TestCase.objects.all(),
+        source='test_cases',
+        write_only=True,
+        required=False
+    )
+    
+    class Meta(BaseMeta):
+        model = TestSuite
+        fields = [
+            'id',
+            'name',
+            'description',
+            'is_active',
+            'test_case_count',
+            'test_cases_detail',
+            'test_case_ids',  # For updates
+            'created_by',
+            'created_by_username',
+            'created',
+            'modified',
+        ]
+        read_only_fields = [
+            'created',
+            'modified',
+            'test_case_count',
+            'test_cases_detail',
+            'created_by',
+            'created_by_username'
+        ]
+    
+    def get_test_cases_detail(self, obj):
+        """Get ordered test cases with details"""
+        suite_cases = obj.suite_cases.all().select_related('test_case', 'test_case__category')
+        
+        result = []
+        for suite_case in suite_cases:
+            result.append({
+                'id': suite_case.test_case.id,
+                'name': suite_case.test_case.name,
+                'test_case_id': suite_case.test_case.test_case_id,
+                'category': suite_case.test_case.category.id,
+                'category_name': suite_case.test_case.category.name,
+                'test_type': suite_case.test_case.test_type,
+                'is_active': suite_case.test_case.is_active,
+                'order': suite_case.order,
+                'created_by': suite_case.test_case.created_by_id,
+            })
+        
+        return result
+    
+    def get_test_case_count(self, obj):
+        """Get count of test cases"""
+        return obj.test_cases.count()
+    
+    def validate_name(self, value):
+        """Validate test group name uniqueness"""
+        qs = TestSuite.objects.filter(name__iexact=value)
+        
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        
+        if qs.exists():
+            raise serializers.ValidationError(
+                _("A test group with this name already exists")
+            )
+        
+        return value
+    
+    def update(self, instance, validated_data):
+        """Handle M2M update for test_cases"""
+        test_cases = validated_data.pop('test_cases', None)
+        
+        # Update basic fields
+        instance = super().update(instance, validated_data)
+        
+        # Update M2M relationship if provided
+        if test_cases is not None:
+            instance.test_cases.set(test_cases)
+        
+        return instance
+
+
+class AddTestCasesToGroupSerializer(serializers.Serializer):
+    """Serializer for adding test cases to a test group"""
+    test_case_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        min_length=1,
+        help_text=_("List of test case IDs to add to the group")
+    )
+    
+    def validate_test_case_ids(self, value):
+        """Validate test cases exist"""
+        existing_ids = TestCase.objects.filter(id__in=value).values_list('id', flat=True)
+        existing_ids = [str(id) for id in existing_ids]
+        
+        missing_ids = set(str(id) for id in value) - set(existing_ids)
+        if missing_ids:
+            raise serializers.ValidationError(
+                _("Test cases not found: {}").format(', '.join(missing_ids))
+            )
+        
+        return value
+
+
+class RemoveTestCasesFromGroupSerializer(serializers.Serializer):
+    """Serializer for removing test cases from a test group"""
+    test_case_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        min_length=1,
+        help_text=_("List of test case IDs to remove from the group")
+    )
+
+
+# ============================================================================
+# TEST CASE LISTING WITH CATEGORY FILTER SERIALIZER
+# ============================================================================
+
+class TestCaseListSerializer(serializers.ModelSerializer):
+    """Serializer for test case listing with category filter"""
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    category_code = serializers.CharField(source='category.code', read_only=True)
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
+    suite_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TestCase
+        fields = [
+            'id',
+            'name',
+            'test_case_id',
+            'category',
+            'category_name',
+            'category_code',
+            'description',
+            'test_type',
+            'is_active',
+            'is_configuration_push_required',
+            'suite_count',
+            'created_by',
+            'created_by_username',
+            'created',
+            'modified',
+        ]
+        read_only_fields = fields
+    
+    def get_suite_count(self, obj):
+        """Get count of test suites containing this test case"""
+        return obj.test_suites.count()
 
 # OLD
 
@@ -260,113 +506,6 @@ class TestSuiteCaseSerializer(serializers.ModelSerializer):
     class Meta:
         model = TestSuiteCase
         fields = ["id", "test_case", "test_case_detail", "order"]
-
-
-class TestSuiteSerializer(ValidatedModelSerializer):
-    """Serializer for TestSuite model"""
-    # category_detail = TestCategoryRelationSerializer(source="category", read_only=True)
-    test_case_count = serializers.IntegerField(read_only=True)
-    execution_count = serializers.IntegerField(read_only=True)
-    test_cases = TestSuiteCaseSerializer(
-        source="testsuitecase_set",
-        many=True,
-        read_only=True
-    )
-    test_case_ids = serializers.ListField(
-        child=serializers.UUIDField(),
-        write_only=True,
-        required=False,
-        help_text=_("List of test case IDs to include in the suite")
-    )
-
-    
-    class Meta(BaseMeta):
-        model = TestSuite
-        fields = [
-            "id",
-            "name",
-            "description",
-            "is_active",
-            # "category",
-            # "category_detail",
-            "test_cases",
-            "test_case_ids",
-            "test_case_count",
-            "execution_count",
-            "created",
-            "modified",
-        ]
-        read_only_fields = BaseMeta.read_only_fields + [
-            "test_case_count",
-            "execution_count",
-        ]
-
-
-
-    def validate_name(self, value):
-        """Ensure name is not empty and properly formatted"""
-        if not value or not value.strip():
-            raise serializers.ValidationError(_("Name cannot be empty"))
-        return value.strip()
-
-    def validate_test_case_ids(self, value):
-        """Validate test case IDs belong to the same category"""
-        if not value:
-            return value
-        
-        
-        
-        # Build test case queryset
-        test_cases_qs = TestCase.objects.filter(
-            id__in=value,
-            # category=category,
-            is_active=True
-        )
-        
-        # Apply test_type filter if provided
-        if 'filter_test_type' in self.initial_data:
-            test_cases_qs = test_cases_qs.filter(
-                test_type=self.initial_data['filter_test_type']
-            )
-        
-        if test_cases_qs.count() != len(value):
-            raise serializers.ValidationError(_("Some test case IDs are invalid or don't match the filter"))
-        
-        return value
-
-    def create(self, validated_data):
-        """Create test suite with test cases"""
-        test_case_ids = validated_data.pop('test_case_ids', [])
-        instance = super().create(validated_data)
-        
-        # Add test cases with order
-        for order, test_case_id in enumerate(test_case_ids, start=1):
-            TestSuiteCase.objects.create(
-                test_suite=instance,
-                test_case_id=test_case_id,
-                order=order
-            )
-        
-        return instance
-
-    def update(self, instance, validated_data):
-        """Update test suite with test cases"""
-        test_case_ids = validated_data.pop('test_case_ids', None)
-        instance = super().update(instance, validated_data)
-        
-        if test_case_ids is not None:
-            # Clear existing test cases
-            instance.testsuitecase_set.all().delete()
-            
-            # Add new test cases with order
-            for order, test_case_id in enumerate(test_case_ids, start=1):
-                TestSuiteCase.objects.create(
-                    test_suite=instance,
-                    test_case_id=test_case_id,
-                    order=order
-                )
-        
-        return instance
 
 
 class TestSuiteListSerializer(TestSuiteSerializer):

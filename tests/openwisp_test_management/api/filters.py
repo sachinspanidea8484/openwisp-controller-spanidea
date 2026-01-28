@@ -11,6 +11,9 @@ from ..base.models import TestTypeChoices  # ADD THIS IMPORT
 
 
 
+# ============================================================================
+# TEST CATEGORY FILTERS
+# ============================================================================
 class TestCategoryFilter(filters.FilterSet):
     """
     Filter for TestCategory
@@ -33,6 +36,76 @@ class TestCategoryFilter(filters.FilterSet):
         fields = ["name", "code"]
 
 
+# ============================================================================
+# TEST SUITE (TEST GROUP) FILTERS
+# ============================================================================
+
+class TestSuiteFilter(filters.FilterSet):
+    """Filter for TestSuite (Test Group)"""
+    name = filters.CharFilter(
+        field_name="name",
+        lookup_expr="icontains",
+        label=_("Group Name (contains)")
+    )
+    
+    is_active = filters.BooleanFilter(
+        field_name="is_active",
+        label=_("Is Active")
+    )
+    
+    created_by = filters.UUIDFilter(
+        field_name="created_by",
+        label=_("Created By (User ID)")
+    )
+    
+    class Meta:
+        model = TestSuite
+        fields = ["name", "is_active", "created_by"]
+
+
+# ============================================================================
+# TEST CASE FILTERS (FOR LISTING API)
+# ============================================================================
+
+class TestCaseListFilter(filters.FilterSet):
+    """Filter for TestCase listing"""
+    name = filters.CharFilter(
+        field_name="name",
+        lookup_expr="icontains",
+        label=_("Test Case Name (contains)")
+    )
+    
+    test_case_id = filters.CharFilter(
+        field_name="test_case_id",
+        lookup_expr="icontains",
+        label=_("Test Case ID (contains)")
+    )
+    
+    category = filters.ModelMultipleChoiceFilter(
+        field_name="category",
+        queryset=load_model("TestCategory").objects.all(),
+        label=_("Category (multiple)")
+    )
+    
+    test_type = filters.ChoiceFilter(
+        field_name="test_type",
+        choices=[(1, 'Robot Framework'), (2, 'Device')],
+        label=_("Test Type")
+    )
+    
+    is_active = filters.BooleanFilter(
+        field_name="is_active",
+        label=_("Is Active")
+    )
+    
+    created_by = filters.UUIDFilter(
+        field_name="created_by",
+        label=_("Created By (User ID)")
+    )
+    
+    class Meta:
+        model = TestCase
+        fields = ["name", "test_case_id", "category", "test_type", "is_active", "created_by"]
 
 # OLD 
 

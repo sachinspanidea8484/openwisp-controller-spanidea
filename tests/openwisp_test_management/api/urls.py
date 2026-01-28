@@ -10,7 +10,11 @@ urlpatterns = [
     path(
         "test-management/",
         include([
-    # native use
+    # NATIVE APIS
+
+    # ========================================================================
+    # TEST CATEGORY ENDPOINTS
+    # ========================================================================
     # List all categories OR create new category
     path(
         "test-category/",
@@ -25,11 +29,57 @@ urlpatterns = [
     ),
 
 
+    # ========================================================================
+    # TEST SUITE (TEST GROUP) ENDPOINTS
+    # ========================================================================
+    
+    # List and create test groups
+    path(
+        "test-group/",
+        views.test_suite_list,
+        name="api_test_group_list",
+    ),
+    
+    # Retrieve, update, delete test group
+    path(
+        "test-group/<uuid:pk>/",
+        views.test_suite_detail,
+        name="api_test_group_detail",
+    ),
+    
+    # Add test cases to group
+    path(
+        "test-group/<uuid:pk>/add-test-cases/",
+        views.add_test_cases_to_group,
+        name="api_test_group_add_test_cases",
+    ),
+    
+    # Remove test cases from group
+    path(
+        "test-group/<uuid:pk>/remove-test-cases/",
+        views.remove_test_cases_from_group,
+        name="api_test_group_remove_test_cases",
+    ),
+
+
+
+    # ========================================================================
+    # TEST CASE LISTING (WITH CATEGORY FILTER)
+    # ========================================================================
+    
+    # List test cases with category filter
+    path(
+        "test-cases/",
+        views.test_case_list_view,
+        name="api_test_case_list",
+    ),
+
+
 
            
 
 
-       # external use    
+       # EXTERNAL APIS  
             path(
                 "category/get-test-cases/",
                 executor_views.get_categories_test_cases,
