@@ -12,14 +12,29 @@ from ..base.models import TestTypeChoices  # ADD THIS IMPORT
 
 
 class TestCategoryFilter(filters.FilterSet):
-    """API filter for test categories"""
-    name = filters.CharFilter(field_name="name", lookup_expr="icontains")
+    """
+    Filter for TestCategory
+    Allows filtering by name and code
+    """
+    name = filters.CharFilter(
+        field_name="name",
+        lookup_expr="icontains",
+        label=_("Category Name (contains)")
+    )
+    
+    code = filters.CharFilter(
+        field_name="code",
+        lookup_expr="iexact",
+        label=_("Category Code (exact)")
+    )
     
     class Meta:
         model = TestCategory
-        fields = [
-            "name",
-        ]
+        fields = ["name", "code"]
+
+
+
+# OLD 
 
 
 class TestCaseFilter(filters.FilterSet):

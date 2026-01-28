@@ -1,16 +1,14 @@
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
-
 from openwisp_utils.api.serializers import ValidatedModelSerializer
-
+from ..swapper import load_model
 
 from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Device
-
 from ..base.models import TestExecutionStatus  # ADD THIS IMPORT
-
 from ..swapper import load_model
 
+# MODEL 
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
 TestSuite = load_model("TestSuite")
@@ -22,6 +20,7 @@ TestDeviceGroup= load_model("TestDeviceGroup")
 
 
 class BaseMeta:
+    """Base meta class for all serializers"""
     read_only_fields = ["created", "modified"]
 
 
@@ -30,30 +29,117 @@ class BaseSerializer(ValidatedModelSerializer):
     pass
 
 
-class TestCategorySerializer(BaseSerializer):
-    """Serializer for TestCategory model"""
-    test_case_count = serializers.IntegerField(read_only=True)
+
+
+class TestCategorySerializer(ValidatedModelSerializer):
+    """
+    Serializer for TestCategory List and Create operations
+    """
     
     class Meta(BaseMeta):
         model = TestCategory
-        fields = [
-            "id",
-            "name",
-            "code",
-            "description",
-            "test_case_count",
-            "created",
-            "modified",
-        ]
-        read_only_fields = BaseMeta.read_only_fields + ["test_case_count"]
-
+        fields = "__all__"
 
     def validate_name(self, value):
-        """Ensure name is not empty and properly formatted"""
-        if not value or not value.strip():
-            raise serializers.ValidationError(_("Name cannot be empty"))
+        """Validate category name uniqueness (case-insensitive)"""
+        qs = TestCategory.objects.filter(name__iexact=value)
+        
+        # Exclude current instance during updates
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        
+        if qs.exists():
+            raise serializers.ValidationError(
+                _("A test category with this name already exists")
+            )
+        
+        return value
+
+    def validate_code(self, value):
+        """Ensure code is not empty"""
+        if not value or value.strip() == "":
+            raise serializers.ValidationError(
+                _("Category code is required and cannot be empty")
+            )
         return value.strip()
 
+
+class TestCaseMinimalSerializer(serializers.ModelSerializer):
+    """
+    Minimal serializer for TestCase (used in category detail)
+    Shows only essential fields
+    """
+    class Meta:
+        model = TestCase
+        fields = (
+            "id",
+            "name",
+            "test_case_id",
+            "test_type",
+            "is_active",
+            "created",
+        )
+        read_only_fields = fields
+
+
+class TestCategoryDetailSerializer(ValidatedModelSerializer):
+    """
+    Detailed serializer for TestCategory Retrieve operations
+    Includes related test cases based on user permissions
+    """
+    test_cases = serializers.SerializerMethodField()
+    test_case_count = serializers.SerializerMethodField()
+    
+    class Meta(BaseMeta):
+        model = TestCategory
+        fields = "__all__"
+    
+    def get_test_cases(self, obj):
+        """
+        Get test cases for this category
+        - Superusers see all test cases
+        - Regular users see only their own test cases (created_by)
+        """
+        request = self.context.get('request')
+        user = request.user if request else None
+        
+        # Get base queryset
+        test_cases = obj.test_cases.all()
+        
+        # Filter by user permissions
+        if user and not user.is_superuser:
+            # Non-superusers see only test cases they created
+            test_cases = test_cases.filter(created_by=user)
+        
+        # Serialize and return
+        return TestCaseMinimalSerializer(
+            test_cases, 
+            many=True, 
+            context=self.context
+        ).data
+    
+    def get_test_case_count(self, obj):
+        """
+        Get count of test cases user can see
+        - Superusers see total count
+        - Regular users see count of their own test cases
+        """
+        request = self.context.get('request')
+        user = request.user if request else None
+        
+        # Get base queryset
+        test_cases = obj.test_cases.all()
+        
+        # Filter by user permissions
+        if user and not user.is_superuser:
+            test_cases = test_cases.filter(created_by=user)
+        
+        return test_cases.count()
+
+
+
+
+# OLD
 
 class TestCategoryListSerializer(TestCategorySerializer):
     """Lightweight serializer for list views"""
