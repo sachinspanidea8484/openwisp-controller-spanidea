@@ -788,6 +788,15 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         else:
             return f"{self.name}"
 
+    @property
+    def active_device_count(self):
+        from ..swapper import load_model
+        TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+
+        return TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=self,
+            device__is_deleted=False
+        ).count()
 
 class AbstractScheduledExecution(models.Model):
 
@@ -1227,7 +1236,7 @@ class AbstractTestDeviceGroup(OrgMixin, TimeStampedEditableModel):
     @property
     def device_count(self):
         """Return count of devices in this group"""
-        return self.devices.count()
+        return self.devices.filter(device__is_deleted=False).count()
 
 
 class AbstractTestDeviceGroupDevice(TimeStampedEditableModel):
