@@ -186,6 +186,14 @@ class TestSuiteSerializer(ValidatedModelSerializer):
     test_case_count = serializers.SerializerMethodField()
     created_by_username = serializers.CharField(source='created_by.username', read_only=True)
     
+    # ADD THIS FIELD - accepts list of test case UUIDs
+    test_case_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False,
+        help_text=_("List of test case UUIDs to add to the group")
+    )
+    
     class Meta(BaseMeta):
         model = TestSuite
         fields = [
@@ -194,6 +202,7 @@ class TestSuiteSerializer(ValidatedModelSerializer):
             'description',
             'is_active',
             'test_case_count',
+            'test_case_ids',  # ADD THIS
             'created_by',
             'created_by_username',
             'created',
@@ -219,13 +228,58 @@ class TestSuiteSerializer(ValidatedModelSerializer):
         
         return value
     
+    # ADD THIS METHOD
+    def validate_test_case_ids(self, value):
+        """Validate that all test case IDs exist"""
+        if not value:
+            return value
+        
+        existing_ids = TestCase.objects.filter(id__in=value).values_list('id', flat=True)
+        existing_ids_str = [str(id) for id in existing_ids]
+        provided_ids_str = [str(id) for id in value]
+        
+        missing_ids = set(provided_ids_str) - set(existing_ids_str)
+        if missing_ids:
+            raise serializers.ValidationError(
+                _("Test cases not found: {}").format(', '.join(missing_ids))
+            )
+        
+        return value
+    
     def create(self, validated_data):
-        """Set created_by from request user"""
+        """Create test group and add test cases"""
+        # Extract test_case_ids before creating
+        test_case_ids = validated_data.pop('test_case_ids', None)
+        
+        # Set created_by from request user
         request = self.context.get('request')
         if request and request.user:
             validated_data['created_by'] = request.user
-        return super().create(validated_data)
-
+        
+        # Create test suite
+        instance = super().create(validated_data)
+        
+        # Add test cases if provided
+        if test_case_ids:
+            instance.test_cases.set(test_case_ids)
+        
+        return instance
+    
+    # ADD THIS METHOD
+    def update(self, instance, validated_data):
+        """Update test group and test cases"""
+        # Extract test_case_ids before updating
+        test_case_ids = validated_data.pop('test_case_ids', None)
+        
+        # Update basic fields
+        instance = super().update(instance, validated_data)
+        
+        # Update test cases if provided
+        if test_case_ids is not None:
+            instance.test_cases.set(test_case_ids)
+        
+        return instance
+    
 
 class TestSuiteDetailSerializer(ValidatedModelSerializer):
     """Detailed serializer for TestSuite retrieve with test cases"""
@@ -233,13 +287,12 @@ class TestSuiteDetailSerializer(ValidatedModelSerializer):
     test_case_count = serializers.SerializerMethodField()
     created_by_username = serializers.CharField(source='created_by.username', read_only=True)
     
-    # M2M field for test cases (IDs only for update)
-    test_case_ids = serializers.PrimaryKeyRelatedField(
-        many=True,
-        queryset=TestCase.objects.all(),
-        source='test_cases',
+    # ADD THIS FIELD - accepts list of test case UUIDs
+    test_case_ids = serializers.ListField(
+        child=serializers.UUIDField(),
         write_only=True,
-        required=False
+        required=False,
+        help_text=_("List of test case UUIDs to replace all test cases in the group")
     )
     
     class Meta(BaseMeta):
@@ -251,7 +304,7 @@ class TestSuiteDetailSerializer(ValidatedModelSerializer):
             'is_active',
             'test_case_count',
             'test_cases_detail',
-            'test_case_ids',  # For updates
+            'test_case_ids',  # ADD THIS
             'created_by',
             'created_by_username',
             'created',
@@ -304,20 +357,36 @@ class TestSuiteDetailSerializer(ValidatedModelSerializer):
         
         return value
     
+    # ADD THIS METHOD
+    def validate_test_case_ids(self, value):
+        """Validate that all test case IDs exist"""
+        if not value:
+            return value
+        
+        existing_ids = TestCase.objects.filter(id__in=value).values_list('id', flat=True)
+        existing_ids_str = [str(id) for id in existing_ids]
+        provided_ids_str = [str(id) for id in value]
+        
+        missing_ids = set(provided_ids_str) - set(existing_ids_str)
+        if missing_ids:
+            raise serializers.ValidationError(
+                _("Test cases not found: {}").format(', '.join(missing_ids))
+            )
+        
+        return value
+    
     def update(self, instance, validated_data):
         """Handle M2M update for test_cases"""
-        test_cases = validated_data.pop('test_cases', None)
+        test_case_ids = validated_data.pop('test_case_ids', None)
         
         # Update basic fields
         instance = super().update(instance, validated_data)
         
         # Update M2M relationship if provided
-        if test_cases is not None:
-            instance.test_cases.set(test_cases)
+        if test_case_ids is not None:
+            instance.test_cases.set(test_case_ids)
         
         return instance
-
-
 class AddTestCasesToGroupSerializer(serializers.Serializer):
     """Serializer for adding test cases to a test group"""
     test_case_ids = serializers.ListField(

@@ -87,12 +87,15 @@ CELERY_BROKER_CONNECTION_MAX_RETRIES = 100
 
 
 
+
+
+
 DATABASES = {
     "default": {
         "ENGINE": "django.contrib.gis.db.backends.postgis",
-        "NAME": "openwisp2",
-        "USER": "openwisp2",
-        "PASSWORD": "openwisp2",
+        "NAME": os.getenv('DB_NAME', "openwisp2"),
+        "USER": os.getenv('DB_USER', "openwisp2"),
+        "PASSWORD": os.getenv('DB_PASS', "openwisp2"),
         "HOST": "postgres",  # Changed from "127.0.0.1" to "postgres"
         "PORT": "5432",
     }

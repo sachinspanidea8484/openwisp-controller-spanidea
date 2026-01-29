@@ -17,8 +17,6 @@ from .serializers import (
     TestCategoryDetailSerializer,
     TestSuiteSerializer,
     TestSuiteDetailSerializer,
-    AddTestCasesToGroupSerializer,
-    RemoveTestCasesFromGroupSerializer,
     TestCaseListSerializer,
 )
 
@@ -94,7 +92,7 @@ class TestCategoryDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAP
     - Retrieve detailed information about a test category
     - Includes related test cases (filtered by user permissions)
     - Superusers see all test cases
-    - Regular users see only test cases they created
+    - users see only test cases they created
     
     PUT /api/v1/test-management/test-category/<uuid:pk>/
     - Update a test category (full update)
@@ -149,7 +147,7 @@ class TestSuiteListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     GET  /api/v1/test-management/test-group/
     - List all test groups (paginated)
     - Superusers see all groups
-    - Regular users see only groups they created
+    - Users see only groups they created
     - Supports filtering by name, is_active, created_by
     - Supports search and ordering
     
@@ -173,13 +171,13 @@ class TestSuiteListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     def get_queryset(self):
         """
         Superusers see all test groups
-        Regular users see only test groups they created
+        Users see only test groups they created
         """
         user = self.request.user
         qs = TestSuite.objects.all().select_related('created_by')
         
         if not user.is_superuser:
-            # Regular users see only their own test groups
+            # Users see only their own test groups
             qs = qs.filter(created_by=user)
         
         return qs
@@ -209,7 +207,7 @@ class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVi
     def get_queryset(self):
         """
         Superusers see all test groups
-        Regular users see only test groups they created
+        Users see only test groups they created
         """
         user = self.request.user
         qs = TestSuite.objects.all().select_related('created_by')
@@ -239,143 +237,6 @@ class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVi
         super().perform_destroy(instance)
 
 
-@api_view(['POST'])
-def add_test_cases_to_group(request, pk):
-    """
-    Add test cases to a test group
-    
-    POST /api/v1/test-management/test-group/<uuid:pk>/add-test-cases/
-    
-    Body:
-    {
-        "test_case_ids": ["uuid1", "uuid2", "uuid3"]
-    }
-    
-    Response:
-    {
-        "message": "3 test case(s) added to test group",
-        "test_group": {...},
-        "added_count": 3
-    }
-    """
-    # Check permissions
-    if not request.user.is_authenticated:
-        return Response(
-            {"detail": "Authentication credentials were not provided."},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    
-    # Get test group
-    try:
-        test_group = TestSuite.objects.get(pk=pk)
-    except TestSuite.DoesNotExist:
-        return Response(
-            {"detail": "Test group not found"},
-            status=status.HTTP_404_NOT_FOUND
-        )
-    
-    # Check if user can modify this group
-    if not request.user.is_superuser and test_group.created_by != request.user:
-        return Response(
-            {"detail": "You do not have permission to modify this test group."},
-            status=status.HTTP_403_FORBIDDEN
-        )
-    
-    # Validate request data
-    serializer = AddTestCasesToGroupSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    
-    test_case_ids = serializer.validated_data['test_case_ids']
-    
-    # Add test cases
-    with transaction.atomic():
-        added_count = 0
-        for test_case_id in test_case_ids:
-            test_case = TestCase.objects.get(id=test_case_id)
-            
-            # Check if already exists
-            if not test_group.test_cases.filter(id=test_case_id).exists():
-                test_group.test_cases.add(test_case)
-                added_count += 1
-    
-    # Return response
-    test_group.refresh_from_db()
-    group_serializer = TestSuiteDetailSerializer(test_group, context={'request': request})
-    
-    return Response({
-        "message": f"{added_count} test case(s) added to test group",
-        "test_group": group_serializer.data,
-        "added_count": added_count
-    }, status=status.HTTP_200_OK)
-
-
-@api_view(['POST'])
-def remove_test_cases_from_group(request, pk):
-    """
-    Remove test cases from a test group
-    
-    POST /api/v1/test-management/test-group/<uuid:pk>/remove-test-cases/
-    
-    Body:
-    {
-        "test_case_ids": ["uuid1", "uuid2"]
-    }
-    
-    Response:
-    {
-        "message": "2 test case(s) removed from test group",
-        "test_group": {...},
-        "removed_count": 2
-    }
-    """
-    # Check permissions
-    if not request.user.is_authenticated:
-        return Response(
-            {"detail": "Authentication credentials were not provided."},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    
-    # Get test group
-    try:
-        test_group = TestSuite.objects.get(pk=pk)
-    except TestSuite.DoesNotExist:
-        return Response(
-            {"detail": "Test group not found"},
-            status=status.HTTP_404_NOT_FOUND
-        )
-    
-    # Check if user can modify this group
-    if not request.user.is_superuser and test_group.created_by != request.user:
-        return Response(
-            {"detail": "You do not have permission to modify this test group."},
-            status=status.HTTP_403_FORBIDDEN
-        )
-    
-    # Validate request data
-    serializer = RemoveTestCasesFromGroupSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    
-    test_case_ids = serializer.validated_data['test_case_ids']
-    
-    # Remove test cases
-    with transaction.atomic():
-        removed_count = 0
-        for test_case_id in test_case_ids:
-            if test_group.test_cases.filter(id=test_case_id).exists():
-                test_group.test_cases.remove(test_case_id)
-                removed_count += 1
-    
-    # Return response
-    test_group.refresh_from_db()
-    group_serializer = TestSuiteDetailSerializer(test_group, context={'request': request})
-    
-    return Response({
-        "message": f"{removed_count} test case(s) removed from test group",
-        "test_group": group_serializer.data,
-        "removed_count": removed_count
-    }, status=status.HTTP_200_OK)
-
-
 # ============================================================================
 # TEST CASE LISTING VIEW (WITH CATEGORY FILTER)
 # ============================================================================
@@ -387,7 +248,7 @@ class TestCaseListView(ProtectedAPIMixin, generics.ListAPIView):
     GET /api/v1/test-management/test-cases/
     - List all test cases (paginated)
     - Superusers see all test cases
-    - Regular users see only test cases they created
+    - Users see only test cases they created
     - Filter by category (multiple): ?category=uuid1,uuid2
     - Filter by test_type, is_active, etc.
     - Search by name, test_case_id
@@ -415,13 +276,13 @@ class TestCaseListView(ProtectedAPIMixin, generics.ListAPIView):
     def get_queryset(self):
         """
         Superusers see all test cases
-        Regular users see only test cases they created
+        Users see only test cases they created
         """
         user = self.request.user
         qs = TestCase.objects.all().select_related('category', 'created_by')
         
         if not user.is_superuser:
-            # Regular users see only their own test cases
+            # Users see only their own test cases
             qs = qs.filter(created_by=user)
         
         return qs

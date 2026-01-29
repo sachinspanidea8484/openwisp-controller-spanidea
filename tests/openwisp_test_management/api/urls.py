@@ -46,23 +46,6 @@ urlpatterns = [
         views.test_suite_detail,
         name="api_test_group_detail",
     ),
-    
-    # Add test cases to group
-    path(
-        "test-group/<uuid:pk>/add-test-cases/",
-        views.add_test_cases_to_group,
-        name="api_test_group_add_test_cases",
-    ),
-    
-    # Remove test cases from group
-    path(
-        "test-group/<uuid:pk>/remove-test-cases/",
-        views.remove_test_cases_from_group,
-        name="api_test_group_remove_test_cases",
-    ),
-
-
-
     # ========================================================================
     # TEST CASE LISTING (WITH CATEGORY FILTER)
     # ========================================================================
