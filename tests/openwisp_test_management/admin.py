@@ -2618,6 +2618,15 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     filter_horizontal=["individual_test_cases"]
     readonly_fields = ["created", "modified", "device_count", "testcase_count"]
     actions = ["execute_test_suite", "re_execute_test_suite"]
+
+    def get_actions(self, request):
+       
+        actions = super().get_actions(request)
+        show = getattr(settings, "SHOW_RE_EXECUTION")
+        if not show:
+            actions.pop("re_execute_test_suite", None)
+
+        return actions
     class Media:
         js = ('admin/js/jquery.init.js',
               'test-management/js/selection_toggle.js')
@@ -2988,6 +2997,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         original=execution,                     # ✅ REQUIRED
         preserved_filters=self.get_preserved_filters(request),
         has_view_permission=True,
+        show_re_execution= getattr(settings, "SHOW_RE_EXECUTION"),
         )
 
         return TemplateResponse(
