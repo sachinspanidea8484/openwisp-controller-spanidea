@@ -463,12 +463,15 @@ class TestCasesResource(resources.ModelResource):
             row['description'] = ''
         
         test_case_id = row.get("test_case_id")
-
-        row["robot_script"] , extracted_description = store_script(
-            row.get("robot_script"),
-            test_case_id=test_case_id,
-            script_type="robot",
-        )
+        test_type_from_file = row.get("test_type")
+        if test_type_from_file == "Device":
+            row["robot_script"]= None
+        else:
+            row["robot_script"] , extracted_description = store_script(
+                row.get("robot_script"),
+                test_case_id=test_case_id,
+                script_type="robot",
+            )
 
         python_path, extracted_description = store_script(
             row.get("python_script"),
@@ -1241,6 +1244,7 @@ class TestCaseAdminForm(forms.ModelForm):
                                 )
         
         elif test_type == TestTypeChoices.AGENT:
+            self.instance.robot_script = None
             cleaned_data["robot_script"] = None
         
         return cleaned_data
@@ -1702,23 +1706,23 @@ class TestCaseAdmin(BaseVersionAdmin):
             messages.SUCCESS,
         )
 
-    @admin.action(description=_("Export scripts"))
-    def export_scripts_zip(self, request, queryset):
-        if not queryset.exists():
-            self.message_user(request, _("No test cases selected."), messages.WARNING)
-            return
+    # @admin.action(description=_("Export scripts"))
+    # def export_scripts_zip(self, request, queryset):
+    #     if not queryset.exists():
+    #         self.message_user(request, _("No test cases selected."), messages.WARNING)
+    #         return
 
-        zip_buffer = build_all_testcases_zip(queryset)
+    #     zip_buffer = build_all_testcases_zip(queryset)
 
-        timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
-        response = HttpResponse(
-            zip_buffer,
-            content_type="application/zip"
-        )
-        response["Content-Disposition"] = (
-            f'attachment; filename="testcase_scripts_{timestamp}.zip"'
-        )
-        return response
+    #     timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+    #     response = HttpResponse(
+    #         zip_buffer,
+    #         content_type="application/zip"
+    #     )
+    #     response["Content-Disposition"] = (
+    #         f'attachment; filename="testcase_scripts_{timestamp}.zip"'
+    #     )
+    #     return response
     
 from django.shortcuts import redirect
 from django.urls import reverse
