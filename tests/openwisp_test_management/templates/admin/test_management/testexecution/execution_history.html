@@ -687,7 +687,7 @@
         {% if show_re_execution %}
         <label id="global-select-label" style="font-weight: bold; font-size: 14px; margin-left: auto; display: flex; align-items: center; gap: 5px; color: white;">
             <input type="checkbox" id="global-select-all" style="margin: 0;">
-            Select All Tests
+            Select All Device Tests
         </label>
         {% endif %}
     </h2>
@@ -1031,10 +1031,10 @@ function displayExecutionData(data) {
     `;
     if (data.status === 2 || data.status === 3) {
         const exportButtonSection = document.getElementById('export-test-execution-data');
-        exportButtonSection.innerHTML = `
-        <a class="export-button-class" href="/api/v1/test-management/execution/${executionId}/history/export/" download>
-            Export To CSV
-        </a>`
+        // exportButtonSection.innerHTML = `
+        // <a class="export-button-class" href="/api/v1/test-management/execution/${executionId}/history/export/" download>
+        //     Export To CSV
+        // </a>`
     }
     const abortSection = document.getElementById('abort-test-execution');
     abortSection.innerHTML = `
