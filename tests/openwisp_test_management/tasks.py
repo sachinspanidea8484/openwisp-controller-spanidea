@@ -2203,6 +2203,7 @@ User = get_user_model()
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=5, retry_kwargs={"max_retries": 3})
 def send_execution_completed_notification(self, instance_pk, created_by_id):
+    return
     if not created_by_id:
         return
 

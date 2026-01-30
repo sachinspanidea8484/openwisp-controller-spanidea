@@ -684,10 +684,12 @@
 <div class="module">
     <h2 style="display: flex; align-items: center; gap: 10px;">
         {% trans 'Device Execution Details' %}
+        {% if show_re_execution %}
         <label id="global-select-label" style="font-weight: bold; font-size: 14px; margin-left: auto; display: flex; align-items: center; gap: 5px; color: white;">
             <input type="checkbox" id="global-select-all" style="margin: 0;">
-            Select All Tests
+            Select All Device Tests
         </label>
+        {% endif %}
     </h2>
     <div id="device-executions" style="padding: 12px;">
         <!-- Populated by JavaScript -->
@@ -723,6 +725,7 @@ function getCookie(name) {
 }
 
 // const csrftoken = getCookie('csrftoken');
+const show_re_execution = {{ show_re_execution|yesno:"true,false" }};
 const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]")?.value;
 const executionId = '{{ execution_id }}';
 const agentTestStore = {};
@@ -1028,10 +1031,10 @@ function displayExecutionData(data) {
     `;
     if (data.status === 2 || data.status === 3) {
         const exportButtonSection = document.getElementById('export-test-execution-data');
-        exportButtonSection.innerHTML = `
-        <a class="export-button-class" href="/api/v1/test-management/execution/${executionId}/history/export/" download>
-            Export To CSV
-        </a>`
+        // exportButtonSection.innerHTML = `
+        // <a class="export-button-class" href="/api/v1/test-management/execution/${executionId}/history/export/" download>
+        //     Export To CSV
+        // </a>`
     }
     const abortSection = document.getElementById('abort-test-execution');
     abortSection.innerHTML = `
@@ -1039,11 +1042,14 @@ function displayExecutionData(data) {
         Abort Test Execution
     </button>`
     const reExecuteSection = document.getElementById('re-execute-execution');
-    reExecuteSection.innerHTML=`
+   
+    if(show_re_execution){
+        reExecuteSection.innerHTML=`
         <button ${data.status !== 3 ? "disabled" : ""}  id="reExecuteBtn" class="re-execute-button" onclick="reExecuteSelected('${data.execution_id}')">
             Re-Execute Selected
-        </button>`
-    updateReExecuteButtonState();
+            </button>`
+            updateReExecuteButtonState();
+    }
     // Display device executions
     const deviceExecutionsDiv = document.getElementById('device-executions');
     
@@ -1106,7 +1112,7 @@ function displayExecutionData(data) {
                     }
                     rows += `
                         <tr>
-                            ${!device.is_deleted ? 
+                            ${!device.is_deleted && show_re_execution ? 
                             `<td><input type="checkbox" class="execution-checkbox" data-device-id="${device.device_id}" data-test-id="${ test.test_case_id }"></td>`
                         :""}
                             <td>${test.test_case_name || 'N/A'}</td>
@@ -1122,7 +1128,7 @@ function displayExecutionData(data) {
                     <table class="results-table">
                         <thead>
                             <tr>
-                                ${!device.is_deleted ? 
+                                ${!device.is_deleted && show_re_execution ? 
                                 `<th><input type="checkbox" class="device-select-all" data-device-id="${device.device_id}"></th>`
                             :''}
                                 <th>Test Case</th>
@@ -1208,7 +1214,7 @@ function displayExecutionData(data) {
             // if(robotSection==='' && agentSection===''){
             //     agentSection = '<div class="empty-state">No test results available for this device.</div>';
             // }
-            const colgroup = device.is_deleted
+            const colgroup = device.is_deleted || !show_re_execution
                 ? `
                     <colgroup>
                         <col style="width: 20%">

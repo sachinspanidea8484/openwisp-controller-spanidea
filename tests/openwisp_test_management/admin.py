@@ -60,6 +60,8 @@ from import_export.widgets import Widget
 from django.utils.safestring import mark_safe
 from .forms import ExecutionArtifactFormSet
 from .utils import build_all_testcases_zip
+from import_export.exceptions import ImportError
+
 logger = logging.getLogger(__name__)
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
@@ -85,6 +87,10 @@ from import_export.formats import base_formats
 from django.db import models
 
 
+class ScriptValidationError(ValidationError):
+    def __init__(self, message, field=None):
+        self.field = field
+        super().__init__(message)
 
 class BaseAdmin(TimeReadonlyAdminMixin, admin.ModelAdmin):
     save_on_top = True
@@ -197,6 +203,64 @@ def _update_robot_content(content: bytes, test_case_id: str) -> bytes:
 
     return text.encode("utf-8")
 
+def validate_python_import(content : bytes):
+    import ast
+
+    text = content.decode("utf-8", errors="strict")
+
+    if not text.strip():
+        raise ScriptValidationError("Python file is empty", field="python_script")
+
+    try:
+        tree = ast.parse(text)
+    except SyntaxError as e:
+        raise ScriptValidationError(
+            f"Syntax error at line {e.lineno}: {e.msg}",
+            field="python_script"
+        )
+
+    has_defs = any(
+        isinstance(n, (ast.FunctionDef, ast.ClassDef))
+        for n in ast.walk(tree)
+    )
+
+    if not has_defs:
+        raise ScriptValidationError(
+            "No function or class found in Python file",
+            field="python_script"
+        )
+
+    compile(text, "<imported_script>", "exec")
+
+        
+        
+             
+def validate_robot_import(file_path):
+    from robot.parsing import get_model
+
+    try:
+        model = get_model(file_path)
+    except Exception as e:
+        raise ScriptValidationError(
+            f"Robot parsing failed: {e}",
+            field="robot_script"
+        )
+
+    if not model.sections:
+        raise ScriptValidationError(
+            "Robot file has no sections",
+            field="robot_script"
+        )
+
+    for section in model.sections:
+        if "Test Cases" in str(section.header.data_tokens):
+            return
+
+    raise ScriptValidationError(
+        "Missing *** Test Cases *** section",
+        field="robot_script"
+    )
+
 def store_script(
     source,
     *,
@@ -214,7 +278,7 @@ def store_script(
     """
 
     if not source:
-        return None
+        return None, None
 
     if script_type not in ("robot", "python"):
         raise ValueError("script_type must be 'robot' or 'python'")
@@ -252,19 +316,35 @@ def store_script(
             if src_path.startswith(media_url):
                 src_path = src_path[len(media_url):].lstrip("/")
             src_full = os.path.join(settings.MEDIA_ROOT, src_path)
-
+            if not os.path.exists(src_full):
+                raise ValidationError(
+                    f" File does not exist at '{source}'"
+                )
             with open(src_full, "rb") as f:
                 content = f.read()
         else:
-            response = requests.get(source, timeout=15)
-            response.raise_for_status()
-            content = response.content
-
+            try:
+                response = requests.get(source, timeout=15)
+                response.raise_for_status()
+                content = response.content
+            except requests.RequestException as e:
+                raise ValidationError(
+                    f"Failed to download script ({e})"
+                )
     # --------------------------------------------------
     # 2️ Relative path → read content
     # --------------------------------------------------
     else:
         src_full = os.path.join(settings.MEDIA_ROOT, source.lstrip("/"))
+        if not os.path.exists(src_full):
+            raise ValidationError(
+                f" File does not exist at '{source}'"
+            )
+
+        if not os.path.isfile(src_full):
+            raise ValidationError(
+                f"Path is not a file '{source}'"
+            )
         with open(src_full, "rb") as f:
             content = f.read()
 
@@ -274,6 +354,8 @@ def store_script(
 
     extracted_description = None
     #update description of test case from py file ONLY if it is not present
+    if script_type == "python" :
+        validate_python_import(content)
     if script_type == "python" and extract_description:
         extracted_description = extract_description_from_python(content)
    
@@ -282,6 +364,9 @@ def store_script(
     # --------------------------------------------------
     with open(dest_path, "wb") as f:
         f.write(content)
+    
+    if script_type == "robot":
+        validate_robot_import(dest_path) 
 
     return relative_path, extracted_description
 
@@ -378,12 +463,15 @@ class TestCasesResource(resources.ModelResource):
             row['description'] = ''
         
         test_case_id = row.get("test_case_id")
-
-        row["robot_script"] , extracted_description = store_script(
-            row.get("robot_script"),
-            test_case_id=test_case_id,
-            script_type="robot",
-        )
+        test_type_from_file = row.get("test_type")
+        if test_type_from_file == "Device":
+            row["robot_script"]= None
+        else:
+            row["robot_script"] , extracted_description = store_script(
+                row.get("robot_script"),
+                test_case_id=test_case_id,
+                script_type="robot",
+            )
 
         python_path, extracted_description = store_script(
             row.get("python_script"),
@@ -1156,6 +1244,7 @@ class TestCaseAdminForm(forms.ModelForm):
                                 )
         
         elif test_type == TestTypeChoices.AGENT:
+            self.instance.robot_script = None
             cleaned_data["robot_script"] = None
         
         return cleaned_data
@@ -1537,7 +1626,7 @@ class TestCaseAdmin(BaseVersionAdmin):
     class Media:
         js = ('test-management/js/json_file_handler.js', 'test-management/js/testcase_toggle_scripts.js',  'test-management/js/testcase_id_check.js','https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',)  # Add custom JavaScript
         css = {
-            'all': ('test-management/css/json_file_handler.css','test-management/css/testcase_admin.css')  # Optional custom CSS
+            'all': ('test-management/css/json_file_handler.css','test-management/css/testcase_admin.css',)  # Optional custom CSS
         }
 
     def delete_selected(self, request, queryset):
@@ -1617,23 +1706,23 @@ class TestCaseAdmin(BaseVersionAdmin):
             messages.SUCCESS,
         )
 
-    @admin.action(description=_("Export scripts"))
-    def export_scripts_zip(self, request, queryset):
-        if not queryset.exists():
-            self.message_user(request, _("No test cases selected."), messages.WARNING)
-            return
+    # @admin.action(description=_("Export scripts"))
+    # def export_scripts_zip(self, request, queryset):
+    #     if not queryset.exists():
+    #         self.message_user(request, _("No test cases selected."), messages.WARNING)
+    #         return
 
-        zip_buffer = build_all_testcases_zip(queryset)
+    #     zip_buffer = build_all_testcases_zip(queryset)
 
-        timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
-        response = HttpResponse(
-            zip_buffer,
-            content_type="application/zip"
-        )
-        response["Content-Disposition"] = (
-            f'attachment; filename="testcase_scripts_{timestamp}.zip"'
-        )
-        return response
+    #     timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+    #     response = HttpResponse(
+    #         zip_buffer,
+    #         content_type="application/zip"
+    #     )
+    #     response["Content-Disposition"] = (
+    #         f'attachment; filename="testcase_scripts_{timestamp}.zip"'
+    #     )
+    #     return response
     
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -2529,6 +2618,15 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     filter_horizontal=["individual_test_cases"]
     readonly_fields = ["created", "modified", "device_count", "testcase_count"]
     actions = ["execute_test_suite", "re_execute_test_suite"]
+
+    def get_actions(self, request):
+       
+        actions = super().get_actions(request)
+        show = getattr(settings, "SHOW_RE_EXECUTION")
+        if not show:
+            actions.pop("re_execute_test_suite", None)
+
+        return actions
     class Media:
         js = ('admin/js/jquery.init.js',
               'test-management/js/selection_toggle.js')
@@ -2899,6 +2997,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         original=execution,                     # ✅ REQUIRED
         preserved_filters=self.get_preserved_filters(request),
         has_view_permission=True,
+        show_re_execution= getattr(settings, "SHOW_RE_EXECUTION"),
         )
 
         return TemplateResponse(
