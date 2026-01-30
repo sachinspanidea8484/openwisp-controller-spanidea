@@ -27,6 +27,16 @@ urlpatterns = [
         views.test_category_detail,
         name="api_test_category_detail",
     ),
+    path(
+        "test-cases/",
+        views.test_case_list,
+        name="testcase-list",
+    ),
+    path(
+        "test-cases/<uuid:pk>/",
+        views.test_case_detail,
+        name="testcase-detail",
+    ),
 
 
     # ========================================================================
@@ -51,11 +61,11 @@ urlpatterns = [
     # ========================================================================
     
     # List test cases with category filter
-    path(
-        "test-cases/",
-        views.test_case_list_view,
-        name="api_test_case_list",
-    ),
+    # path(
+    #     "test-cases-list/",
+    #     views.test_case_list_view,
+    #     name="api_test_case_list",
+    # ),
 
 
 

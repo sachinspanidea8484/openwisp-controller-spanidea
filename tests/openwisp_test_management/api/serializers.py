@@ -7,7 +7,8 @@ from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Device
 from ..base.models import TestExecutionStatus  # ADD THIS IMPORT
 from ..swapper import load_model
-
+from django.core.exceptions import ValidationError
+from django.db import models
 # MODEL 
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
@@ -17,7 +18,7 @@ TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestDeviceGroup= load_model("TestDeviceGroup")
 
-
+from .utilities import TestTypeChoices, update_robot_file_tag
 
 class BaseMeta:
     """Base meta class for all serializers"""
@@ -480,75 +481,11 @@ class TestCategoryRelationSerializer(serializers.ModelSerializer):
 
 class TestCaseSerializer(ValidatedModelSerializer):
     """Serializer for TestCase model"""
-    category_detail = TestCategoryRelationSerializer(source="category", read_only=True)
-    test_type_display = serializers.CharField(source='get_test_type_display', read_only=True)  # ADD THIS
-    
-    class Meta(BaseMeta):
-        model = TestCase
-        fields = [
-            "id",
-            "name",
-            "test_case_id",
-            "category",
-            "category_detail",
-            "test_type",  # ADD THIS
-            "test_type_display",  # ADD THIS
-            "description",  # ADD THIS (was missing)
-            "is_active",
-            "params",  # ADD THIS - NEW FIELD
-            "created",
-            "modified",
-        ]
-        read_only_fields = BaseMeta.read_only_fields + [
-            "test_type_display",  # ADD THIS
-        ]
-
-
-
-    def validate_test_case_id(self, value):
-        """Ensure test_case_id is unique"""
-        if not value or not value.strip():
-            raise serializers.ValidationError(_("Test Case ID cannot be empty"))
-        
-        # Check if we're updating
-        if self.instance and self.instance.test_case_id == value:
-            return value
-        
-        # Check for duplicates
-        if TestCase.objects.filter(test_case_id=value).exists():
-            raise serializers.ValidationError(
-                _("A test case with this ID already exists")
-            )
-        
-        return value.strip()
-
-    def validate(self, data):
-        """Cross-field validation"""
-        # Check unique constraint for category + name
-        category = data.get("category", self.instance.category if self.instance else None)
-        name = data.get("name", self.instance.name if self.instance else None)
-        
-        if category and name:
-            qs = TestCase.objects.filter(category=category, name__iexact=name)
-            if self.instance:
-                qs = qs.exclude(pk=self.instance.pk)
-            
-            if qs.exists():
-                raise serializers.ValidationError({
-                    "name": _(
-                        f"A test case with this name already exists in category '{category.name}'"
-                    )
-                })
-        
-        return data
-
-
-class TestCaseListSerializer(TestCaseSerializer):
-    """Lightweight serializer for list views"""
+    created_by = serializers.ReadOnlyField(source="created_by.username")
     category_name = serializers.CharField(source="category.name", read_only=True)
-    test_type_display = serializers.CharField(source='get_test_type_display', read_only=True)  # ADD THIS
-    
-    class Meta(BaseMeta):
+    test_type_display = serializers.CharField(source='get_test_type_display', read_only=True)
+
+    class Meta:
         model = TestCase
         fields = [
             "id",
@@ -556,16 +493,162 @@ class TestCaseListSerializer(TestCaseSerializer):
             "test_case_id",
             "category",
             "category_name",
-            "test_type",  # ADD THIS
-            "test_type_display",  # ADD THIS
+            "description",
+            "test_type",
+            "test_type_display",
+            "params",
+            "python_script",
+            "robot_script",
             "is_active",
+            "is_configuration_push_required",
+            "script_push_status",
+            "created", 
+            "modified",
+            "created_by",
+        ]
+        read_only_fields = [
+            "script_push_status",
             "created",
             "modified",
-        ]
-        read_only_fields = BaseMeta.read_only_fields + [
             "category_name",
-            "test_type_display",  # ADD THIS
+            "test_type_display"
         ]
+    def validate(self, attrs):
+        """
+        Reuse model clean() logic (same as admin)
+        """
+        if self.instance and "test_case_id" in attrs:
+            raise serializers.ValidationError({
+                "test_case_id": "Test Case ID cannot be modified after creation."
+            })
+        if self.instance:
+            instance = self.instance
+            for attr, value in attrs.items():
+                setattr(instance, attr, value)
+        else:
+            instance = TestCase(**attrs)
+        try:
+            instance.clean()
+        except ValidationError as e:
+            raise serializers.ValidationError(e.message_dict)
+        
+        test_type = attrs.get(
+        "test_type",
+        instance.test_type if self.instance else None
+        )
+        python_script = attrs.get(
+            "python_script",
+            instance.python_script if self.instance else None
+        )
+        robot_script = attrs.get(
+            "robot_script",
+            instance.robot_script if self.instance else None
+        )
+        test_case_id = attrs.get(
+            "test_case_id",
+            instance.test_case_id if self.instance else None
+        )
+        # ✅ DEVICE test
+        if not python_script:
+            raise serializers.ValidationError({
+                "python_script": "Python script is required for Device and robot tests."
+            })
+        if test_type == TestTypeChoices.AGENT:
+            if robot_script:
+                raise serializers.ValidationError({
+                    "robot_script": "Robot script is not allowed for Device tests."
+                })
+
+        # ✅ ROBOT test
+        if test_type == TestTypeChoices.ROBOT_FRAMEWORK:
+            if not robot_script:
+                raise serializers.ValidationError({
+                    "robot_script": "Robot script is required for Robot tests."
+                })
+            
+            attrs["robot_script"] = update_robot_file_tag(
+                robot_script,
+                test_case_id
+            )
+
+        return attrs
+    
+    def validate_python_script(self, file):
+        if not file:
+            return file
+
+        if not file.name.endswith(".py"):
+            raise serializers.ValidationError("Only .py files are allowed")
+
+        try:
+            content = file.read().decode("utf-8")
+            compile(content, file.name, "exec")
+        except SyntaxError as e:
+            raise serializers.ValidationError(
+                f"Python syntax error at line {e.lineno}: {e.msg}"
+            )
+        except UnicodeDecodeError:
+            raise serializers.ValidationError("Python script must be UTF-8 encoded")
+
+        file.seek(0)
+        return file
+    
+    def validate_robot_script(self, file):
+        if not file:
+            return file
+
+        if not file.name.endswith(".robot"):
+            raise serializers.ValidationError("Only .robot files are allowed")
+
+        content = file.read().decode("utf-8")
+
+        if "*** Test Cases ***" not in content:
+            raise serializers.ValidationError(
+                "Invalid Robot file: missing '*** Test Cases ***' section"
+            )
+
+        # ✅ Write back modified content
+        file.seek(0)
+        file.file.write(content.encode("utf-8"))
+        file.seek(0)
+
+        return file
+
+class TestCaseDetailSerializer(TestCaseSerializer):
+    suite_count = serializers.ReadOnlyField()
+    execution_count = serializers.ReadOnlyField()
+    is_deletable = serializers.ReadOnlyField()
+
+    class Meta(TestCaseSerializer.Meta):
+        fields = TestCaseSerializer.Meta.fields + [
+            "suite_count",
+            "execution_count",
+            "is_deletable",
+        ]
+
+# class TestCaseListSerializer(TestCaseSerializer):
+#     """Lightweight serializer for list views"""
+#     category_name = serializers.CharField(source="category.name", read_only=True)
+#     test_type_display = serializers.CharField(source='get_test_type_display', read_only=True)  # ADD THIS
+    
+#     class Meta(BaseMeta):
+#         model = TestCase
+#         fields = [
+#             "id",
+#             "name",
+#             "test_case_id",
+#             "category",
+#             "category_name",
+#             "test_type",  # ADD THIS
+#             "test_type_display",  # ADD THIS
+#             "is_active",
+#             "created",
+#             "modified",
+#         ]
+#         read_only_fields = BaseMeta.read_only_fields + [
+#             "category_name",
+#             "test_type_display",  # ADD THIS
+#         ]
 
 
 class TestSuiteCaseSerializer(serializers.ModelSerializer):

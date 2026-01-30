@@ -11,15 +11,16 @@ from openwisp_users.api.permissions import DjangoModelPermissions
 from rest_framework.permissions import IsAuthenticated
 
 from ..swapper import load_model
-from .filters import TestCategoryFilter ,TestSuiteFilter, TestCaseListFilter
+from .filters import TestCategoryFilter ,TestSuiteFilter, TestCaseFilter
 from .serializers import (
     TestCategorySerializer,
     TestCategoryDetailSerializer,
+    TestCaseSerializer,
+    TestCaseDetailSerializer,
     TestSuiteSerializer,
     TestSuiteDetailSerializer,
-    TestCaseListSerializer,
 )
-
+from rest_framework.parsers import MultiPartParser, FormParser
 TestCategory = load_model("TestCategory")
 TestSuite = load_model("TestSuite")
 TestCase = load_model("TestCase")
@@ -136,6 +137,78 @@ class TestCategoryDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAP
         super().perform_destroy(instance)
 
 
+# ============================================================================
+# TEST CASE VIEWS
+# ============================================================================
+
+class TestCaseListView(ProtectedAPIMixin, generics.ListCreateAPIView):
+    """
+    GET  → List test cases
+    POST → Create test case
+    """
+    serializer_class = TestCaseSerializer
+    pagination_class = ListViewPagination
+    parser_classes = (MultiPartParser, FormParser)
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.OrderingFilter,
+        filters.SearchFilter,
+    ]
+    filterset_class = TestCaseFilter
+    search_fields = ["name", "test_case_id", "description"]
+    ordering_fields = ["name", "created", "modified"]
+    ordering = ["-created"]
+
+    def get_queryset(self):
+        qs = TestCase.objects.select_related("category")
+
+        # Superusers see all test cases
+        if self.request.user.is_superuser:
+            return qs
+
+        # Normal users see only their own test cases
+        return qs.filter(created_by=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET    → Retrieve test case details
+    PUT    → Update test case
+    PATCH  → Partial update
+    DELETE → Delete test case (only if deletable)
+    """
+    lookup_field = "pk"
+    parser_classes = (MultiPartParser, FormParser)
+    def get_queryset(self):
+        qs = TestCase.objects.select_related("category")
+
+        if self.request.user.is_superuser:
+            return qs
+
+        return qs.filter(created_by=self.request.user)
+
+    def get_serializer_class(self):
+        if self.request.method == "GET":
+            return TestCaseDetailSerializer
+        return TestCaseSerializer
+
+    def perform_destroy(self, instance):
+        """
+        Match admin delete behavior
+        """
+        if not instance.is_deletable:
+            raise ValidationError({
+                "detail": (
+                    "This test case cannot be deleted because it is part of "
+                    "a test suite or has executions."
+                )
+            })
+
+        instance.delete()
+
 
 # ============================================================================
 # TEST SUITE (TEST GROUP) VIEWS
@@ -241,56 +314,59 @@ class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVi
 # TEST CASE LISTING VIEW (WITH CATEGORY FILTER)
 # ============================================================================
 
-class TestCaseListView(ProtectedAPIMixin, generics.ListAPIView):
-    """
-    API endpoint for listing test cases with category filter
+# class TestCaseListView(ProtectedAPIMixin, generics.ListAPIView):
+#     """
+#     API endpoint for listing test cases with category filter
     
-    GET /api/v1/test-management/test-cases/
-    - List all test cases (paginated)
-    - Superusers see all test cases
-    - Users see only test cases they created
-    - Filter by category (multiple): ?category=uuid1,uuid2
-    - Filter by test_type, is_active, etc.
-    - Search by name, test_case_id
+#     GET /api/v1/test-management/test-cases/
+#     - List all test cases (paginated)
+#     - Superusers see all test cases
+#     - Users see only test cases they created
+#     - Filter by category (multiple): ?category=uuid1,uuid2
+#     - Filter by test_type, is_active, etc.
+#     - Search by name, test_case_id
     
-    Examples:
-    - All test cases: /test-cases/
-    - By category: /test-cases/?category=uuid1&category=uuid2
-    - Active only: /test-cases/?is_active=true
-    - By type: /test-cases/?test_type=1
-    - Search: /test-cases/?search=ping
-    """
-    serializer_class = TestCaseListSerializer
-    pagination_class = ListViewPagination
+#     Examples:
+#     - All test cases: /test-cases/
+#     - By category: /test-cases/?category=uuid1&category=uuid2
+#     - Active only: /test-cases/?is_active=true
+#     - By type: /test-cases/?test_type=1
+#     - Search: /test-cases/?search=ping
+#     """
+#     serializer_class = TestCaseListSerializer
+#     pagination_class = ListViewPagination
     
-    filter_backends = [
-        DjangoFilterBackend,
-        filters.OrderingFilter,
-        filters.SearchFilter,
-    ]
-    filterset_class = TestCaseListFilter
-    search_fields = ["name", "test_case_id", "description"]
-    ordering_fields = ["name", "test_case_id", "created", "modified"]
-    ordering = ["-created"]
+#     filter_backends = [
+#         DjangoFilterBackend,
+#         filters.OrderingFilter,
+#         filters.SearchFilter,
+#     ]
+#     filterset_class = TestCaseListFilter
+#     search_fields = ["name", "test_case_id", "description"]
+#     ordering_fields = ["name", "test_case_id", "created", "modified"]
+#     ordering = ["-created"]
     
-    def get_queryset(self):
-        """
-        Superusers see all test cases
-        Users see only test cases they created
-        """
-        user = self.request.user
-        qs = TestCase.objects.all().select_related('category', 'created_by')
+#     def get_queryset(self):
+#         """
+#         Superusers see all test cases
+#         Users see only test cases they created
+#         """
+#         user = self.request.user
+#         qs = TestCase.objects.all().select_related('category', 'created_by')
         
-        if not user.is_superuser:
-            # Users see only their own test cases
-            qs = qs.filter(created_by=user)
+#         if not user.is_superuser:
+#             # Users see only their own test cases
+#             qs = qs.filter(created_by=user)
         
-        return qs
+#         return qs
 
 
 # Export view functions for urls.py
 test_suite_list = TestSuiteListView.as_view()
 test_suite_detail = TestSuiteDetailView.as_view()
-test_case_list_view = TestCaseListView.as_view()
+# test_case_list_view = TestCaseListView.as_view()
 test_category_list = TestCategoryListView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()
+
+test_case_list = TestCaseListView.as_view()
+test_case_detail = TestCaseDetailView.as_view()
