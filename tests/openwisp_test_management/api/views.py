@@ -4,12 +4,12 @@ from rest_framework import filters, generics, pagination ,status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
-
-
+from django.http import HttpResponse
+from rest_framework.generics import GenericAPIView
 from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
 from openwisp_users.api.permissions import DjangoModelPermissions
 from rest_framework.permissions import IsAuthenticated
-
+from openwisp_test_management.utils import build_all_testcases_zip
 from ..swapper import load_model
 from .filters import TestCategoryFilter ,TestSuiteFilter, TestCaseFilter
 from .serializers import (
@@ -360,6 +360,44 @@ class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVi
         
 #         return qs
 
+class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
+    """
+    Export all test case scripts as a ZIP file
+    """
+
+    queryset = TestCase.objects.all()
+
+    def get_queryset(self):
+        """
+        Match admin visibility rules
+        """
+        qs = super().get_queryset()
+
+        if self.request.user.is_superuser:
+            return qs
+
+        return qs.filter(created_by=self.request.user)
+    
+    def get(self, request, *args, **kwargs):
+        # ✅ Match admin queryset behavior
+        queryset= self.get_queryset()
+
+        if not queryset.exists():
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(
+                {"detail": "No test cases available for export."}
+            )
+
+        zip_buffer = build_all_testcases_zip(queryset)
+
+        response = HttpResponse(
+            zip_buffer,
+            content_type="application/zip",
+        )
+        response["Content-Disposition"] = (
+            'attachment; filename="all_testcase_scripts.zip"'
+        )
+        return response
 
 # Export view functions for urls.py
 test_suite_list = TestSuiteListView.as_view()
@@ -370,3 +408,5 @@ test_category_detail = TestCategoryDetailView.as_view()
 
 test_case_list = TestCaseListView.as_view()
 test_case_detail = TestCaseDetailView.as_view()
+
+export_all_scripts = ExportAllTestCaseScriptsView.as_view()
