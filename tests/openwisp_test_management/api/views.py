@@ -6,13 +6,18 @@ from openwisp_users.api.permissions import DjangoModelPermissions
 from rest_framework.permissions import IsAuthenticated
 
 from ..swapper import load_model
-from .filters import TestCategoryFilter
+from .filters import TestCategoryFilter, TestSuiteExecutionFilter
 from .serializers import (
     TestCategorySerializer,
     TestCategoryDetailSerializer,
+    TestSuiteExecutionSerializer,
+    TestSuiteExecutionListSerializer,
 )
 
+from rest_framework.parsers import MultiPartParser, FormParser
+
 TestCategory = load_model("TestCategory")
+TestExecution = load_model("TestSuiteExecution")
 
 
 class ListViewPagination(pagination.PageNumberPagination):
@@ -118,6 +123,96 @@ class TestCategoryDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAP
         super().perform_destroy(instance)
 
 
+class TestExecutionListView(ProtectedAPIMixin, generics.ListCreateAPIView):
+    """
+    API endpoint for listing and creating test executions
+    
+    GET  → List all test executions (with filters, search, pagination)
+    - Superusers see all test executions
+    - Regular users see only test executions they created
+    POST → Create new test execution
+    """
+    parser_classes = (MultiPartParser, FormParser)
+ 
+    # Basic configuration
+
+    def get_queryset(self):
+        #Only list test executions created by requesting user
+        qs = TestExecution.objects.all().select_related("test_suite")
+
+        user = self.request.user
+        if user.is_authenticated:
+            if user and not user.is_superuser:
+                qs = qs.filter(created_by=user)
+        else:
+            qs = qs.none()
+
+        return qs
+
+    # Model instance → JSON (for response)
+    # JSON → Model instance (for creation)
+    serializer_class = TestSuiteExecutionSerializer
+
+    # Instead of returning 1000 test executions
+    # Return 10 at a time
+    pagination_class = ListViewPagination
+    
+    # Filtering and ordering configuration
+    filter_backends = [
+        DjangoFilterBackend,    # Apply filters from filters.py
+        filters.OrderingFilter,  # Enable ?ordering=name
+        filters.SearchFilter,    # Enable ?search=keyword
+    ]
+    filterset_class = TestSuiteExecutionFilter
+    search_fields = ["test_suite__name"]
+    ordering_fields = ["created", "test_suite__name"]
+    ordering = ["-created"]  # Default: newest first
+
+    def get_serializer_class(self):
+        """Use lightweight serializer for list view"""
+        if self.request.method == "GET":
+            return TestSuiteExecutionListSerializer
+        return TestSuiteExecutionSerializer
+
+
+class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    API endpoint for retrieving, updating, and deleting a test execution
+    
+    GET /api/v1/test-management/execution/<uuid:pk>/
+    - Retrieve detailed information about a test execution
+    
+    PUT /api/v1/test-management/execution/<uuid:pk>/
+    - Update a test execution (full update)
+    
+    PATCH /api/v1/test-management/execution/<uuid:pk>/
+    - Partially update a test execution
+    
+    DELETE /api/v1/test-management/execution/<uuid:pk>/
+    - Delete a test execution
+    """
+    parser_classes = (MultiPartParser, FormParser)
+    queryset = TestExecution.objects.all().select_related("test_suite")
+    lookup_field = "pk"
+    serializer_class = TestSuiteExecutionSerializer
+    
+    def perform_destroy(self, instance):
+        """Prevent deletion of executed test executions"""
+        
+        if instance.is_executed:
+            from rest_framework.exceptions import ValidationError
+            from django.utils.translation import gettext_lazy as _
+
+            raise ValidationError({
+                "detail": _(
+                    f"Cannot delete executed test executions"
+                )
+            })
+        
+        return super().perform_destroy(instance)
+
 # Export view functions for urls.py
 test_category_list = TestCategoryListView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()
+test_execution_list = TestExecutionListView.as_view()
+test_execution_detail = TestExecutionDetailView.as_view()

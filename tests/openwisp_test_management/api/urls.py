@@ -23,6 +23,18 @@ urlpatterns = [
         views.test_category_detail,
         name="api_test_category_detail",
     ),
+    # List all Exections OR create new Execution
+    path(
+        "execution/",
+        views.test_execution_list,
+        name="api_test_execution_list",
+    ),
+    # Get/Update/Delete specific Execution
+    path(
+        "execution/<uuid:pk>/",
+        views.test_execution_detail,
+        name="api_test_execution_detail",
+    ),
 
 
 
