@@ -210,9 +210,21 @@ class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyA
     - Delete a test execution
     """
     parser_classes = (MultiPartParser, FormParser)
-    queryset = TestExecution.objects.all().select_related("test_suite")
     lookup_field = "pk"
     serializer_class = TestSuiteExecutionSerializer
+
+    def get_queryset(self):
+        #Only list test executions created by requesting user
+        qs = TestExecution.objects.all().select_related("test_suite")
+
+        user = self.request.user
+        if user.is_authenticated:
+            if user and not user.is_superuser:
+                qs = qs.filter(created_by=user)
+        else:
+            qs = qs.none()
+
+        return qs
     
     def perform_destroy(self, instance):
         """Prevent deletion of executed test executions"""
