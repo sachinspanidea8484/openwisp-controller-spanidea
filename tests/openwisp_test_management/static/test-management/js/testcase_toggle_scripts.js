@@ -32,7 +32,16 @@
     const fileInput = $("#id_python_script");
     const description = $("#id_description");
     if (!fileInput.length || !description.length) return;
-
+    const fileInputRobot = $("#id_robot_script");
+    fileInputRobot.on("change", function(){
+        const file = this.files[0];
+        if(!file) return ;
+        if(!file.name.endsWith(".robot")){
+            alert("Please select a valid .robot file");
+            this.value="";
+            return ;
+        }
+    })
     fileInput.on("change", function () {
         const file = this.files[0];
         if (!file) return;
@@ -185,9 +194,25 @@
             }
         });
     }
+    function getTestTypeValue() {
+      const select = $("#id_test_type");
 
+      // Editable mode
+      if (select.length) {
+        return select.val();
+      }
+
+      // Readonly mode (Django admin)
+      const readonlyText = $(".field-test_type .readonly").text().trim();
+
+      // Map display value → actual value
+      if (readonlyText === "Robot Framework") return "1";
+      if (readonlyText === "Device") return "2";
+
+      return null;
+    }
     function toggleScriptFields() {
-        const testType = $("#id_test_type").val();
+        const testType = getTestTypeValue();
         const pythonRow = $(".field-python_script").closest(".form-row, .field");
         const robotRow = $(".field-robot_script").closest(".form-row, .field");
 
