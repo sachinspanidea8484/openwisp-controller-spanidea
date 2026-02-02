@@ -1371,6 +1371,11 @@ class TestCaseAdmin(BaseVersionAdmin):
     change_list_template = 'admin/test_management/import_export/testcase/change_list.html'
     actions = ["delete_selected", "recover_deleted", "activate_cases", "deactivate_cases"]
 
+    def get_readonly_fields(self, request, obj=None):
+        # obj is None when adding, and not None when editing
+        if obj:
+            return self.readonly_fields + ["test_type" , "test_case_id"]
+        return self.readonly_fields
     def get_queryset(self, request):
         qs = super().get_queryset(request)
 
@@ -1786,7 +1791,7 @@ class TestCasesExportable(ImportExportMixin, TestCaseAdmin):
     def export_all_scripts(self, request):
         queryset = self.get_queryset(request)
 
-        zip_buffer = build_all_testcases_zip(queryset)
+        zip_buffer = build_all_testcases_zip(queryset, False)
 
         response = HttpResponse(
             zip_buffer,
