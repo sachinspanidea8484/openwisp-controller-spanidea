@@ -1735,7 +1735,7 @@ from django.urls import reverse
     
 class TestCasesExportable(ImportExportMixin, TestCaseAdmin):
     resource_class= TestCasesResource
-    actions = TestCaseAdmin.actions + ["export_selected_redirect" , "export_scripts_zip"]
+    actions = TestCaseAdmin.actions + ["export_selected_redirect" ]
 
     def export_selected_redirect(self, request, queryset):
         """
