@@ -27,6 +27,7 @@ urlpatterns = [
         views.test_category_detail,
         name="api_test_category_detail",
     ),
+    
 
 
     # ========================================================================
@@ -57,7 +58,14 @@ urlpatterns = [
         name="api_test_case_list",
     ),
 
-
+            # path(
+            #     "device-groups/",
+            #     executor_views.TestDeviceGroupexecutor_viewset.as_view({
+            #         "get": "list",      # GET /device-groups/
+            #         "post": "create"    # POST /device-groups/
+            #     }),
+            #     name="device-group-list",
+            # ),
 
            
 
