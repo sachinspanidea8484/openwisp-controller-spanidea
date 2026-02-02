@@ -16,6 +16,7 @@ TestSuiteCase = load_model("TestSuiteCase")
 TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestDeviceGroup= load_model("TestDeviceGroup")
+ExecutionArtifact = load_model("ExecutionArtifact")
 
 
 
@@ -633,7 +634,21 @@ class TestSuiteExecutionDeviceSerializer(serializers.ModelSerializer):
             "output",
         ]
         # read_only_fields = ["started_at", "completed_at"]
+
 from django.contrib.auth import get_user_model
+
+class ExecutionArtifactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExecutionArtifact
+        fields = (
+            "id",
+            "device",
+            "testcase",
+            "config_file",
+            "is_pushed",
+        )
+        read_only_fields = fields
+
 class TestSuiteExecutionSerializer(serializers.ModelSerializer):
     """
     Safe serializer for AbstractTestSuiteExecution
@@ -661,6 +676,8 @@ class TestSuiteExecutionSerializer(serializers.ModelSerializer):
     active_device_count = serializers.IntegerField(read_only=True)
     is_re_execution = serializers.BooleanField(read_only=True)
 
+    artifacts = ExecutionArtifactSerializer(many=True, read_only=True)
+
     class Meta:
         model = load_model("TestSuiteExecution")
         fields = [
@@ -685,6 +702,8 @@ class TestSuiteExecutionSerializer(serializers.ModelSerializer):
 
             "device_selection",
             "device_group",
+
+            "artifacts",
 
             "execution_status",
             "execution_start_time",
