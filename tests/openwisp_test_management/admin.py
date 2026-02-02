@@ -1374,7 +1374,7 @@ class TestCaseAdmin(BaseVersionAdmin):
     def get_readonly_fields(self, request, obj=None):
         # obj is None when adding, and not None when editing
         if obj:
-            return self.readonly_fields + ["test_type"]
+            return self.readonly_fields + ["test_type" , "test_case_id"]
         return self.readonly_fields
     def get_queryset(self, request):
         qs = super().get_queryset(request)
