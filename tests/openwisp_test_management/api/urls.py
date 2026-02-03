@@ -86,6 +86,21 @@ urlpatterns = [
                 name="api_available_devices",
             ),
             path(
+                "execution/<uuid:execution_id>/start-execution/",
+                views.test_execution_start,
+                name="api_test_execution_start",
+            ),
+            path(
+                "execution/<uuid:execution_id>/re-execute/",
+                views.test_execution_re_execute,
+                name="api_test_execution_re_execute"
+            ),
+            path(
+                "execution/<uuid:execution_id>/re-execute-selected/",
+                views.test_execution_re_execute_selected,
+                name="api_test_execution_re_execute_selected"
+            ),
+            path(
                 "execution/<uuid:execution_id>/history/",
                 executor_views.test_execution_history,
                 name="api_test_execution_history",
@@ -107,7 +122,7 @@ urlpatterns = [
             ),
             path(
                 "execution/<uuid:execution_id>/abort-execution/",
-                executor_views.test_execution_abort,
+                views.test_execution_abort_view,
                 name="api_test_execution_abort",
             ),
             

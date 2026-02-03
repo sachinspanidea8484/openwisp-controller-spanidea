@@ -765,12 +765,68 @@ class TestSuiteExecutionSerializer(serializers.ModelSerializer):
 
         return fields
 
+class TestSuiteExecutionCreateSerializer(serializers.ModelSerializer):
+    from drf_yasg import openapi
+
+    individual_test_cases = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=load_model("TestCase").objects.all(),
+        required=False
+    )
+    TEST_SELECTION_MAP = {
+        "individual": 0,
+        "group": 1,
+    }
+
+    DEVICE_SELECTION_MAP = {
+        "individual": 0,
+        "group": 1,
+    }
+
+    test_selection_type = serializers.ChoiceField(
+        choices=[
+            ("individual", "Individual Test Cases"),
+            ("group", "Test Group"),
+        ]
+    )
+
+    device_selection = serializers.ChoiceField(
+        choices=[
+            ("individual", "Individual Devices"),
+            ("group", "Device Group"),
+        ]
+    )
+
+    class Meta:
+        model = load_model("TestSuiteExecution")
+        fields = [
+            "name",
+            "test_selection_type",
+            "test_suite",
+            "individual_test_cases",
+            "device_selection",
+            "device_group",
+            "notification_emails",
+        ]
+
+    def create(self, validated_data):
+        # Map string values to integer values
+        validated_data["test_selection_type"] = self.TEST_SELECTION_MAP[
+            validated_data["test_selection_type"]
+        ]
+        validated_data["device_selection"] = self.DEVICE_SELECTION_MAP[
+            validated_data["device_selection"]
+        ]
+
+        return super().create(validated_data)
+
     # ---------- VALIDATION ----------
     def validate(self, attrs):
         test_selection_type = attrs.get(
             "test_selection_type",
             getattr(self.instance, "test_selection_type", None)
         )
+        device_selection = attrs.get("device_selection")
 
         test_suite = attrs.get("test_suite")
         individual_cases = attrs.get("individual_test_cases")
@@ -785,7 +841,27 @@ class TestSuiteExecutionSerializer(serializers.ModelSerializer):
                 "individual_test_cases": "At least one test case is required for individual selection."
             })
 
+        if device_selection == 1 and not attrs.get("device_group"):
+            raise serializers.ValidationError({
+                "device_group": "Required when device selection is Device Group"
+            })
+
         return attrs
+
+class ReExecuteSelectedTestsSerializer(serializers.Serializer):
+    device_tests_info = serializers.DictField(
+        child=serializers.ListField(
+            child=serializers.CharField(),
+            min_length=1
+        )
+    )
+
+    def validate_device_tests_info(self, value):
+        if not value:
+            raise serializers.ValidationError(
+                "No tests selected for re-execution."
+            )
+        return value
 
 class TestSuiteExecutionSerializerOld(ValidatedModelSerializer):
     """Serializer for Test Suite Executions"""

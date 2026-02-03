@@ -4,13 +4,18 @@ from rest_framework import filters, generics, pagination ,status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
-
+from django.shortcuts import get_object_or_404
+from rest_framework.views import APIView
+from django.utils import timezone
 
 from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
 from openwisp_users.api.permissions import DjangoModelPermissions
 from rest_framework.permissions import IsAuthenticated
 
 from ..swapper import load_model
+
+import logging
+logger = logging.getLogger(__name__)
 
 from .filters import TestCategoryFilter, TestSuiteFilter, TestCaseListFilter, TestSuiteExecutionFilter
 from .serializers import (
@@ -20,9 +25,11 @@ from .serializers import (
     TestSuiteDetailSerializer,
     TestCaseListSerializer,
     TestSuiteExecutionSerializer,
+    TestSuiteExecutionCreateSerializer,
     TestSuiteExecutionListSerializer,
+    ReExecuteSelectedTestsSerializer,
 )
-
+from openwisp_controller.config.models import Device
 from rest_framework.parsers import MultiPartParser, FormParser
 
 TestCategory = load_model("TestCategory")
@@ -30,6 +37,8 @@ TestExecution = load_model("TestSuiteExecution")
 TestSuite = load_model("TestSuite")
 TestCase = load_model("TestCase")
 TestSuiteCase = load_model("TestSuiteCase")
+TestCaseExecution = load_model("TestCaseExecution")
+TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 
 class ListViewPagination(pagination.PageNumberPagination):
     """Pagination configuration for list views"""
@@ -50,7 +59,115 @@ class ProtectedAPIMixin(BaseProtectedAPIMixin):
     throttle_scope = "test_management"
 
 
+def create_test_execution_clone(execution, request):
+    """
+    Creates a full re-execution with identical configuration.
+    """
+    Execution = type(execution)
+    root = execution.parent_execution or execution
 
+    with transaction.atomic():
+        
+        retry_count = Execution.objects.filter(
+            parent_execution=root
+        ).count()
+
+        new_execution = Execution.objects.create(
+            parent_execution=root,
+            re_execution_index=retry_count + 1,
+            test_case_execution_order= execution.test_case_execution_order,
+            name=root.name + f"_{retry_count+1}",
+            test_selection_type=execution.test_selection_type,
+            test_suite=execution.test_suite,
+            device_selection=execution.device_selection,
+            device_group=execution.device_group,
+            notification_emails= execution.notification_emails,
+            execution_start_time= timezone.now(),
+            created_by= request.user,
+        )
+        
+        if execution.test_selection_type == 0:
+            new_execution.individual_test_cases.set(
+                execution.individual_test_cases.all()
+            )
+
+        old_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        )
+
+        TestSuiteExecutionDevice.objects.bulk_create([
+            TestSuiteExecutionDevice(
+                test_suite_execution=new_execution,
+                device=ed.device,
+                connection_protocol= ed.connection_protocol,
+                status="pending",
+            )
+            for ed in old_devices
+        ])
+
+        new_execution.device_count = execution.device_count
+
+        new_execution.testcase_count= execution.testcase_count
+        new_execution.save(update_fields=["device_count", "testcase_count"])
+
+    return new_execution
+
+def create_test_execution_clone_for_selected_tests(execution, device_tests_info_list, request):
+    """
+    Creates a full re-execution with identical configuration.
+    """
+    Execution = type(execution)
+    root = execution.parent_execution or execution
+
+    with transaction.atomic():
+        
+        retry_count = Execution.objects.filter(
+            parent_execution=root
+        ).count()
+
+        new_execution = Execution.objects.create(
+            parent_execution=root,
+            re_execution_index=retry_count + 1,
+            test_case_execution_order= execution.test_case_execution_order,
+            name=root.name + f"_{retry_count+1}",
+            test_selection_type=execution.test_selection_type,
+            test_suite=execution.test_suite,
+            device_selection=execution.device_selection,
+            device_group=execution.device_group,
+            notification_emails= execution.notification_emails,
+            execution_start_time= timezone.now(),
+            created_by= request.user,
+        )
+
+        if execution.test_selection_type == 0:
+            new_execution.individual_test_cases.set(
+                execution.individual_test_cases.all()
+            )
+
+        old_devices = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        )
+        selected_devices = []
+        for dev in old_devices:
+            if len(device_tests_info_list.get(str(dev.device.id), [])) > 0:
+                selected_devices.append(dev)
+
+        TestSuiteExecutionDevice.objects.bulk_create([
+            TestSuiteExecutionDevice(
+                test_suite_execution=new_execution,
+                device=ed.device,
+                connection_protocol= ed.connection_protocol,
+                status="pending",
+            )
+            for ed in selected_devices
+        ])
+
+        new_execution.device_count = len(selected_devices)
+
+        new_execution.testcase_count= execution.testcase_count
+        new_execution.save(update_fields=["device_count", "testcase_count"])
+
+    return new_execution
 
 
 # ============================================================================
@@ -190,7 +307,7 @@ class TestExecutionListView(ProtectedAPIMixin, generics.ListCreateAPIView):
         """Use lightweight serializer for list view"""
         if self.request.method == "GET":
             return TestSuiteExecutionListSerializer
-        return TestSuiteExecutionSerializer
+        return TestSuiteExecutionCreateSerializer
 
 
 class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -211,7 +328,6 @@ class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyA
     """
     parser_classes = (MultiPartParser, FormParser)
     lookup_field = "pk"
-    serializer_class = TestSuiteExecutionSerializer
 
     def get_queryset(self):
         #Only list test executions created by requesting user
@@ -225,7 +341,13 @@ class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyA
             qs = qs.none()
 
         return qs
-    
+
+    def get_serializer_class(self):
+        """Use lightweight serializer for list view"""
+        if self.request.method == "GET" or self.request.method == "DELETE":
+            return TestSuiteExecutionSerializer
+        return TestSuiteExecutionCreateSerializer
+
     def perform_destroy(self, instance):
         """Prevent deletion of executed test executions"""
         
@@ -240,6 +362,240 @@ class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyA
             })
         
         return super().perform_destroy(instance)
+
+class TestExecutionStartView(ProtectedAPIMixin, APIView):
+    """
+    API endpoint for starting a test execution
+    
+    POST /api/v1/test-management/execution/<uuid:pk>/start-execution/
+    - Start a test execution
+    """
+
+    def get_queryset(self):
+        #Only list test executions created by requesting user
+        qs = TestExecution.objects.all().select_related("test_suite")
+
+        user = self.request.user
+        if user.is_authenticated:
+            if user and not user.is_superuser:
+                qs = qs.filter(created_by=user)
+        else:
+            qs = qs.none()
+
+        return qs
+
+    def post(self, request, execution_id):
+        from ..tasks import execute_test_suite as execute_test_suite_task
+        execution = get_object_or_404(TestExecution, id=execution_id)
+
+        # 🔒 Safety checks
+        if execution.is_executed:
+            return Response(
+                {"detail": "Test Execution is already executed."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Optional: permission check
+        if execution.created_by != request.user:
+            return Response(
+                {"detail": "Not allowed to start this execution."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Update status
+        execution.is_executed = True
+        execution.save(update_fields=['is_executed'])
+
+        # 🚀 Trigger async execution
+        execute_test_suite_task.delay(str(execution.id))
+
+        return Response(
+            {
+                "execution_id": execution.id,
+                "status": execution.status,
+                "message": "Execution started successfully"
+            },
+            status=status.HTTP_202_ACCEPTED
+        )
+
+class TestExecutionReExecuteView(ProtectedAPIMixin, APIView):
+    """
+    API endpoint for re-executing a test execution
+    
+    POST /api/v1/test-management/execution/<uuid:pk>/re-execute/
+    - Re-execute a test execution
+    """
+
+    def get_queryset(self):
+        #Only list test executions created by requesting user
+        qs = TestExecution.objects.all().select_related("test_suite")
+
+        user = self.request.user
+        if user.is_authenticated:
+            if user and not user.is_superuser:
+                qs = qs.filter(created_by=user)
+        else:
+            qs = qs.none()
+
+        return qs
+
+    def post(self, request, execution_id):
+        from ..tasks import execute_test_suite as execute_test_suite_task
+        execution = get_object_or_404(TestExecution, pk=execution_id)
+        # Optional: permission check
+        if execution.created_by != request.user:
+            return Response(
+                {"detail": "Not allowed to start this execution."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        try:
+            new_execution = create_test_execution_clone(execution, request)
+
+            new_execution.is_executed= True
+            new_execution.save()
+
+            execute_test_suite_task.delay(str(new_execution.pk))
+
+            return Response(
+                {
+                    "execution_id": new_execution.pk,
+                    "status": new_execution.status,
+                    "message": "Execution started successfully"
+                },
+                status=status.HTTP_202_ACCEPTED
+            )
+        except Exception as e:
+            return Response({"Error": f"{str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class TestExecutionReExecuteSelectedView(ProtectedAPIMixin, APIView):
+    """
+    API endpoint for re-executing selected tests in a test execution
+    
+    POST /api/v1/test-management/execution/<uuid:pk>/re-execute-selected/
+    - Re-execute selected tests in a test execution
+    """
+    serializer_class = ReExecuteSelectedTestsSerializer
+    def get_queryset(self):
+        #Only list test executions created by requesting user
+        qs = TestExecution.objects.all().select_related("test_suite")
+
+        user = self.request.user
+        if user.is_authenticated:
+            if user and not user.is_superuser:
+                qs = qs.filter(created_by=user)
+        else:
+            qs = qs.none()
+
+        return qs
+
+    from drf_yasg.utils import swagger_auto_schema
+    @swagger_auto_schema(
+        request_body=ReExecuteSelectedTestsSerializer
+    )
+    def post(self, request, execution_id):
+        from ..tasks import execute_selected_tests_in_test_execution as start_selected_tests_execution
+        execution = get_object_or_404(TestExecution, pk=execution_id)
+        # Optional: permission check
+        if execution.created_by != request.user:
+            return Response(
+                {"detail": f"Not allowed to start this execution. As its created by: {execution.created_by}"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        serializer = ReExecuteSelectedTestsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        device_tests_info = serializer.validated_data["device_tests_info"]
+
+        with transaction.atomic():
+            # 🔁 Create new test execution
+            new_execution = create_test_execution_clone_for_selected_tests(execution, device_tests_info, request)
+            new_execution.is_executed= True
+            new_execution.save()
+        start_selected_tests_execution.delay(str(new_execution.pk), device_tests_info)
+            
+
+        return Response(
+            {
+                "new_execution_id": new_execution.id,
+                "message": "Re-execution for selected tests started successfully"
+            },
+            status=status.HTTP_202_ACCEPTED
+        )
+
+class TestExecutionAbortView(ProtectedAPIMixin, APIView):
+    """
+    API endpoint for aborting a test execution
+    
+    POST /api/v1/test-management/execution/<uuid:pk>/abort-execution/
+    - Abort a test execution
+    """
+
+    def get_queryset(self):
+        #Only list test executions created by requesting user
+        qs = TestExecution.objects.all().select_related("test_suite")
+
+        user = self.request.user
+        if user.is_authenticated:
+            if user and not user.is_superuser:
+                qs = qs.filter(created_by=user)
+        else:
+            qs = qs.none()
+
+        return qs
+
+    def post(self, request, execution_id):
+        from ..tasks import execute_test_suite as execute_test_suite_task
+        execution = get_object_or_404(TestExecution, id=execution_id)
+
+        # Optional: permission check
+        if execution.created_by != request.user:
+            return Response(
+                {"detail": "Not allowed to abort this execution."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            # Get all execution devices
+            execution_devices = TestSuiteExecutionDevice.objects.filter(
+                test_suite_execution=execution
+            ).select_related('device').order_by('device__name')
+
+            print("device_exec>>>>>",execution_devices)
+            from ..tasks import abort_test_execution as abort_task
+            from ..tasks import abort_device_pending_tests as abort_pending_tests_task
+
+            # Get the device execution
+            for device_execution in execution_devices:
+                device = device_execution.device
+                #First abort all pending tests
+                abort_pending_tests_task(execution_id, str(device.id))
+                # Get all running test executions for this device
+                running_tests = TestCaseExecution.objects.filter(
+                    test_suite_execution=device_execution.test_suite_execution,
+                    device=device_execution.device,
+                    status='running'
+                )
+                #Abort running tests for this device
+                for test in running_tests:
+                    abort_task.delay(str(test.pk))
+
+            return Response({
+                'success': True,
+                'message': f'Aborting running and pending tests for test execution',
+                'test_group_execution_id': str(execution_id)
+            }, status=status.HTTP_200_OK)
+
+        except TestExecution.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Test execution not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error aborting test execution: {str(e)}")
+            return Response({
+                'success': False,
+                'error': 'Failed to abort test execution',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # ============================================================================
 # TEST SUITE (TEST GROUP) VIEWS
@@ -399,3 +755,7 @@ test_category_list = TestCategoryListView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()
 test_execution_list = TestExecutionListView.as_view()
 test_execution_detail = TestExecutionDetailView.as_view()
+test_execution_start = TestExecutionStartView.as_view()
+test_execution_re_execute = TestExecutionReExecuteView.as_view()
+test_execution_re_execute_selected = TestExecutionReExecuteSelectedView.as_view()
+test_execution_abort_view = TestExecutionAbortView.as_view()
