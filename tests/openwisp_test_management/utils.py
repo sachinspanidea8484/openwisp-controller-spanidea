@@ -322,8 +322,6 @@ def build_device_testcases_zip(queryset, include_media_test_case=True):
                     continue
                 
                 # Check if python_script exists in database
-                print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-                print("tctype", type(tc.test_type) , (tc.test_type==1), tc.test_type)
                 if tc.python_script and tc.test_type == 2:
                     python_name = tc.python_script.name
                     
