@@ -72,6 +72,16 @@ class ProtectedAPIMixin(BaseProtectedAPIMixin):
     )
     throttle_scope = "test_management"
 
+class ProtectedExternalAPIMixin(BaseProtectedAPIMixin):
+    """
+    Base mixin for all test management API views
+    Adds authentication and permission requirements
+    """
+    permission_classes = (
+        IsAuthenticated,           # Must be logged in
+    )
+    throttle_scope = "test_management"
+
 
 def create_test_execution_clone(execution, request):
     """
@@ -377,7 +387,7 @@ class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyA
         
         return super().perform_destroy(instance)
 
-class TestExecutionStartView(ProtectedAPIMixin, APIView):
+class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint for starting a test execution
     
@@ -432,7 +442,7 @@ class TestExecutionStartView(ProtectedAPIMixin, APIView):
             status=status.HTTP_202_ACCEPTED
         )
 
-class TestExecutionReExecuteView(ProtectedAPIMixin, APIView):
+class TestExecutionReExecuteView(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint for re-executing a test execution
     
@@ -481,7 +491,7 @@ class TestExecutionReExecuteView(ProtectedAPIMixin, APIView):
         except Exception as e:
             return Response({"Error": f"{str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class TestExecutionReExecuteSelectedView(ProtectedAPIMixin, APIView):
+class TestExecutionReExecuteSelectedView(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint for re-executing selected tests in a test execution
     
@@ -535,7 +545,7 @@ class TestExecutionReExecuteSelectedView(ProtectedAPIMixin, APIView):
             status=status.HTTP_202_ACCEPTED
         )
 
-class TestExecutionAbortView(ProtectedAPIMixin, APIView):
+class TestExecutionAbortView(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint for aborting a test execution
     
@@ -611,7 +621,7 @@ class TestExecutionAbortView(ProtectedAPIMixin, APIView):
                 'details': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class TestExecutionHistoryExportView(ProtectedAPIMixin, APIView):
+class TestExecutionHistoryExportView(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint for exporting a test execution history
     
@@ -711,7 +721,7 @@ class TestExecutionHistoryExportView(ProtectedAPIMixin, APIView):
                 'details': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class TestExecutionHistoryView(ProtectedAPIMixin, APIView):
+class TestExecutionHistoryView(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint for getting test execution history with enhanced statistics
     
@@ -1038,7 +1048,7 @@ class TestExecutionHistoryView(ProtectedAPIMixin, APIView):
                 'details': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class TestExecutionAllHistoryView(ProtectedAPIMixin, APIView):
+class TestExecutionAllHistoryView(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint to get test execution history for all child test executions
     
@@ -1136,7 +1146,7 @@ class TestExecutionAllHistoryView(ProtectedAPIMixin, APIView):
                 'details': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-class TestExecutionAvailableDevicesView(ProtectedAPIMixin, APIView):
+class TestExecutionAvailableDevicesView(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint to Get devices with working connections
     
