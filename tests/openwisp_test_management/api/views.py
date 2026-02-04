@@ -16,6 +16,8 @@ from .serializers import (
     TestCategorySerializer,
     TestCategoryDetailSerializer,
     TestCaseSerializer,
+    TestCaseMinimalSerializer,
+
     TestCaseDetailSerializer,
     TestSuiteSerializer,
     TestSuiteDetailSerializer,
@@ -91,9 +93,6 @@ class TestCategoryDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAP
     
     GET /api/v1/test-management/test-category/<uuid:pk>/
     - Retrieve detailed information about a test category
-    - Includes related test cases (filtered by user permissions)
-    - Superusers see all test cases
-    - users see only test cases they created
     
     PUT /api/v1/test-management/test-category/<uuid:pk>/
     - Update a test category (full update)
@@ -211,26 +210,15 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
 
 
 # ============================================================================
-# TEST SUITE (TEST GROUP) VIEWS
+# TEST SUITE (GROUP) VIEWS
 # ============================================================================
 class TestSuiteListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
-    API endpoint for listing and creating test groups
-    
-    GET  /api/v1/test-management/test-group/
-    - List all test groups (paginated)
-    - Superusers see all groups
-    - Users see only groups they created
-    - Supports filtering by name, is_active, created_by
-    - Supports search and ordering
-    
-    POST /api/v1/test-management/test-group/
-    - Create a new test group
-    - Automatically sets created_by to request user
+    GET  → list test groups 
+    POST → create test group
     """
     serializer_class = TestSuiteSerializer
     pagination_class = ListViewPagination
-    
     filter_backends = [
         DjangoFilterBackend,
         filters.OrderingFilter,
@@ -240,125 +228,55 @@ class TestSuiteListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     search_fields = ["name", "description"]
     ordering_fields = ["name", "created", "modified"]
     ordering = ["-created"]
-    
-    def get_queryset(self):
-        """
-        Superusers see all test groups
-        Users see only test groups they created
-        """
-        user = self.request.user
-        qs = TestSuite.objects.all().select_related('created_by')
-        
-        if not user.is_superuser:
-            # Users see only their own test groups
-            qs = qs.filter(created_by=user)
-        
-        return qs
+    queryset = TestSuite.objects.all()
 
 
 class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
     """
-    API endpoint for retrieving, updating, and deleting a test group
-    
-    GET    /api/v1/test-management/test-group/<uuid:pk>/
-    - Retrieve detailed information about a test group
-    - Includes list of test cases with ordering
-    
-    PUT    /api/v1/test-management/test-group/<uuid:pk>/
-    - Full update of test group
-    - Can update test_case_ids to replace all test cases
-    
-    PATCH  /api/v1/test-management/test-group/<uuid:pk>/
-    - Partial update of test group
-    
-    DELETE /api/v1/test-management/test-group/<uuid:pk>/
-    - Delete test group
-    - Only allowed if group has no executions
+    GET    → detail with test_cases_detail 
+    PUT/PATCH → update accepts test_case_ids[]
+    Delete test case (only if deletable)
     """
-    lookup_field = "pk"
-    
-    def get_queryset(self):
-        """
-        Superusers see all test groups
-        Users see only test groups they created
-        """
-        user = self.request.user
-        qs = TestSuite.objects.all().select_related('created_by')
-        
-        if not user.is_superuser:
-            qs = qs.filter(created_by=user)
-        
-        return qs
-    
+    queryset = TestSuite.objects.all()
+
     def get_serializer_class(self):
-        """Use detailed serializer for GET, basic for updates"""
         if self.request.method == "GET":
             return TestSuiteDetailSerializer
         return TestSuiteSerializer
-    
+
     def perform_destroy(self, instance):
-        """Custom delete logic - prevent deletion if has executions"""
         if not instance.is_deletable:
             raise ValidationError({
                 "detail": _(
-                    f"Cannot delete test group '{instance.name}' because it has "
-                    f"{instance.execution_count} execution(s). "
-                    f"Please delete the executions first."
+                    f"Cannot delete test group '{instance.name}' because it has executions."
                 )
             })
-        
         super().perform_destroy(instance)
 
 
 # ============================================================================
-# TEST CASE LISTING VIEW (WITH CATEGORY FILTER)
+# TEST CASES BY CATEGORY (supports multiple category IDs)
 # ============================================================================
+class TestCasesByCategoryView(ProtectedAPIMixin, generics.ListAPIView):
+    """
+    GET /test-management/test-cases-by-category/?category_ids=<uuid>,<uuid>
+    - If no category_ids provided → returns all test cases
+    """
+    serializer_class = TestCaseMinimalSerializer
 
-# class TestCaseListView(ProtectedAPIMixin, generics.ListAPIView):
-#     """
-#     API endpoint for listing test cases with category filter
-    
-#     GET /api/v1/test-management/test-cases/
-#     - List all test cases (paginated)
-#     - Superusers see all test cases
-#     - Users see only test cases they created
-#     - Filter by category (multiple): ?category=uuid1,uuid2
-#     - Filter by test_type, is_active, etc.
-#     - Search by name, test_case_id
-    
-#     Examples:
-#     - All test cases: /test-cases/
-#     - By category: /test-cases/?category=uuid1&category=uuid2
-#     - Active only: /test-cases/?is_active=true
-#     - By type: /test-cases/?test_type=1
-#     - Search: /test-cases/?search=ping
-#     """
-#     serializer_class = TestCaseListSerializer
-#     pagination_class = ListViewPagination
-    
-#     filter_backends = [
-#         DjangoFilterBackend,
-#         filters.OrderingFilter,
-#         filters.SearchFilter,
-#     ]
-#     filterset_class = TestCaseListFilter
-#     search_fields = ["name", "test_case_id", "description"]
-#     ordering_fields = ["name", "test_case_id", "created", "modified"]
-#     ordering = ["-created"]
-    
-#     def get_queryset(self):
-#         """
-#         Superusers see all test cases
-#         Users see only test cases they created
-#         """
-#         user = self.request.user
-#         qs = TestCase.objects.all().select_related('category', 'created_by')
-        
-#         if not user.is_superuser:
-#             # Users see only their own test cases
-#             qs = qs.filter(created_by=user)
-        
-#         return qs
+    def get_queryset(self):
+        qs = TestCase.objects.select_related("category").all()
+        # Scope by user
+        if not self.request.user.is_superuser:
+            qs = qs.filter(created_by=self.request.user)
+        # Filter by category_ids if provided
+        category_ids = self.request.query_params.get("category_ids", "").strip()
+        if category_ids:
+            id_list = [cid.strip() for cid in category_ids.split(",") if cid.strip()]
+            if id_list:
+                qs = qs.filter(category__id__in=id_list)
+        return qs
+
 
 class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
     """
@@ -402,7 +320,8 @@ class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
 # Export view functions for urls.py
 test_suite_list = TestSuiteListView.as_view()
 test_suite_detail = TestSuiteDetailView.as_view()
-# test_case_list_view = TestCaseListView.as_view()
+test_case_list_view = TestCaseListView.as_view()
+test_cases_by_category = TestCasesByCategoryView.as_view()
 test_category_list = TestCategoryListView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()
 

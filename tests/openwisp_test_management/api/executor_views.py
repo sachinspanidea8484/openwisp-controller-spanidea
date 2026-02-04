@@ -3944,6 +3944,10 @@ def get_test_suite_details(request, suite_id):
             'error': 'Failed to retrieve test suite details',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+
+    
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_available_devices(request):
@@ -3980,14 +3984,15 @@ def get_available_devices(request):
         elif hasattr(request.user, 'organizationuser_set'):
             user_organizations = [ou.organization for ou in request.user.organizationuser_set.all()]
         
-        # Apply organization filter if user has organization restrictions
-        if user_organizations:
-            if isinstance(user_organizations, (list, tuple)):
-                if len(user_organizations) > 0:
-                    organization_filter['organization__in'] = user_organizations
-            else:
-                if user_organizations.exists():
-                    organization_filter['organization__in'] = user_organizations
+        # Apply organization filter only if user is NOT superuser
+        if not request.user.is_superuser:
+                if user_organizations:
+                                if isinstance(user_organizations, (list, tuple)):
+                                                if len(user_organizations) > 0:
+                                                                organization_filter['organization__in'] = user_organizations
+                                else:
+                                                if user_organizations.exists():
+                                                                organization_filter['organization__in'] = user_organizations
         
         # Get devices with organization filter
         devices_query = Device.objects.filter(
