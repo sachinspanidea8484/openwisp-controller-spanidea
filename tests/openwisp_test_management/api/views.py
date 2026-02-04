@@ -4,23 +4,31 @@ from rest_framework import filters, generics, pagination ,status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
+
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from django.utils import timezone
 
+
+from django.http import HttpResponse
+from rest_framework.generics import GenericAPIView
+
 from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
 from openwisp_users.api.permissions import DjangoModelPermissions
 from rest_framework.permissions import IsAuthenticated
-
+from openwisp_test_management.utils import build_all_testcases_zip
 from ..swapper import load_model
 
 import logging
 logger = logging.getLogger(__name__)
 
-from .filters import TestCategoryFilter, TestSuiteFilter, TestCaseListFilter, TestSuiteExecutionFilter
+from .filters import TestCategoryFilter ,TestSuiteFilter, TestSuiteExecutionFilter, TestCaseFilter
+
 from .serializers import (
     TestCategorySerializer,
     TestCategoryDetailSerializer,
+    TestCaseSerializer,
+    TestCaseDetailSerializer,
     TestSuiteSerializer,
     TestSuiteDetailSerializer,
     TestCaseListSerializer,
@@ -598,6 +606,79 @@ class TestExecutionAbortView(ProtectedAPIMixin, APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # ============================================================================
+# TEST CASE VIEWS
+# ============================================================================
+
+class TestCaseListView(ProtectedAPIMixin, generics.ListCreateAPIView):
+    """
+    GET  → List test cases
+    POST → Create test case
+    """
+    serializer_class = TestCaseSerializer
+    pagination_class = ListViewPagination
+    parser_classes = (MultiPartParser, FormParser)
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.OrderingFilter,
+        filters.SearchFilter,
+    ]
+    filterset_class = TestCaseFilter
+    search_fields = ["name", "test_case_id", "description"]
+    ordering_fields = ["name", "created", "modified"]
+    ordering = ["-created"]
+
+    def get_queryset(self):
+        qs = TestCase.objects.select_related("category")
+
+        # Superusers see all test cases
+        if self.request.user.is_superuser:
+            return qs
+
+        # Normal users see only their own test cases
+        return qs.filter(created_by=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET    → Retrieve test case details
+    PUT    → Update test case
+    PATCH  → Partial update
+    DELETE → Delete test case (only if deletable)
+    """
+    lookup_field = "pk"
+    parser_classes = (MultiPartParser, FormParser)
+    def get_queryset(self):
+        qs = TestCase.objects.select_related("category")
+
+        if self.request.user.is_superuser:
+            return qs
+
+        return qs.filter(created_by=self.request.user)
+
+    def get_serializer_class(self):
+        if self.request.method == "GET":
+            return TestCaseDetailSerializer
+        return TestCaseSerializer
+
+    def perform_destroy(self, instance):
+        """
+        Match admin delete behavior
+        """
+        if not instance.is_deletable:
+            raise ValidationError({
+                "detail": (
+                    "This test case cannot be deleted because it is part of "
+                    "a test suite or has executions."
+                )
+            })
+
+        instance.delete()
+
+
+# ============================================================================
 # TEST SUITE (TEST GROUP) VIEWS
 # ============================================================================
 class TestSuiteListView(ProtectedAPIMixin, generics.ListCreateAPIView):
@@ -701,56 +782,95 @@ class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVi
 # TEST CASE LISTING VIEW (WITH CATEGORY FILTER)
 # ============================================================================
 
-class TestCaseListView(ProtectedAPIMixin, generics.ListAPIView):
+# class TestCaseListView(ProtectedAPIMixin, generics.ListAPIView):
+#     """
+#     API endpoint for listing test cases with category filter
+    
+#     GET /api/v1/test-management/test-cases/
+#     - List all test cases (paginated)
+#     - Superusers see all test cases
+#     - Users see only test cases they created
+#     - Filter by category (multiple): ?category=uuid1,uuid2
+#     - Filter by test_type, is_active, etc.
+#     - Search by name, test_case_id
+    
+#     Examples:
+#     - All test cases: /test-cases/
+#     - By category: /test-cases/?category=uuid1&category=uuid2
+#     - Active only: /test-cases/?is_active=true
+#     - By type: /test-cases/?test_type=1
+#     - Search: /test-cases/?search=ping
+#     """
+#     serializer_class = TestCaseListSerializer
+#     pagination_class = ListViewPagination
+    
+#     filter_backends = [
+#         DjangoFilterBackend,
+#         filters.OrderingFilter,
+#         filters.SearchFilter,
+#     ]
+#     filterset_class = TestCaseListFilter
+#     search_fields = ["name", "test_case_id", "description"]
+#     ordering_fields = ["name", "test_case_id", "created", "modified"]
+#     ordering = ["-created"]
+    
+#     def get_queryset(self):
+#         """
+#         Superusers see all test cases
+#         Users see only test cases they created
+#         """
+#         user = self.request.user
+#         qs = TestCase.objects.all().select_related('category', 'created_by')
+        
+#         if not user.is_superuser:
+#             # Users see only their own test cases
+#             qs = qs.filter(created_by=user)
+        
+#         return qs
+
+class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
     """
-    API endpoint for listing test cases with category filter
-    
-    GET /api/v1/test-management/test-cases/
-    - List all test cases (paginated)
-    - Superusers see all test cases
-    - Users see only test cases they created
-    - Filter by category (multiple): ?category=uuid1,uuid2
-    - Filter by test_type, is_active, etc.
-    - Search by name, test_case_id
-    
-    Examples:
-    - All test cases: /test-cases/
-    - By category: /test-cases/?category=uuid1&category=uuid2
-    - Active only: /test-cases/?is_active=true
-    - By type: /test-cases/?test_type=1
-    - Search: /test-cases/?search=ping
+    Export all test case scripts as a ZIP file
     """
-    serializer_class = TestCaseListSerializer
-    pagination_class = ListViewPagination
-    
-    filter_backends = [
-        DjangoFilterBackend,
-        filters.OrderingFilter,
-        filters.SearchFilter,
-    ]
-    filterset_class = TestCaseListFilter
-    search_fields = ["name", "test_case_id", "description"]
-    ordering_fields = ["name", "test_case_id", "created", "modified"]
-    ordering = ["-created"]
-    
+
+    queryset = TestCase.objects.all()
+
     def get_queryset(self):
         """
-        Superusers see all test cases
-        Users see only test cases they created
+        Match admin visibility rules
         """
-        user = self.request.user
-        qs = TestCase.objects.all().select_related('category', 'created_by')
-        
-        if not user.is_superuser:
-            # Users see only their own test cases
-            qs = qs.filter(created_by=user)
-        
-        return qs
+        qs = super().get_queryset()
+
+        if self.request.user.is_superuser:
+            return qs
+
+        return qs.filter(created_by=self.request.user)
+    
+    def get(self, request, *args, **kwargs):
+        # ✅ Match admin queryset behavior
+        queryset= self.get_queryset()
+
+        if not queryset.exists():
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(
+                {"detail": "No test cases available for export."}
+            )
+
+        zip_buffer = build_all_testcases_zip(queryset)
+
+        response = HttpResponse(
+            zip_buffer,
+            content_type="application/zip",
+        )
+        response["Content-Disposition"] = (
+            'attachment; filename="all_testcase_scripts.zip"'
+        )
+        return response
 
 # Export view functions for urls.py
 test_suite_list = TestSuiteListView.as_view()
 test_suite_detail = TestSuiteDetailView.as_view()
-test_case_list_view = TestCaseListView.as_view()
+# test_case_list_view = TestCaseListView.as_view()
 test_category_list = TestCategoryListView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()
 test_execution_list = TestExecutionListView.as_view()
@@ -759,3 +879,6 @@ test_execution_start = TestExecutionStartView.as_view()
 test_execution_re_execute = TestExecutionReExecuteView.as_view()
 test_execution_re_execute_selected = TestExecutionReExecuteSelectedView.as_view()
 test_execution_abort_view = TestExecutionAbortView.as_view()
+test_case_list = TestCaseListView.as_view()
+test_case_detail = TestCaseDetailView.as_view()
+export_all_scripts = ExportAllTestCaseScriptsView.as_view()
