@@ -104,8 +104,8 @@ urlpatterns = [
             ),
             path(
                 "execution/available-devices/",
-                executor_views.available_devices,
-                name="api_available_devices",
+                views.test_execution_available_devices,
+                name="api_test_execution_available_devices",
             ),
             path(
                 "execution/<uuid:execution_id>/start-execution/",
@@ -124,17 +124,17 @@ urlpatterns = [
             ),
             path(
                 "execution/<uuid:execution_id>/history/",
-                executor_views.test_execution_history,
+                views.test_execution_history,
                 name="api_test_execution_history",
             ),
             path(
                 "execution/<uuid:execution_id>/all-history/",
-                executor_views.test_execution_all_history,
+                views.test_execution_all_history,
                 name="api_test_execution_all_history",
             ),
             path(
                 "execution/<uuid:execution_id>/history/export/",
-                executor_views.test_execution_history_export,
+                views.test_execution_history_export,
                 name="api_test_execution_history_export",
             ),
             path(
@@ -203,19 +203,6 @@ urlpatterns = [
                 executor_views.ConfigurationPushOnDevice,
                 name="configuration_push_on_device",
             ),
-
-            path(
-                "test-suite-execution/<uuid:execution_id>/re-execute/",
-                executor_views.re_execute_view,
-                name="re-execute-execution"
-            ),
-            path(
-                "test-suite-execution/<uuid:execution_id>/re-execute-selected/",
-                executor_views.re_execute_selected_view,
-                name="re-execute-selected-execution"
-            ),
-            
-
             path(
                 "test-case/check-test-case-id/",
                 executor_views.check_test_case_id_unique,

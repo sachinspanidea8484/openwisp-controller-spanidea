@@ -19,7 +19,11 @@ from rest_framework.permissions import IsAuthenticated
 from openwisp_test_management.utils import build_all_testcases_zip
 from ..swapper import load_model
 
+from openwisp_monitoring.monitoring.models import Metric
+from django.urls import reverse
 import logging
+import csv
+from ..settings import OPENWISP_SERVER_IP
 logger = logging.getLogger(__name__)
 
 from .filters import TestCategoryFilter ,TestSuiteFilter, TestSuiteExecutionFilter, TestCaseFilter
@@ -38,6 +42,7 @@ from .serializers import (
     ReExecuteSelectedTestsSerializer,
 )
 from openwisp_controller.config.models import Device
+from openwisp_controller.connection.models import DeviceConnection
 from rest_framework.parsers import MultiPartParser, FormParser
 
 TestCategory = load_model("TestCategory")
@@ -47,6 +52,7 @@ TestCase = load_model("TestCase")
 TestSuiteCase = load_model("TestSuiteCase")
 TestCaseExecution = load_model("TestCaseExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+ScheduledExecution= load_model("ScheduledExecution")
 
 class ListViewPagination(pagination.PageNumberPagination):
     """Pagination configuration for list views"""
@@ -605,6 +611,582 @@ class TestExecutionAbortView(ProtectedAPIMixin, APIView):
                 'details': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class TestExecutionHistoryExportView(ProtectedAPIMixin, APIView):
+    """
+    API endpoint for exporting a test execution history
+    
+    POST /api/v1/test-management/execution/<uuid:pk>/history/export/
+    - Export test execution history
+    """
+
+    def get_queryset(self):
+        #Only list test executions created by requesting user
+        qs = TestExecution.objects.all().select_related("test_suite")
+
+        user = self.request.user
+        if user.is_authenticated:
+            if user and not user.is_superuser:
+                qs = qs.filter(created_by=user)
+        else:
+            qs = qs.none()
+
+        return qs
+
+    def get(self, request, execution_id):
+        execution = get_object_or_404(TestExecution, id=execution_id)
+
+        # Optional: permission check
+        if execution.created_by != request.user:
+            return Response(
+                {"detail": "Not allowed to export history for this execution."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            response = HttpResponse(content_type='text/csv')
+            response['Content-Disposition'] = (
+                f'attachment; filename="execution_{execution_id}_history.csv"'
+            )
+
+            writer = csv.writer(response)
+            writer.writerow([
+                'Test Execution ID',
+                'Device Name',
+                'Test Case Name',
+                'Test Case ID',
+                'Test Case Type',
+                'Status',
+                'Duration',
+                'Stdout',
+                'Stderr'
+            ])
+
+            # Get all execution devices
+            execution_devices = TestSuiteExecutionDevice.objects.filter(
+                test_suite_execution=execution
+            ).select_related('device').order_by('device__name')
+            
+            print("device_exec>>>>>",execution_devices)
+            
+            test_case_executions = TestCaseExecution.objects.filter(
+                test_suite_execution=execution
+            ).select_related('device', 'test_case')
+            print("<<<test_case_executions>>>",test_case_executions)
+            
+            for device_exec in execution_devices:
+                device = device_exec.device
+                device_test_cases = test_case_executions.filter(device=device)
+                
+                for test_exec in device_test_cases:
+                    # Calculate execution duration
+                    execution_duration_seconds = None
+                    
+                    if test_exec.started_at and test_exec.completed_at:
+                        duration = test_exec.completed_at - test_exec.started_at
+                        execution_duration_seconds = duration.total_seconds()
+                    
+                    writer.writerow([
+                        str(test_exec.pk),
+                        device.name,
+                        test_exec.test_case.name,
+                        test_exec.test_case.test_case_id,
+                        test_exec.test_case.get_test_type_display(),
+                        test_exec.status,
+                        execution_duration_seconds,
+                        test_exec.stdout,
+                        test_exec.stderr
+                    ])
+
+            return response
+        except TestExecution.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Test execution not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error exporting test execution data: {str(e)}")
+            return Response({
+                'success': False,
+                'error': 'Failed to export test execution data',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class TestExecutionHistoryView(ProtectedAPIMixin, APIView):
+    """
+    API endpoint for getting test execution history with enhanced statistics
+    
+    POST /api/v1/test-management/execution/<uuid:pk>/history/
+    - Get test execution data
+    """
+
+    def get_queryset(self):
+        #Only list test executions created by requesting user
+        qs = TestExecution.objects.all().select_related("test_suite")
+
+        user = self.request.user
+        if user.is_authenticated:
+            if user and not user.is_superuser:
+                qs = qs.filter(created_by=user)
+        else:
+            qs = qs.none()
+
+        return qs
+
+    def get(self, request, execution_id):
+        execution = get_object_or_404(TestExecution, id=execution_id)
+
+        # Optional: permission check
+        if execution.created_by != request.user:
+            return Response(
+                {"detail": "Not allowed to get history for this execution."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:        
+            # Get all execution devices
+            execution_devices = TestSuiteExecutionDevice.objects.filter(
+                test_suite_execution=execution
+            ).order_by('device__name')
+            
+            print("device_exec>>>>>",execution_devices)
+            device_ids = execution_devices.values_list('device_id', flat=True)
+
+            devices_map = {
+                d.id: d
+                for d in Device.all_objects.filter(id__in=device_ids)
+            }
+            # Get all test case executions
+            test_case_executions = TestCaseExecution.objects.filter(
+                test_suite_execution=execution
+            ).select_related('device', 'test_case')
+            print("<<<test_case_executions>>>",test_case_executions)
+            
+            # Build response data
+            devices_data = []
+            for device_exec in execution_devices:
+                device = devices_map.get(device_exec.device_id)
+                device_test_cases = test_case_executions.filter(device_id=device_exec.device_id).order_by("created")
+                
+                # Calculate statistics
+                total = device_test_cases.count()
+                success = device_test_cases.filter(status='success').count()
+                failed = device_test_cases.filter(status='failed').count()
+                completed = success + failed
+                
+                # Determine overall status
+                if total == 0:
+                    overall_status = 'pending'
+                    percentage = 0
+                elif completed == 0:
+                    overall_status = 'pending'
+                    percentage = 0
+                elif failed == 0 and success == total:
+                    overall_status = 'success'
+                    percentage = 100
+                else:
+                    overall_status = 'failed'
+                    percentage = (success / total * 100) if total > 0 else 0
+                
+                # Build test cases data
+                test_cases_data = []
+                for test_exec in device_test_cases:
+                    # Calculate execution duration
+                    execution_duration = None
+                    execution_duration_seconds = None
+                    execution_duration_formatted = None
+                    
+                    if test_exec.started_at and test_exec.completed_at:
+                        duration = test_exec.completed_at - test_exec.started_at
+                        execution_duration_seconds = duration.total_seconds()
+                        
+                        # Format duration as human-readable string
+                        hours, remainder = divmod(int(execution_duration_seconds), 3600)
+                        minutes, seconds = divmod(remainder, 60)
+                        
+                        if hours > 0:
+                            execution_duration_formatted = f"{hours}h {minutes}m {seconds}s"
+                        elif minutes > 0:
+                            execution_duration_formatted = f"{minutes}m {seconds}s"
+                        else:
+                            execution_duration_formatted = f"{seconds}s"
+                    
+                    test_cases_data.append({
+                        'id': str(test_exec.pk),
+                        'test_case_name': test_exec.test_case.name,
+                        'test_case_id': test_exec.test_case.test_case_id,
+                        'test_type': test_exec.test_case.get_test_type_display(),
+                        'status': test_exec.status,
+                        'status_display': test_exec.get_status_display(),
+                        'has_log': bool(test_exec.stdout),
+                        'can_retry': test_exec.status == 'failed',
+                        'started_at': test_exec.started_at.isoformat() if test_exec.started_at else None,
+                        'completed_at': test_exec.completed_at.isoformat() if test_exec.completed_at else None,
+                        'execution_duration': {
+                            'seconds': execution_duration_seconds,
+                            'formatted': execution_duration_formatted
+                        } if execution_duration_seconds else None,
+                        'error_message': test_exec.error_message if test_exec.status == 'failed' else None,
+                        'exit_code': test_exec.exit_code,
+                        'retry_count': test_exec.retry_count,
+                    })
+                
+                # Calculate device execution duration
+                device_duration = None
+                device_duration_seconds = None
+                device_duration_formatted = None
+                
+                if device_exec.started_at and device_exec.completed_at:
+                    duration = device_exec.completed_at - device_exec.started_at
+                    device_duration_seconds = duration.total_seconds()
+                    
+                    # Format duration as human-readable string
+                    hours, remainder = divmod(int(device_duration_seconds), 3600)
+                    minutes, seconds = divmod(remainder, 60)
+                    
+                    if hours > 0:
+                        device_duration_formatted = f"{hours}h {minutes}m {seconds}s"
+                    elif minutes > 0:
+                        device_duration_formatted = f"{minutes}m {seconds}s"
+                    else:
+                        device_duration_formatted = f"{seconds}s"
+
+                openwisp_base_url = OPENWISP_SERVER_IP
+
+                has_allure_report = bool(device_exec.allure_report_path)  
+                connection_protocol = device_exec.connection_protocol  
+
+                allure_report_full_path = f"{openwisp_base_url}/media/{device_exec.allure_report_path}"
+                device_status = "Online"
+                ping_metric = Metric.objects.filter(
+                            object_id=str(device.id),
+                            configuration='ping',
+                            key='ping',
+                    ).first()
+
+                device_status = "Online" if ping_metric and ping_metric.is_healthy else "Offline"
+                if device and device.is_deleted:
+                    device_status= "Deleted"
+
+                
+                device_data = {
+                    'device_id': str(device.id),
+                    'device_name': device.name,
+                    'device_execution_id': str(device_exec.pk),
+                    'allure_report_path': device_exec.allure_report_path,
+                    'has_allure_report': has_allure_report,
+                    'connection_protocol': connection_protocol,''
+                    'allure_report_full_path': allure_report_full_path,
+                    "device_status" : device_status,
+                    "is_deleted" : device.is_deleted,
+                    'device_execution_status': device_exec.status,
+                    'error_message': device_exec.output if device_exec.status == 'failed' else None,
+                    'started_at': device_exec.started_at.isoformat() if device_exec.started_at else None,
+                    'completed_at': device_exec.completed_at.isoformat() if device_exec.completed_at else None,
+                    'execution_duration': {
+                        'seconds': device_duration_seconds,
+                        'formatted': device_duration_formatted
+                    } if device_duration_seconds else None,
+                    'statistics': {
+                        'total': total,
+                        'success': success,
+                        'failed': failed,
+                        'completed': completed,
+                        'percentage': round(percentage, 2),
+                        'overall_status': overall_status
+                    },
+                    'test_cases': test_cases_data
+                }
+                
+                devices_data.append(device_data)
+            
+            # Calculate overall execution duration
+            overall_start = None
+            overall_end = None
+            
+            # Get earliest start time from all device executions
+            for device_exec in execution_devices:
+                if device_exec.started_at:
+                    if overall_start is None or device_exec.started_at < overall_start:
+                        overall_start = device_exec.started_at
+            
+            # Get latest completion time from all device executions
+            for device_exec in execution_devices:
+                if device_exec.completed_at:
+                    if overall_end is None or device_exec.completed_at > overall_end:
+                        overall_end = device_exec.completed_at
+            
+            overall_duration = None
+            overall_duration_seconds = None
+            overall_duration_formatted = None
+            
+            if overall_start and overall_end:
+                duration = overall_end - overall_start
+                overall_duration_seconds = duration.total_seconds()
+                
+                # Format duration as human-readable string
+                hours, remainder = divmod(int(overall_duration_seconds), 3600)
+                minutes, seconds = divmod(remainder, 60)
+                
+                if hours > 0:
+                    overall_duration_formatted = f"{hours}h {minutes}m {seconds}s"
+                elif minutes > 0:
+                    overall_duration_formatted = f"{minutes}m {seconds}s"
+                else:
+                    overall_duration_formatted = f"{seconds}s"
+
+            # Build execution summary
+            if execution.test_selection_type == 1:
+                test_suite_name= execution.test_suite.name
+                test_suite_id =str(execution.test_suite.pk)
+                total_test_cases= execution.test_suite.test_case_count
+            elif execution.test_selection_type ==0 :
+                test_suite_name= "individual execution"
+                test_suite_id = None
+                total_test_cases= len(execution.individual_test_cases.all())
+
+            scheduled_time=None
+            try:
+                is_scheduled_execution= ScheduledExecution.objects.filter(execution=execution).first()
+                if is_scheduled_execution:
+                    scheduled_time= is_scheduled_execution.scheduled_time
+                    
+            except ScheduledExecution.DoesNotExist:
+                is_scheduled_execution = None
+                scheduled_time = None
+            execution_data = {
+                'execution_id': str(execution.pk),
+                'execution_start_time' : execution.execution_start_time,
+                'execution_name' : execution.name,
+                'test_suite_name': test_suite_name,
+                'test_suite_id': test_suite_id,
+                'total_devices': execution.device_count,
+                'total_test_cases': total_test_cases,
+                'is_executed': execution.is_executed,
+                'created': execution.created.isoformat() if execution.created else None,
+                'started_at': overall_start.isoformat() if overall_start else None,
+                'completed_at': overall_end.isoformat() if overall_end else None,
+                'status_display': execution.status_display,  # <-- added
+                'status': execution.status,  # <-- added
+                'scheduled_time': scheduled_time,
+                'device_count': execution.device_count,  # <-- added
+                'testcase_count': execution.testcase_count,  # <-- added
+
+                'overall_execution_duration': {
+                    'seconds': overall_duration_seconds,
+                    'formatted': overall_duration_formatted
+                } if overall_duration_seconds else None,
+                'summary_statistics': {
+                    'total_test_runs': sum(d['statistics']['total'] for d in devices_data),
+                    'total_success': sum(d['statistics']['success'] for d in devices_data),
+                    'total_failed': sum(d['statistics']['failed'] for d in devices_data),
+                    'total_completed': sum(d['statistics']['completed'] for d in devices_data),
+                    'devices_success': sum(1 for d in devices_data if d['statistics']['overall_status'] == 'success'),
+                    'devices_failed': sum(1 for d in devices_data if d['statistics']['overall_status'] == 'failed'),
+                    'devices_pending': sum(1 for d in devices_data if d['statistics']['overall_status'] == 'pending'),
+                },
+                'devices': devices_data
+            }
+            
+            # Add average execution time for test cases
+            all_durations = []
+            for device_data in devices_data:
+                for test_case in device_data['test_cases']:
+                    if test_case.get('execution_duration') and test_case['execution_duration'].get('seconds'):
+                        all_durations.append(test_case['execution_duration']['seconds'])
+            
+            if all_durations:
+                avg_duration = sum(all_durations) / len(all_durations)
+                hours, remainder = divmod(int(avg_duration), 3600)
+                minutes, seconds = divmod(remainder, 60)
+                
+                if hours > 0:
+                    avg_duration_formatted = f"{hours}h {minutes}m {seconds}s"
+                elif minutes > 0:
+                    avg_duration_formatted = f"{minutes}m {seconds}s"
+                else:
+                    avg_duration_formatted = f"{seconds}s"
+                    
+                execution_data['average_test_duration'] = {
+                    'seconds': round(avg_duration, 2),
+                    'formatted': avg_duration_formatted
+                }
+            
+            re_execution_data = []
+            for r in execution.re_executions.all().order_by("re_execution_index", "created"):
+                re_execution_data.append({
+                    "id": r.id,
+                    "name": r.name,
+                    "created": r.created.isoformat() if r.created else None,
+                    "history_url": reverse("admin:test_management_testsuiteexecution_history", args=[r.id]),
+                })
+            execution_data["re_execution_data"]= re_execution_data
+            
+            return Response({
+                'success': True,
+                'data': execution_data
+            }, status=status.HTTP_200_OK)
+        except TestExecution.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Test execution not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error getting test execution history: {str(e)}")
+            return Response({
+                'success': False,
+                'error': 'Failed to retrieve test execution history',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class TestExecutionAllHistoryView(ProtectedAPIMixin, APIView):
+    """
+    API endpoint to get test execution history for all child test executions
+    
+    POST /api/v1/test-management/execution/<uuid:pk>/all-history/
+    - Get history for all child test executions
+    """
+
+    def get_queryset(self):
+        #Only list test executions created by requesting user
+        qs = TestExecution.objects.all().select_related("test_suite")
+
+        user = self.request.user
+        if user.is_authenticated:
+            if user and not user.is_superuser:
+                qs = qs.filter(created_by=user)
+        else:
+            qs = qs.none()
+
+        return qs
+
+    def get(self, request, execution_id):
+        current_execution = get_object_or_404(TestExecution, id=execution_id)
+
+        # Optional: permission check
+        if current_execution.created_by != request.user:
+            return Response(
+                {"detail": "Not allowed to get history for this execution."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        try:
+            execution = current_execution.parent_execution or current_execution
+            
+            if execution.test_selection_type == 1:
+                test_suite_name= execution.test_suite.name
+                test_suite_id =str(execution.test_suite.pk)
+                total_test_cases= execution.test_suite.test_case_count
+            elif execution.test_selection_type ==0 :
+                test_suite_name= "individual execution"
+                test_suite_id = None
+                total_test_cases= len(execution.individual_test_cases.all())
+
+            scheduled_time=None
+            try:
+                is_scheduled_execution= ScheduledExecution.objects.filter(execution=execution).first()
+                if is_scheduled_execution:
+                    scheduled_time= is_scheduled_execution.scheduled_time
+                    
+            except ScheduledExecution.DoesNotExist:
+                is_scheduled_execution = None
+                scheduled_time = None
+            execution_data = {
+                'execution_id': str(execution.pk),
+                'execution_name' : execution.name,
+                'test_suite_name': test_suite_name,
+                'test_suite_id': test_suite_id,
+                'created': execution.created.isoformat() if execution.created else None,
+                'execution_start_time' : execution.execution_start_time
+            }
+            
+            re_execution_data = []
+            
+            for r in execution.re_executions.all().order_by("-re_execution_index", "created"):
+                re_execution_data.append({
+                    "id": r.id,
+                    "name": r.name,
+                    "status_display": r.status_display,
+                    "created": r.created.isoformat() if r.created else None,
+                    'execution_start_time' : r.execution_start_time.isoformat() if r.execution_start_time else None,
+                    "history_url": reverse("admin:test_management_testsuiteexecution_history", args=[r.id]),
+                })
+            re_execution_data.append({
+                "id": str(execution.pk),
+                "name": execution.name,
+                "status_display": execution.status_display,
+                "created": execution.created.isoformat() if execution.created else None,
+                'execution_start_time' : execution.execution_start_time.isoformat() if execution.execution_start_time else None,
+                "history_url": reverse("admin:test_management_testsuiteexecution_history", args=[execution.pk]),
+            })
+            execution_data["re_execution_data"]= re_execution_data
+            
+            return Response({
+                'success': True,
+                'data': execution_data
+            }, status=status.HTTP_200_OK)
+        except TestExecution.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Test execution not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error getting execution history: {str(e)}")
+            return Response({
+                'success': False,
+                'error': 'Failed to retrieve execution history',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+class TestExecutionAvailableDevicesView(ProtectedAPIMixin, APIView):
+    """
+    API endpoint to Get devices with working connections
+    
+    POST /api/v1/test-management/execution/<uuid:pk>/available-devices/
+    - Get devices with working connections
+    """
+
+    def get_queryset(self):
+        #Only list test executions created by requesting user
+        qs = TestExecution.objects.all().select_related("test_suite")
+
+        user = self.request.user
+        if user.is_authenticated:
+            if user and not user.is_superuser:
+                qs = qs.filter(created_by=user)
+        else:
+            qs = qs.none()
+
+        return qs
+
+    def get(self, request):
+        try:
+            working_device_ids = DeviceConnection.objects.filter(
+                is_working=True,
+                enabled=True
+            ).values_list('device_id', flat=True)
+            
+            devices = Device.objects.filter(
+                id__in=working_device_ids
+            ).select_related('organization')
+            
+            # Simple serialization
+            data = [
+                {
+                    'id': str(device.id),
+                    'name': device.name,
+                    'organization': device.organization.name
+                }
+                for device in devices
+            ]
+            
+            return Response(data)
+        except Exception as e:
+            logger.error(f"Error getting available devices: {str(e)}")
+            return Response({
+                'success': False,
+                'error': 'Failed to get available devices',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 # ============================================================================
 # TEST CASE VIEWS
 # ============================================================================
@@ -879,6 +1461,10 @@ test_execution_start = TestExecutionStartView.as_view()
 test_execution_re_execute = TestExecutionReExecuteView.as_view()
 test_execution_re_execute_selected = TestExecutionReExecuteSelectedView.as_view()
 test_execution_abort_view = TestExecutionAbortView.as_view()
+test_execution_history_export = TestExecutionHistoryExportView.as_view()
+test_execution_history = TestExecutionHistoryView.as_view()
+test_execution_all_history = TestExecutionAllHistoryView.as_view()
+test_execution_available_devices = TestExecutionAvailableDevicesView.as_view()
 test_case_list = TestCaseListView.as_view()
 test_case_detail = TestCaseDetailView.as_view()
 export_all_scripts = ExportAllTestCaseScriptsView.as_view()

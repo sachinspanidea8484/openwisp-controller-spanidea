@@ -1306,7 +1306,7 @@ function displayExecutionData(data) {
 }
 
 function reExecute(execution_id){
-    fetch(`/api/v1/test-management/test-suite-execution/${execution_id}/re-execute/`, {
+    fetch(`/api/v1/test-management/execution/${execution_id}/re-execute/`, {
         method: 'POST',
         headers: {
             'X-CSRFToken': csrftoken, 
@@ -1354,7 +1354,7 @@ function reExecuteSelected(execution_id){
         }
     });
     console.log('Final selected tests execution payload:', payload);
-    fetch(`/api/v1/test-management/test-suite-execution/${execution_id}/re-execute-selected/`, {
+    fetch(`/api/v1/test-management/execution/${execution_id}/re-execute-selected/`, {
         method: 'POST',
         headers: {
             'X-CSRFToken': csrftoken, 
