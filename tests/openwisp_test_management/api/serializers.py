@@ -854,7 +854,8 @@ class TestSuiteExecutionCreateSerializer(serializers.ModelSerializer):
     individual_test_cases = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=load_model("TestCase").objects.all(),
-        required=False
+        required=False,
+        help_text="Add Individual Test Case IDs. Click 'Add item' for each test case. Example: ['TestCase_001', 'TestCase_002']"
     )
     TEST_SELECTION_MAP = {
         "individual": 0,
