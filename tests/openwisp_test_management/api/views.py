@@ -574,7 +574,7 @@ class TestExecutionHistoryExportView(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint for exporting a test execution history
     
-    POST /api/v1/test-management/execution/<uuid:pk>/history/export/
+    GET /api/v1/test-management/execution/<uuid:pk>/history/export/
     - Export test execution history
     """
 
@@ -661,7 +661,7 @@ class TestExecutionHistoryView(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint for getting test execution history with enhanced statistics
     
-    POST /api/v1/test-management/execution/<uuid:pk>/history/
+    GET /api/v1/test-management/execution/<uuid:pk>/history/
     - Get test execution data
     """
 
@@ -975,7 +975,7 @@ class TestExecutionAllHistoryView(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint to get test execution history for all child test executions
     
-    POST /api/v1/test-management/execution/<uuid:pk>/all-history/
+    GET /api/v1/test-management/execution/<uuid:pk>/all-history/
     - Get history for all child test executions
     """
 
@@ -1060,7 +1060,7 @@ class TestExecutionAvailableDevicesView(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint to Get devices with working connections
     
-    POST /api/v1/test-management/execution/<uuid:pk>/available-devices/
+    GET /api/v1/test-management/execution/available-devices/
     - Get devices with working connections
     """
 
@@ -1097,7 +1097,11 @@ class TestExecutionAvailableDevicesView(ProtectedExternalAPIMixin, APIView):
                 }
                 for device in devices
             ]
-            
+            if not data or data == []:
+                return Response({
+                    'data': data,
+                    'details' : "No working device found."
+                })
             return Response(data)
         except Exception as e:
             logger.error(f"Error getting available devices: {str(e)}")
