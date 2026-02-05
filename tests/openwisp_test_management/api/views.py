@@ -1,14 +1,16 @@
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, generics, pagination ,status
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework.exceptions import ValidationError
+from rest_framework.views import APIView
+from rest_framework.exceptions import ValidationError, NotFound
 from django.http import HttpResponse
 from rest_framework.generics import GenericAPIView
 from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
 from openwisp_users.api.permissions import DjangoModelPermissions
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+from tablib import Dataset
+from rest_framework.response import Response
 from openwisp_test_management.utils import build_all_testcases_zip
 from ..swapper import load_model
 from .filters import TestCategoryFilter ,TestSuiteFilter, TestCaseFilter
@@ -19,7 +21,9 @@ from .serializers import (
     TestCaseDetailSerializer,
     TestSuiteSerializer,
     TestSuiteDetailSerializer,
+    TestCaseImportSerializer
 )
+from .utilities import TestCasesResource
 from rest_framework.parsers import MultiPartParser, FormParser
 TestCategory = load_model("TestCategory")
 TestSuite = load_model("TestSuite")
@@ -210,6 +214,145 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
         instance.delete()
 
 
+class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
+    """
+    Export all test case scripts as a ZIP file
+    """
+    
+    queryset = TestCase.objects.all()
+
+    def get_queryset(self):
+        """
+        Match admin visibility rules
+        """
+        qs = super().get_queryset()
+
+        if self.request.user.is_superuser:
+            return qs
+
+        return qs.filter(created_by=self.request.user)
+    
+    def get(self, request, *args, **kwargs):
+       
+        queryset= self.get_queryset()
+
+        if not queryset.exists():
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(
+                {"detail": "No test cases available for export."}
+            )
+
+        zip_buffer = build_all_testcases_zip(queryset)
+
+        response = HttpResponse(
+            zip_buffer,
+            content_type="application/zip",
+        )
+        response["Content-Disposition"] = (
+            'attachment; filename="all_testcase_scripts.zip"'
+        )
+        return response
+
+
+class TestCaseExportApiView(ProtectedAPIMixin, APIView):
+    SUPPORTED_FORMATS= ("xlsx", "csv")
+   
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return TestCase.objects.all()
+        return TestCase.objects.filter(created_by= user)
+    
+  
+    def get(self, request, export_format):
+       
+
+        export_format = export_format.lower()
+        if export_format not in self.SUPPORTED_FORMATS : 
+            raise ValidationError(
+                f"Invalid format. Supported Formats:{', '.join(self.SUPPORTED_FORMATS)}"
+            )
+        try:
+            queryset= self.get_queryset()
+            print("queryset", queryset)
+            if not queryset.exists():
+                return HttpResponse(
+                    "No test case available for export.",
+                    status=status.HTTP_400_BAD_REQUEST,
+                    content_type="text/plain",
+                )
+            
+            resource = TestCasesResource()
+            dataset= resource.export(queryset)
+        
+            file_map = {
+                "xlsx": (
+                    dataset.xlsx,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+                "csv": (dataset.csv, "text/csv"),
+            
+            }
+        
+            file_data, content_type = file_map[export_format]
+        
+            response = HttpResponse(file_data, content_type=content_type)
+        
+            response["Content-Disposition"] = (
+                f'attachment; filename="test_cases.{export_format}"'
+            )
+            return response
+        except Exception as e:
+            return HttpResponse(
+                "An error occurred while exporting test cases.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content_type="text/plain",
+            )
+
+class TestCaseImportApiView(ProtectedAPIMixin, generics.CreateAPIView):
+    serializer_class= TestCaseImportSerializer
+    parser_classes = (MultiPartParser, FormParser)
+    queryset = TestCase.objects.none()
+    def create(self, request , *args, **kwargs):
+        serializer = TestCaseImportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        file = serializer.validated_data["file"]
+        filename= file.name.lower()
+        resource = TestCasesResource()
+
+        dataset = Dataset()
+        
+        if filename.endswith(".xlsx"):
+            file.seek(0)
+            dataset.xlsx = file.read()
+        elif filename.endswith(".csv"):
+            file.seek(0)
+            text= file.read().decode("utf-8")
+            dataset.load(text,format="csv")
+        try:
+
+            result = resource.import_data(
+                dataset,
+                dry_run=False,
+                raise_errors=True,
+            )
+        except Exception as e:
+            return Response(
+                {"message": "Import failed", "error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {
+                "message": "Import completed successfully",
+                "created": result.totals["new"],
+                "updated": result.totals["update"],
+                "errors": result.totals["error"],
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
 # ============================================================================
 # TEST SUITE (TEST GROUP) VIEWS
 # ============================================================================
@@ -360,45 +503,6 @@ class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVi
         
 #         return qs
 
-class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
-    """
-    Export all test case scripts as a ZIP file
-    """
-
-    queryset = TestCase.objects.all()
-
-    def get_queryset(self):
-        """
-        Match admin visibility rules
-        """
-        qs = super().get_queryset()
-
-        if self.request.user.is_superuser:
-            return qs
-
-        return qs.filter(created_by=self.request.user)
-    
-    def get(self, request, *args, **kwargs):
-        # ✅ Match admin queryset behavior
-        queryset= self.get_queryset()
-
-        if not queryset.exists():
-            from rest_framework.exceptions import ValidationError
-            raise ValidationError(
-                {"detail": "No test cases available for export."}
-            )
-
-        zip_buffer = build_all_testcases_zip(queryset)
-
-        response = HttpResponse(
-            zip_buffer,
-            content_type="application/zip",
-        )
-        response["Content-Disposition"] = (
-            'attachment; filename="all_testcase_scripts.zip"'
-        )
-        return response
-
 # Export view functions for urls.py
 test_suite_list = TestSuiteListView.as_view()
 test_suite_detail = TestSuiteDetailView.as_view()
@@ -410,3 +514,5 @@ test_case_list = TestCaseListView.as_view()
 test_case_detail = TestCaseDetailView.as_view()
 
 export_all_scripts = ExportAllTestCaseScriptsView.as_view()
+test_case_export= TestCaseExportApiView.as_view()
+test_case_import = TestCaseImportApiView.as_view()

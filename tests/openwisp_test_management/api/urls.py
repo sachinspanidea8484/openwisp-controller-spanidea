@@ -42,6 +42,16 @@ urlpatterns = [
         views.export_all_scripts,
         name="export-all-scripts",
     ),
+    path(
+        "test-cases/export/<str:export_format>/",
+        views.test_case_export,
+        name="test-case-export",
+    ),
+    path(
+        "test-cases/import/",
+        views.test_case_import,
+        name="test-case-import",
+    ),
 
 
     # ========================================================================
