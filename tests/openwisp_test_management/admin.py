@@ -766,23 +766,23 @@ class TestCaseAdminForm(forms.ModelForm):
         self.fields['description'].widget.attrs.update({'rows': 15, 'cols': 5})
 
     test_case_id = forms.CharField(
-    validators=[
-        RegexValidator(
-            regex=r'^[A-Za-z][A-Za-z0-9_\-.:/]*$',
-            message=_(
-                "Test Case ID must start with a letter and contain only "
-                "letters, numbers, _, -, ., :, /"
-            )
-        ),
-        MinLengthValidator(3, message=_("Test Case ID must be at least 3 characters long.")),
-        MaxLengthValidator(20, message=_("Test Case ID must not exceed 20 characters."))
-    ],
-    widget=forms.TextInput(attrs={
-        'pattern': r'[A-Za-z][A-Za-z0-9_\-.:/]{2,19}',
-        'title': _("Example: TC-001, LOGIN-TC-01, API:TC:01"),
-        'placeholder': _('Enter Test Case ID')
-    })
-)
+        validators=[
+            RegexValidator(
+                regex=r'^[A-Za-z][A-Za-z0-9_\-.:/]*$',
+                message=_(
+                    "Test Case ID must start with a letter and contain only "
+                    "letters, numbers, _, -, ., :, /"
+                )
+            ),
+            MinLengthValidator(3, message=_("Test Case ID must be at least 3 characters long.")),
+            MaxLengthValidator(20, message=_("Test Case ID must not exceed 20 characters."))
+        ],
+        widget=forms.TextInput(attrs={
+            'pattern': r'[A-Za-z][A-Za-z0-9_\-.:/]{2,19}',
+            'title': _("Example: TC-001, LOGIN-TC-01, API:TC:01"),
+            'placeholder': _('Enter Test Case ID')
+        })
+    )
 
     params = FormattedJSONField(
         required=False,

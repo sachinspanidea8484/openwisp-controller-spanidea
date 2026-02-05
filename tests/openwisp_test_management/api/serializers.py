@@ -924,7 +924,21 @@ class TestCaseDetailSerializer(TestCaseSerializer):
             "is_deletable",
         ]
 
+class TestCaseImportSerializer(serializers.Serializer):
+    file = serializers.FileField()
 
+    def validate_file(self, file):
+        name = file.name.lower()
+        content_type = file.content_type
+
+        if not (
+            name.endswith(".xlsx") or name.endswith(".csv")
+        ):
+            raise serializers.ValidationError(
+                "Only .xlsx or .csv files are supported."
+            )
+
+        return file
 
 
 class TestSuiteCaseSerializer(serializers.ModelSerializer):
