@@ -76,6 +76,29 @@ urlpatterns = [
         name="api_test_cases_by_category",
     ),
 
+
+    # ================================================================
+    # ✨ DEVICE GROUP ENDPOINTS (NEW)
+    # ================================================================
+    path(
+        "device-group/",
+        views.device_group_list,
+        name="api_device_group_list",
+    ),
+    path(
+        "device-group/<uuid:pk>/",
+        views.device_group_detail,
+        name="api_device_group_detail",
+    ),
+    
+    # Get devices available for adding to groups
+    # Query with: ?organization={org_id}
+    path(
+        "devices-by-organization/",
+        views.devices_by_organization,
+        name="api_devices_by_organization",
+    ),
+
        # EXTERNAL APIS  
             path(
                 "category/get-test-cases/",

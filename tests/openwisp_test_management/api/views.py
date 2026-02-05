@@ -6,12 +6,20 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from django.http import HttpResponse
 from rest_framework.generics import GenericAPIView
-from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
-from openwisp_users.api.permissions import DjangoModelPermissions
+from openwisp_users.api.mixins import (
+    ProtectedAPIMixin as BaseProtectedAPIMixin,
+    FilterByOrganizationManaged,
+)
+from openwisp_users.api.permissions import (
+    DjangoModelPermissions,
+    IsOrganizationManager,
+)
 from rest_framework.permissions import IsAuthenticated
+from openwisp_controller.config.models import Device
+
 from openwisp_test_management.utils import build_all_testcases_zip
 from ..swapper import load_model
-from .filters import TestCategoryFilter ,TestSuiteFilter, TestCaseFilter
+from .filters import TestCategoryFilter ,TestSuiteFilter, TestCaseFilter ,TestDeviceGroupFilter ,DeviceFilterForGroup
 from .serializers import (
     TestCategorySerializer,
     TestCategoryDetailSerializer,
@@ -21,13 +29,17 @@ from .serializers import (
     TestCaseDetailSerializer,
     TestSuiteSerializer,
     TestSuiteDetailSerializer,
+    TestDeviceGroupCreateSerializer,
+    TestDeviceGroupListSerializer,
+    TestDeviceGroupDetailSerializer,
+    DeviceForGroupSerializer
 )
 from rest_framework.parsers import MultiPartParser, FormParser
 TestCategory = load_model("TestCategory")
 TestSuite = load_model("TestSuite")
 TestCase = load_model("TestCase")
 TestSuiteCase = load_model("TestSuiteCase")
-
+TestDeviceGroup = load_model("TestDeviceGroup")
 
 
 
@@ -38,16 +50,23 @@ class ListViewPagination(pagination.PageNumberPagination):
     max_page_size = 100               # Maximum allowed page size
 
 
-class ProtectedAPIMixin(BaseProtectedAPIMixin):
+class ProtectedAPIMixin(BaseProtectedAPIMixin, FilterByOrganizationManaged):
     """
     Base mixin for all test management API views
-    Adds authentication and permission requirements
+    
+    Features:
+    - Authentication: Bearer token + Session
+    - Permissions: IsAuthenticated + DjangoModelPermissions
+    - Organization Filtering: Automatic filtering by user's managed orgs
+    - Throttling: Rate limiting per scope
     """
     permission_classes = (
-        IsAuthenticated,           # Must be logged in
-        DjangoModelPermissions,    # Must have model permissions
+        IsAuthenticated,
+        DjangoModelPermissions,
+        IsOrganizationManager,  # User must manage at least 1 org
     )
     throttle_scope = "test_management"
+    organization_field = "organization"  # Field to filter by
 
 
 
@@ -317,6 +336,126 @@ class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
         )
         return response
 
+
+
+# ============================================================================
+# TEST DEVICE GROUP VIEWS
+# ============================================================================
+
+class TestDeviceGroupListView(ProtectedAPIMixin, generics.ListCreateAPIView):
+    """
+    API endpoint for listing and creating test device groups
+    GET  /api/test-management/device-group/
+    POST /api/test-management/device-group/
+    """
+    queryset = TestDeviceGroup.objects.all().select_related("organization")
+    pagination_class = ListViewPagination
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.OrderingFilter,
+        filters.SearchFilter,
+    ]
+    filterset_class = TestDeviceGroupFilter
+    search_fields = ["name", "description"]
+    ordering_fields = ["name", "organization", "created", "modified"]
+    ordering = ["-created"]
+
+    def get_serializer_class(self):
+        """
+        Use different serializer for different actions:
+        - POST (create): TestDeviceGroupCreateSerializer
+        - GET (list): TestDeviceGroupListSerializer
+        """
+        if self.request.method == "POST":
+            return TestDeviceGroupCreateSerializer
+        return TestDeviceGroupListSerializer
+
+    def perform_create(self, serializer):
+        """
+        Hook called after serializer validation
+        Can add custom logic here if needed
+        """
+        serializer.save()
+
+
+class TestDeviceGroupDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    API endpoint for retrieving, updating, and deleting a device group
+    
+    GET /api/test-management/device-group/{id}/
+    - Get detailed info about a device group
+    - Includes list of all devices in the group
+    PUT /api/test-management/device-group/{id}/
+    - Update device group (full update)
+    - Can update devices by sending device_ids array
+    PATCH /api/test-management/device-group/{id}/
+    - Partial update
+    - Only fields sent will be updated
+    DELETE /api/test-management/device-group/{id}/
+    - Delete device group
+    """
+    queryset = TestDeviceGroup.objects.all().select_related("organization")
+    lookup_field = "pk"
+
+    def get_serializer_class(self):
+        """
+        Use different serializer based on HTTP method:
+        - GET: TestDeviceGroupDetailSerializer (includes devices_detail)
+        - PUT/PATCH: TestDeviceGroupDetailSerializer (accepts device_ids)
+        - DELETE: doesn't use serializer
+        """
+        return TestDeviceGroupDetailSerializer
+
+    def perform_destroy(self, instance):
+        """
+        Hook before deletion
+        Can add checks here if needed (e.g., prevent deletion if in use)
+        """
+        super().perform_destroy(instance)
+
+
+# ============================================================================
+# DEVICE LISTING API (FOR ADDING TO GROUPS)
+# ============================================================================
+
+class DeviceListByOrganizationView(ProtectedAPIMixin, generics.ListAPIView):
+    """
+    API endpoint to get devices available for adding to a group
+    
+    GET /api/test-management/devices-by-organization/?organization={org_id}
+    Returns all devices from specified organization that user has access to
+    """
+    serializer_class = DeviceForGroupSerializer
+    pagination_class = ListViewPagination
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.OrderingFilter,
+        filters.SearchFilter,
+    ]
+    filterset_class = DeviceFilterForGroup
+    search_fields = ["name", "model"]
+    ordering_fields = ["name", "model", "organization"]
+    ordering = ["name"]
+
+    def get_queryset(self):
+        """
+        Return devices from specified organization
+        Apply user permission filtering
+        """
+        # Start with all devices
+        qs = Device.objects.select_related("organization").filter(
+            is_deleted=False
+        )
+        
+        # Superusers see all devices
+        if self.request.user.is_superuser:
+            return qs
+        
+        # Non-superusers only see devices from their managed organizations
+        return qs.filter(
+            organization_id__in=self.request.user.organizations_managed
+        )
+    
 # Export view functions for urls.py
 test_suite_list = TestSuiteListView.as_view()
 test_suite_detail = TestSuiteDetailView.as_view()
@@ -329,3 +468,7 @@ test_case_list = TestCaseListView.as_view()
 test_case_detail = TestCaseDetailView.as_view()
 
 export_all_scripts = ExportAllTestCaseScriptsView.as_view()
+
+device_group_list = TestDeviceGroupListView.as_view()
+device_group_detail = TestDeviceGroupDetailView.as_view()
+devices_by_organization = DeviceListByOrganizationView.as_view()

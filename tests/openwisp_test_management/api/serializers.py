@@ -5,10 +5,16 @@ from ..swapper import load_model
 
 from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Device
+from openwisp_users.models import Organization
+
+
+
 from ..base.models import TestExecutionStatus  # ADD THIS IMPORT
 from ..swapper import load_model
 from django.core.exceptions import ValidationError
 from django.db import models
+from openwisp_users.api.mixins import FilterSerializerByOrgManaged
+
 # MODEL 
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
@@ -337,6 +343,408 @@ class TestCaseListSerializer(serializers.ModelSerializer):
         """Get count of test suites containing this test case"""
         return obj.test_suites.count()
 
+
+
+
+
+
+# ============================================================================
+# DEVICE GROUP SERIALIZERS
+# ============================================================================
+
+class TestDeviceGroupListSerializer(FilterSerializerByOrgManaged, ValidatedModelSerializer):
+    """
+    Serializer for TestDeviceGroup List operations
+    Shows summary information without nested devices
+    """
+    organization_name = serializers.CharField(
+        source="organization.name",
+        read_only=True,
+        label=_("Organization Name")
+    )
+    device_count = serializers.SerializerMethodField(
+        label=_("Total Devices")
+    )
+
+    class Meta(BaseMeta):
+        model = TestDeviceGroup
+        fields = (
+            "id",
+            "name",
+            "description",
+            "organization",
+            "organization_name",
+            "device_count",
+            "created",
+            "modified",
+        )
+        read_only_fields = BaseMeta.read_only_fields + [
+            "organization_name",
+            "device_count",
+        ]
+
+    def get_device_count(self, obj):
+        """
+        Return count of active devices in this group
+        (excludes deleted devices)
+        """
+        return obj.devices.filter(device__is_deleted=False).count()
+
+
+class DeviceForGroupSerializer(serializers.ModelSerializer):
+    """
+    Minimal serializer for Device objects
+    Used when listing devices available to add to a group
+    """
+    organization_name = serializers.CharField(
+        source="organization.name",
+        read_only=True
+    )
+
+    class Meta:
+        model = Device
+        fields = (
+            "id",
+            "name",
+            "organization",
+            "organization_name",
+            "model",
+            "is_deleted",
+        )
+        read_only_fields = fields
+
+
+class TestDeviceGroupDeviceSerializer(serializers.ModelSerializer):
+    """
+    Nested serializer for devices inside a group detail response
+    """
+    device_name = serializers.CharField(
+        source="device.name",
+        read_only=True
+    )
+    device_model = serializers.CharField(
+        source="device.model",
+        read_only=True,
+        allow_null=True
+    )
+    organization_name = serializers.CharField(
+        source="group.organization.name",
+        read_only=True
+    )
+
+    class Meta:
+        model = load_model("TestDeviceGroupDevice")
+        fields = (
+            "id",
+            "device",
+            "device_name",
+            "device_model",
+            "organization_name",
+            "created",
+            "modified",
+        )
+        read_only_fields = fields
+
+
+class TestDeviceGroupDetailSerializer(FilterSerializerByOrgManaged, ValidatedModelSerializer):
+    """
+    Serializer for TestDeviceGroup Detail operations
+    Includes nested devices list
+    """
+    organization_name = serializers.CharField(
+        source="organization.name",
+        read_only=True,
+        label=_("Organization Name")
+    )
+    device_count = serializers.SerializerMethodField(
+        label=_("Total Devices")
+    )
+    devices_detail = serializers.SerializerMethodField(
+        label=_("Devices in Group")
+    )
+    
+    # Write-only field for adding/updating devices
+    device_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False,
+        label=_("Device IDs to add to group"),
+        help_text=_("Array of device UUIDs to add to this group")
+    )
+
+    class Meta(BaseMeta):
+        model = TestDeviceGroup
+        fields = (
+            "id",
+            "name",
+            "description",
+            "organization",
+            "organization_name",
+            "device_count",
+            "devices_detail",
+            "device_ids",  # write-only
+            "created",
+            "modified",
+        )
+        read_only_fields = BaseMeta.read_only_fields + [
+            "organization_name",
+            "device_count",
+            "devices_detail",
+        ]
+
+    def get_device_count(self, obj):
+        """Count active devices in group"""
+        return obj.devices.filter(device__is_deleted=False).count()
+
+    def get_devices_detail(self, obj):
+        """Get detailed info about all devices in group"""
+        devices = obj.devices.select_related(
+            "device",
+            "group__organization"
+        ).filter(device__is_deleted=False).order_by("device__name")
+        
+        return TestDeviceGroupDeviceSerializer(
+            devices,
+            many=True,
+            context=self.context
+        ).data
+
+    def validate_device_ids(self, value):
+        """
+        Validate that all device IDs exist and belong to the group's organization
+        """
+        if not value:
+            return value
+
+        user = self.context["request"].user
+        organization = self.instance.organization if self.instance else None
+
+        if not organization and "organization" in self.initial_data:
+            org_id = self.initial_data["organization"]
+            organization = Organization.objects.get(id=org_id)
+
+        if not organization:
+            raise serializers.ValidationError(
+                _("Organization must be specified when adding devices")
+            )
+
+        # Validate all IDs exist
+        existing_devices = set(
+            Device.objects.filter(
+                id__in=value,
+                is_deleted=False
+            ).values_list("id", flat=True)
+        )
+        
+        missing = set(value) - existing_devices
+        if missing:
+            raise serializers.ValidationError({
+                "device_ids": _("Device(s) not found: {}").format(missing)
+            })
+
+        # Validate all devices belong to the same organization
+        devices = Device.objects.filter(id__in=value)
+        org_mismatch = devices.exclude(organization=organization).values_list("name", flat=True)
+        
+        if org_mismatch:
+            raise serializers.ValidationError({
+                "device_ids": _(
+                    "The following device(s) do not belong to the selected organization: {}"
+                ).format(", ".join(org_mismatch))
+            })
+
+        # Superusers can add any device from the org
+        # Non-superusers: devices must be from organizations they manage
+        if not user.is_superuser:
+            unmanaged_orgs = devices.exclude(
+                organization_id__in=user.organizations_managed
+            ).values_list("name", flat=True)
+            
+            if unmanaged_orgs:
+                raise serializers.ValidationError({
+                    "device_ids": _(
+                        "You don't have permission to add these device(s): {}"
+                    ).format(", ".join(unmanaged_orgs))
+                })
+
+        return value
+
+    def validate_organization(self, value):
+        """
+        Validate that user has access to the organization
+        Superusers can access all, non-superusers only managed orgs
+        """
+        user = self.context["request"].user
+        
+        # Superuser can access any organization
+        if user.is_superuser:
+            return value
+        
+        # Non-superuser can only manage their own organizations
+        if str(value.id) not in user.organizations_managed:
+            raise serializers.ValidationError(
+                _("You don't have permission to manage this organization")
+            )
+        
+        return value
+
+    def validate(self, attrs):
+        """
+        Validate device_ids array
+        Pop it before model validation (like TestSuite)
+        """
+        self._device_ids = attrs.pop("device_ids", [])
+        return super().validate(attrs)
+
+    def create(self, validated_data):
+        """
+        Create group and add devices
+        """
+        instance = super().create(validated_data)
+        self._sync_devices(instance, self._device_ids)
+        return instance
+
+    def update(self, instance, validated_data):
+        """
+        Update group and optionally update devices
+        Only re-sync if device_ids was explicitly sent
+        """
+        instance = super().update(instance, validated_data)
+        
+        # Only re-sync if device_ids was in the request
+        if self._device_ids is not None:
+            self._sync_devices(instance, self._device_ids)
+        
+        return instance
+
+    @staticmethod
+    def _sync_devices(group, device_ids):
+        """
+        Helper: Create/update TestDeviceGroupDevice entries
+        Clears old devices and recreates with new ones
+        """
+        TestDeviceGroupDevice = load_model("TestDeviceGroupDevice")
+        
+        if not device_ids:
+            # If empty list sent, clear all devices
+            TestDeviceGroupDevice.objects.filter(group=group).delete()
+            return
+
+        # Validate all IDs exist (double-check)
+        existing = set(
+            Device.objects.filter(id__in=device_ids).values_list("id", flat=True)
+        )
+        missing = set(device_ids) - existing
+        if missing:
+            raise serializers.ValidationError(
+                {"device_ids": _("Device(s) not found: {}").format(missing)}
+            )
+
+        # Clear old entries and recreate
+        TestDeviceGroupDevice.objects.filter(group=group).delete()
+        
+        # Bulk create new entries
+        TestDeviceGroupDevice.objects.bulk_create([
+            TestDeviceGroupDevice(group=group, device_id=dev_id)
+            for dev_id in device_ids
+        ], ignore_conflicts=True)
+
+
+class TestDeviceGroupCreateSerializer(FilterSerializerByOrgManaged, ValidatedModelSerializer):
+    """
+    Serializer for TestDeviceGroup Create operations
+    Includes device_ids write-only field
+    """
+    device_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False,
+        default=list,
+        label=_("Device IDs"),
+        help_text=_("Array of device UUIDs to add to this group")
+    )
+
+    class Meta(BaseMeta):
+        model = TestDeviceGroup
+        fields = (
+            "id",
+            "name",
+            "description",
+            "organization",
+            "device_ids",
+            "created",
+            "modified",
+        )
+
+    def validate_device_ids(self, value):
+        """Validate all device IDs exist and belong to organization"""
+        if not value:
+            return value
+
+        user = self.context["request"].user
+        org_id = self.initial_data.get("organization")
+        
+        if not org_id:
+            raise serializers.ValidationError(
+                _("Organization must be specified")
+            )
+
+        organization = Organization.objects.get(id=org_id)
+
+        # Check devices exist
+        existing = set(
+            Device.objects.filter(
+                id__in=value,
+                is_deleted=False
+            ).values_list("id", flat=True)
+        )
+        missing = set(value) - existing
+        if missing:
+            raise serializers.ValidationError(
+                _("Device(s) not found: {}").format(missing)
+            )
+
+        # Check devices belong to org
+        devices = Device.objects.filter(id__in=value)
+        org_mismatch = devices.exclude(organization=organization)
+        if org_mismatch.exists():
+            raise serializers.ValidationError(
+                _("Not all devices belong to the selected organization")
+            )
+
+        # Check user permissions
+        if not user.is_superuser:
+            if str(organization.id) not in user.organizations_managed:
+                raise serializers.ValidationError(
+                    _("You don't have permission to manage this organization")
+                )
+
+        return value
+
+    def validate_organization(self, value):
+        """Validate user has access to organization"""
+        user = self.context["request"].user
+        
+        if user.is_superuser:
+            return value
+        
+        if str(value.id) not in user.organizations_managed:
+            raise serializers.ValidationError(
+                _("You don't have permission to manage this organization")
+            )
+        
+        return value
+
+    def validate(self, attrs):
+        """Pop device_ids before model validation"""
+        self._device_ids = attrs.pop("device_ids", [])
+        return super().validate(attrs)
+
+    def create(self, validated_data):
+        """Create group and add devices"""
+        instance = super().create(validated_data)
+        TestDeviceGroupDetailSerializer._sync_devices(instance, self._device_ids)
+        return instance
 # OLD
 
 class TestCategoryListSerializer(TestCategorySerializer):
