@@ -23,6 +23,7 @@ TestSuiteCase = load_model("TestSuiteCase")
 TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestDeviceGroup= load_model("TestDeviceGroup")
+ExecutionArtifact = load_model("ExecutionArtifact")
 
 from .utilities import TestTypeChoices, update_robot_file_tag
 
@@ -992,8 +993,236 @@ class TestSuiteExecutionDeviceSerializer(serializers.ModelSerializer):
         ]
         # read_only_fields = ["started_at", "completed_at"]
 
+from django.contrib.auth import get_user_model
 
-class TestSuiteExecutionSerializer(ValidatedModelSerializer):
+class ExecutionArtifactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExecutionArtifact
+        fields = (
+            "id",
+            "device",
+            "testcase",
+            "config_file",
+            "is_pushed",
+        )
+        read_only_fields = fields
+
+class TestSuiteExecutionSerializer(serializers.ModelSerializer):
+    """
+    Safe serializer for AbstractTestSuiteExecution
+    (OpenWISP + swapper compatible)
+    """
+
+    # ---------- READ-ONLY FIELDS ----------
+    test_suite_id = serializers.IntegerField(
+        source="test_suite.id",
+        read_only=True
+    )
+
+    device_group_id = serializers.IntegerField(
+        source="device_group.id",
+        read_only=True
+    )
+
+    parent_execution_id = serializers.IntegerField(
+        source="parent_execution.id",
+        read_only=True
+    )
+
+    status = serializers.IntegerField(read_only=True)
+    status_display = serializers.CharField(read_only=True)
+    active_device_count = serializers.IntegerField(read_only=True)
+    is_re_execution = serializers.BooleanField(read_only=True)
+
+    artifacts = ExecutionArtifactSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = load_model("TestSuiteExecution")
+        fields = [
+            "id",
+            "name",
+            "test_selection_type",
+
+            # write targets (handled dynamically)
+            "test_suite",
+            "individual_test_cases",
+
+            # read-only ids
+            "test_suite_id",
+            "device_group_id",
+            "parent_execution_id",
+
+            "test_case_execution_order",
+            "is_executed",
+
+            "device_count",
+            "testcase_count",
+
+            "device_selection",
+            "device_group",
+
+            "artifacts",
+
+            "execution_status",
+            "execution_start_time",
+
+            "created_by",
+            "parent_execution",
+            "re_execution_index",
+
+            # computed
+            "status",
+            "status_display",
+            "active_device_count",
+            "is_re_execution",
+
+            "created",
+            "modified",
+        ]
+        read_only_fields = (
+            "device_count",
+            "testcase_count",
+            "is_executed",
+            "execution_status",
+            "execution_start_time",
+            "created",
+            "modified",
+        )
+
+    def get_fields(self):
+        fields = super().get_fields()
+
+        TestSuite = load_model("TestSuite")
+        TestCase = load_model("TestCase")
+        TestDeviceGroup = load_model("TestDeviceGroup")
+        User = get_user_model()
+
+        fields["test_suite"] = serializers.PrimaryKeyRelatedField(
+            queryset=TestSuite.objects.all(),
+            required=False,
+            allow_null=True
+        )
+
+        fields["individual_test_cases"] = serializers.PrimaryKeyRelatedField(
+            many=True,
+            queryset=TestCase.objects.all(),
+            required=False
+        )
+
+        fields["device_group"] = serializers.PrimaryKeyRelatedField(
+            queryset=TestDeviceGroup.objects.all(),
+            required=False,
+            allow_null=True
+        )
+
+        fields["created_by"] = serializers.PrimaryKeyRelatedField(
+            queryset=User.objects.all(),
+            required=False,
+            allow_null=True
+        )
+
+        return fields
+
+class TestSuiteExecutionCreateSerializer(serializers.ModelSerializer):
+    from drf_yasg import openapi
+
+    individual_test_cases = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=load_model("TestCase").objects.all(),
+        required=False,
+        help_text="Add Individual Test Case IDs. Click 'Add item' for each test case. Example: ['TestCase_001', 'TestCase_002']"
+    )
+    TEST_SELECTION_MAP = {
+        "individual": 0,
+        "group": 1,
+    }
+
+    DEVICE_SELECTION_MAP = {
+        "individual": 0,
+        "group": 1,
+    }
+
+    test_selection_type = serializers.ChoiceField(
+        choices=[
+            ("individual", "Individual Test Cases"),
+            ("group", "Test Group"),
+        ]
+    )
+
+    device_selection = serializers.ChoiceField(
+        choices=[
+            ("individual", "Individual Devices"),
+            ("group", "Device Group"),
+        ]
+    )
+
+    class Meta:
+        model = load_model("TestSuiteExecution")
+        fields = [
+            "name",
+            "test_selection_type",
+            "test_suite",
+            "individual_test_cases",
+            "device_selection",
+            "device_group",
+            "notification_emails",
+        ]
+
+    def create(self, validated_data):
+        # Map string values to integer values
+        validated_data["test_selection_type"] = self.TEST_SELECTION_MAP[
+            validated_data["test_selection_type"]
+        ]
+        validated_data["device_selection"] = self.DEVICE_SELECTION_MAP[
+            validated_data["device_selection"]
+        ]
+
+        return super().create(validated_data)
+
+    # ---------- VALIDATION ----------
+    def validate(self, attrs):
+        test_selection_type = attrs.get(
+            "test_selection_type",
+            getattr(self.instance, "test_selection_type", None)
+        )
+        device_selection = attrs.get("device_selection")
+
+        test_suite = attrs.get("test_suite")
+        individual_cases = attrs.get("individual_test_cases")
+
+        if test_selection_type == 1 and not test_suite:
+            raise serializers.ValidationError({
+                "test_suite": "Test group is required when test_selection_type is 'Group'."
+            })
+
+        if test_selection_type == 0 and not individual_cases:
+            raise serializers.ValidationError({
+                "individual_test_cases": "At least one test case is required for individual selection."
+            })
+
+        if device_selection == 1 and not attrs.get("device_group"):
+            raise serializers.ValidationError({
+                "device_group": "Required when device selection is Device Group"
+            })
+
+        return attrs
+
+class ReExecuteSelectedTestsSerializer(serializers.Serializer):
+    device_tests_info = serializers.DictField(
+        child=serializers.ListField(
+            child=serializers.CharField(),
+            min_length=1
+        )
+    )
+
+    def validate_device_tests_info(self, value):
+        if not value:
+            raise serializers.ValidationError(
+                "No tests selected for re-execution."
+            )
+        return value
+
+class TestSuiteExecutionSerializerOld(ValidatedModelSerializer):
     """Serializer for Test Suite Executions"""
     test_suite_detail = TestSuiteListSerializer(source="test_suite", read_only=True)
     devices = TestSuiteExecutionDeviceSerializer(

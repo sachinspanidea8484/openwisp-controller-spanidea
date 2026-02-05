@@ -726,7 +726,7 @@ function displayExecutionData(data) {
 }
 
 function reExecute(execution_id){
-    fetch(`/api/v1/test-management/test-suite-execution/${execution_id}/re-execute/`, {
+    fetch(`/api/v1/test-management/execution/${execution_id}/re-execute/`, {
         method: 'POST',
         headers: {
             'X-CSRFToken': csrftoken, 

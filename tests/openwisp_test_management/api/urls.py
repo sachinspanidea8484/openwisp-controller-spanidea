@@ -31,6 +31,18 @@ urlpatterns = [
     # ========================================================================
     # TEST CASE ENDPOINTS
     # ========================================================================
+    # List all Exections OR create new Execution
+    path(
+        "execution/",
+        views.test_execution_list,
+        name="api_test_execution_list",
+    ),
+    # Get/Update/Delete specific Execution
+    path(
+        "execution/<uuid:pk>/",
+        views.test_execution_detail,
+        name="api_test_execution_detail",
+    ),
     path(
         "test-cases/",
         views.test_case_list,
@@ -107,22 +119,37 @@ urlpatterns = [
             ),
             path(
                 "execution/available-devices/",
-                executor_views.available_devices,
-                name="api_available_devices",
+                views.test_execution_available_devices,
+                name="api_test_execution_available_devices",
+            ),
+            path(
+                "execution/<uuid:execution_id>/start-execution/",
+                views.test_execution_start,
+                name="api_test_execution_start",
+            ),
+            path(
+                "execution/<uuid:execution_id>/re-execute/",
+                views.test_execution_re_execute,
+                name="api_test_execution_re_execute"
+            ),
+            path(
+                "execution/<uuid:execution_id>/re-execute-selected/",
+                views.test_execution_re_execute_selected,
+                name="api_test_execution_re_execute_selected"
             ),
             path(
                 "execution/<uuid:execution_id>/history/",
-                executor_views.test_execution_history,
+                views.test_execution_history,
                 name="api_test_execution_history",
             ),
             path(
                 "execution/<uuid:execution_id>/all-history/",
-                executor_views.test_execution_all_history,
+                views.test_execution_all_history,
                 name="api_test_execution_all_history",
             ),
             path(
                 "execution/<uuid:execution_id>/history/export/",
-                executor_views.test_execution_history_export,
+                views.test_execution_history_export,
                 name="api_test_execution_history_export",
             ),
             path(
@@ -132,7 +159,7 @@ urlpatterns = [
             ),
             path(
                 "execution/<uuid:execution_id>/abort-execution/",
-                executor_views.test_execution_abort,
+                views.test_execution_abort_view,
                 name="api_test_execution_abort",
             ),
             
@@ -191,19 +218,6 @@ urlpatterns = [
                 executor_views.ConfigurationPushOnDevice,
                 name="configuration_push_on_device",
             ),
-
-            path(
-                "test-suite-execution/<uuid:execution_id>/re-execute/",
-                executor_views.re_execute_view,
-                name="re-execute-execution"
-            ),
-            path(
-                "test-suite-execution/<uuid:execution_id>/re-execute-selected/",
-                executor_views.re_execute_selected_view,
-                name="re-execute-selected-execution"
-            ),
-            
-
             path(
                 "test-case/check-test-case-id/",
                 executor_views.check_test_case_id_unique,

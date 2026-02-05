@@ -2397,6 +2397,7 @@ class TestResultView(APIView):
     authentication_classes = []  # Disable auth for now, enable as needed
     permission_classes = []  # Disable permissions for now
     @swagger_auto_schema(
+        auto_schema=None,
         request_body=RobotTestResultSerializer,
         responses={200: "Test case execution updated"}
     )
@@ -2816,6 +2817,7 @@ class TestRunningResultView(APIView):
     authentication_classes = []  # Disable auth for now, enable as needed
     permission_classes = []  # Disable permissions for now
     @swagger_auto_schema(
+        auto_schema=None,
         request_body=RobotTestRunningResultSerializer,
         responses={200: "Test case execution status updated"}
     )
@@ -4970,6 +4972,7 @@ def test_execution_abort(request, execution_id):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@swagger_auto_schema(method='post', auto_schema=None)
 @api_view(['POST'])
 # @authentication_classes([CsrfExemptSessionAuthentication])
 # @permission_classes([IsAuthenticated])
