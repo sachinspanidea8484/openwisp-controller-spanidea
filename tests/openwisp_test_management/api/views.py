@@ -395,19 +395,6 @@ class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
     - Start a test execution
     """
 
-    def get_queryset(self):
-        #Only list test executions created by requesting user
-        qs = TestExecution.objects.all().select_related("test_suite")
-
-        user = self.request.user
-        if user.is_authenticated:
-            if user and not user.is_superuser:
-                qs = qs.filter(created_by=user)
-        else:
-            qs = qs.none()
-
-        return qs
-
     def post(self, request, execution_id):
         from ..tasks import execute_test_suite as execute_test_suite_task
         execution = get_object_or_404(TestExecution, id=execution_id)
@@ -450,19 +437,6 @@ class TestExecutionReExecuteView(ProtectedExternalAPIMixin, APIView):
     - Re-execute a test execution
     """
 
-    def get_queryset(self):
-        #Only list test executions created by requesting user
-        qs = TestExecution.objects.all().select_related("test_suite")
-
-        user = self.request.user
-        if user.is_authenticated:
-            if user and not user.is_superuser:
-                qs = qs.filter(created_by=user)
-        else:
-            qs = qs.none()
-
-        return qs
-
     def post(self, request, execution_id):
         from ..tasks import execute_test_suite as execute_test_suite_task
         execution = get_object_or_404(TestExecution, pk=execution_id)
@@ -499,18 +473,6 @@ class TestExecutionReExecuteSelectedView(ProtectedExternalAPIMixin, APIView):
     - Re-execute selected tests in a test execution
     """
     serializer_class = ReExecuteSelectedTestsSerializer
-    def get_queryset(self):
-        #Only list test executions created by requesting user
-        qs = TestExecution.objects.all().select_related("test_suite")
-
-        user = self.request.user
-        if user.is_authenticated:
-            if user and not user.is_superuser:
-                qs = qs.filter(created_by=user)
-        else:
-            qs = qs.none()
-
-        return qs
 
     from drf_yasg.utils import swagger_auto_schema
     @swagger_auto_schema(
@@ -552,19 +514,6 @@ class TestExecutionAbortView(ProtectedExternalAPIMixin, APIView):
     POST /api/v1/test-management/execution/<uuid:pk>/abort-execution/
     - Abort a test execution
     """
-
-    def get_queryset(self):
-        #Only list test executions created by requesting user
-        qs = TestExecution.objects.all().select_related("test_suite")
-
-        user = self.request.user
-        if user.is_authenticated:
-            if user and not user.is_superuser:
-                qs = qs.filter(created_by=user)
-        else:
-            qs = qs.none()
-
-        return qs
 
     def post(self, request, execution_id):
         from ..tasks import execute_test_suite as execute_test_suite_task
@@ -628,19 +577,6 @@ class TestExecutionHistoryExportView(ProtectedExternalAPIMixin, APIView):
     POST /api/v1/test-management/execution/<uuid:pk>/history/export/
     - Export test execution history
     """
-
-    def get_queryset(self):
-        #Only list test executions created by requesting user
-        qs = TestExecution.objects.all().select_related("test_suite")
-
-        user = self.request.user
-        if user.is_authenticated:
-            if user and not user.is_superuser:
-                qs = qs.filter(created_by=user)
-        else:
-            qs = qs.none()
-
-        return qs
 
     def get(self, request, execution_id):
         execution = get_object_or_404(TestExecution, id=execution_id)
@@ -728,19 +664,6 @@ class TestExecutionHistoryView(ProtectedExternalAPIMixin, APIView):
     POST /api/v1/test-management/execution/<uuid:pk>/history/
     - Get test execution data
     """
-
-    def get_queryset(self):
-        #Only list test executions created by requesting user
-        qs = TestExecution.objects.all().select_related("test_suite")
-
-        user = self.request.user
-        if user.is_authenticated:
-            if user and not user.is_superuser:
-                qs = qs.filter(created_by=user)
-        else:
-            qs = qs.none()
-
-        return qs
 
     def get(self, request, execution_id):
         execution = get_object_or_404(TestExecution, id=execution_id)
@@ -1055,19 +978,6 @@ class TestExecutionAllHistoryView(ProtectedExternalAPIMixin, APIView):
     POST /api/v1/test-management/execution/<uuid:pk>/all-history/
     - Get history for all child test executions
     """
-
-    def get_queryset(self):
-        #Only list test executions created by requesting user
-        qs = TestExecution.objects.all().select_related("test_suite")
-
-        user = self.request.user
-        if user.is_authenticated:
-            if user and not user.is_superuser:
-                qs = qs.filter(created_by=user)
-        else:
-            qs = qs.none()
-
-        return qs
 
     def get(self, request, execution_id):
         current_execution = get_object_or_404(TestExecution, id=execution_id)
