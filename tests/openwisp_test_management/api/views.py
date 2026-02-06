@@ -279,6 +279,9 @@ class TestCategoryDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAP
         
         super().perform_destroy(instance)
 
+from drf_yasg.utils import swagger_auto_schema
+from rest_framework.parsers import JSONParser
+from drf_yasg import openapi
 # ============================================================================
 # TEST EXECUTIONS VIEWS
 # ============================================================================
@@ -291,13 +294,64 @@ class TestExecutionListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     - Regular users see only test executions they created
     POST → Create new test execution
     """
-    parser_classes = (MultiPartParser, FormParser)
- 
+    parser_classes = [JSONParser]
+
+    device_schema = openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=["device_id", "connection_protocol"],
+        properties={
+            "device_id": openapi.Schema(
+                type=openapi.TYPE_STRING,
+                format=openapi.FORMAT_UUID,
+                description="Device UUID"
+            ),
+            "connection_protocol": openapi.Schema(
+                type=openapi.TYPE_STRING,
+                enum=["MQTT", "SSH"],
+                description="Connection protocol to connect this device"
+            ),
+        }
+    )
+
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "name": openapi.Schema(
+                    type=openapi.TYPE_STRING
+                ),
+                "test_selection_type": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    enum=["individual", "group"]
+                ),
+                "individual_test_cases": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Items(
+                        type=openapi.TYPE_STRING,
+                        format=openapi.FORMAT_UUID,
+                        description="Test Case UUID"
+                    )
+                ),
+                "test_suite": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    format=openapi.FORMAT_UUID,
+                    description="Test Group UUID"
+                ),
+                "devices": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=device_schema
+                ),
+            },
+            required=["name", "devices", "test_selection_type"],
+        )
+    )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
     # Basic configuration
 
     def get_queryset(self):
         #Only list test executions created by requesting user
-        qs = TestExecution.objects.all().select_related("test_suite")
+        qs = TestExecution.objects.filter(parent_execution__isnull=True).select_related("test_suite")
 
         user = self.request.user
         if user.is_authenticated:
@@ -350,8 +404,95 @@ class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyA
     DELETE /api/v1/test-management/execution/<uuid:pk>/
     - Delete a test execution
     """
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = [JSONParser]
     lookup_field = "pk"
+
+    device_schema = openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=["device_id", "connection_protocol"],
+        properties={
+            "device_id": openapi.Schema(
+                type=openapi.TYPE_STRING,
+                format=openapi.FORMAT_UUID,
+                description="Device UUID"
+            ),
+            "connection_protocol": openapi.Schema(
+                type=openapi.TYPE_STRING,
+                enum=["MQTT", "SSH"],
+                description="Connection protocol to connect this device"
+            ),
+        }
+    )
+
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "name": openapi.Schema(
+                    type=openapi.TYPE_STRING
+                ),
+                "test_selection_type": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    enum=["individual", "group"]
+                ),
+                "individual_test_cases": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Items(
+                        type=openapi.TYPE_STRING,
+                        format=openapi.FORMAT_UUID,
+                        description="Test Case UUID"
+                    )
+                ),
+                "test_suite": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    format=openapi.FORMAT_UUID,
+                    description="Test Group UUID"
+                ),
+                "devices": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=device_schema
+                ),
+            },
+            required=["name", "devices", "test_selection_type"],
+        )
+    )
+    def put(self, request, *args, **kwargs):
+        return super().put(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "name": openapi.Schema(
+                    type=openapi.TYPE_STRING
+                ),
+                "test_selection_type": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    enum=["individual", "group"]
+                ),
+                "individual_test_cases": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Items(
+                        type=openapi.TYPE_STRING,
+                        format=openapi.FORMAT_UUID,
+                        description="Test Case UUID"
+                    )
+                ),
+                "test_suite": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    format=openapi.FORMAT_UUID,
+                    description="Test Group UUID"
+                ),
+                "devices": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=device_schema
+                ),
+            },
+            required=["name", "devices", "test_selection_type"],
+        )
+    )
+    def patch(self, request, *args, **kwargs):
+        return super().patch(request, *args, **kwargs)
 
     def get_queryset(self):
         #Only list test executions created by requesting user

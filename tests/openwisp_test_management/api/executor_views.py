@@ -75,6 +75,8 @@ from .serializers import (
 from ..base.models import TestExecutionStatus
 from django.db.models import Prefetch
 from django.utils.dateparse import parse_datetime
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
 TestSuite = load_model("TestSuite")
@@ -782,7 +784,7 @@ def check_test_data_counts(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )   
 
-
+@swagger_auto_schema(method='post', auto_schema=None)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def get_execution_details(request):
@@ -2147,8 +2149,6 @@ class TestCaseExecutionResultView(generics.GenericAPIView):
 
 
 
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
 class RobotTestResultView(APIView):
     """
     API endpoint to receive test results from Robot Framework server

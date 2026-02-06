@@ -9,6 +9,7 @@ from ..base.models import TestExecutionStatus  # ADD THIS IMPORT
 from ..swapper import load_model
 from django.core.exceptions import ValidationError
 from django.db import models
+from uuid import UUID
 # MODEL 
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
@@ -848,21 +849,36 @@ class TestSuiteExecutionSerializer(serializers.ModelSerializer):
 
         return fields
 
-class TestSuiteExecutionCreateSerializer(serializers.ModelSerializer):
-    from drf_yasg import openapi
-
+class TestSuiteExecutionCreateSerializer(serializers.Serializer):
+    id = serializers.UUIDField(read_only=True)
+    name = serializers.CharField(required=False, allow_blank=True)
     individual_test_cases = serializers.PrimaryKeyRelatedField(
+        queryset=TestCase.objects.all(),
         many=True,
-        queryset=load_model("TestCase").objects.all(),
-        required=False,
-        help_text="Add Individual Test Case IDs. Click 'Add item' for each test case. Example: ['TestCase_001', 'TestCase_002']"
+        required=False
     )
-    TEST_SELECTION_MAP = {
-        "individual": 0,
-        "group": 1,
-    }
+    test_suite = serializers.PrimaryKeyRelatedField(
+        queryset=TestSuite.objects.all(),
+        many=False,
+        required=False,
+    )
 
-    DEVICE_SELECTION_MAP = {
+    devices = serializers.ListField(
+        child=serializers.DictField(
+            child=serializers.CharField()
+        ),
+        write_only=True,
+        help_text="""
+        List of devices with communication protocol.
+        Example:
+        [
+          {"device_id": "uuid", "connection_protocol": "MQTT"},
+          {"device_id": "uuid", "connection_protocol": "SSH"}
+        ]
+        """
+    )
+
+    TEST_SELECTION_MAP = {
         "individual": 0,
         "group": 1,
     }
@@ -874,22 +890,15 @@ class TestSuiteExecutionCreateSerializer(serializers.ModelSerializer):
         ]
     )
 
-    device_selection = serializers.ChoiceField(
-        choices=[
-            ("individual", "Individual Devices"),
-            ("group", "Device Group"),
-        ]
-    )
-
     class Meta:
         model = load_model("TestSuiteExecution")
         fields = [
+            "id",
             "name",
             "test_selection_type",
             "test_suite",
             "individual_test_cases",
-            "device_selection",
-            "device_group",
+            "devices",
             "notification_emails",
         ]
 
@@ -898,21 +907,120 @@ class TestSuiteExecutionCreateSerializer(serializers.ModelSerializer):
         validated_data["test_selection_type"] = self.TEST_SELECTION_MAP[
             validated_data["test_selection_type"]
         ]
-        validated_data["device_selection"] = self.DEVICE_SELECTION_MAP[
-            validated_data["device_selection"]
+        test_cases_data = validated_data.pop("individual_test_cases", [])
+
+        device_list = validated_data.pop("devices", [])
+        # Set created_by from request user
+        request = self.context.get('request')
+        if request and request.user:
+            validated_data['created_by'] = request.user
+        validated_data['device_count'] = len(device_list)
+        execution = TestSuiteExecution.objects.create(**validated_data)
+        if validated_data["test_selection_type"] == 0 and test_cases_data:
+            execution.individual_test_cases.set(test_cases_data)
+            execution.testcase_count = len(test_cases_data)
+            execution.save()
+        
+
+        device_map = {
+            device.id: device
+            for device in Device.objects.filter(
+                id__in=[UUID(d["device_id"]) for d in device_list]
+            )
+        }
+
+        if len(device_map) != len(device_list):
+            raise serializers.ValidationError(
+                {"devices": "One or more device IDs are invalid."}
+            )
+
+        for device_data in device_list:
+            TestSuiteExecutionDevice.objects.create(
+                test_suite_execution=execution,
+                device=device_map.get(UUID(device_data["device_id"])),
+                connection_protocol=device_data["connection_protocol"],
+                status="pending",
+            )
+
+        return execution
+
+    def update(self, instance, validated_data):
+        individual_test_cases = validated_data.pop("individual_test_cases", None)
+        device_list = validated_data.pop("devices", [])
+        validated_data["test_selection_type"] = self.TEST_SELECTION_MAP[
+            validated_data["test_selection_type"]
         ]
 
-        return super().create(validated_data)
+        # update normal fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+
+        device_map = {
+            device.id: device
+            for device in Device.objects.filter(
+                id__in=[UUID(d["device_id"]) for d in device_list]
+            )
+        }
+
+        if len(device_map) != len(device_list):
+            raise serializers.ValidationError(
+                {"devices": "One or more device IDs are invalid."}
+            )
+        if len(device_list) > 0:
+            TestSuiteExecutionDevice.objects.filter(
+                test_suite_execution=instance
+            ).delete()
+            for device_data in device_list:
+                TestSuiteExecutionDevice.objects.create(
+                    test_suite_execution=instance,
+                    device=device_map.get(UUID(device_data["device_id"])),
+                    connection_protocol=device_data["connection_protocol"],
+                    status="pending",
+                )
+
+        # update M2M safely
+        if individual_test_cases is not None:
+            instance.individual_test_cases.set(individual_test_cases)
+
+        return instance
 
     # ---------- VALIDATION ----------
+    def validate_devices(self, devices):
+        PROTOCOL_MAP = {
+            "MQTT": 0,
+            "SSH": 1,
+        }
+        validated = []
+
+        for device in devices:
+            if "device_id" not in device:
+                raise serializers.ValidationError("device_id is required")
+
+            if "connection_protocol" not in device:
+                raise serializers.ValidationError("connection_protocol is required")
+
+            protocol = device["connection_protocol"]
+
+            if protocol not in PROTOCOL_MAP:
+                raise serializers.ValidationError(
+                    f"Invalid protocol {protocol}. Allowed: MQTT, SSH"
+                )
+
+            validated.append({
+                "device_id": device["device_id"],
+                "connection_protocol": PROTOCOL_MAP[protocol],
+            })
+
+        return validated
+
     def validate(self, attrs):
         test_selection_type = attrs.get(
             "test_selection_type",
             getattr(self.instance, "test_selection_type", None)
         )
-        device_selection = attrs.get("device_selection")
-
-        test_suite = attrs.get("test_suite")
+        test_suite = attrs.get("test_group")
         individual_cases = attrs.get("individual_test_cases")
 
         if test_selection_type == 1 and not test_suite:
@@ -923,11 +1031,6 @@ class TestSuiteExecutionCreateSerializer(serializers.ModelSerializer):
         if test_selection_type == 0 and not individual_cases:
             raise serializers.ValidationError({
                 "individual_test_cases": "At least one test case is required for individual selection."
-            })
-
-        if device_selection == 1 and not attrs.get("device_group"):
-            raise serializers.ValidationError({
-                "device_group": "Required when device selection is Device Group"
             })
 
         return attrs
