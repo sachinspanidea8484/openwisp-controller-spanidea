@@ -5,10 +5,16 @@ from ..swapper import load_model
 
 from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Device
+from openwisp_users.models import Organization
+
+
+
 from ..base.models import TestExecutionStatus  # ADD THIS IMPORT
 from ..swapper import load_model
 from django.core.exceptions import ValidationError
 from django.db import models
+from openwisp_users.api.mixins import FilterSerializerByOrgManaged
+
 # MODEL 
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
@@ -35,15 +41,23 @@ class BaseSerializer(ValidatedModelSerializer):
 # ============================================================================
 # TEST CATEGORY SERIALIZERS
 # ============================================================================
-
 class TestCategorySerializer(ValidatedModelSerializer):
     """
     Serializer for TestCategory List and Create operations
     """
+    test_case_count = serializers.SerializerMethodField()
     
     class Meta(BaseMeta):
         model = TestCategory
         fields = "__all__"
+
+    def get_test_case_count(self, obj):
+        request = self.context.get('request')
+        user = request.user if request else None
+        test_cases = obj.test_cases.all()
+        if user and not user.is_superuser:
+            test_cases = test_cases.filter(created_by=user)
+        return test_cases.count()    
 
     def validate_name(self, value):
         """Validate category name uniqueness (case-insensitive)"""
@@ -69,11 +83,15 @@ class TestCategorySerializer(ValidatedModelSerializer):
         return value.strip()
 
 
+
+
 class TestCaseMinimalSerializer(serializers.ModelSerializer):
     """
     Minimal serializer for TestCase (used in category detail)
     Shows only essential fields
     """
+    test_type = serializers.CharField(source='get_test_type_display', read_only=True)
+
     class Meta:
         model = TestCase
         fields = (
@@ -82,11 +100,10 @@ class TestCaseMinimalSerializer(serializers.ModelSerializer):
             "test_case_id",
             "test_type",
             "is_active",
-            "created",
         )
         read_only_fields = fields
 
-
+  
 class TestCategoryDetailSerializer(ValidatedModelSerializer):
     """
     Detailed serializer for TestCategory Retrieve operations
@@ -141,13 +158,6 @@ class TestCategoryDetailSerializer(ValidatedModelSerializer):
         
         return test_cases.count()
 
-
-
-
-
-
-
-
 # ============================================================================
 # TEST SUITE (TEST GROUP) SERIALIZERS
 # ============================================================================
@@ -163,261 +173,139 @@ class TestSuiteCaseSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created', 'modified', 'test_case_name', 'test_case_id']
 
 
-class TestCaseForGroupSerializer(serializers.ModelSerializer):
-    """Minimal test case serializer for test group"""
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    
+
+class TestSuiteCaseDetailSerializer(serializers.ModelSerializer):
+    """
+    Nested serializer for test cases inside a group detail response
+    """
+    category_name = serializers.CharField(
+        source="test_case.category.name", read_only=True
+    )
+    test_type = serializers.SerializerMethodField()
+    # Pull fields up from the nested test_case
+    id = serializers.UUIDField(source="test_case.id", read_only=True)
+    name = serializers.CharField(source="test_case.name", read_only=True)
+    test_case_id = serializers.CharField(source="test_case.test_case_id", read_only=True)
+    category = serializers.UUIDField(source="test_case.category_id", read_only=True)
+    is_active = serializers.BooleanField(source="test_case.is_active", read_only=True)
+
     class Meta:
-        model = TestCase
-        fields = [
-            'id',
-            'name',
-            'test_case_id',
-            'category',
-            'category_name',
-            'test_type',
-            'is_active',
-            'created_by',
-            'created',
-        ]
-        read_only_fields = fields
+        model = TestSuiteCase
+        fields = (
+            "id",
+            "name",
+            "test_case_id",
+            "category",
+            "category_name",
+            "test_type",
+            "is_active",
+            "order",
+        )
+
+    def get_test_type(self, obj):
+        return TestTypeChoices(obj.test_case.test_type).label
 
 
 class TestSuiteSerializer(ValidatedModelSerializer):
-    """Serializer for TestSuite (Test Group) List and Create"""
+    """
+    Serializer for TestSuite List and Create/Update.
+    Accepts test_case_ids[] for M2M write.
+    """
     test_case_count = serializers.SerializerMethodField()
-    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
-    
-    # ADD THIS FIELD - accepts list of test case UUIDs
     test_case_ids = serializers.ListField(
         child=serializers.UUIDField(),
         write_only=True,
         required=False,
-        help_text=_("List of test case UUIDs to add to the group")
+        default=list,
     )
-    
+
     class Meta(BaseMeta):
         model = TestSuite
-        fields = [
-            'id',
-            'name',
-            'description',
-            'is_active',
-            'test_case_count',
-            'test_case_ids',  # ADD THIS
-            'created_by',
-            'created_by_username',
-            'created',
-            'modified',
-        ]
-        read_only_fields = ['created', 'modified', 'test_case_count', 'created_by_username']
-    
+        fields = (
+            "id",
+            "name",
+            "description",
+            "is_active",
+            "test_case_count",
+            "test_case_ids",   # write-only, accepted on POST/PUT/PATCH
+            "created",
+            "modified",
+        )
+
     def get_test_case_count(self, obj):
-        """Get count of test cases in this group"""
         return obj.test_cases.count()
-    
-    def validate_name(self, value):
-        """Validate test group name uniqueness (case-insensitive)"""
-        qs = TestSuite.objects.filter(name__iexact=value)
-        
-        if self.instance:
-            qs = qs.exclude(pk=self.instance.pk)
-        
-        if qs.exists():
-            raise serializers.ValidationError(
-                _("A test group with this name already exists")
-            )
-        
-        return value
-    
-    # ADD THIS METHOD
-    def validate_test_case_ids(self, value):
-        """Validate that all test case IDs exist"""
-        if not value:
-            return value
-        
-        existing_ids = TestCase.objects.filter(id__in=value).values_list('id', flat=True)
-        existing_ids_str = [str(id) for id in existing_ids]
-        provided_ids_str = [str(id) for id in value]
-        
-        missing_ids = set(provided_ids_str) - set(existing_ids_str)
-        if missing_ids:
-            raise serializers.ValidationError(
-                _("Test cases not found: {}").format(', '.join(missing_ids))
-            )
-        
-        return value
-    
+
+    # ── pop test_case_ids before ValidatedModelSerializer hits _meta.get_field ──
+    def validate(self, attrs):
+        self._test_case_ids = attrs.pop("test_case_ids", [])
+        return super().validate(attrs)
+
+    # ── CREATE ──
     def create(self, validated_data):
-        """Create test group and add test cases"""
-        # Extract test_case_ids before creating
-        test_case_ids = validated_data.pop('test_case_ids', None)
-        
-        # Set created_by from request user
-        request = self.context.get('request')
-        if request and request.user:
-            validated_data['created_by'] = request.user
-        
-        # Create test suite
+        request = self.context["request"]
+        validated_data["created_by"] = request.user
         instance = super().create(validated_data)
-        
-        # Add test cases if provided
-        if test_case_ids:
-            instance.test_cases.set(test_case_ids)
-        
+        self._sync_test_cases(instance, self._test_case_ids)
         return instance
-    
-    # ADD THIS METHOD
+
+    # ── UPDATE (PUT / PATCH) ──
     def update(self, instance, validated_data):
-        """Update test group and test cases"""
-        # Extract test_case_ids before updating
-        test_case_ids = validated_data.pop('test_case_ids', None)
-        
-        # Update basic fields
         instance = super().update(instance, validated_data)
-        
-        # Update test cases if provided
-        if test_case_ids is not None:
-            instance.test_cases.set(test_case_ids)
-        
+        # Only re-sync if test_case_ids was explicitly sent
+        if self._test_case_ids is not None:
+            self._sync_test_cases(instance, self._test_case_ids)
         return instance
-    
+
+    # ── helper: create TestSuiteCase rows ──
+    @staticmethod
+    def _sync_test_cases(suite, test_case_ids):
+        # Validate all IDs exist
+        existing = set(
+            TestCase.objects.filter(id__in=test_case_ids).values_list("id", flat=True)
+        )
+        missing = set(test_case_ids) - existing
+        if missing:
+            raise serializers.ValidationError(
+                {"test_case_ids": f"Test case(s) not found: {missing}"}
+            )
+        # Clear old through-rows, re-create with order
+        TestSuiteCase.objects.filter(test_suite=suite).delete()
+        TestSuiteCase.objects.bulk_create([
+            TestSuiteCase(test_suite=suite, test_case_id=tc_id, order=idx + 1)
+            for idx, tc_id in enumerate(test_case_ids)
+        ])
+
 
 class TestSuiteDetailSerializer(ValidatedModelSerializer):
-    """Detailed serializer for TestSuite retrieve with test cases"""
-    test_cases_detail = serializers.SerializerMethodField()
+    """
+    Serializer for TestSuite Retrieve (GET detail)
+    """
     test_case_count = serializers.SerializerMethodField()
-    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
-    
-    # ADD THIS FIELD - accepts list of test case UUIDs
-    test_case_ids = serializers.ListField(
-        child=serializers.UUIDField(),
-        write_only=True,
-        required=False,
-        help_text=_("List of test case UUIDs to replace all test cases in the group")
-    )
-    
+    test_cases_detail = serializers.SerializerMethodField()
+
     class Meta(BaseMeta):
         model = TestSuite
-        fields = [
-            'id',
-            'name',
-            'description',
-            'is_active',
-            'test_case_count',
-            'test_cases_detail',
-            'test_case_ids',  # ADD THIS
-            'created_by',
-            'created_by_username',
-            'created',
-            'modified',
-        ]
-        read_only_fields = [
-            'created',
-            'modified',
-            'test_case_count',
-            'test_cases_detail',
-            'created_by',
-            'created_by_username'
-        ]
-    
-    def get_test_cases_detail(self, obj):
-        """Get ordered test cases with details"""
-        suite_cases = obj.suite_cases.all().select_related('test_case', 'test_case__category')
-        
-        result = []
-        for suite_case in suite_cases:
-            result.append({
-                'id': suite_case.test_case.id,
-                'name': suite_case.test_case.name,
-                'test_case_id': suite_case.test_case.test_case_id,
-                'category': suite_case.test_case.category.id,
-                'category_name': suite_case.test_case.category.name,
-                'test_type': suite_case.test_case.test_type,
-                'is_active': suite_case.test_case.is_active,
-                'order': suite_case.order,
-                'created_by': suite_case.test_case.created_by_id,
-            })
-        
-        return result
-    
+        fields = (
+            "id",
+            "name",
+            "description",
+            "is_active",
+            "test_case_count",
+            "test_cases_detail",
+            "created",
+            "modified",
+        )
+
     def get_test_case_count(self, obj):
-        """Get count of test cases"""
         return obj.test_cases.count()
-    
-    def validate_name(self, value):
-        """Validate test group name uniqueness"""
-        qs = TestSuite.objects.filter(name__iexact=value)
-        
-        if self.instance:
-            qs = qs.exclude(pk=self.instance.pk)
-        
-        if qs.exists():
-            raise serializers.ValidationError(
-                _("A test group with this name already exists")
-            )
-        
-        return value
-    
-    # ADD THIS METHOD
-    def validate_test_case_ids(self, value):
-        """Validate that all test case IDs exist"""
-        if not value:
-            return value
-        
-        existing_ids = TestCase.objects.filter(id__in=value).values_list('id', flat=True)
-        existing_ids_str = [str(id) for id in existing_ids]
-        provided_ids_str = [str(id) for id in value]
-        
-        missing_ids = set(provided_ids_str) - set(existing_ids_str)
-        if missing_ids:
-            raise serializers.ValidationError(
-                _("Test cases not found: {}").format(', '.join(missing_ids))
-            )
-        
-        return value
-    
-    def update(self, instance, validated_data):
-        """Handle M2M update for test_cases"""
-        test_case_ids = validated_data.pop('test_case_ids', None)
-        
-        # Update basic fields
-        instance = super().update(instance, validated_data)
-        
-        # Update M2M relationship if provided
-        if test_case_ids is not None:
-            instance.test_cases.set(test_case_ids)
-        
-        return instance
-class AddTestCasesToGroupSerializer(serializers.Serializer):
-    """Serializer for adding test cases to a test group"""
-    test_case_ids = serializers.ListField(
-        child=serializers.UUIDField(),
-        min_length=1,
-        help_text=_("List of test case IDs to add to the group")
-    )
-    
-    def validate_test_case_ids(self, value):
-        """Validate test cases exist"""
-        existing_ids = TestCase.objects.filter(id__in=value).values_list('id', flat=True)
-        existing_ids = [str(id) for id in existing_ids]
-        
-        missing_ids = set(str(id) for id in value) - set(existing_ids)
-        if missing_ids:
-            raise serializers.ValidationError(
-                _("Test cases not found: {}").format(', '.join(missing_ids))
-            )
-        
-        return value
 
-
-class RemoveTestCasesFromGroupSerializer(serializers.Serializer):
-    """Serializer for removing test cases from a test group"""
-    test_case_ids = serializers.ListField(
-        child=serializers.UUIDField(),
-        min_length=1,
-        help_text=_("List of test case IDs to remove from the group")
-    )
+    def get_test_cases_detail(self, obj):
+        suite_cases = obj.suite_cases.select_related(
+            "test_case", "test_case__category"
+        ).order_by("order")
+        return TestSuiteCaseDetailSerializer(
+            suite_cases, many=True, context=self.context
+        ).data
 
 
 # ============================================================================
@@ -456,6 +344,408 @@ class TestCaseListSerializer(serializers.ModelSerializer):
         """Get count of test suites containing this test case"""
         return obj.test_suites.count()
 
+
+
+
+
+
+# ============================================================================
+# DEVICE GROUP SERIALIZERS
+# ============================================================================
+
+class TestDeviceGroupListSerializer(FilterSerializerByOrgManaged, ValidatedModelSerializer):
+    """
+    Serializer for TestDeviceGroup List operations
+    Shows summary information without nested devices
+    """
+    organization_name = serializers.CharField(
+        source="organization.name",
+        read_only=True,
+        label=_("Organization Name")
+    )
+    device_count = serializers.SerializerMethodField(
+        label=_("Total Devices")
+    )
+
+    class Meta(BaseMeta):
+        model = TestDeviceGroup
+        fields = (
+            "id",
+            "name",
+            "description",
+            "organization",
+            "organization_name",
+            "device_count",
+            "created",
+            "modified",
+        )
+        read_only_fields = BaseMeta.read_only_fields + [
+            "organization_name",
+            "device_count",
+        ]
+
+    def get_device_count(self, obj):
+        """
+        Return count of active devices in this group
+        (excludes deleted devices)
+        """
+        return obj.devices.filter(device__is_deleted=False).count()
+
+
+class DeviceForGroupSerializer(serializers.ModelSerializer):
+    """
+    Minimal serializer for Device objects
+    Used when listing devices available to add to a group
+    """
+    organization_name = serializers.CharField(
+        source="organization.name",
+        read_only=True
+    )
+
+    class Meta:
+        model = Device
+        fields = (
+            "id",
+            "name",
+            "organization",
+            "organization_name",
+            "model",
+            "is_deleted",
+        )
+        read_only_fields = fields
+
+
+class TestDeviceGroupDeviceSerializer(serializers.ModelSerializer):
+    """
+    Nested serializer for devices inside a group detail response
+    """
+    device_name = serializers.CharField(
+        source="device.name",
+        read_only=True
+    )
+    device_model = serializers.CharField(
+        source="device.model",
+        read_only=True,
+        allow_null=True
+    )
+    organization_name = serializers.CharField(
+        source="group.organization.name",
+        read_only=True
+    )
+
+    class Meta:
+        model = load_model("TestDeviceGroupDevice")
+        fields = (
+            "id",
+            "device",
+            "device_name",
+            "device_model",
+            "organization_name",
+            "created",
+            "modified",
+        )
+        read_only_fields = fields
+
+
+class TestDeviceGroupDetailSerializer(FilterSerializerByOrgManaged, ValidatedModelSerializer):
+    """
+    Serializer for TestDeviceGroup Detail operations
+    Includes nested devices list
+    """
+    organization_name = serializers.CharField(
+        source="organization.name",
+        read_only=True,
+        label=_("Organization Name")
+    )
+    device_count = serializers.SerializerMethodField(
+        label=_("Total Devices")
+    )
+    devices_detail = serializers.SerializerMethodField(
+        label=_("Devices in Group")
+    )
+    
+    # Write-only field for adding/updating devices
+    device_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False,
+        label=_("Device IDs to add to group"),
+        help_text=_("Array of device UUIDs to add to this group")
+    )
+
+    class Meta(BaseMeta):
+        model = TestDeviceGroup
+        fields = (
+            "id",
+            "name",
+            "description",
+            "organization",
+            "organization_name",
+            "device_count",
+            "devices_detail",
+            "device_ids",  # write-only
+            "created",
+            "modified",
+        )
+        read_only_fields = BaseMeta.read_only_fields + [
+            "organization_name",
+            "device_count",
+            "devices_detail",
+        ]
+
+    def get_device_count(self, obj):
+        """Count active devices in group"""
+        return obj.devices.filter(device__is_deleted=False).count()
+
+    def get_devices_detail(self, obj):
+        """Get detailed info about all devices in group"""
+        devices = obj.devices.select_related(
+            "device",
+            "group__organization"
+        ).filter(device__is_deleted=False).order_by("device__name")
+        
+        return TestDeviceGroupDeviceSerializer(
+            devices,
+            many=True,
+            context=self.context
+        ).data
+
+    def validate_device_ids(self, value):
+        """
+        Validate that all device IDs exist and belong to the group's organization
+        """
+        if not value:
+            return value
+
+        user = self.context["request"].user
+        organization = self.instance.organization if self.instance else None
+
+        if not organization and "organization" in self.initial_data:
+            org_id = self.initial_data["organization"]
+            organization = Organization.objects.get(id=org_id)
+
+        if not organization:
+            raise serializers.ValidationError(
+                _("Organization must be specified when adding devices")
+            )
+
+        # Validate all IDs exist
+        existing_devices = set(
+            Device.objects.filter(
+                id__in=value,
+                is_deleted=False
+            ).values_list("id", flat=True)
+        )
+        
+        missing = set(value) - existing_devices
+        if missing:
+            raise serializers.ValidationError({
+                "device_ids": _("Device(s) not found: {}").format(missing)
+            })
+
+        # Validate all devices belong to the same organization
+        devices = Device.objects.filter(id__in=value)
+        org_mismatch = devices.exclude(organization=organization).values_list("name", flat=True)
+        
+        if org_mismatch:
+            raise serializers.ValidationError({
+                "device_ids": _(
+                    "The following device(s) do not belong to the selected organization: {}"
+                ).format(", ".join(org_mismatch))
+            })
+
+        # Superusers can add any device from the org
+        # Non-superusers: devices must be from organizations they manage
+        if not user.is_superuser:
+            unmanaged_orgs = devices.exclude(
+                organization_id__in=user.organizations_managed
+            ).values_list("name", flat=True)
+            
+            if unmanaged_orgs:
+                raise serializers.ValidationError({
+                    "device_ids": _(
+                        "You don't have permission to add these device(s): {}"
+                    ).format(", ".join(unmanaged_orgs))
+                })
+
+        return value
+
+    def validate_organization(self, value):
+        """
+        Validate that user has access to the organization
+        Superusers can access all, non-superusers only managed orgs
+        """
+        user = self.context["request"].user
+        
+        # Superuser can access any organization
+        if user.is_superuser:
+            return value
+        
+        # Non-superuser can only manage their own organizations
+        if str(value.id) not in user.organizations_managed:
+            raise serializers.ValidationError(
+                _("You don't have permission to manage this organization")
+            )
+        
+        return value
+
+    def validate(self, attrs):
+        """
+        Validate device_ids array
+        Pop it before model validation (like TestSuite)
+        """
+        self._device_ids = attrs.pop("device_ids", [])
+        return super().validate(attrs)
+
+    def create(self, validated_data):
+        """
+        Create group and add devices
+        """
+        instance = super().create(validated_data)
+        self._sync_devices(instance, self._device_ids)
+        return instance
+
+    def update(self, instance, validated_data):
+        """
+        Update group and optionally update devices
+        Only re-sync if device_ids was explicitly sent
+        """
+        instance = super().update(instance, validated_data)
+        
+        # Only re-sync if device_ids was in the request
+        if self._device_ids is not None:
+            self._sync_devices(instance, self._device_ids)
+        
+        return instance
+
+    @staticmethod
+    def _sync_devices(group, device_ids):
+        """
+        Helper: Create/update TestDeviceGroupDevice entries
+        Clears old devices and recreates with new ones
+        """
+        TestDeviceGroupDevice = load_model("TestDeviceGroupDevice")
+        
+        if not device_ids:
+            # If empty list sent, clear all devices
+            TestDeviceGroupDevice.objects.filter(group=group).delete()
+            return
+
+        # Validate all IDs exist (double-check)
+        existing = set(
+            Device.objects.filter(id__in=device_ids).values_list("id", flat=True)
+        )
+        missing = set(device_ids) - existing
+        if missing:
+            raise serializers.ValidationError(
+                {"device_ids": _("Device(s) not found: {}").format(missing)}
+            )
+
+        # Clear old entries and recreate
+        TestDeviceGroupDevice.objects.filter(group=group).delete()
+        
+        # Bulk create new entries
+        TestDeviceGroupDevice.objects.bulk_create([
+            TestDeviceGroupDevice(group=group, device_id=dev_id)
+            for dev_id in device_ids
+        ], ignore_conflicts=True)
+
+
+class TestDeviceGroupCreateSerializer(FilterSerializerByOrgManaged, ValidatedModelSerializer):
+    """
+    Serializer for TestDeviceGroup Create operations
+    Includes device_ids write-only field
+    """
+    device_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False,
+        default=list,
+        label=_("Device IDs"),
+        help_text=_("Array of device UUIDs to add to this group")
+    )
+
+    class Meta(BaseMeta):
+        model = TestDeviceGroup
+        fields = (
+            "id",
+            "name",
+            "description",
+            "organization",
+            "device_ids",
+            "created",
+            "modified",
+        )
+
+    def validate_device_ids(self, value):
+        """Validate all device IDs exist and belong to organization"""
+        if not value:
+            return value
+
+        user = self.context["request"].user
+        org_id = self.initial_data.get("organization")
+        
+        if not org_id:
+            raise serializers.ValidationError(
+                _("Organization must be specified")
+            )
+
+        organization = Organization.objects.get(id=org_id)
+
+        # Check devices exist
+        existing = set(
+            Device.objects.filter(
+                id__in=value,
+                is_deleted=False
+            ).values_list("id", flat=True)
+        )
+        missing = set(value) - existing
+        if missing:
+            raise serializers.ValidationError(
+                _("Device(s) not found: {}").format(missing)
+            )
+
+        # Check devices belong to org
+        devices = Device.objects.filter(id__in=value)
+        org_mismatch = devices.exclude(organization=organization)
+        if org_mismatch.exists():
+            raise serializers.ValidationError(
+                _("Not all devices belong to the selected organization")
+            )
+
+        # Check user permissions
+        if not user.is_superuser:
+            if str(organization.id) not in user.organizations_managed:
+                raise serializers.ValidationError(
+                    _("You don't have permission to manage this organization")
+                )
+
+        return value
+
+    def validate_organization(self, value):
+        """Validate user has access to organization"""
+        user = self.context["request"].user
+        
+        if user.is_superuser:
+            return value
+        
+        if str(value.id) not in user.organizations_managed:
+            raise serializers.ValidationError(
+                _("You don't have permission to manage this organization")
+            )
+        
+        return value
+
+    def validate(self, attrs):
+        """Pop device_ids before model validation"""
+        self._device_ids = attrs.pop("device_ids", [])
+        return super().validate(attrs)
+
+    def create(self, validated_data):
+        """Create group and add devices"""
+        instance = super().create(validated_data)
+        TestDeviceGroupDetailSerializer._sync_devices(instance, self._device_ids)
+        return instance
 # OLD
 
 class TestCategoryListSerializer(TestCategorySerializer):
@@ -615,6 +905,13 @@ class TestCaseSerializer(ValidatedModelSerializer):
 
         return file
 
+
+
+
+
+
+
+
 class TestCaseDetailSerializer(TestCaseSerializer):
     suite_count = serializers.ReadOnlyField()
     execution_count = serializers.ReadOnlyField()
@@ -627,29 +924,21 @@ class TestCaseDetailSerializer(TestCaseSerializer):
             "is_deletable",
         ]
 
-# class TestCaseListSerializer(TestCaseSerializer):
-#     """Lightweight serializer for list views"""
-#     category_name = serializers.CharField(source="category.name", read_only=True)
-#     test_type_display = serializers.CharField(source='get_test_type_display', read_only=True)  # ADD THIS
-    
-#     class Meta(BaseMeta):
-#         model = TestCase
-#         fields = [
-#             "id",
-#             "name",
-#             "test_case_id",
-#             "category",
-#             "category_name",
-#             "test_type",  # ADD THIS
-#             "test_type_display",  # ADD THIS
-#             "is_active",
-#             "created",
-#             "modified",
-#         ]
-#         read_only_fields = BaseMeta.read_only_fields + [
-#             "category_name",
-#             "test_type_display",  # ADD THIS
-#         ]
+class TestCaseImportSerializer(serializers.Serializer):
+    file = serializers.FileField()
+
+    def validate_file(self, file):
+        name = file.name.lower()
+        content_type = file.content_type
+
+        if not (
+            name.endswith(".xlsx") or name.endswith(".csv")
+        ):
+            raise serializers.ValidationError(
+                "Only .xlsx or .csv files are supported."
+            )
+
+        return file
 
 
 class TestSuiteCaseSerializer(serializers.ModelSerializer):
