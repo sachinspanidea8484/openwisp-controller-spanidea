@@ -1,59 +1,90 @@
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, generics, pagination ,status
+from rest_framework import filters, generics, pagination, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from rest_framework.exceptions import ValidationError
-
+from rest_framework.exceptions import ValidationError, NotFound
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from django.utils import timezone
-
-
 from django.http import HttpResponse
 from rest_framework.generics import GenericAPIView
 
+from .utilities import is_valid_uuid, schedule_execution, validate_schedule_time
 from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
 from openwisp_users.api.permissions import DjangoModelPermissions
 from rest_framework.permissions import IsAuthenticated
-from openwisp_test_management.utils import build_all_testcases_zip
-from ..swapper import load_model
-
-from openwisp_monitoring.monitoring.models import Metric
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.urls import reverse
 import logging
 import csv
-from ..settings import OPENWISP_SERVER_IP
-logger = logging.getLogger(__name__)
 
-from .filters import TestCategoryFilter ,TestSuiteFilter, TestSuiteExecutionFilter, TestCaseFilter
+from tablib import Dataset
+
+from openwisp_users.api.mixins import (
+    ProtectedAPIMixin as BaseProtectedAPIMixin,
+    FilterByOrganizationManaged,
+)
+from openwisp_users.api.permissions import (
+    DjangoModelPermissions,
+    IsOrganizationManager,
+)
+
+from openwisp_controller.config.models import Device
+from openwisp_controller.connection.models import DeviceConnection
+from openwisp_monitoring.monitoring.models import Metric
+
+from openwisp_test_management.utils import build_all_testcases_zip
+from ..swapper import load_model
+from ..settings import OPENWISP_SERVER_IP
+
+from .filters import (
+    TestCategoryFilter,
+    TestSuiteFilter,
+    TestSuiteExecutionFilter,
+    TestCaseFilter,
+    TestDeviceGroupFilter,
+    DeviceFilterForGroup,
+)
 
 from .serializers import (
     TestCategorySerializer,
     TestCategoryDetailSerializer,
     TestCaseSerializer,
+    TestCaseMinimalSerializer,
     TestCaseDetailSerializer,
     TestSuiteSerializer,
     TestSuiteDetailSerializer,
+    TestDeviceGroupCreateSerializer,
+    TestDeviceGroupListSerializer,
+    TestDeviceGroupDetailSerializer,
+    DeviceForGroupSerializer,
     TestCaseListSerializer,
     TestSuiteExecutionSerializer,
     TestSuiteExecutionCreateSerializer,
     TestSuiteExecutionListSerializer,
     ReExecuteSelectedTestsSerializer,
+    TestCaseImportSerializer,
 )
-from openwisp_controller.config.models import Device
-from openwisp_controller.connection.models import DeviceConnection
-from rest_framework.parsers import MultiPartParser, FormParser
 
+from .utilities import TestCasesResource
+
+logger = logging.getLogger(__name__)
+
+
+# =========================
+# Models
+# =========================
 TestCategory = load_model("TestCategory")
 TestExecution = load_model("TestSuiteExecution")
 TestSuite = load_model("TestSuite")
 TestCase = load_model("TestCase")
 TestSuiteCase = load_model("TestSuiteCase")
+TestDeviceGroup = load_model("TestDeviceGroup")
 TestCaseExecution = load_model("TestCaseExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 ScheduledExecution= load_model("ScheduledExecution")
-
+ExecutionArtifact = load_model("ExecutionArtifact")
 class ListViewPagination(pagination.PageNumberPagination):
     """Pagination configuration for list views"""
     page_size = 10                    # Default items per page
@@ -61,16 +92,23 @@ class ListViewPagination(pagination.PageNumberPagination):
     max_page_size = 100               # Maximum allowed page size
 
 
-class ProtectedAPIMixin(BaseProtectedAPIMixin):
+class ProtectedAPIMixin(BaseProtectedAPIMixin, FilterByOrganizationManaged):
     """
     Base mixin for all test management API views
-    Adds authentication and permission requirements
+    
+    Features:
+    - Authentication: Bearer token + Session
+    - Permissions: IsAuthenticated + DjangoModelPermissions
+    - Organization Filtering: Automatic filtering by user's managed orgs
+    - Throttling: Rate limiting per scope
     """
     permission_classes = (
-        IsAuthenticated,           # Must be logged in
-        DjangoModelPermissions,    # Must have model permissions
+        IsAuthenticated,
+        DjangoModelPermissions,
+        IsOrganizationManager,  # User must manage at least 1 org
     )
     throttle_scope = "test_management"
+    organization_field = "organization"  # Field to filter by
 
 class ProtectedExternalAPIMixin(BaseProtectedAPIMixin):
     """
@@ -234,9 +272,6 @@ class TestCategoryDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAP
     
     GET /api/v1/test-management/test-category/<uuid:pk>/
     - Retrieve detailed information about a test category
-    - Includes related test cases (filtered by user permissions)
-    - Superusers see all test cases
-    - users see only test cases they created
     
     PUT /api/v1/test-management/test-category/<uuid:pk>/
     - Update a test category (full update)
@@ -528,7 +563,7 @@ class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyA
         
         return super().perform_destroy(instance)
 
-class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
+class TestExecutionStartViewOld(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint for starting a test execution
     
@@ -570,6 +605,183 @@ class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
             status=status.HTTP_202_ACCEPTED
         )
 
+class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
+    """
+    API endpoint for starting a test execution
+    
+    POST /api/v1/test-management/execution/<uuid:pk>/start-execution/
+    - path parameters : test execution id (UUID, required)
+    - Request Content-Type: multipart/form-data
+    - body : 
+        field name format: artifact__<device_uuid>__<testcase_uuid>
+        field value : file
+        schedule_time (optional)
+        ISO-8601 datetime string
+
+        Examples:
+        - 2026-02-10T14:30:00Z
+        - 2026-02-10T14:30:00+05:30
+    - Start a test execution
+    - validations:
+    - All required (device_uuid, testcase_uuid) pairs MUST be provided.
+    - No extra or unexpected artifacts are allowed.
+    - device_uuid and testcase_uuid MUST be valid UUIDs.
+    - Only one file per (device_uuid, testcase_uuid) pair is allowed.
+    - Execution must not have been started previously.
+    """
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, execution_id):
+        from ..tasks import execute_test_suite as execute_test_suite_task
+        execution = get_object_or_404(TestExecution, id=execution_id)
+
+        # Safety checks
+        if execution.is_executed:
+            return Response(
+                {"detail": "Test Execution is already executed."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # permission check
+        if execution.created_by != request.user and not request.user.is_superuser:
+            return Response(
+                {"detail": "Not allowed to start this execution."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+    
+        schedule_time = request.data.get("schedule_time")
+        dt = None
+        if schedule_time:
+            try:
+                dt = validate_schedule_time(schedule_time)
+            except ValidationError as e:
+                raise ValidationError(str(e))
+        
+        # Required artifacts
+        required = set(
+            (str(r["device_id"]), str(r["testcase_id"]))
+            for r in execution.get_required_artifacts()
+        )
+
+        # 3️⃣ Parse uploaded artifacts
+        uploaded = {}
+        invalid_keys = []
+
+        for key, file in request.FILES.items():
+            if not key.startswith("artifact__"):
+                invalid_keys.append(key)
+                continue
+
+            try:
+                _, device_id, testcase_id = key.split("__")
+            except ValueError:
+                invalid_keys.append(key)
+                continue
+
+            if not is_valid_uuid(device_id) or not is_valid_uuid(testcase_id):
+                invalid_keys.append(key)
+                continue
+
+            uploaded[(device_id, testcase_id)] = file
+
+        if invalid_keys:
+            return Response(
+                {
+                    "detail": "Invalid artifact keys",
+                    "invalid_keys": invalid_keys
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate missing artifacts
+        missing = required - uploaded.keys()
+        if missing:
+            return Response(
+                {
+                    "detail": "Missing required configuration files",
+                    "missing": [
+                        {"device": d, "testcase": t} for d, t in missing
+                    ]
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate extra artifacts
+        extra = uploaded.keys() - required
+        if extra:
+            return Response(
+                {
+                    "detail": "Unexpected configuration files provided",
+                    "extra": [
+                        {"device": d, "testcase": t} for d, t in extra
+                    ]
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Atomic artifact creation
+            with transaction.atomic():
+                for (device_id, testcase_id), file in uploaded.items():
+                    artifact, created = ExecutionArtifact.objects.select_for_update().get_or_create(
+                        execution=execution,
+                        device_id=device_id,
+                        testcase_id=testcase_id,
+                        defaults={"config_file": file}
+                    )
+
+                    if not created:
+                        if artifact.is_pushed:
+                            raise ValidationError(
+                                f"Config already pushed for device={device_id}, testcase={testcase_id}"
+                            )
+
+                        artifact.config_file = file
+                        artifact.full_clean()  # triggers your clean()
+                        artifact.save(update_fields=["config_file"])
+        
+                
+                if dt:
+                    scheduled_time = schedule_execution(execution, dt)
+                    return Response(
+                        {
+                            "execution_id": execution.id,
+                            "status": "SCHEDULED",
+                            "scheduled_time": scheduled_time,
+                            "message": "Execution scheduled successfully"
+                        },
+                        status=status.HTTP_202_ACCEPTED
+                    )
+                ScheduledExecution.objects.filter(
+                    execution=execution,
+                    status=ScheduledExecution.Status.PENDING
+                ).update(
+                    status=ScheduledExecution.Status.CANCELLED,
+                    updated_at=timezone.now()
+                )
+                execution.is_executed = True
+                execution.save(update_fields=["is_executed"])
+
+                transaction.on_commit(
+                    lambda: execute_test_suite_task.delay(str(execution.id))
+                )
+            return Response(
+                {
+                    "execution_id": execution.id,
+                    "status": "EXECUTION PROGRESS",
+                    "message": "Execution started successfully"
+                },
+                status=status.HTTP_202_ACCEPTED
+            )
+        except Exception as e:
+            return Response(
+                {
+                    "error in starting execution" : str(e) 
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+           
+        
 class TestExecutionReExecuteView(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint for re-executing a test execution
@@ -1325,27 +1537,155 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
         instance.delete()
 
 
+class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
+    """
+    Export all test case scripts as a ZIP file
+    """
+    
+    queryset = TestCase.objects.all()
+
+    def get_queryset(self):
+        """
+        Match admin visibility rules
+        """
+        qs = super().get_queryset()
+
+        if self.request.user.is_superuser:
+            return qs
+
+        return qs.filter(created_by=self.request.user)
+    
+    def get(self, request, *args, **kwargs):
+       
+        queryset= self.get_queryset()
+
+        if not queryset.exists():
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(
+                {"detail": "No test cases available for export."}
+            )
+
+        zip_buffer = build_all_testcases_zip(queryset)
+
+        response = HttpResponse(
+            zip_buffer,
+            content_type="application/zip",
+        )
+        response["Content-Disposition"] = (
+            'attachment; filename="all_testcase_scripts.zip"'
+        )
+        return response
+
+
+class TestCaseExportApiView(ProtectedAPIMixin, APIView):
+    SUPPORTED_FORMATS= ("xlsx", "csv")
+   
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return TestCase.objects.all()
+        return TestCase.objects.filter(created_by= user)
+    
+  
+    def get(self, request, export_format):
+       
+
+        export_format = export_format.lower()
+        if export_format not in self.SUPPORTED_FORMATS : 
+            raise ValidationError(
+                f"Invalid format. Supported Formats:{', '.join(self.SUPPORTED_FORMATS)}"
+            )
+        try:
+            queryset= self.get_queryset()
+            print("queryset", queryset)
+            if not queryset.exists():
+                return HttpResponse(
+                    "No test case available for export.",
+                    status=status.HTTP_204_NO_CONTENT,
+                    content_type="text/plain",
+                )
+            
+            resource = TestCasesResource()
+            dataset= resource.export(queryset)
+        
+            file_map = {
+                "xlsx": (
+                    dataset.xlsx,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+                "csv": (dataset.csv, "text/csv"),
+            
+            }
+        
+            file_data, content_type = file_map[export_format]
+        
+            response = HttpResponse(file_data, content_type=content_type)
+        
+            response["Content-Disposition"] = (
+                f'attachment; filename="test_cases.{export_format}"'
+            )
+            return response
+        except Exception as e:
+            return HttpResponse(
+                "An error occurred while exporting test cases.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content_type="text/plain",
+            )
+
+class TestCaseImportApiView(ProtectedAPIMixin, generics.CreateAPIView):
+    serializer_class= TestCaseImportSerializer
+    parser_classes = (MultiPartParser, FormParser)
+    queryset = TestCase.objects.none()
+    def create(self, request , *args, **kwargs):
+        serializer = TestCaseImportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        file = serializer.validated_data["file"]
+        filename= file.name.lower()
+        resource = TestCasesResource()
+
+        dataset = Dataset()
+        
+        if filename.endswith(".xlsx"):
+            file.seek(0)
+            dataset.xlsx = file.read()
+        elif filename.endswith(".csv"):
+            file.seek(0)
+            text= file.read().decode("utf-8")
+            dataset.load(text,format="csv")
+        try:
+
+            result = resource.import_data(
+                dataset,
+                dry_run=False,
+                raise_errors=True,
+            )
+        except Exception as e:
+            return Response(
+                {"message": "Import failed", "error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {
+                "message": "Import completed successfully",
+                "created": result.totals["new"],
+                "updated": result.totals["update"],
+                "errors": result.totals["error"],
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
 # ============================================================================
-# TEST SUITE (TEST GROUP) VIEWS
+# TEST SUITE (GROUP) VIEWS
 # ============================================================================
 class TestSuiteListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
-    API endpoint for listing and creating test groups
-    
-    GET  /api/v1/test-management/test-group/
-    - List all test groups (paginated)
-    - Superusers see all groups
-    - Users see only groups they created
-    - Supports filtering by name, is_active, created_by
-    - Supports search and ordering
-    
-    POST /api/v1/test-management/test-group/
-    - Create a new test group
-    - Automatically sets created_by to request user
+    GET  → list test groups 
+    POST → create test group
     """
     serializer_class = TestSuiteSerializer
     pagination_class = ListViewPagination
-    
     filter_backends = [
         DjangoFilterBackend,
         filters.OrderingFilter,
@@ -1355,125 +1695,55 @@ class TestSuiteListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     search_fields = ["name", "description"]
     ordering_fields = ["name", "created", "modified"]
     ordering = ["-created"]
-    
-    def get_queryset(self):
-        """
-        Superusers see all test groups
-        Users see only test groups they created
-        """
-        user = self.request.user
-        qs = TestSuite.objects.all().select_related('created_by')
-        
-        if not user.is_superuser:
-            # Users see only their own test groups
-            qs = qs.filter(created_by=user)
-        
-        return qs
+    queryset = TestSuite.objects.all()
 
 
 class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
     """
-    API endpoint for retrieving, updating, and deleting a test group
-    
-    GET    /api/v1/test-management/test-group/<uuid:pk>/
-    - Retrieve detailed information about a test group
-    - Includes list of test cases with ordering
-    
-    PUT    /api/v1/test-management/test-group/<uuid:pk>/
-    - Full update of test group
-    - Can update test_case_ids to replace all test cases
-    
-    PATCH  /api/v1/test-management/test-group/<uuid:pk>/
-    - Partial update of test group
-    
-    DELETE /api/v1/test-management/test-group/<uuid:pk>/
-    - Delete test group
-    - Only allowed if group has no executions
+    GET    → detail with test_cases_detail 
+    PUT/PATCH → update accepts test_case_ids[]
+    Delete test case (only if deletable)
     """
-    lookup_field = "pk"
-    
-    def get_queryset(self):
-        """
-        Superusers see all test groups
-        Users see only test groups they created
-        """
-        user = self.request.user
-        qs = TestSuite.objects.all().select_related('created_by')
-        
-        if not user.is_superuser:
-            qs = qs.filter(created_by=user)
-        
-        return qs
-    
+    queryset = TestSuite.objects.all()
+
     def get_serializer_class(self):
-        """Use detailed serializer for GET, basic for updates"""
         if self.request.method == "GET":
             return TestSuiteDetailSerializer
         return TestSuiteSerializer
-    
+
     def perform_destroy(self, instance):
-        """Custom delete logic - prevent deletion if has executions"""
         if not instance.is_deletable:
             raise ValidationError({
                 "detail": _(
-                    f"Cannot delete test group '{instance.name}' because it has "
-                    f"{instance.execution_count} execution(s). "
-                    f"Please delete the executions first."
+                    f"Cannot delete test group '{instance.name}' because it has executions."
                 )
             })
-        
         super().perform_destroy(instance)
 
 
 # ============================================================================
-# TEST CASE LISTING VIEW (WITH CATEGORY FILTER)
+# TEST CASES BY CATEGORY (supports multiple category IDs)
 # ============================================================================
+class TestCasesByCategoryView(ProtectedAPIMixin, generics.ListAPIView):
+    """
+    GET /test-management/test-cases-by-category/?category_ids=<uuid>,<uuid>
+    - If no category_ids provided → returns all test cases
+    """
+    serializer_class = TestCaseMinimalSerializer
 
-# class TestCaseListView(ProtectedAPIMixin, generics.ListAPIView):
-#     """
-#     API endpoint for listing test cases with category filter
-    
-#     GET /api/v1/test-management/test-cases/
-#     - List all test cases (paginated)
-#     - Superusers see all test cases
-#     - Users see only test cases they created
-#     - Filter by category (multiple): ?category=uuid1,uuid2
-#     - Filter by test_type, is_active, etc.
-#     - Search by name, test_case_id
-    
-#     Examples:
-#     - All test cases: /test-cases/
-#     - By category: /test-cases/?category=uuid1&category=uuid2
-#     - Active only: /test-cases/?is_active=true
-#     - By type: /test-cases/?test_type=1
-#     - Search: /test-cases/?search=ping
-#     """
-#     serializer_class = TestCaseListSerializer
-#     pagination_class = ListViewPagination
-    
-#     filter_backends = [
-#         DjangoFilterBackend,
-#         filters.OrderingFilter,
-#         filters.SearchFilter,
-#     ]
-#     filterset_class = TestCaseListFilter
-#     search_fields = ["name", "test_case_id", "description"]
-#     ordering_fields = ["name", "test_case_id", "created", "modified"]
-#     ordering = ["-created"]
-    
-#     def get_queryset(self):
-#         """
-#         Superusers see all test cases
-#         Users see only test cases they created
-#         """
-#         user = self.request.user
-#         qs = TestCase.objects.all().select_related('category', 'created_by')
-        
-#         if not user.is_superuser:
-#             # Users see only their own test cases
-#             qs = qs.filter(created_by=user)
-        
-#         return qs
+    def get_queryset(self):
+        qs = TestCase.objects.select_related("category").all()
+        # Scope by user
+        if not self.request.user.is_superuser:
+            qs = qs.filter(created_by=self.request.user)
+        # Filter by category_ids if provided
+        category_ids = self.request.query_params.get("category_ids", "").strip()
+        if category_ids:
+            id_list = [cid.strip() for cid in category_ids.split(",") if cid.strip()]
+            if id_list:
+                qs = qs.filter(category__id__in=id_list)
+        return qs
+
 
 class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
     """
@@ -1514,12 +1784,137 @@ class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
         )
         return response
 
+
+
+# ============================================================================
+# TEST DEVICE GROUP VIEWS
+# ============================================================================
+
+class TestDeviceGroupListView(ProtectedAPIMixin, generics.ListCreateAPIView):
+    """
+    API endpoint for listing and creating test device groups
+    GET  /api/test-management/device-group/
+    POST /api/test-management/device-group/
+    """
+    queryset = TestDeviceGroup.objects.all().select_related("organization")
+    pagination_class = ListViewPagination
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.OrderingFilter,
+        filters.SearchFilter,
+    ]
+    filterset_class = TestDeviceGroupFilter
+    search_fields = ["name", "description"]
+    ordering_fields = ["name", "organization", "created", "modified"]
+    ordering = ["-created"]
+
+    def get_serializer_class(self):
+        """
+        Use different serializer for different actions:
+        - POST (create): TestDeviceGroupCreateSerializer
+        - GET (list): TestDeviceGroupListSerializer
+        """
+        if self.request.method == "POST":
+            return TestDeviceGroupCreateSerializer
+        return TestDeviceGroupListSerializer
+
+    def perform_create(self, serializer):
+        """
+        Hook called after serializer validation
+        Can add custom logic here if needed
+        """
+        serializer.save()
+
+
+class TestDeviceGroupDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    API endpoint for retrieving, updating, and deleting a device group
+    
+    GET /api/test-management/device-group/{id}/
+    - Get detailed info about a device group
+    - Includes list of all devices in the group
+    PUT /api/test-management/device-group/{id}/
+    - Update device group (full update)
+    - Can update devices by sending device_ids array
+    PATCH /api/test-management/device-group/{id}/
+    - Partial update
+    - Only fields sent will be updated
+    DELETE /api/test-management/device-group/{id}/
+    - Delete device group
+    """
+    queryset = TestDeviceGroup.objects.all().select_related("organization")
+    lookup_field = "pk"
+
+    def get_serializer_class(self):
+        """
+        Use different serializer based on HTTP method:
+        - GET: TestDeviceGroupDetailSerializer (includes devices_detail)
+        - PUT/PATCH: TestDeviceGroupDetailSerializer (accepts device_ids)
+        - DELETE: doesn't use serializer
+        """
+        return TestDeviceGroupDetailSerializer
+
+    def perform_destroy(self, instance):
+        """
+        Hook before deletion
+        Can add checks here if needed (e.g., prevent deletion if in use)
+        """
+        super().perform_destroy(instance)
+
+
+# ============================================================================
+# DEVICE LISTING API (FOR ADDING TO GROUPS)
+# ============================================================================
+
+class DeviceListByOrganizationView(ProtectedAPIMixin, generics.ListAPIView):
+    """
+    API endpoint to get devices available for adding to a group
+    
+    GET /api/test-management/devices-by-organization/?organization={org_id}
+    Returns all devices from specified organization that user has access to
+    """
+    serializer_class = DeviceForGroupSerializer
+    pagination_class = ListViewPagination
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.OrderingFilter,
+        filters.SearchFilter,
+    ]
+    filterset_class = DeviceFilterForGroup
+    search_fields = ["name", "model"]
+    ordering_fields = ["name", "model", "organization"]
+    ordering = ["name"]
+
+    def get_queryset(self):
+        """
+        Return devices from specified organization
+        Apply user permission filtering
+        """
+        # Start with all devices
+        qs = Device.objects.select_related("organization").filter(
+            is_deleted=False
+        )
+        
+        # Superusers see all devices
+        if self.request.user.is_superuser:
+            return qs
+        
+        # Non-superusers only see devices from their managed organizations
+        return qs.filter(
+            organization_id__in=self.request.user.organizations_managed
+        )
+
 # Export view functions for urls.py
 test_suite_list = TestSuiteListView.as_view()
 test_suite_detail = TestSuiteDetailView.as_view()
-# test_case_list_view = TestCaseListView.as_view()
+
+test_case_list = TestCaseListView.as_view()
+test_case_detail = TestCaseDetailView.as_view()
+test_cases_by_category = TestCasesByCategoryView.as_view()
+
 test_category_list = TestCategoryListView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()
+
 test_execution_list = TestExecutionListView.as_view()
 test_execution_detail = TestExecutionDetailView.as_view()
 test_execution_start = TestExecutionStartView.as_view()
@@ -1530,6 +1925,12 @@ test_execution_history_export = TestExecutionHistoryExportView.as_view()
 test_execution_history = TestExecutionHistoryView.as_view()
 test_execution_all_history = TestExecutionAllHistoryView.as_view()
 test_execution_available_devices = TestExecutionAvailableDevicesView.as_view()
-test_case_list = TestCaseListView.as_view()
-test_case_detail = TestCaseDetailView.as_view()
+
 export_all_scripts = ExportAllTestCaseScriptsView.as_view()
+
+device_group_list = TestDeviceGroupListView.as_view()
+device_group_detail = TestDeviceGroupDetailView.as_view()
+devices_by_organization = DeviceListByOrganizationView.as_view()
+
+test_case_export = TestCaseExportApiView.as_view()
+test_case_import = TestCaseImportApiView.as_view()

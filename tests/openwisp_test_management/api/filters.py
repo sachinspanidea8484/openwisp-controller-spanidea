@@ -1,12 +1,14 @@
 from django.utils.translation import gettext_lazy as _
 from django_filters import rest_framework as filters
+from openwisp_controller.config.models import Device
 
 from ..swapper import load_model
-
+from openwisp_users.api.mixins import FilterDjangoByOrgManaged
 TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
 TestSuite = load_model("TestSuite")
 TestSuiteExecution = load_model("TestSuiteExecution")
+TestDeviceGroup = load_model("TestDeviceGroup")
 from ..base.models import TestTypeChoices  # ADD THIS IMPORT
 
 
@@ -39,75 +41,50 @@ class TestCategoryFilter(filters.FilterSet):
 # ============================================================================
 # TEST SUITE (TEST GROUP) FILTERS
 # ============================================================================
-
 class TestSuiteFilter(filters.FilterSet):
-    """Filter for TestSuite (Test Group)"""
     name = filters.CharFilter(
         field_name="name",
         lookup_expr="icontains",
         label=_("Group Name (contains)")
     )
-    
     is_active = filters.BooleanFilter(
         field_name="is_active",
         label=_("Is Active")
     )
-    
-    created_by = filters.UUIDFilter(
-        field_name="created_by",
-        label=_("Created By (User ID)")
-    )
-    
+
     class Meta:
         model = TestSuite
-        fields = ["name", "is_active", "created_by"]
+        fields = ["name", "is_active"]
 
 
 # ============================================================================
 # TEST CASE FILTERS (FOR LISTING API)
 # ============================================================================
-
-
-
 class TestCaseFilter(filters.FilterSet):
-    """API filter for test cases"""
-    name = filters.CharFilter(field_name="name", lookup_expr="icontains")
-    test_case_id = filters.CharFilter(field_name="test_case_id", lookup_expr="icontains")
-    category = filters.UUIDFilter(field_name="category")
-    is_active = filters.BooleanFilter(field_name="is_active")
+    name = filters.CharFilter(
+        field_name="name",
+        lookup_expr="icontains",
+        label=_("Test Case Name (contains)")
+    )
+    category = filters.UUIDFilter(
+        field_name="category__id",
+        label=_("Category ID (exact)")
+    )
     test_type = filters.ChoiceFilter(
         field_name="test_type",
-        choices=TestTypeChoices.choices,  # Use the actual choices
+        choices=TestTypeChoices.choices,
         label=_("Test Type")
     )
-    created_by = filters.UUIDFilter(field_name= "created_by")
+    is_active = filters.BooleanFilter(
+        field_name="is_active",
+        label=_("Is Active")
+    )
 
-    
     class Meta:
         model = TestCase
-        fields = [
-            "category",
-            "name",
-            "test_case_id",
-            "test_type",  # ADD THIS
-            "is_active",
-            "created_by",
-        ]
+        fields = ["name", "category", "test_type", "is_active"]
 
 
-class TestSuiteFilter(filters.FilterSet):
-    """API filter for test suites"""
-    name = filters.CharFilter(field_name="name", lookup_expr="icontains")
-    # category = filters.UUIDFilter(field_name="category")
-    is_active = filters.BooleanFilter(field_name="is_active")
-    
-    class Meta:
-        model = TestSuite
-        fields = [
-            # "category",
-            "name",
-            "is_active",
-        ]
 
 class TestSuiteExecutionFilter(filters.FilterSet):
     """API filter for test suite executions"""
@@ -124,3 +101,59 @@ class TestSuiteExecutionFilter(filters.FilterSet):
             "created_after",
             "created_before",
         ]        
+
+
+# ============================================================================
+# TEST DEVICE GROUP FILTERS
+# ============================================================================
+class TestDeviceGroupFilter(FilterDjangoByOrgManaged):
+    """
+    Filter for TestDeviceGroup
+    Organization-aware filtering for multi-tenant support
+    """
+    name = filters.CharFilter(
+        field_name="name",
+        lookup_expr="icontains",
+        label=_("Group Name (contains)")
+    )
+    
+    organization = filters.UUIDFilter(
+        field_name="organization",
+        label=_("Organization ID")
+    )
+    
+    class Meta:
+        model = TestDeviceGroup
+        fields = ["name", "organization"]
+
+
+# ============================================================================
+# DEVICE FILTER (FOR ADDING DEVICES TO GROUP)
+# ============================================================================
+class DeviceFilterForGroup(FilterDjangoByOrgManaged):
+    """
+    Filter devices by organization
+    Used when selecting devices to add to a test device group
+    
+    Query param:
+        ?organization=<uuid>
+        
+    Only shows devices from the specified organization
+    that the user has access to
+    """
+    name = filters.CharFilter(
+        field_name="name",
+        lookup_expr="icontains",
+        label=_("Device Name (contains)")
+    )
+    
+    organization = filters.UUIDFilter(
+        field_name="organization",
+        label=_("Organization ID"),
+        required=True,  # Must specify organization
+        help_text=_("Filter devices by organization (required)")
+    )
+    
+    class Meta:
+        model = Device
+        fields = ["name", "organization"]

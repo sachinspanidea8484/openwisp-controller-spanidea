@@ -27,6 +27,10 @@ urlpatterns = [
         views.test_category_detail,
         name="api_test_category_detail",
     ),
+
+    # ========================================================================
+    # TEST CASE ENDPOINTS
+    # ========================================================================
     # List all Exections OR create new Execution
     path(
         "execution/",
@@ -54,6 +58,16 @@ urlpatterns = [
         views.export_all_scripts,
         name="export-all-scripts",
     ),
+    path(
+        "test-cases/export/<str:export_format>/",
+        views.test_case_export,
+        name="test-case-export",
+    ),
+    path(
+        "test-cases/import/",
+        views.test_case_import,
+        name="test-case-import",
+    ),
 
 
     # ========================================================================
@@ -78,23 +92,34 @@ urlpatterns = [
     # ========================================================================
     
     # List test cases with category filter
-    # path(
-    #     "test-cases-list/",
-    #     views.test_case_list_view,
-    #     name="api_test_case_list",
-    # ),
+    path(
+        "test-cases-by-category/",
+        views.test_cases_by_category,
+        name="api_test_cases_by_category",
+    ),
 
-            # path(
-            #     "device-groups/",
-            #     executor_views.TestDeviceGroupexecutor_viewset.as_view({
-            #         "get": "list",      # GET /device-groups/
-            #         "post": "create"    # POST /device-groups/
-            #     }),
-            #     name="device-group-list",
-            # ),
 
-           
-
+    # ================================================================
+    # ✨ DEVICE GROUP ENDPOINTS (NEW)
+    # ================================================================
+    path(
+        "device-group/",
+        views.device_group_list,
+        name="api_device_group_list",
+    ),
+    path(
+        "device-group/<uuid:pk>/",
+        views.device_group_detail,
+        name="api_device_group_detail",
+    ),
+    
+    # Get devices available for adding to groups
+    # Query with: ?organization={org_id}
+    path(
+        "devices-by-organization/",
+        views.devices_by_organization,
+        name="api_devices_by_organization",
+    ),
 
        # EXTERNAL APIS  
             path(
