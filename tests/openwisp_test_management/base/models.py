@@ -620,6 +620,28 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         else:
             return self.individual_test_cases.filter(is_configuration_push_required=True)
     
+    def get_required_artifacts(self):
+        from ..swapper import load_model
+        TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+        device_ids= (
+            TestSuiteExecutionDevice.objects
+            .filter(test_suite_execution=self)
+            .values_list("device_id", flat=True)
+        )
+        test_case_ids = (
+            self.get_configuration_selected_test_cases()
+            .values_list("id", flat=True)
+        )
+        result = [
+            {
+                "device_id": str(device_id),
+                "testcase_id": str(testcase_id),
+            }
+            for device_id in device_ids
+            for testcase_id in test_case_ids
+        ]
+        return result
+    
     def trigger_mail(self):
         from ..tasks import send_execution_completed_email
         send_execution_completed_email.delay(str(self.pk))

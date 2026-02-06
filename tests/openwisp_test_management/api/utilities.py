@@ -75,3 +75,43 @@ def update_robot_file_tag(robot_file, new_test_case_id):
         except Exception as e:
             raise serializers.ValidationError(_(f"Error updating robot file: {str(e)}"))
    
+import uuid
+from django.utils.dateparse import parse_datetime
+from django.utils.timezone import make_aware, is_naive ,now
+from rest_framework.exceptions  import ValidationError
+def is_valid_uuid(value):
+    try:
+        uuid.UUID(str(value))
+        return True
+    except ValueError:
+        return False
+    
+def validate_schedule_time(schedule_time):
+    dt = parse_datetime(schedule_time)
+    if not dt:
+        raise ValidationError({
+           "schedule_time" :"Invalid schedule_time format. Use ISO-8601 with timezone."
+        })
+    if dt <= now():
+        raise ValidationError({
+            "schedule_time":"schedule_time must be a future datetime."
+        })
+
+
+    return dt
+
+def schedule_execution(execution, schedule_time):
+    if is_naive(schedule_time):
+        schedule_time = make_aware(schedule_time)
+
+    from ..models import ScheduledExecution
+
+    ScheduledExecution.objects.update_or_create(
+        execution=execution,
+        defaults={
+            "scheduled_time": schedule_time,
+            "status": ScheduledExecution.Status.PENDING
+        }
+    )
+
+    return schedule_time

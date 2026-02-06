@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.http import HttpResponse
 from rest_framework.generics import GenericAPIView
 
+from .utilities import is_valid_uuid, schedule_execution, validate_schedule_time
 from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
 from openwisp_users.api.permissions import DjangoModelPermissions
 from rest_framework.permissions import IsAuthenticated
@@ -53,7 +54,7 @@ TestSuiteCase = load_model("TestSuiteCase")
 TestCaseExecution = load_model("TestCaseExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 ScheduledExecution= load_model("ScheduledExecution")
-
+ExecutionArtifact = load_model("ExecutionArtifact")
 class ListViewPagination(pagination.PageNumberPagination):
     """Pagination configuration for list views"""
     page_size = 10                    # Default items per page
@@ -387,7 +388,7 @@ class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyA
         
         return super().perform_destroy(instance)
 
-class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
+class TestExecutionStartViewOld(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint for starting a test execution
     
@@ -429,6 +430,183 @@ class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
             status=status.HTTP_202_ACCEPTED
         )
 
+class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
+    """
+    API endpoint for starting a test execution
+    
+    POST /api/v1/test-management/execution/<uuid:pk>/start-execution/
+    - path parameters : test execution id (UUID, required)
+    - Request Content-Type: multipart/form-data
+    - body : 
+        field name format: artifact__<device_uuid>__<testcase_uuid>
+        field value : file
+        schedule_time (optional)
+        ISO-8601 datetime string
+
+        Examples:
+        - 2026-02-10T14:30:00Z
+        - 2026-02-10T14:30:00+05:30
+    - Start a test execution
+    - validations:
+    - All required (device_uuid, testcase_uuid) pairs MUST be provided.
+    - No extra or unexpected artifacts are allowed.
+    - device_uuid and testcase_uuid MUST be valid UUIDs.
+    - Only one file per (device_uuid, testcase_uuid) pair is allowed.
+    - Execution must not have been started previously.
+    """
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, execution_id):
+        from ..tasks import execute_test_suite as execute_test_suite_task
+        execution = get_object_or_404(TestExecution, id=execution_id)
+
+        # Safety checks
+        if execution.is_executed:
+            return Response(
+                {"detail": "Test Execution is already executed."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # permission check
+        if execution.created_by != request.user and not request.user.is_superuser:
+            return Response(
+                {"detail": "Not allowed to start this execution."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+    
+        schedule_time = request.data.get("schedule_time")
+        dt = None
+        if schedule_time:
+            try:
+                dt = validate_schedule_time(schedule_time)
+            except ValidationError as e:
+                raise ValidationError(str(e))
+        
+        # Required artifacts
+        required = set(
+            (str(r["device_id"]), str(r["testcase_id"]))
+            for r in execution.get_required_artifacts()
+        )
+
+        # 3️⃣ Parse uploaded artifacts
+        uploaded = {}
+        invalid_keys = []
+
+        for key, file in request.FILES.items():
+            if not key.startswith("artifact__"):
+                invalid_keys.append(key)
+                continue
+
+            try:
+                _, device_id, testcase_id = key.split("__")
+            except ValueError:
+                invalid_keys.append(key)
+                continue
+
+            if not is_valid_uuid(device_id) or not is_valid_uuid(testcase_id):
+                invalid_keys.append(key)
+                continue
+
+            uploaded[(device_id, testcase_id)] = file
+
+        if invalid_keys:
+            return Response(
+                {
+                    "detail": "Invalid artifact keys",
+                    "invalid_keys": invalid_keys
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate missing artifacts
+        missing = required - uploaded.keys()
+        if missing:
+            return Response(
+                {
+                    "detail": "Missing required configuration files",
+                    "missing": [
+                        {"device": d, "testcase": t} for d, t in missing
+                    ]
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate extra artifacts
+        extra = uploaded.keys() - required
+        if extra:
+            return Response(
+                {
+                    "detail": "Unexpected configuration files provided",
+                    "extra": [
+                        {"device": d, "testcase": t} for d, t in extra
+                    ]
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Atomic artifact creation
+            with transaction.atomic():
+                for (device_id, testcase_id), file in uploaded.items():
+                    artifact, created = ExecutionArtifact.objects.select_for_update().get_or_create(
+                        execution=execution,
+                        device_id=device_id,
+                        testcase_id=testcase_id,
+                        defaults={"config_file": file}
+                    )
+
+                    if not created:
+                        if artifact.is_pushed:
+                            raise ValidationError(
+                                f"Config already pushed for device={device_id}, testcase={testcase_id}"
+                            )
+
+                        artifact.config_file = file
+                        artifact.full_clean()  # triggers your clean()
+                        artifact.save(update_fields=["config_file"])
+        
+                
+                if dt:
+                    scheduled_time = schedule_execution(execution, dt)
+                    return Response(
+                        {
+                            "execution_id": execution.id,
+                            "status": "SCHEDULED",
+                            "scheduled_time": scheduled_time,
+                            "message": "Execution scheduled successfully"
+                        },
+                        status=status.HTTP_202_ACCEPTED
+                    )
+                ScheduledExecution.objects.filter(
+                    execution=execution,
+                    status=ScheduledExecution.Status.PENDING
+                ).update(
+                    status=ScheduledExecution.Status.CANCELLED,
+                    updated_at=timezone.now()
+                )
+                execution.is_executed = True
+                execution.save(update_fields=["is_executed"])
+
+                transaction.on_commit(
+                    lambda: execute_test_suite_task.delay(str(execution.id))
+                )
+            return Response(
+                {
+                    "execution_id": execution.id,
+                    "status": "EXECUTION PROGRESS",
+                    "message": "Execution started successfully"
+                },
+                status=status.HTTP_202_ACCEPTED
+            )
+        except Exception as e:
+            return Response(
+                {
+                    "error in starting execution" : str(e) 
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+           
+        
 class TestExecutionReExecuteView(ProtectedExternalAPIMixin, APIView):
     """
     API endpoint for re-executing a test execution
