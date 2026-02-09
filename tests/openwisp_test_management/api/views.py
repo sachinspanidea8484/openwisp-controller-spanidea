@@ -65,6 +65,7 @@ from .serializers import (
     TestSuiteExecutionListSerializer,
     ReExecuteSelectedTestsSerializer,
     TestCaseImportSerializer,
+    EmptySerializer
 )
 
 from .utilities import TestCasesResource
@@ -1470,6 +1471,8 @@ class TestExecutionAvailableDevicesView(ProtectedExternalAPIMixin, APIView):
 
 class TestCaseListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
+    API endpoint for listing and creating test cases
+
     GET  → List test cases
     POST → Create test case
     """
@@ -1502,6 +1505,8 @@ class TestCaseListView(ProtectedAPIMixin, generics.ListCreateAPIView):
 
 class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
     """
+    API endpoint for retrieving, updating, and deleting a test case
+
     GET    → Retrieve test case details
     PUT    → Update test case
     PATCH  → Partial update
@@ -1539,9 +1544,11 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
 
 class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
     """
-    Export all test case scripts as a ZIP file
+    API endpoint for exporting all test case scripts.
+
+    Export all test case scripts as a ZIP file.
     """
-    
+    serializer_class= EmptySerializer
     queryset = TestCase.objects.all()
 
     def get_queryset(self):
@@ -1578,6 +1585,11 @@ class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
 
 
 class TestCaseExportApiView(ProtectedAPIMixin, APIView):
+    """
+    API endpoint for exporting all test cases
+
+    Export formats available : .xlsx, .csv
+    """
     SUPPORTED_FORMATS= ("xlsx", "csv")
    
     def get_queryset(self):
@@ -1633,6 +1645,11 @@ class TestCaseExportApiView(ProtectedAPIMixin, APIView):
             )
 
 class TestCaseImportApiView(ProtectedAPIMixin, generics.CreateAPIView):
+    """
+    API endpoint for importing test cases
+
+    Import file supports .xlsx or .csv formats only
+    """
     serializer_class= TestCaseImportSerializer
     parser_classes = (MultiPartParser, FormParser)
     queryset = TestCase.objects.none()
@@ -1745,44 +1762,6 @@ class TestCasesByCategoryView(ProtectedAPIMixin, generics.ListAPIView):
         return qs
 
 
-class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
-    """
-    Export all test case scripts as a ZIP file
-    """
-
-    queryset = TestCase.objects.all()
-
-    def get_queryset(self):
-        """
-        Match admin visibility rules
-        """
-        qs = super().get_queryset()
-
-        if self.request.user.is_superuser:
-            return qs
-
-        return qs.filter(created_by=self.request.user)
-    
-    def get(self, request, *args, **kwargs):
-        # ✅ Match admin queryset behavior
-        queryset= self.get_queryset()
-
-        if not queryset.exists():
-            from rest_framework.exceptions import ValidationError
-            raise ValidationError(
-                {"detail": "No test cases available for export."}
-            )
-
-        zip_buffer = build_all_testcases_zip(queryset)
-
-        response = HttpResponse(
-            zip_buffer,
-            content_type="application/zip",
-        )
-        response["Content-Disposition"] = (
-            'attachment; filename="all_testcase_scripts.zip"'
-        )
-        return response
 
 
 
