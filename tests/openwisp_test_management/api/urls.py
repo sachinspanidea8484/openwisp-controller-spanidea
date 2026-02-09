@@ -54,7 +54,7 @@ urlpatterns = [
         name="testcase-detail",
     ),
     path(
-        "test-cases/export-all_scripts",
+        "test-cases/export-all_scripts/",
         views.export_all_scripts,
         name="export-all-scripts",
     ),

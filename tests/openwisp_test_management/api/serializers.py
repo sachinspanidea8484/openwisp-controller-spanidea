@@ -1862,3 +1862,6 @@ class TestDeviceGroupSerializer(serializers.ModelSerializer):
         model = TestDeviceGroup  # your concrete model, not abstract
         fields = ['id', 'organization', 'name', 'description','organization_name', 'device_count']
         read_only_fields = ['id', 'device_count']
+
+class EmptySerializer(serializers.Serializer):
+    pass
