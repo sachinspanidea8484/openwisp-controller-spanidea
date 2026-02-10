@@ -811,9 +811,10 @@ class TestCaseSerializer(ValidatedModelSerializer):
         Reuse model clean() logic (same as admin)
         """
         if self.instance and "test_case_id" in attrs:
-            raise serializers.ValidationError({
-                "test_case_id": "Test Case ID cannot be modified after creation."
-            })
+            if attrs["test_case_id"] != self.instance.test_case_id:
+                raise serializers.ValidationError({
+                    "test_case_id": "Test Case ID cannot be modified after creation."
+                })  
         if self.instance:
             instance = self.instance
             for attr, value in attrs.items():
