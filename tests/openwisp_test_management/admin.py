@@ -70,7 +70,7 @@ TestSuiteCase = load_model("TestSuiteCase")
 TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestCaseExecution = load_model("TestCaseExecution")
-
+ExecutionArtifact= load_model("ExecutionArtifact")
 
 TestDeviceGroup = load_model("TestDeviceGroup")
 TestDeviceGroupDevice = load_model("TestDeviceGroupDevice")
@@ -3516,7 +3516,27 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                             messages.WARNING
                         )
                     continue
-                
+               
+                required_config= set(
+                    (UUID(r["device_id"]), UUID(r["testcase_id"]))
+                    for r in execution.get_required_artifacts()
+                )
+                existing_config = set(
+                    ExecutionArtifact.objects
+                    .filter(execution=execution, config_file__isnull= False)
+                    .exclude(config_file="")
+                    .values_list("device_id", "testcase_id")
+                )
+                missing= required_config - existing_config 
+               
+                if missing and request:
+                    self.message_user(
+                            request,
+                            f"Missing execution artifacts for execution : {execution.name}",
+                            messages.WARNING
+                        )
+                    continue
+
                 # Mark as executed
                 execution.is_executed = True
                 execution.save()
@@ -3580,7 +3600,6 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 extra_context["hide_submit_row"] = True
             ScheduledExecution=load_model("ScheduledExecution")
             scheduled_dt = None
-            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>...", obj.status)
             if obj and obj.status == 4:
                 # Get the most recent scheduled execution (if multiple)
                 scheduled = ScheduledExecution.objects.filter(execution=obj).order_by('-scheduled_time').first()
