@@ -1029,13 +1029,13 @@ function displayExecutionData(data) {
          
 
     `;
-    if (data.status === 2 || data.status === 3) {
-        const exportButtonSection = document.getElementById('export-test-execution-data');
-        // exportButtonSection.innerHTML = `
-        // <a class="export-button-class" href="/api/v1/test-management/execution/${executionId}/history/export/" download>
-        //     Export To CSV
-        // </a>`
-    }
+    const exportButtonSection = document.getElementById('export-test-execution-data');
+    exportButtonSection.innerHTML = `
+    <a href="/api/v1/test-management/execution/${executionId}/history/export/" download>
+        <button ${data.status === 2 || data.status === 3 ? "" : "disabled"} class="export-button-class" >
+            Export To CSV
+        </button>
+    </a>`
     const abortSection = document.getElementById('abort-test-execution');
     abortSection.innerHTML = `
     <button ${data.status !== 2 && data.status !== 1 ? "disabled" : ""} class="abort-button-class" onclick="abortAllTests()">
@@ -1374,7 +1374,7 @@ function reExecuteSelected(execution_id){
             showMessage(`Test Execution for selected tests re-executed Successfully!`, 'success');
             setTimeout(() => 
                 {
-                    window.location.href = `/admin/test_management/testsuiteexecution/${execution_id}/all-history`;
+                    window.location.href = `/admin/test_management/testsuiteexecution/${execution_id}/all-history/`;
                 }
             , 1000);
         } else {

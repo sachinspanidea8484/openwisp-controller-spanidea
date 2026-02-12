@@ -834,32 +834,35 @@ class TestExecutionReExecuteSelectedView(ProtectedExternalAPIMixin, APIView):
     )
     def post(self, request, execution_id):
         from ..tasks import execute_selected_tests_in_test_execution as start_selected_tests_execution
-        execution = get_object_or_404(TestExecution, pk=execution_id)
-        # Optional: permission check
-        if execution.created_by != request.user:
+        try:
+            execution = get_object_or_404(TestExecution, pk=execution_id)
+            # Optional: permission check
+            if execution.created_by != request.user:
+                return Response(
+                    {"detail": f"Not allowed to start this execution. As its created by: {execution.created_by}"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            serializer = ReExecuteSelectedTestsSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            device_tests_info = serializer.validated_data["device_tests_info"]
+
+            with transaction.atomic():
+                # 🔁 Create new test execution
+                new_execution = create_test_execution_clone_for_selected_tests(execution, device_tests_info, request)
+                new_execution.is_executed= True
+                new_execution.save()
+            start_selected_tests_execution.delay(str(new_execution.pk), device_tests_info)
+                
+
             return Response(
-                {"detail": f"Not allowed to start this execution. As its created by: {execution.created_by}"},
-                status=status.HTTP_403_FORBIDDEN
+                {
+                    "re_execution_id": new_execution.id,
+                    "message": "Re-execution for selected tests started successfully"
+                },
+                status=status.HTTP_202_ACCEPTED
             )
-        serializer = ReExecuteSelectedTestsSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        device_tests_info = serializer.validated_data["device_tests_info"]
-
-        with transaction.atomic():
-            # 🔁 Create new test execution
-            new_execution = create_test_execution_clone_for_selected_tests(execution, device_tests_info, request)
-            new_execution.is_executed= True
-            new_execution.save()
-        start_selected_tests_execution.delay(str(new_execution.pk), device_tests_info)
-            
-
-        return Response(
-            {
-                "new_execution_id": new_execution.id,
-                "message": "Re-execution for selected tests started successfully"
-            },
-            status=status.HTTP_202_ACCEPTED
-        )
+        except Exception as e:
+            return Response({"error": f"{str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class TestExecutionAbortView(ProtectedExternalAPIMixin, APIView):
     """
