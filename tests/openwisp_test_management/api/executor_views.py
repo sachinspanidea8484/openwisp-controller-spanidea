@@ -784,7 +784,7 @@ def check_test_data_counts(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )   
 
-@swagger_auto_schema(method='post', auto_schema=None)
+# @swagger_auto_schema(method='post', auto_schema=None)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def get_execution_details(request):
@@ -1976,7 +1976,6 @@ def add_robot_test_data(request):
 
 
 
-# class TestCaseExecutionResultView(ProtectedAPIMixin, generics.GenericAPIView):
 class TestCaseExecutionResultView(generics.GenericAPIView):
 
     """
@@ -2154,8 +2153,8 @@ class RobotTestResultView(APIView):
     API endpoint to receive test results from Robot Framework server
     No serializer - direct processing of payload
     """
-    authentication_classes = []  # Disable auth for now, enable as needed
-    permission_classes = []  # Disable permissions for now
+    authentication_classes = []  
+    permission_classes = []  
     @swagger_auto_schema(
         request_body=RobotTestResultSerializer,
         responses={200: "Test case execution updated"}
@@ -2394,8 +2393,8 @@ class TestResultView(APIView):
     API endpoint to receive test results from Executor server
     No serializer - direct processing of payload
     """
-    authentication_classes = []  # Disable auth for now, enable as needed
-    permission_classes = []  # Disable permissions for now
+    authentication_classes = []  
+    permission_classes = []  
     @swagger_auto_schema(
         auto_schema=None,
         request_body=RobotTestResultSerializer,
@@ -2651,8 +2650,8 @@ class RobotTestRunningResultView(APIView):
     API endpoint to receive test results from Robot Framework server
     No serializer - direct processing of payload
     """
-    authentication_classes = []  # Disable auth for now, enable as needed
-    permission_classes = []  # Disable permissions for now
+    authentication_classes = []  
+    permission_classes = []  
     @swagger_auto_schema(
         request_body=RobotTestRunningResultSerializer,
         responses={200: "Test case execution status updated"}
@@ -2809,13 +2808,14 @@ class RobotTestRunningResultView(APIView):
             logger.error(f"Error checking overall suite completion: {e}")
 
 
+# @swagger_auto_schema(method='post', auto_schema=None) 
 class TestRunningResultView(APIView):
     """
     API endpoint to receive test results from Robot Framework server
     No serializer - direct processing of payload
     """
-    authentication_classes = []  # Disable auth for now, enable as needed
-    permission_classes = []  # Disable permissions for now
+    authentication_classes = []  
+    permission_classes = []  
     @swagger_auto_schema(
         auto_schema=None,
         request_body=RobotTestRunningResultSerializer,
@@ -2987,8 +2987,8 @@ class DeviceTestResultView(APIView):
     API endpoint to receive test results from Robot Framework server
     No serializer - direct processing of payload
     """
-    authentication_classes = []  # Disable auth for now, enable as needed
-    permission_classes = []  # Disable permissions for now
+    authentication_classes = []  
+    permission_classes = []  
     
     @swagger_auto_schema(
         request_body=DeviceTestResultSerializer,
@@ -3811,7 +3811,7 @@ def get_category_test_cases(request, category_id):
 
 
 from uuid import UUID
-
+# @swagger_auto_schema(method='get', auto_schema=None)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_categories_test_cases(request):
@@ -4972,10 +4972,8 @@ def test_execution_abort(request, execution_id):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@swagger_auto_schema(method='post', auto_schema=None)
+# @swagger_auto_schema(method='post', auto_schema=None)
 @api_view(['POST'])
-# @authentication_classes([CsrfExemptSessionAuthentication])
-# @permission_classes([IsAuthenticated])
 def upload_allure_report(request, test_group_execution_id, dev_id):
     """
     Upload Allure report HTML file for a device execution
@@ -5135,6 +5133,9 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
         400: openapi.Response("Missing or invalid organization_id"),
     }
 )
+
+
+# @swagger_auto_schema(method='get', auto_schema=None)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_organization_devices(request):
@@ -5354,112 +5355,6 @@ def ConfigurationPushOnDeviceOld(request):
 
 
 
-
-
-
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-# @csrf_exempt
-def ConfigurationPushOnDevice(request):
-    try:
-        print("[INFO] ConfigurationPushOnDevice - Request received")
-
-        device_id = request.POST.get("device_id")
-        file = request.FILES.get("file")
-        
-        if not device_id or not file:
-            return Response({"error": "Missing device_id or file"}, status=400)
-        
-        # Get device
-        try:
-            device = Device.objects.get(id=device_id)
-        except Device.DoesNotExist:
-            return Response({"error": f"Device with ID {device_id} not found"}, status=404)
-        
-        # Get device connection
-        try:
-            conn = DeviceConnection.get_working_connection(device)
-            if not conn:
-                return Response({
-                    "error": f"No working connection found for device {device.name}"
-                }, status=400)
-            
-            ssh_params = conn.credentials.params
-            
-        except DeviceConnection.DoesNotExist:
-            return Response({
-                "error": f"No working connection found for device {device.name}"
-            }, status=400)
-        except Exception as e:
-            return Response({
-                "error": f"Device {device.name} is unreachable: {str(e)}"
-            }, status=400)
-        
-        # Get file extension
-        original_filename = file.name
-        file_extension = ""
-        if "." in original_filename:
-            file_extension = original_filename.split(".")[-1]
-        
-        # Create new filename: modified.{extension}
-        new_filename = f"modified.{file_extension}" if file_extension else "modified"
-        # upload_path = f"/usr/bin/{new_filename}"
-        upload_path = f"/tmp/{new_filename}"
-
-
-        
-        print(f"[INFO] Original filename: {original_filename}")
-        print(f"[INFO] New filename: {new_filename}")
-        print(f"[INFO] Upload path: {upload_path}")
-        
-        # Get permissions from request (default to read-write: 755)
-        permissions = request.POST.get("permissions", "755")
-        
-        # Establish SSH connection and upload
-        try:
-            ssh_conn = Ssh(ssh_params, [device.management_ip])
-            ssh_conn.connect()
-            ssh_conn.upload(file, upload_path)
-            
-            # Set file permissions using exec_command or run method
-            chmod_command = f"chmod {permissions} {upload_path}"
-            try:
-                # Try exec_command first (common in paramiko-based implementations)
-                if hasattr(ssh_conn, 'exec_command'):
-                    ssh_conn.exec_command(chmod_command)
-                # Try run method
-                elif hasattr(ssh_conn, 'run'):
-                    ssh_conn.run(chmod_command)
-                # Try shell method
-                elif hasattr(ssh_conn, 'shell'):
-                    ssh_conn.shell(chmod_command)
-                else:
-                    print(f"[WARNING] Could not set permissions - no execute method found")
-            except Exception as chmod_error:
-                print(f"[WARNING] Failed to set permissions: {str(chmod_error)}")
-            
-            print(f"[SUCCESS] File uploaded to device {device.name} at {upload_path} with permissions {permissions}")
-            
-            return Response({
-                "success": "File uploaded successfully",
-                "device": device.name,
-                "filename": new_filename,
-                "path": upload_path,
-                "permissions": permissions
-            }, status=200)
-            
-        except Exception as ssh_error:
-            print(f"[ERROR] SSH upload failed: {str(ssh_error)}")
-            return Response({
-                "error": f"Failed to upload file via SSH: {str(ssh_error)}"
-            }, status=500)
-
-    except Exception as e:
-        print(f"[ERROR] Error uploading file on device: {str(e)}")
-        return Response({
-            "error": f"Failed to upload file: {str(e)}"
-        }, status=500)
-    
 
 
 

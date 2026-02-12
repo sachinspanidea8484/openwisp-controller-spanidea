@@ -2203,7 +2203,7 @@ User = get_user_model()
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=5, retry_kwargs={"max_retries": 3})
 def send_execution_completed_notification(self, instance_pk, created_by_id):
-    return
+    # return
     if not created_by_id:
         return
 
@@ -2409,7 +2409,7 @@ def prepare_email_data(execution_id):
         'device_stats': device_stats,
         'history_url': history_url,
         'current_year': timezone.now().year,
-        'logo_url': f"{base_url}/static/test_management/logo.png"
+        'logo_url': f"{base_url}/media/logo/NBL_Logo_rgb.png"
     }
     
     logger.debug(f"[Email Prep] Data prepared successfully for execution {execution_id}")
