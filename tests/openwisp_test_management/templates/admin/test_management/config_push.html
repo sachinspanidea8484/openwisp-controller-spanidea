@@ -158,12 +158,8 @@
        href="{% url 'admin:test_management_testsuiteexecution_change' execution.pk %}">
       Back to Execution
     </a>
-
-    {% if formset.total_form_count > 0 %}
-      <input type="submit" class="default" value="Push Configuration and Proceed">
-    {% else %}
-      <input type="submit" class="default" value="Proceed">
-    {% endif %}
+    
+    <input type="submit" class="default" value="Proceed">
   </div>
 </form>
 
