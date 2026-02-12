@@ -216,14 +216,14 @@ urlpatterns = [
                 executor_views.get_available_devices,
                 name="api_get_available_devices",  # Made name more specific to avoid conflicts
             ),
-    path(
-                "device-groups/",
-                executor_views.TestDeviceGroupexecutor_viewset.as_view({
-                    "get": "list",      # GET /device-groups/
-                    "post": "create"    # POST /device-groups/
-                }),
-                name="device-group-list",
-            ),
+    # path(
+    #             "device-groups/",
+    #             executor_views.TestDeviceGroupexecutor_viewset.as_view({
+    #                 "get": "list",      # GET /device-groups/
+    #                 "post": "create"    # POST /device-groups/
+    #             }),
+    #             name="device-group-list",
+    #         ),
 
     # Un Use APIS  
     # path(
