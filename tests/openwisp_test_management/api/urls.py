@@ -233,6 +233,11 @@ urlpatterns = [
                 executor_views.check_test_case_id_unique,
                 name="api_check_test_case_id_unique",
             ),
+            path(
+                "test-suite/<uuid:suite_id>/details/",
+                executor_views.get_test_suite_details,
+                name="api_test_suite_details",
+            ),
         ]),
     ),
 ]

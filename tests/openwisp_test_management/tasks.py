@@ -1078,10 +1078,6 @@ def abort_test_execution(test_execution_id):
 
         logger.info(f"Retrieved credentials for abort: {device.name} (has_connection: {has_connection})")
         print(f"[TASK] abort_test_execution - Credentials retrieved: {has_connection}")
-        
-        # Reset the test execution status
-        test_execution.status = TestExecutionStatus.ABORTING
-        test_execution.save()
 
         device_data = {
             "device_name": test_execution.device.name,

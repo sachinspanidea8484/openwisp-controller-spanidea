@@ -2552,7 +2552,7 @@ class TestResultView(APIView):
                     'status', 'completed_at', 'stdout', 
                     'stderr', 'error_message', 'execution_duration'
                 ])
-                print(f"✅ Updated to ABORTED status for execution id: {execution_id} status: {execution.status}")
+                print(f"Updated to ABORTED status")
             
             # Check if all test cases are completed for this suite execution
             self._check_suite_execution_completion(execution.test_suite_execution, execution.device)
@@ -3873,7 +3873,7 @@ def get_categories_test_cases(request):
 
 
 
-
+@swagger_auto_schema(method='get', auto_schema=None)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_test_suite_details(request, suite_id):
@@ -4950,6 +4950,8 @@ def test_execution_abort(request, execution_id):
             )
             #Abort running tests for this device
             for test in running_tests:
+                test.status = TestExecutionStatus.ABORTING
+                test.save()
                 abort_task.delay(str(test.pk))
 
         return Response({
