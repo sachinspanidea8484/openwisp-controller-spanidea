@@ -544,7 +544,7 @@
     testCasesDisplay.show();
     deviceSelection.show();
 
-    const apiUrl = `/api/v1/test-management/test-suite/${testSuiteId}/details/`;
+    const apiUrl = `/api/v1/test-management/test-group/${testSuiteId}/details/`;
 
     // Fetch test suite details
     $.ajax({

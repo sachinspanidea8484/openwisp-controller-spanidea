@@ -70,7 +70,7 @@ TestSuiteCase = load_model("TestSuiteCase")
 TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestCaseExecution = load_model("TestCaseExecution")
-
+ExecutionArtifact= load_model("ExecutionArtifact")
 
 TestDeviceGroup = load_model("TestDeviceGroup")
 TestDeviceGroupDevice = load_model("TestDeviceGroupDevice")
@@ -3159,19 +3159,12 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                             schedule_time,
                         )
                         request.session.pop("execution_schedule_time", None)
-
-                    if config_required:
-                        self.message_user(
-                            request,
-                            "Configuration uploaded successfully.",
-                            messages.SUCCESS,
-                        )
-                    else: 
-                        self.message_user(
-                            request,
-                            "Additional Details saved successfully.",
-                            messages.SUCCESS,
-                        )
+ 
+                    self.message_user(
+                        request,
+                        "Additional Details saved successfully.",
+                        messages.SUCCESS,
+                    )
 
                     return HttpResponseRedirect(
                         reverse("admin:test_management_testsuiteexecution_changelist")
@@ -3221,13 +3214,17 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         
         # Store successfully created executions to trigger AFTER all transactions complete
         executions_to_trigger = []
-        
+        not_executed_executions=[]
+        error_cnt=0
         for original in queryset:
             try:
                 with transaction.atomic():
                     # Get root execution
                     root = original.parent_execution or original
-                    
+                    if not root.is_executed:
+                        not_executed_executions.append(root.name)
+                        error_cnt += 1
+                        continue
                     # Calculate next re_execution_index
                     existing_count = root.re_executions.count()
                     new_index = existing_count + 1
@@ -3333,7 +3330,21 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 ) % re_executed_count,
                 messages.SUCCESS,
             )
-    
+        if error_cnt > 0:
+            execution_names = ", ".join(not_executed_executions)
+            self.message_user(
+                request,
+                ngettext(
+                    "The following execution was never executed and cannot be re-executed: %(names)s. "
+                    "Please execute it first.",
+                    "The following executions were never executed and cannot be re-executed: %(names)s. "
+                    "Please execute them first.",
+                    error_cnt,
+                ) % {
+                    "names": execution_names
+                },
+                messages.WARNING,
+            )       
     # def execution_status(self, obj):
     #     """Display execution status summary"""
     #     summary = obj.status_summary
@@ -3516,7 +3527,27 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                             messages.WARNING
                         )
                     continue
-                
+               
+                required_config= set(
+                    (UUID(r["device_id"]), UUID(r["testcase_id"]))
+                    for r in execution.get_required_artifacts()
+                )
+                existing_config = set(
+                    ExecutionArtifact.objects
+                    .filter(execution=execution, config_file__isnull= False)
+                    .exclude(config_file="")
+                    .values_list("device_id", "testcase_id")
+                )
+                missing= required_config - existing_config 
+               
+                if missing and request:
+                    self.message_user(
+                            request,
+                            f"Missing execution artifacts for execution : {execution.name}",
+                            messages.WARNING
+                        )
+                    continue
+
                 # Mark as executed
                 execution.is_executed = True
                 execution.save()
@@ -3580,7 +3611,6 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 extra_context["hide_submit_row"] = True
             ScheduledExecution=load_model("ScheduledExecution")
             scheduled_dt = None
-            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>...", obj.status)
             if obj and obj.status == 4:
                 # Get the most recent scheduled execution (if multiple)
                 scheduled = ScheduledExecution.objects.filter(execution=obj).order_by('-scheduled_time').first()

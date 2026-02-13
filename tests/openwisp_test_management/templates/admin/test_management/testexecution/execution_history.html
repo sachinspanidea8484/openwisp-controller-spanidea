@@ -901,6 +901,7 @@ function isAnyTestSelected() {
 }
 
 function updateReExecuteButtonState() {
+    const reExecuteBtn = document.getElementById("reExecuteBtn");
     if (!reExecuteBtn) return;
     if (execution_status===3){
         const enabled = isAnyTestSelected();
@@ -1102,14 +1103,14 @@ function displayExecutionData(data) {
                             </button>
                         `;
                     }
-                    if (test.can_retry) {
-                        actions += `
-                            <button class="btn-action warning" onclick="retryTest('${test.id}')">
-                                <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20"> <path d="M10 3v2a5 5 0 0 0-3.54 8.54l-1.41 1.41A7 7 0 0 1 10 3zm4.95 2.05A7 7 0 0 1 10 17v-2a5 5 0 0 0 3.54-8.54l1.41-1.41zM10 20l-4-4 4-4v8zm0-12V0l4 4-4 4z"/> </svg>
-                                Retry
-                            </button>
-                        `;
-                    }
+                    // if (test.can_retry) {
+                    //     actions += `
+                    //         <button class="btn-action warning" onclick="retryTest('${test.id}')">
+                    //             <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20"> <path d="M10 3v2a5 5 0 0 0-3.54 8.54l-1.41 1.41A7 7 0 0 1 10 3zm4.95 2.05A7 7 0 0 1 10 17v-2a5 5 0 0 0 3.54-8.54l1.41-1.41zM10 20l-4-4 4-4v8zm0-12V0l4 4-4 4z"/> </svg>
+                    //             Retry
+                    //         </button>
+                    //     `;
+                    // }
                     rows += `
                         <tr>
                             ${!device.is_deleted && show_re_execution ? 
@@ -1597,6 +1598,7 @@ function showMessage(message, type) {
 
 // Load execution history
 function loadExecutionHistory() {
+    
     fetch(`/api/v1/test-management/execution/${executionId}/history/`, {
         headers: {
             'X-CSRFToken': csrftoken,
@@ -1613,6 +1615,9 @@ function loadExecutionHistory() {
         if (data.success) {
             displayExecutionData(data.data);
             execution_status= data?.data?.status;
+            if (execution_status === 3) {
+                stopAutoRefresh();
+            }
             // Show content with smooth transition
             setTimeout(() => {
                 document.getElementById('loading').style.display = 'none';
@@ -1648,19 +1653,11 @@ function loadExecutionHistory() {
 
 // Auto-refresh management
 let refreshInterval = null;
-let isPageVisible = true;
 
 function startAutoRefresh() {
-    if (!refreshInterval && isPageVisible) {
+    if (!refreshInterval) {
         refreshInterval = setInterval(() => {
-            if(execution_status == 3){
-                
-                stopAutoRefresh();
-            }
-            else if (isPageVisible) {
-                loadExecutionHistory();
-            }
-            // alert("SCEDULE")
+            loadExecutionHistory();
         }, 30000); // 30 seconds
     }
 }
@@ -2047,28 +2044,18 @@ function openDeviceAgentReport(deviceId) {
 
 // Handle page visibility
 document.addEventListener('visibilitychange', function() {
-    isPageVisible = !document.hidden;
-    if (!isPageVisible) {
+    if (document.hidden) {
         stopAutoRefresh();
     } else {
-        // Check if we should restart auto-refresh
-        const hasPending = document.querySelectorAll('.status-indicator.pending, .status-indicator.running').length > 0;
-        if (hasPending) {
-            startAutoRefresh();
-        }
+        startAutoRefresh(); 
     }
 });
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     loadExecutionHistory();
-    
-    // Start auto-refresh after initial load if there are pending/running tests
     setTimeout(() => {
-        const hasPending = document.querySelectorAll('.status-indicator.pending, .status-indicator.running').length > 0;
-        if (hasPending) {
-            startAutoRefresh();
-        }
+        startAutoRefresh(); 
     }, 2000);
 });
 

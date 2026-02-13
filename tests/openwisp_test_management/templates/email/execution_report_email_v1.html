@@ -1,0 +1,213 @@
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Execution Report</title>
+    <style type="text/css">
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            color: #333333;
+        }
+        .container {
+            width: 100%;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .content-box {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background-color: #124191; /* Nokia Blue */
+            color: #ffffff;
+            padding: 20px;
+            text-align: center;
+        }
+        .header img {
+            max-height: 40px;
+            margin-bottom: 10px;
+        }
+        .header h2 {
+            margin: 0;
+            font-weight: normal;
+            font-size: 24px;
+        }
+        .body-content {
+            padding: 30px;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #eeeeee;
+            padding-bottom: 20px;
+        }
+        .kpi-box {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-left: 4px solid #124191;
+        }
+        .kpi-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .kpi-value {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+        .status-success { background-color: #28a745; }
+        .status-failed { background-color: #dc3545; }
+        .status-aborted { background-color: #6c757d; }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        th {
+            text-align: left;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+            color: #495057;
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #124191;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .btn:hover {
+            background-color: #0c2d6b;
+        }
+        .footer {
+            background-color: #eeeeee;
+            padding: 15px;
+            text-align: center;
+            font-size: 12px;
+            color: #777;
+        }
+        .info-row { margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="content-box">
+            <!-- Header with Logo -->
+            <div class="header">
+                <!-- Replace with actual hosted URL of Nokia Logo if needed -->
+                <img src="https://upload.wikimedia.org/wikipedia/commons/0/02/Nokia_wordmark.svg" alt="Nokia Logo" style="filter: brightness(0) invert(1);">
+                <h2>Test Execution Report</h2>
+            </div>
+
+            <div class="body-content">
+                <p>Hello Team,</p>
+                <p>The automated test suite execution <strong>{{ execution_name }}</strong> has been completed. Below is the summary of the results.</p>
+
+                <!-- High Level KPIs -->
+                <div class="summary-grid">
+                    <div class="kpi-box">
+                        <div class="info-row"><span class="kpi-label">Started:</span> <strong>{{ start_time }}</strong></div>
+                        <div class="info-row"><span class="kpi-label">Duration:</span> <strong>{{ duration }}</strong></div>
+                        <div class="info-row"><span class="kpi-label">Total Devices:</span> <strong>{{ total_devices }}</strong></div>
+                    </div>
+                    <div class="kpi-box">
+                    <!-- <div class="kpi-box" style="border-left-color: {% if failed_count > 0 %}#dc3545{% else %}#28a745{% endif %};"> -->
+
+                        <div class="kpi-label">Test Statistics</div>
+                        <div class="kpi-value">
+                            <span style="color: #28a745">{{ passed_count }} Passed</span> / 
+                            <span style="color: #dc3545">{{ failed_count }} Failed</span>
+                        </div>
+                        <div style="margin-top:5px; font-size: 12px; color: #666;">
+                            Total Cases: {{ total_tests }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Device Breakdown Table -->
+                <h3 style="color: #444; border-bottom: 1px solid #ddd; padding-bottom: 10px;">Device Results & Reports</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Device Name</th>
+                            <th>Status</th>
+                            <th>KPI (Pass/Fail)</th>
+                            <th style="text-align: center;">Report</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for device in device_stats %}
+                        <tr>
+                            <td><strong>{{ device.name }}</strong></td>
+                            <td>
+                                {% if device.status == 'completed' %}
+                                    <span class="status-badge status-success">Completed</span>
+                                {% elif device.status == 'failed' %}
+                                    <span class="status-badge status-failed">Failed</span>
+                                {% else %}
+                                    <span class="status-badge status-aborted">{{ device.status|title }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ device.passed }}/{{ device.total }}
+                            </td>
+                            <td style="text-align: center;">
+                                {% if device.report_url %}
+                                    <a href="{{ device.report_url }}" class="btn">View Allure Report</a>
+                                {% else %}
+                                    <span style="color: #999; font-size: 11px;">Not Available</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <p style="margin-top: 30px; font-size: 13px; color: #666;">
+                    <em>* Detailed execution logs (stdout/stderr) are attached in the CSV file.</em>
+                </p>
+
+                <div style="text-align: center; margin-top: 30px;">
+                    <a href="{{ history_url }}" class="btn" style="padding: 12px 25px; font-size: 14px;">Open in Platform</a>
+                </div>
+            </div>
+
+            <div class="footer">
+                <p>Generated by OpenWISP Test Management | {{ current_year }}</p>
+                <p>Please do not reply to this automated message.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

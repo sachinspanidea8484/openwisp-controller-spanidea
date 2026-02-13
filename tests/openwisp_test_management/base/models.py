@@ -171,7 +171,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         _("Test Type"),
         choices=TestTypeChoices.choices,
         default=TestTypeChoices.ROBOT_FRAMEWORK,
-        help_text=_("Type of test: Robot Framework or Device")
+        help_text=_("Type of test: Robot Framework (1) or Device (2)")
     )
     params = models.JSONField(
         _("Parameters"),
