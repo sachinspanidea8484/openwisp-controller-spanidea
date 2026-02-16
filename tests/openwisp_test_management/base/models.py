@@ -167,6 +167,11 @@ class AbstractTestCase(TimeStampedEditableModel):
         default=False,
         help_text=_("Whether a file upload is required for this test case")
     )
+    is_system_test_case = models.BooleanField(
+        _("Is System TestCase"),
+        default=False,
+        help_text=_("System-managed test case with preconfigured data.")
+    )
     test_type = models.IntegerField(
         _("Test Type"),
         choices=TestTypeChoices.choices,

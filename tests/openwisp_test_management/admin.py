@@ -401,6 +401,7 @@ class TestCasesResource(resources.ModelResource):
             "is_configuration_push_required",
             "robot_script",
             "python_script",
+            "is_system_test_case"
             # "file"
         )
         export_order = (
@@ -415,7 +416,8 @@ class TestCasesResource(resources.ModelResource):
             # "file"
             "is_configuration_push_required",
             "robot_script",
-            "python_script"
+            "python_script",
+            "is_system_test_case",
         )
     
    
@@ -1160,13 +1162,21 @@ class TestCaseAdminForm(forms.ModelForm):
         except Exception as e:
             return False, f"Error validating Python file: {str(e)}" ,"python_ast"
 
+    def get_system_python_script(self, test_case_id):
+        return f"test_case/{test_case_id}.py"
+
+    def get_system_robot_script(self, test_case_id):
+        return f"test_case_robot/{test_case_id}.robot"
+    
     def clean(self):
         cleaned_data = super().clean()
         test_type = cleaned_data.get("test_type")
         python_script = cleaned_data.get("python_script")
         robot_script = cleaned_data.get("robot_script")
         test_case_id = cleaned_data.get("test_case_id")
-        
+        is_system_test_case = cleaned_data.get("is_system_test_case")
+        is_superuser= self.request.user.is_superuser
+
         # Validate Python script
         if python_script:
             if not python_script.name.endswith(".py"):
@@ -1178,13 +1188,18 @@ class TestCaseAdminForm(forms.ModelForm):
                         "python_script",
                         f"Python validation failed:\n{error_msg}"
                     )
+        elif is_superuser and test_case_id and is_system_test_case:
+            cleaned_data["python_script"]= self.get_system_python_script(test_case_id)
         else:
             self.add_error("python_script", "Python Script is Required.")
         
         # Robot Framework validation
         if test_type == TestTypeChoices.ROBOT_FRAMEWORK:
             if not robot_script:
-                self.add_error("robot_script", "Robot Script is Required for Robot Framework.")
+                if is_superuser and test_case_id and is_system_test_case:
+                    cleaned_data["robot_script"]= self.get_system_robot_script(test_case_id)
+                else:
+                    self.add_error("robot_script", "Robot Script is Required for Robot Framework.")
             elif not robot_script.name.endswith(".robot"):
                 self.add_error("robot_script", "Only .robot files allowed.")
             else:
@@ -1352,6 +1367,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         "name",
         "test_case_id",
         "test_type",  # ADD THIS
+        "is_system_test_case",
         "robot_script",
         "python_script",
         "params",  # ADD THIS - NEW FIELD
@@ -1435,54 +1451,56 @@ class TestCaseAdmin(BaseVersionAdmin):
     test_script_guidelines.short_description = "Guidelines"
 
     def get_fieldsets(self, request, obj=None):
-     guidelines_url = static("guidelines/test_script_guidelines.docx")
-     
-     fieldsets = [
-          (
-               None,
-               {
-                    "fields": (
-                         "category",
-                         "name",
-                         "test_case_id",
-                         "test_type",
-                    )
-               },
-          ),
-          (
-                format_html(
-                    '<div style="display:flex; justify-content:space-between; align-items:center;">'
-                    '<span>{}</span>'
-                    '<a href="{}" download class="guidelines-link">'
-                    'Download Test Script Guidelines'
-                    '</a>'
-                    '</div>',
-                    _("Test Scripts"),
-                    guidelines_url,
-                ),
-               {
-                    "fields": (
-                         "robot_script",
-                         "python_script",
+        guidelines_url = static("guidelines/test_script_guidelines.docx")
+        base_fields= [
+            "category",
+            "name",
+            "test_case_id",
+            "test_type",
+        ]
+        if request.user.is_superuser:
+            base_fields.append("is_system_test_case")
+        fieldsets = [
+            (
+                None,
+                {
+                        "fields": tuple(base_fields)
+                },
+            ),
+            (
+                    format_html(
+                        '<div style="display:flex; justify-content:space-between; align-items:center;">'
+                        '<span>{}</span>'
+                        '<a href="{}" download class="guidelines-link">'
+                        'Download Test Script Guidelines'
+                        '</a>'
+                        '</div>',
+                        _("Test Scripts"),
+                        guidelines_url,
                     ),
-                    
-               },
-          ),
-          (
-               _("Additional Details"),
-               {
-                    "fields": (
-                         "params",
-                         "json_file",
-                         "description",
-                         "is_active",
-                         "is_configuration_push_required",
-                    ),
-               },
-          ),
-     ]
+                {
+                        "fields": (
+                            "robot_script",
+                            "python_script",
+                        ),
+                        
+                },
+            ),
+            (
+                _("Additional Details"),
+                {
+                        "fields": (
+                            "params",
+                            "json_file",
+                            "description",
+                            "is_active",
+                            "is_configuration_push_required",
+                        ),
+                },
+            ),
+        ]
 
-     return fieldsets
+        return fieldsets
 
     # def get_readonly_fields(self, request, obj=None):
     #     fields = list(super().get_readonly_fields(request, obj))
@@ -1510,7 +1528,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         return True
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
-        
+        form.request= request
         # Category field
         if "category" in form.base_fields:
             form.base_fields["category"].help_text = _(
