@@ -1046,13 +1046,15 @@ class TestSuiteExecutionSerializer(serializers.ModelSerializer):
         read_only=True
     )
 
-    status = serializers.IntegerField(read_only=True)
+    #status = serializers.IntegerField(read_only=True)
     status_display = serializers.CharField(read_only=True)
     active_device_count = serializers.IntegerField(read_only=True)
     is_re_execution = serializers.BooleanField(read_only=True)
 
     artifacts = ExecutionArtifactSerializer(many=True, read_only=True)
-
+    test_selection_type = serializers.SerializerMethodField()
+    device_selection = serializers.SerializerMethodField()
+    execution_status = serializers.SerializerMethodField()
     class Meta:
         model = load_model("TestSuiteExecution")
         fields = [
@@ -1088,13 +1090,13 @@ class TestSuiteExecutionSerializer(serializers.ModelSerializer):
             "re_execution_index",
 
             # computed
-            "status",
             "status_display",
             "active_device_count",
             "is_re_execution",
 
             "created",
             "modified",
+            "notification_emails",
         ]
         read_only_fields = (
             "device_count",
@@ -1105,6 +1107,28 @@ class TestSuiteExecutionSerializer(serializers.ModelSerializer):
             "created",
             "modified",
         )
+
+    def get_device_selection(self, obj):
+        if obj.device_selection == 0:
+            return "Individual"
+        elif obj.device_selection == 1:
+            return "Device Group"
+
+    def get_test_selection_type(self, obj):
+        if obj.test_selection_type == 0:
+            return "Individual"
+        elif obj.test_selection_type == 1:
+            return "Test Group"
+
+    def get_execution_status(self, obj):
+        if obj.execution_status == 0:
+            return "Created"
+        elif obj.execution_status == 1:
+            return "Execution Progress"
+        elif obj.execution_status == 2:
+            return "Partially Completed"
+        elif obj.execution_status == 3:
+            return "Completed"
 
     def get_fields(self):
         fields = super().get_fields()
@@ -1425,26 +1449,17 @@ class TestSuiteExecutionSerializerOld(ValidatedModelSerializer):
         return execution
 
 
-class TestSuiteExecutionListSerializer(TestSuiteExecutionSerializer):
+class TestSuiteExecutionListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views"""
-    test_suite_name = serializers.CharField(source="test_suite.name", read_only=True)
     
     class Meta(BaseMeta):
         model = TestSuiteExecution
         fields = [
             "id",
-            "test_suite",
-            "test_suite_name",
+            "name",
             "device_count",
-            # "is_executed",
-            # "status_summary",
+            "testcase_count",
             "created",
-        ]
-        read_only_fields = BaseMeta.read_only_fields + [
-            "is_executed",
-            "device_count",
-            # "status_summary",
-            "test_suite_name",
         ]
 
 
