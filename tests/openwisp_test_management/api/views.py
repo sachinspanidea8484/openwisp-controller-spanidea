@@ -1612,7 +1612,7 @@ class TestCaseExportApiView(ProtectedAPIMixin, APIView):
             )
         try:
             queryset= self.get_queryset()
-            print("queryset", queryset)
+           
             if not queryset.exists():
                 return HttpResponse(
                     "No test case available for export.",
