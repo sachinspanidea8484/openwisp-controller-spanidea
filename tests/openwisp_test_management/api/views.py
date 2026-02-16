@@ -1620,7 +1620,7 @@ class TestCaseExportApiView(ProtectedAPIMixin, APIView):
                     content_type="text/plain",
                 )
             
-            resource = TestCasesResource()
+            resource = TestCasesResource(user= request.user)
             dataset= resource.export(queryset)
         
             file_map = {
@@ -1662,7 +1662,7 @@ class TestCaseImportApiView(ProtectedAPIMixin, generics.CreateAPIView):
 
         file = serializer.validated_data["file"]
         filename= file.name.lower()
-        resource = TestCasesResource()
+        resource = TestCasesResource(user= request.user)
 
         dataset = Dataset()
         
