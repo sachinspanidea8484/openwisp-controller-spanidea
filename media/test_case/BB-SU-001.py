@@ -1,71 +1,60 @@
-import subprocess
-import sys
+"""
+CDM-BB Solid Green LED Startup Verification using common_helper.py
+"""
+
+from common_helper import log, run_local_command
 import time
-from datetime import datetime
+import sys
 
 # === Configurable Parameters ===
-CHIP = "8"                # GPIO chip
-PIN_GREEN = "10"          # Solid Green LED pin
-PIN_RED = "9"             # Red LED pin
-PIN_BLUE = "11"           # Blue LED pin
-ITERATIONS = 100          # Number of samples
-SLEEP_DURATION = 0.1      # Delay between iterations (in seconds)
-
-# === Utility Functions ===
-def log(message):
-    timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-    print(f"{timestamp} {message}")
-
-def run_local_command(command):
-    try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
-        return result.stdout.strip(), result.stderr.strip()
-    except Exception as e:
-        return "", str(e)
+CHIP = "8"  
+PIN_RED = "9"                           
+PIN_GREEN = "10"          
+PIN_BLUE = "11"           
+ITERATIONS = 100          
+SLEEP_DURATION = 0.1      
 
 def get_gpio_state(chip, line):
     """
     Reads the GPIO state (returns value as string '0' or '1').
     """
     command = f"gpioget gpiochip{chip} {line}"
-    stdout, stderr = run_local_command(command)
+    stdout, stderr = run_local_command(command, allow_fail=True)
     if stderr:
         return None
     return stdout
 
-# === Main Verification Logic ===                             
 def main():                        
-    log(f"[STEP 1] Verifying GPIO states for Solid Green LED startup sequence ({ITERATIONS} samples)...")
+    log(f"STEP 1: Verifying GPIO states for Solid Green LED ({ITERATIONS} samples)...")
                                
     success = True
                                                                                     
-    for i in range(1, ITERATIONS + 1):  # Loop based on ITERATIONS
-        green = get_gpio_state(CHIP, PIN_GREEN)
+    for i in range(1, ITERATIONS + 1):  
         red   = get_gpio_state(CHIP, PIN_RED)
+        green = get_gpio_state(CHIP, PIN_GREEN)
         blue  = get_gpio_state(CHIP, PIN_BLUE)
                                
         if green is None or red is None or blue is None:
-            log(f"[ITER {i}] [ERROR] Failed to read GPIO values.")
+            log("ITER %d: ERROR - Failed to read GPIO values.", i)
             success = False
             break                             
                                                
-        log(f"[ITER {i}] Green={green}, Red={red}, Blue={blue}")
+        log("ITER %d: Green=%s, Red=%s, Blue=%s", i, green, red, blue)
                    
         if not (green == "0" and red == "1" and blue == "1"):
-            log(f"[FAIL] Condition mismatch at iteration {i}/{ITERATIONS}. "
-                f"Expected: Green=0, Red=1, Blue=1 | Got: Green={green}, Red={red}, Blue={blue}")
+            log("FAIL: Condition mismatch at iter %d. Expected: G0 R1 B1 | Got: G%s R%s B%s", 
+                 i, green, red, blue, level="FAIL")
             success = False
-            break                                                                                        
+            break                                                                                         
 
         time.sleep(SLEEP_DURATION)
 
     if success:                                                   
-        log(f"[PASS] CDM-BB startup verified: Solid Green LED always ON, "
-            f"Red & Blue always OFF ({ITERATIONS}/{ITERATIONS} checks).")
-        sys.exit(0)                           
+        log("PASS: CDM-BB startup verified (%d/%d checks).", i - 1, ITERATIONS)  # need to verify
+        return EXIT_SUCCESS           
     else:
-        log("[FAIL] CDM-BB startup verification failed.")
-        sys.exit(1)                                               
+        log("FAIL: CDM-BB startup verification failed.", level="FAIL")
+        return EXIT_FAILED
                            
 if __name__ == "__main__":
     main()
