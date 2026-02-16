@@ -90,16 +90,12 @@ class TestSuiteExecutionFilter(filters.FilterSet):
     """API filter for test suite executions"""
     test_suite = filters.UUIDFilter(field_name="test_suite")
     is_executed = filters.BooleanFilter(field_name="is_executed")
-    created_after = filters.DateTimeFilter(field_name="created", lookup_expr="gte")
-    created_before = filters.DateTimeFilter(field_name="created", lookup_expr="lte")
     
     class Meta:
         model = TestSuiteExecution
         fields = [
             "test_suite",
             "is_executed",
-            "created_after",
-            "created_before",
         ]        
 
 
