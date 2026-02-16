@@ -2622,7 +2622,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     
     filter_horizontal=["individual_test_cases"]
     readonly_fields = ["created", "modified", "device_count", "testcase_count"]
-    actions = ["execute_test_suite", "re_execute_test_suite"]
+    actions = ["execute_or_reexecute_test_suite"]
 
     def get_actions(self, request):
        
@@ -3345,6 +3345,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 },
                 messages.WARNING,
             )       
+    
     # def execution_status(self, obj):
     #     """Display execution status summary"""
     #     summary = obj.status_summary
@@ -3457,9 +3458,12 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 scheduled_time__gt=timezone.now()
             ).values_list('execution_id', flat=True)
             future_scheduled = queryset.filter(id__in=future_scheduled_ids, is_executed=False)
-            to_execute = queryset.filter(is_executed=False).exclude(
-                id__in=set(future_scheduled_ids) 
-            )
+
+            if future_scheduled.exists():
+                future_scheduled.update(
+                    status=ScheduledExecution.Status.CANCELLED
+                )
+            to_execute = queryset.filter(is_executed=False)
         
         # Currently running/queued
         if active_scheduled.exists():
@@ -3471,13 +3475,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     messages.WARNING
                 )
             
-        # Scheduled for future
-        if future_scheduled.exists():
-            count = future_scheduled.count()
-            msg = f"{count} test Group(s) already scheduled for future execution."
-            if request:
-                self.message_user(request, _(msg), messages.WARNING)
-        
+       
         
         # Nothing to execute
         if to_execute.count() == 0:
@@ -3736,19 +3734,219 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
         return super().recover_view(request, version_id, extra_context=extra_context)
 
+    @admin.action(description=_("Execute / Re-Execute Selected Test Executions"))
+    def execute_or_reexecute_test_suite(self, request, queryset):
+        from .tasks import execute_test_suite as execute_test_suite_task
+        from .models import ScheduledExecution, ExecutionArtifact
+        from django.db import transaction
+        from django.utils import timezone
+
+        executed_count = 0
+        reexecuted_count = 0
+        skipped_count = 0
+        failed_count = 0
+
+        for execution in queryset:
+            try:
+                # -----------------------------------------
+                # 1. Detect scheduling state
+                # -----------------------------------------
+                schedules = ScheduledExecution.objects.filter(execution=execution)
+
+                active_schedule = schedules.filter(
+                    status__in=[
+                        ScheduledExecution.Status.QUEUED,
+                        ScheduledExecution.Status.IN_PROCESS
+                    ]
+                ).exists()
+
+                future_schedule = schedules.filter(
+                    status=ScheduledExecution.Status.PENDING,
+                    scheduled_time__gt=timezone.now()
+                )
+
+                overdue_schedule = schedules.filter(
+                    status=ScheduledExecution.Status.PENDING,
+                    scheduled_time__lte=timezone.now()
+                )
+
+                if active_schedule:
+                    skipped_count += 1
+                    continue
+
+                # -----------------------------------------
+                # 2. Cancel future schedule if exists
+                # -----------------------------------------
+                if future_schedule.exists():
+                    future_schedule.update(status=ScheduledExecution.Status.CANCELLED)
+                
+                if overdue_schedule.exists():
+                    overdue_schedule.update(status=ScheduledExecution.Status.CANCELLED)
+
+                # -----------------------------------------
+                # 3. If NOT executed → Execute
+                # -----------------------------------------
+                if not execution.is_executed:
+
+                    device_count = execution.active_device_count
+                    if device_count == 0:
+                        self.message_user(
+                            request,
+                            f"Skipped {execution}: No devices configured",
+                            messages.WARNING
+                        )
+                        skipped_count += 1
+                        continue
+
+                    required_config = {
+                        (UUID(r["device_id"]), UUID(r["testcase_id"]))
+                        for r in execution.get_required_artifacts()
+                    }
+
+                    existing_config = set(
+                        ExecutionArtifact.objects
+                        .filter(execution=execution, config_file__isnull=False)
+                        .exclude(config_file="")
+                        .values_list("device_id", "testcase_id")
+                    )
+
+                    if required_config - existing_config:
+                        self.message_user(
+                            request,
+                            f"Missing execution artifacts for {execution.name}",
+                            messages.WARNING
+                        )
+                        skipped_count += 1
+                        continue
+
+                    execution.is_executed = True
+                    execution.save(update_fields=["is_executed"])
+
+                    transaction.on_commit(
+                        lambda eid=str(execution.id): execute_test_suite_task.delay(eid)
+                    )
+
+                    executed_count += 1
+                    continue
+
+                # -----------------------------------------
+                # 4. If already executed → Re-execute
+                # -----------------------------------------
+                with transaction.atomic():
+                    root = execution.parent_execution or execution
+                    new_index = root.re_executions.count() + 1
+
+                    new_execution = TestSuiteExecution.objects.create(
+                        name=f"{root.name}_{new_index}",
+                        test_selection_type=execution.test_selection_type,
+                        test_suite=execution.test_suite,
+                        test_case_execution_order=execution.test_case_execution_order,
+                        device_selection=execution.device_selection,
+                        device_group=execution.device_group,
+                        notification_emails=execution.notification_emails,
+                        parent_execution=root,
+                        re_execution_index=new_index,
+                        created_by=request.user,
+                        is_executed=True,
+                    )
+
+                    if execution.test_selection_type == 0:
+                        new_execution.individual_test_cases.set(
+                            execution.individual_test_cases.all()
+                        )
+
+                    for dev in TestSuiteExecutionDevice.objects.filter(
+                        test_suite_execution=execution
+                    ):
+                        if not dev.device.is_deleted:
+                            TestSuiteExecutionDevice.objects.create(
+                                test_suite_execution=new_execution,
+                                device=dev.device,
+                                connection_protocol=dev.connection_protocol,
+                                status="pending"
+                            )
+
+                    for artifact in ExecutionArtifact.objects.filter(execution=execution):
+                        ExecutionArtifact.objects.create(
+                            execution=new_execution,
+                            device=artifact.device,
+                            testcase=artifact.testcase,
+                            config_file=artifact.config_file,
+                            is_pushed=False
+                        )
+
+                    new_execution.device_count = TestSuiteExecutionDevice.objects.filter(
+                        test_suite_execution=new_execution
+                    ).count()
+
+                    new_execution.testcase_count = (
+                        new_execution.test_suite.test_case_count
+                        if new_execution.test_selection_type == 1
+                        else new_execution.individual_test_cases.count()
+                    )
+
+                    new_execution.save(
+                        update_fields=["device_count", "testcase_count"]
+                    )
+
+                    transaction.on_commit(
+                        lambda eid=str(new_execution.id): execute_test_suite_task.delay(eid)
+                    )
+
+                    reexecuted_count += 1
+
+            except Exception as e:
+                failed_count += 1
+                logger.error(f"Execution failed for {execution.id}: {e}", exc_info=True)
+                self.message_user(
+                    request,
+                    f"Failed to process {execution}: {str(e)}",
+                    messages.ERROR
+                )
+
+        # -----------------------------------------
+        # Final admin feedback
+        # -----------------------------------------
+        if executed_count:
+            self.message_user(
+                request,
+                f"{executed_count} execution(s) started",
+                messages.SUCCESS
+            )
+
+        if reexecuted_count:
+            self.message_user(
+                request,
+                f"{reexecuted_count} execution(s) re-executed",
+                messages.SUCCESS
+            )
+
+        if skipped_count:
+            self.message_user(
+                request,
+                f"{skipped_count} execution(s) skipped (already running / invalid)",
+                messages.WARNING
+            )
+
+        if failed_count:
+            self.message_user(
+                request,
+                f"{failed_count} execution(s) failed",
+                messages.ERROR
+            )
 
 
-    def _get_version_object(self, version_id):
-        """
-        Utility to fetch the Version object for the given version_id.
-        This avoids duplicating queryset logic from reversion's internal code.
-        """
-        from reversion.models import Version
-        try:
-            return Version.objects.get(pk=version_id)
-        except Version.DoesNotExist:
-            return None
-  
+        def _get_version_object(self, version_id):
+            """
+            Utility to fetch the Version object for the given version_id.
+            This avoids duplicating queryset logic from reversion's internal code.
+            """
+            from reversion.models import Version
+            try:
+                return Version.objects.get(pk=version_id)
+            except Version.DoesNotExist:
+                return None
+    
 
 
 
