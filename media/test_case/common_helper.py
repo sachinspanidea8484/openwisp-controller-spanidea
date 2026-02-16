@@ -2,13 +2,16 @@
 Common Helper for NBAPI Testcases
 """
 import os
+import re
 import sys
+import time
 import json
 import subprocess
 from datetime import datetime
 
 EXIT_SUCCESS = 0
 EXIT_FAILED = 1
+MAX_RETRIES = 3
 
 def log(message, *args, level="INFO"):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -114,3 +117,176 @@ def parse_sensor_output(block):
                 pass
     return voltage, current
 
+
+######################################################################
+
+def parse_ip_stats(output):
+    stats = {
+        "rx_packets": 0,
+        "rx_errors": 0,
+        "rx_dropped": 0,
+        "tx_packets": 0,
+        "tx_errors": 0,
+        "tx_dropped": 0,
+    }
+
+    lines = output.splitlines()
+
+    for i, line in enumerate(lines):
+        line = line.strip()
+
+        try:
+            if line.startswith("RX:") and i + 1 < len(lines):
+                vals = lines[i + 1].split()
+                stats["rx_packets"] = int(vals[1])
+                stats["rx_errors"] = int(vals[2])
+                stats["rx_dropped"] = int(vals[3])
+
+            if line.startswith("TX:") and i + 1 < len(lines):
+                vals = lines[i + 1].split()
+                stats["tx_packets"] = int(vals[1])
+                stats["tx_errors"] = int(vals[2])
+                stats["tx_dropped"] = int(vals[3])
+        except (IndexError, ValueError):
+            continue
+
+    return stats
+
+
+def validate_ifconfig_errors(interface, threshold_percent=10):
+    """
+    Validate RX/TX error percentage on given interface.
+    :param interface: Interface name (e.g., wwan0)
+    :param threshold_percent: Allowed error percentage
+    """
+
+    log("=== IFCONFIG ERROR VALIDATION START ===")
+    log("Interface: %s | Threshold: %.3f%%", interface, threshold_percent)
+
+    stdout, stderr, rc = run_local_command(
+        f"ip -s link show {interface}",
+        allow_fail=True
+    )
+
+    if rc != 0:
+        log("TEST FAILED: Unable to get interface stats (%s)", stderr, level="ERROR")
+        return False
+
+    stats = parse_ip_stats(stdout)
+
+    rx_pkts = max(stats["rx_packets"], 1)
+    tx_pkts = max(stats["tx_packets"], 1)
+
+    rx_err = stats["rx_errors"] + stats["rx_dropped"]
+    tx_err = stats["tx_errors"] + stats["tx_dropped"]
+
+    rx_pct = (rx_err / rx_pkts) * 100
+    tx_pct = (tx_err / tx_pkts) * 100
+
+    log("RX Packets=%d | Errors+Dropped=%d | Error%%=%.3f%%",
+        rx_pkts, rx_err, rx_pct)
+
+    log("TX Packets=%d | Errors+Dropped=%d | Error%%=%.3f%%",
+        tx_pkts, tx_err, tx_pct)
+
+    if rx_pct > threshold_percent or tx_pct > threshold_percent:
+        log("=== TEST FAILED: Error threshold exceeded ===", level="ERROR")
+        return False
+
+    log("=== TEST PASSED: Error threshold within limits ===")
+    return True
+
+def parse_config(config_str):
+   
+    if config_str.startswith("CONFIGURATION="):
+        config_str = config_str[len("CONFIGURATION="):]
+ 
+    try:
+        return json.loads(config_str)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing CONFIGURATION JSON: {e}", file=sys.stderr)
+        return {}
+    
+
+def get_modem_status(interface):
+    log(f"Getting modem status for {interface}...")
+
+    #Get QMI device from UCI
+    stdout, stderr, rc = run_local_command(f"uci -q get network.{interface}.device",allow_fail=True )
+
+    if rc != 0 or not stdout:
+        log(f"Failed to get QMI device for {interface}", level="FAIL")
+        return None
+
+    qmi_device = stdout.strip()
+    
+    #Get runtime L3 interface
+    stdout, stderr, rc = run_local_command(f"ifstatus {interface}", allow_fail=True)
+    if rc != 0 or not stdout:
+        log(f"Failed to get runtime status for {interface}", level="FAIL")
+        return None
+    try:
+        status_data = json.loads(stdout)
+        data_interface = status_data.get("l3_device")
+    except Exception:
+        log("Failed to parse JSON from ifstatus", level="FAIL")
+        return None
+
+    #Get signal info
+    stdout, stderr, rc = run_local_command(f"qmicli -d {qmi_device} --nas-get-signal-info",allow_fail=True)
+    
+    if stdout:
+        log("Signal Info Output:\n%s", stdout)
+
+    if stderr:
+        log("Signal Info Error:\n%s", stderr, level="ERROR")
+        
+    if rc != 0 or not stdout:
+        log(f"Failed to get signal info for {qmi_device}", level="FAIL")
+        # network_type = None
+        return None
+    else:
+        # Detect 5G first
+        match_5g = re.search(r"5g:.*?rsrp:\s*'(-?\d+)",stdout,re.IGNORECASE | re.DOTALL)
+
+        if match_5g:
+            network_type = "5G"
+        else:
+            # Detect LTE
+            match_lte = re.search(r"lte:.*?rsrp:\s*'(-?\d+)",stdout,re.IGNORECASE | re.DOTALL)
+
+            if match_lte:
+                network_type = "4G"
+            else:
+                network_type = None
+   
+    #Return full modem status
+    return {
+        "interface": interface,
+        "qmi_device": qmi_device,
+        "data_interface": data_interface,
+        "network_type": network_type
+    }
+    
+
+def ensure_modem_connected(cellular_iface,qmi_device):
+    log("Checking modem connection status...")
+
+    for attempt in range(1, MAX_RETRIES + 1):
+
+        status_out, stderr, rc = run_local_command(f"uqmi -d {qmi_device} --get-data-status",allow_fail=True)
+
+        status_out = status_out.strip().strip('"')
+
+        if status_out.lower() == "connected":
+            log("Modem is connected.")
+            return True
+
+        log("Attempt %d/%d: Modem disconnected (%s), retrying...",
+            attempt, MAX_RETRIES, status_out)
+
+        run_local_command(f"ifup {cellular_iface}", allow_fail=True)
+        time.sleep(30)
+
+    log("Modem failed to connect after max retries.", level="ERROR")
+    return False    

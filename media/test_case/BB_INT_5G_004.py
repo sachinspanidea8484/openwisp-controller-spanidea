@@ -1,193 +1,354 @@
+# START_DESCRIPTION 
+#1. Initialize logging .
+#2. Check the DUT connection and SIM status
+#3. Check 5G Network Registration status.
+#4. Check PCI/Cell Lock status.
+#5. Selecting the appropriate EARFCN, physical cell id. 
+#6. Lock the selected EARFCN and physical cell id.
+#7. Verify that the DUT attached to the specified cell.
+
+# END_DESCRIPTION
+
+#!/usr/bin/env python3
+"""
+5G PCI LOCK  TEST (BB-INT-5G-004)
+Dynamic target band input via command-line parameter
+python3 BB_INT_5G_004.py CONFIGURATION='{"cellular_interface": "Modem1", "error_threshold_percent":"10"}'
+"""
+
+
 import re
-import time
-from datetime import datetime
 import sys
-import subprocess
+import time
+import json
+import argparse
+from datetime import datetime
+from common_helper import (log, run_local_command, parse_config, get_modem_status, ensure_modem_connected, validate_ifconfig_errors, EXIT_SUCCESS,EXIT_FAILED)
 
-# === CONFIGURATION ===
-BB_AT_PORT = "/dev/ttyUSB3"
-LOG_FILE = "BB_INT_5G_004.log"
 
-# === EXIT CODES ===
+
+#CONSTANTS
+MAX_RETRIES = 3
 EXIT_SUCCESS = 0
 EXIT_FAILED = 1
-EXIT_PRECONDITION_FAILED = 2
-EXIT_CMDS_NON_RESPONSIVE = 3
 
-# === LOGGING ===
-def timestamp():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def log(msg):
-    line = f"[+] {timestamp()} - {msg}"
-    print(line)
-    with open(LOG_FILE, "a") as f:
-        f.write(line + "\n")
+# === AT COMMAND HELPER FUNCTIONS  ===
+def at_cmd(cmd):
+    full_cmd = f'echo -e "{cmd}\\r" | socat - {BB_AT_PORT},raw,echo=0,crnl'
+    stdout, stderr, rc = run_local_command(full_cmd, allow_fail=True)
 
-# === AT Command Execution (Local) ===
-def run_at_command(cmd):
-    log(f"[CMD] {cmd}")
-    try:
-        full_cmd = f"echo -e '{cmd}\\r' | socat - {BB_AT_PORT},raw,echo=0,crnl"
-        log(f"Executing command: {full_cmd}")
-        output = subprocess.check_output(full_cmd, shell=True, stderr=subprocess.STDOUT, timeout=20).decode().strip()
-        log(f"[OUT] {output}")
-        time.sleep(1)
-        return output
-    except subprocess.TimeoutExpired:
-        log(f"[ERROR] Timeout while running: {cmd}")
-        return ""
-    except subprocess.CalledProcessError as e:
-        log(f"[ERROR] Command failed: {cmd} -- {e.output.decode().strip()}")
-        return ""
+    if stdout:
+            log("OUT: %s", stdout)
 
-# === PARSERS ===
+    if stderr:
+            log("ERR: %s",stderr, level="ERROR")
+
+    if rc != 0:
+        log("AT command failed (RC=%d): %s", rc, cmd, level="ERROR")
+
+    if stdout and "ERROR" in stdout:
+        log("Modem responded with ERROR for command: %s", cmd, level="ERROR")
+
+    return stdout, stderr
+
+
+# === Parsers ===
+def parse_cpin(output):
+    if "+CME ERROR: 10" in output:
+        return "NOT_INSERTED"
+    elif "SIM PIN" in output:
+        return "PIN_REQUIRED"
+    elif "SIM PUK" in output:
+        return "PUK_REQUIRED"
+    elif "READY" in output:
+        return "READY"
+    return "UNKNOWN"
+
 def parse_c5greg(output):
     match = re.search(r"\+C5GREG:\s*\d+,(\d+)", output)
     return int(match.group(1)) if match else None
 
-def parse_nrds(output):
-    match = re.search(r"#NRDS:\s*(\d+)/[^,]*,[^,]*,(\d+),(\d+),.*?,.*?,.*?,.*?,.*?,.*?,.*?/.*?,.*?/.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,(\d+)", output)
-    if match:
-        return {
-            "band": int(match.group(1)),
-            "arfcn": int(match.group(2)),
-            "pci": int(match.group(3)),
-            "scs": int(match.group(4))
-        }
-    return None
 
-def parse_csurv_neighbors(output):
-    neighbors = []
-    for match in re.finditer(
-        r"nr_arfcn:\s*(\d+)\s+nr_band:\s*(\d+)\s+nr_scs:\s*(\d+)\s+nr_mcc:.*?nr_mnc:.*?cell_id:\s*(\d+).*?pci:\s*(\d+)",
-        output,
-        re.DOTALL
-    ):
-        neighbors.append({
-            "arfcn": int(match.group(1)),
-            "band": int(match.group(2)),
-            "scs": int(match.group(3)),
-            "cell_id": int(match.group(4)),
-            "pci": int(match.group(5))
-        })
-    return neighbors
+def parse_nrds(output):
+    match = re.search(r"#NRDS:\s*(.+)", output)
+    if not match:
+        return None
+
+    fields = match.group(1).split(",")
+
+    try:
+        band, bw = fields[0].split("/")
+        return {
+            "band": int(band),
+            "bw": int(bw),
+            "arfcn": int(fields[2]),
+            "pci": int(fields[3]),
+            "rsrp": int(fields[4]),
+            "rsrq": int(fields[5]),
+            "ssb_rsrp": int(fields[21]),
+            "scs": int(fields[22]),
+        }
+    except (IndexError, ValueError):
+        return None
 
 def get_pci_lock_status(output):
-    match = re.search(r"#5GBCCHLOCK:\s*(\d+)", output)
-    if match:
-        value = match.group(1).strip()
-        if value in ["0", "1"]:
-            return "ENABLED"
-        elif value == "2":
-            return "DISABLED"
-    return "UNKNOWN"
+    
+    # AT#5GBCCHLOCK? : 0 -> PCI lock (SCS + ARFCN + PCI + BAND)
+    #                  1 -> Frequency lock (SCS + ARFCN list)
+    #                  2 -> Disabled
+    
+    match = re.search(r"#5GBCCHLOCK:\s*(.+)", output)
+    if not match:
+        return {
+            "status": "UNKNOWN",
+            "lock_type": None
+        }
 
-# === MAIN ===
-def main():
-    log("===Starting 5G PCI LOCK Test BB-INT-5G-004===")
-   
-    # Step 1: Check SIM
-    sim_status = run_at_command("AT+CPIN?")
-    if "+CME ERROR: 10" in sim_status:
-        log("SIM not inserted.")
-        sys.exit(EXIT_PRECONDITION_FAILED)
-    elif "+CPIN: SIM PIN" in sim_status:
-        log("SIM requires PIN.")
-        sys.exit(EXIT_PRECONDITION_FAILED)
-    elif "READY" in sim_status:
-        log("SIM is ready.")
+    fields = match.group(1).split(",")
+    lock_type = fields[0].strip()
+
+    if lock_type == "2":
+        return {
+            "status": "DISABLED",
+            "lock_type": 2
+        }
+
+    if lock_type == "0" and len(fields) >= 5:
+        return {
+            "status": "ENABLED",
+            "lock_type": 0,
+            "scs": int(fields[1]),
+            "arfcn": int(fields[2]),
+            "pci": int(fields[3]),
+            "band": int(fields[4])
+        }
+
+    if lock_type == "1" and len(fields) >= 3:
+        locks = []
+        i = 1
+        while i + 1 < len(fields):
+            locks.append({
+                "scs": int(fields[i]),
+                "arfcn": int(fields[i + 1])
+            })
+            i += 2
+
+        return {
+            "status": "ENABLED",
+            "lock_type": 1,
+            "frequencies": locks
+        }
+
+    return {
+        "status": "UNKNOWN",
+        "lock_type": None
+    }
+
+# === MAIN LOGIC ===
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='5G PCI LOCK TEST (BB-INT-4G-004)')
+    parser.add_argument('config', help='Configuration string')
+    args = parser.parse_args()
+
+    config = parse_config(args.config)
+
+    CELLULAR_IFACE = config.get('cellular_interface', 'Modem1')
+    THRESHOLD = float(config.get('error_threshold_percent', 10))
+    
+    if CELLULAR_IFACE == "Modem1":
+        BB_AT_PORT = "/dev/ttyUSB3"
+    elif CELLULAR_IFACE == "Modem2":
+        BB_AT_PORT = "/dev/ttyUSB7"
     else:
-        log("Unknown SIM status.")
-        sys.exit(EXIT_PRECONDITION_FAILED)
+        BB_AT_PORT = None
 
-    # Step 2: PDP context
-    pdp_output = run_at_command("AT+CGDCONT?")
-    log("PDP Context Info:")
-    log(pdp_output or " No PDP context configured.")
+     
+    log("Starting 5G PCI LOCK Test BB-INT-4G-004...")
+    
+    try:
+        info = get_modem_status(CELLULAR_IFACE)
 
-    # Step 3: Packet domain attach
-    cgatt_output = run_at_command("AT+CGATT?")
-    if "+CGATT: 1" in cgatt_output:
-        log("Attached to packet domain.")
-    else:
-        log("Not attached to packet domain.")
-        sys.exit(EXIT_PRECONDITION_FAILED)
+        if not info:
+            log("TEST FAILED - Failed to get modem status", level="ERROR")
+            sys.exit(EXIT_FAILED)
 
-    # Step 4: 5G Registration
-    reg_output = run_at_command("AT+C5GREG?")
-    reg_status = parse_c5greg(reg_output)
-    if reg_status in [1, 5]:
-        log(f"Registered to 5G ({'Home' if reg_status == 1 else 'Roaming'})")
-    else:
-        log(f"Not registered to 5G. C5GREG: {reg_status}")
-        sys.exit(EXIT_PRECONDITION_FAILED)
+        QMI_DEVICE = info["qmi_device"]
+        DATA_INTERFACE = info["data_interface"]
+        NETWORK_TYPE = info["network_type"]
+        log("Modem Info - QMI Device: %s | Data Interface: %s | Network Type: %s",QMI_DEVICE, DATA_INTERFACE, NETWORK_TYPE)
 
-    # Step 5: Check PCI lock
-    lock_output = run_at_command("AT#5GBCCHLOCK?")
-    pci_lock_status = get_pci_lock_status(lock_output)
-    log(f"PCI Lock is currently: {pci_lock_status}")
-    if pci_lock_status == "ENABLED":
-        log("PCI Lock is ENABLED. Exiting.")
-        sys.exit(EXIT_PRECONDITION_FAILED)
+        
+        # Step 1: Ensure modem is connected
+        log("=== Step 1: Checking Modem Connection Status ===")
+        if not ensure_modem_connected(CELLULAR_IFACE, QMI_DEVICE):
+            log("TEST FAILED: Modem failed to connect.", level="ERROR")
+            sys.exit(EXIT_FAILED)
+        log("Modem connection: OK")
+        
+        # Step 2: Check SIM
+        log("=== Step 2: Checking SIM Status ===")
+        sim_out, _ = at_cmd("AT+CPIN?")
+      
+        sim_status = parse_cpin(sim_out)
 
-    # Step 6: Get current NR cell
-    nrds_output = run_at_command("AT#NRDS")
-    current = parse_nrds(nrds_output)
-    if not current:
-        log("Failed to parse NRDS.")
-        sys.exit(EXIT_CMDS_NON_RESPONSIVE)
-    log(f"Current NR Cell: BAND={current['band']}, ARFCN={current['arfcn']}, PCI={current['pci']}, SCS={current['scs']}")
+        if sim_status == "NOT_INSERTED":
+            log("TEST FAILED: SIM not inserted.", level="ERROR")
+            sys.exit(EXIT_FAILED)
+        elif sim_status == "PIN_REQUIRED":
+            log("TEST FAILED: SIM requires PIN.", level="ERROR")
+            sys.exit(EXIT_FAILED)
+        elif sim_status == "PUK_REQUIRED":
+            log("TEST FAILED: SIM requires PUK.", level="ERROR")
+            sys.exit(EXIT_FAILED)
+        elif sim_status == "READY":
+            log("SIM status: READY")
+        else:
+            log("TEST FAILED: Unknown SIM state. Response: %s", sim_out, level="ERROR")
+            sys.exit(EXIT_FAILED)
 
-    # Step 7: Scan neighbors
-    retries = 3
-    neighbors = []
-    for i in range(retries):
-        log(f"Scanning 5G neighbors (attempt {i+1})...")
-        csurv_output = run_at_command("AT#CSURV")
-        neighbors = parse_csurv_neighbors(csurv_output)
-        if neighbors:
-            break
-        time.sleep(20)
 
-    if not neighbors:
-        log("No neighbors found after retries.")
-        sys.exit(EXIT_CMDS_NON_RESPONSIVE)
 
-    # Step 8: Select neighbor
-    chosen = next((n for n in neighbors if n["arfcn"] != current["arfcn"] or n["pci"] != current["pci"]), None)
-    if not chosen:
-        log("No different neighbor found.")
-        sys.exit(EXIT_CMDS_NON_RESPONSIVE)
+        # Step 3: 5G Registration
+        log("=== Step 3: Checking 5G Registration Status ===")
+        reg_output,_ = at_cmd("AT+C5GREG?")
+            
+        reg_status = parse_c5greg(reg_output)
+        if reg_status in [1, 5]:
+            log(f"Registered to 5G ({'Home' if reg_status == 1 else 'Roaming'})")
+        else:
+            log(f"Not registered to 5G. C5GREG: {reg_status}")
+            sys.exit(EXIT_FAILED)
 
-    log(f"Locking to Neighbor: BAND={chosen['band']}, ARFCN={chosen['arfcn']}, PCI={chosen['pci']}, SCS={chosen['scs']}")
 
-    # Step 9: Apply lock
-    lock_cmd = f"AT#5GBCCHLOCK=0,{chosen['scs']},{chosen['arfcn']},{chosen['pci']},{chosen['band']}"
-    run_at_command(lock_cmd)
 
-    # Step 10: Reboot
-    run_at_command("AT#ENHRST=1,0")
-    log("Rebooting device... Waiting 90 seconds.")
-    time.sleep(90)
+        # Step 4: PCI lock status
+        log("=== Step 4: Verifying PCI Unlock ===")
+        lock_output,_ = at_cmd("AT#5GBCCHLOCK?")
+            
+        pci_lock_status = get_pci_lock_status(lock_output)
+        log(f"PCI Lock is currently: {pci_lock_status}")
 
-    # Step 11: Verify lock
-    nrds_after = run_at_command("AT#NRDS")
-    locked = parse_nrds(nrds_after)
-    if locked and locked["arfcn"] == chosen["arfcn"] and locked["pci"] == chosen["pci"]:
-        log("PCI Lock SUCCESSFUL after reboot.")
-        log(f"Locked to BAND={locked['band']}, ARFCN={locked['arfcn']}, PCI={locked['pci']}, SCS={locked['scs']}")
-        log("TEST PASSED!!!!!")
-        sys.exit(EXIT_SUCCESS)
-    else:
-        log("PCI Lock FAILED after reboot.")
-        if locked:
-            log(f"Now on BAND={locked['band']}, ARFCN={locked['arfcn']}, PCI={locked['pci']}, SCS={locked['scs']}")
-        log("TEST FAILED!!!!!")
+        if pci_lock_status["status"] == "ENABLED":
+            log("PCI Lock already ENABLED. Exiting.")
+            sys.exit(EXIT_FAILED)
+
+        # Step 4(a): Current NR cell
+        nrds_out, _ = at_cmd("AT#NRDS")       
+        current = parse_nrds(nrds_out)
+        if not current:
+            log("Failed to parse NRDS.")
+            sys.exit(EXIT_FAILED)
+
+        log(
+            f"Current NR Cell → "
+            f"BAND={current['band']}, "
+            f"ARFCN={current['arfcn']}, "
+            f"PCI={current['pci']}, "
+            f"SCS={current['scs']}"
+        )
+
+        # Step 5: Apply PCI lock
+        log("=== Step 5: Applying PCI Lock ===")
+        lock_cmd = (
+            f"AT#5GBCCHLOCK=0,"
+            f"{current['scs']},"
+            f"{current['arfcn']},"
+            f"{current['pci']},"
+            f"{current['band']}"
+        )
+        lock_status,_ =at_cmd(lock_cmd)
+        
+        # Step 6: Verify lock config
+        log("=== Step 6: Verifying PCI Lock Settings ===")
+        lock_verify_out, _ = at_cmd("AT#5GBCCHLOCK?")
+        lock_info = get_pci_lock_status(lock_verify_out)
+
+
+        if lock_info["status"] == "DISABLED":
+            log("TEST FAILED!!- PCI Lock is DISABLED.")
+            sys.exit(EXIT_FAILED)
+
+        log(f"PCI LOCK ENABLED → {lock_info}")
+
+        # Step 7: Verify NR attachment (with retry)
+        log("=== Step 7: Verifying attachment to locked cell ===")
+
+        max_attempts = 2   # 1 initial + 1 retry
+        attempt = 1
+        success = False
+        observed = None
+
+        while attempt <= max_attempts:
+
+            log(f"Verification attempt {attempt}/{max_attempts}...")
+            time.sleep(10)
+
+            nrds_out, _ = at_cmd("AT#NRDS")
+
+            if nrds_out:
+                log("NR Cell Status:\n%s", nrds_out)
+
+            observed = parse_nrds(nrds_out)
+
+            if not observed:
+                log("Failed to parse NRDS output.")
+                attempt += 1
+                continue
+
+            log(
+                f"Observed → "
+                f"BAND={observed['band']}, "
+                f"ARFCN={observed['arfcn']}, "
+                f"PCI={observed['pci']}, "
+                f"SCS={observed['scs']}"
+            )
+
+            if (
+                observed["band"] == current["band"] and
+                observed["arfcn"] == current["arfcn"] and
+                observed["pci"] == current["pci"] and
+                observed["scs"] == current["scs"]
+            ):
+                success = True
+                break
+
+            log("Mismatch detected. Retrying...")
+            attempt += 1
+
+
+        # ================= FINAL DECISION =================
+        if success:
+
+            log("PCI LOCK SUCCESSFUL.")
+            log("=== Step 8: Validating Interface Error Counters ===")
+
+            if not validate_ifconfig_errors(DATA_INTERFACE, THRESHOLD):
+                log("TEST FAILED: Interface error threshold exceeded.", level="ERROR")
+                sys.exit(EXIT_FAILED)
+
+            log("Interface error validation passed.")
+            log("=== TEST PASSED — PCI Lock successful ===")
+            sys.exit(EXIT_SUCCESS)
+
+        # -------- Failure Case -----------------------------
+
+        log("TEST FAILED!! PCI LOCK FAILED.")
+
+        log(
+            f"Expected → "
+            f"BAND={current['band']}, "
+            f"ARFCN={current['arfcn']}, "
+            f"PCI={current['pci']}, "
+            f"SCS={current['scs']} | "
+            f"Observed → {observed}"
+        )
+
         sys.exit(EXIT_FAILED)
 
-    log("5G PCI LOCK TEST COMPLETE.")
 
-if __name__ == "__main__":
-    main()
 
+    except Exception as e:
+        log("TEST FAILED - Unhandled exception: %s", e, level="ERROR")
+        sys.exit(EXIT_FAILED)

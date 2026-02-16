@@ -1,182 +1,120 @@
+#START_DESCRIPTION 
+#1. Initialize logging
+#2. Attach the DUT to the 5G network and verify.
+#3. Check the DUT connection, signal information.
+#4. Verify connectivity by ping from DUT to PC (remote=8.8.8.8)
+# END_DESCRIPTION
+
+
+
+#!/usr/bin/env python3
+"""
+5G WAN INTERFACE TEST (BB-INT-5G-001)
+Dynamic target band input via command-line parameter
+python3 BB_INT_5G_001.py CONFIGURATION='{"cellular_interface": "Modem1", "remote_ping_ip": "8.8.8.8", "test_duration" : "60", "error_threshold_percent":"10"}'
+"""
+
+
 import re
 import sys
 import time
-import subprocess
+import json
+import argparse
 from datetime import datetime
+from common_helper import (log, run_local_command, parse_config, get_modem_status, ensure_modem_connected, validate_ifconfig_errors, EXIT_SUCCESS,EXIT_FAILED)
 
-# === CONFIGURATION ===
-BB_QMI_DEVICE = "/dev/cdc-wdm0"
-BB_APN = "fast.t-mobile.com"
-REMOTE_PING_IP = "8.8.8.8"  # Google for ping tests
-LOG_FILE = "BB_INT_5G_001.log"
 
-# === EXIT CODES ===
+
+#CONSTANTS
+MAX_RETRIES = 3
 EXIT_SUCCESS = 0
 EXIT_FAILED = 1
-EXIT_PRECONDITION_FAILED = 2
-EXIT_CMDS_NON_RESPONSIVE = 3
-
-# Global max retries
-MAX_RETRIES = 3
 
 
-# === TEST DURATIONS ===
-TEST_DURATION = 60  # 1 minutes for stability
-
-# === LOGGING ===
-def timestamp():
-    return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-def log(message):
-    line = f"[+] {timestamp()} - {message}"
-    print(line)
-    with open(LOG_FILE, "a") as f:
-        f.write(line + "\n")
-
-def run_cmd(command):
-    log(f"Executing command: {command}")
-    try:
-        result = subprocess.run(
-            command, shell=True, text=True, capture_output=True, check=False
-        )
-        output = result.stdout.strip()
-        error = result.stderr.strip()
-        if output:
-            log(f"Output: {output}")
-        if error:
-            log(f"Error: {error}")
-        return output, error
-    except Exception as e:
-        log(f"Command execution failed: {e}")
-        return "", str(e)
-
-# === HELPER FUNCTIONS ===
-def find_modem_interface():
-    log("Fetching modem IPv4 from uqmi...")
-    settings_out, _ = run_cmd(f"uqmi -d {BB_QMI_DEVICE} --get-current-settings")
-    ip_match = re.search(r'"ip":\s*"(\d+\.\d+\.\d+\.\d+)"', settings_out)
-    if not ip_match:
-        log("Could not parse IPv4 from uqmi output.")
-        return None, None
-    modem_ip = ip_match.group(1)
-    log(f"Detected modem IP: {modem_ip}")
-
-    ifconfig_out, _ = run_cmd("ifconfig wwan0")
-    iface_name = None
-    current_iface = None
-
-    for line in ifconfig_out.splitlines():
-        match_iface = re.match(r"^(\S+)\s+Link", line)
-        if match_iface:
-            current_iface = match_iface.group(1)
-            continue
-        if modem_ip in line:
-            iface_name = current_iface
-            break
-
-    if iface_name:
-        log(f"Found interface: {iface_name}")
-        return iface_name, modem_ip
-
-    # Fallback to `ip addr` if needed
-    ip_addr_out, _ = run_cmd("ip -4 addr show")
-    for block in ip_addr_out.split("\n\n"):
-        match_iface = re.match(r"\d+: (\S+):", block)
-        if match_iface:
-            iface = match_iface.group(1)
-            if modem_ip in block:
-                log(f"Found interface: {iface}")
-                return iface, modem_ip
-
-    log("Still could not find interface for modem IP.")
-    return None, modem_ip
-
-def ensure_modem_connected():
-    log("Checking modem connection status...")
-    for attempt in range(1, MAX_RETRIES + 1):
-        status_out, _ = run_cmd(f"uqmi -d {BB_QMI_DEVICE} --get-data-status")
-        status_out = status_out.strip().strip('"')  # clean quotes/spaces
-
-        if status_out.lower() == "connected":
-            log("Modem is connected.")
-            return True
-
-        log(f"Attempt {attempt}/{MAX_RETRIES}: Modem disconnected ({status_out}), retrying...")
-        run_cmd("ifup Modem1 && ifup Modem2")
-        time.sleep(30)
-
-    # After retries, still disconnected
-    log("Modem failed to connect after max retries.")
-    return False
     
+def ping_remote(iface, remote_ip):
+    log("Pinging %s via %s...", remote_ip, iface)
 
+    stdout, stderr, rc = run_local_command(f"ping -I {iface} -c 4 {remote_ip}",allow_fail=True)
 
-def check_signal_info():
-    log("Checking signal info...")
-    signal_info, _ = run_cmd(f"uqmi -d {BB_QMI_DEVICE} --get-signal-info")
-    if "nr5g" in signal_info.lower():
-        log(f"Connected to 5G: {signal_info}")
-        return "5G"
-    elif "lte" in signal_info.lower():
-        log(f"Connected to 4G: {signal_info}")
-        return "4G"
-    else:
-        log(f"Unknown network type: {signal_info}")
-        return None
+    # Print full ping output
+    if stdout:
+        log("Ping Output:\n%s", stdout)
 
-def ping_remote(iface):
-    log(f"Pinging {REMOTE_PING_IP} via {iface}...")
-    output, _ = run_cmd(f"ping -I {iface} -c 4 {REMOTE_PING_IP}")
-    if "100% packet loss" in output or "0 received" in output:
-        log("Ping failed.")
+    if rc != 0 or "100% packet loss" in stdout or "0 received" in stdout:
+        log("Ping failed.", level="ERROR")
         return False
+
     log("Ping successful.")
     return True
 
    
 # === MAIN LOGIC ===
-def main():
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='5G WAN INTERFACE (BB-INT-5G-001)')
+    parser.add_argument('config', help='Configuration string')
+    args = parser.parse_args()
+
+    config = parse_config(args.config)
+
+    CELLULAR_IFACE = config.get('cellular_interface', 'Modem1')
+    REMOTE_PING_IP = config.get('remote_ping_ip', '8.8.8.8')
+    TEST_DURATION = int(config.get('test_duration', 60))
+    THRESHOLD = float(config.get('error_threshold_percent', 10))
+
     log("Starting 5G WAN Interface Test BB-INT-5G-001...")
 
     try:
-        if ensure_modem_connected():
-            log("Modem connection established successfully.")
-        else:
-            log("TEST FAILED!!!:- Modem failed to connect after max retries")
-            sys.exit(EXIT_PRECONDITION_FAILED)
+        info = get_modem_status(CELLULAR_IFACE)
 
-        iface, modem_ip = find_modem_interface()
-        if not iface:
-            log("TEST FAILED !!!!! - No interface found. Aborting.")
-            sys.exit(EXIT_PRECONDITION_FAILED)
-
-        network_type = check_signal_info()
-        if not network_type:
-            log("TEST FAILED !!!!! - Could not determine network type. Aborting.")
-            sys.exit(EXIT_CMDS_NON_RESPONSIVE)
-
-        if not ping_remote(iface):
-            log("TEST FAILED !!!!! - Connectivity check failed.")
+        if not info:
+            log("TEST FAILED - Failed to get modem status", level="ERROR")
             sys.exit(EXIT_FAILED)
 
-        log(f"Initial connectivity check PASSED: {network_type} via {iface} ({modem_ip}).")
+        QMI_DEVICE = info["qmi_device"]
+        DATA_INTERFACE = info["data_interface"]
+        NETWORK_TYPE = info["network_type"]
+        log("Modem Info - QMI Device: %s | Data Interface: %s | Network Type: %s",QMI_DEVICE, DATA_INTERFACE, NETWORK_TYPE)
 
-        # === Verify session stability for {TEST_DURATION} ===
-        log(f"Starting {TEST_DURATION} seconds session stability verification...")
+        if not ensure_modem_connected(CELLULAR_IFACE, QMI_DEVICE):
+            log("TEST FAILED - Modem failed to connect", level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+        if NETWORK_TYPE != "5G":
+            log("TEST FAILED - %s is not a 5G WAN interface but has %s",
+            CELLULAR_IFACE, NETWORK_TYPE, level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+      
+        if not ping_remote(DATA_INTERFACE, REMOTE_PING_IP):
+            log("TEST FAILED - Initial connectivity check failed", level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+        
+        log("Initial connectivity check PASSED: %s via %s .",NETWORK_TYPE, DATA_INTERFACE)
+
+        # Stability Test
+        log("Starting %d seconds stability test...", TEST_DURATION)
+
         start = time.time()
+
         while time.time() - start < TEST_DURATION:
-            if not ping_remote(iface):
-                log("TEST FAILED !!!!! - Ping failed during stability test.")
+            if not ping_remote(DATA_INTERFACE, REMOTE_PING_IP):
+                log("TEST FAILED - Ping failed during stability test", level="ERROR")
                 sys.exit(EXIT_FAILED)
             time.sleep(30)
 
-        log(f"TEST PASSED !!!!! - Stability test completed successfully for {TEST_DURATION} seconds.")
+        log("TEST PASSED - Stability test completed successfully for %d seconds",
+            TEST_DURATION)
+        
+        # Validate interface errors
+        if not validate_ifconfig_errors(DATA_INTERFACE, THRESHOLD):
+            sys.exit(EXIT_FAILED)
+
+        log("TEST PASSED - Stability and IFCONFIG validation successful")
         sys.exit(EXIT_SUCCESS)
 
     except Exception as e:
-        log(f"TEST FAILED !!!!! - Exception: {e}")
+        log("TEST FAILED - Unhandled exception: %s", e, level="ERROR")
         sys.exit(EXIT_FAILED)
-
-if __name__ == "__main__":
-    main()
-
