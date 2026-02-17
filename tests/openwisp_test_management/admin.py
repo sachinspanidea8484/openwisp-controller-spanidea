@@ -261,12 +261,18 @@ def validate_robot_import(file_path):
         field="robot_script"
     )
 
+def _get_system_script_path(test_case_id, script_type):
+    if script_type == "robot":
+        return os.path.join(settings.MEDIA_ROOT, "test_case_robot", f"{test_case_id}.robot")
+    return os.path.join(settings.MEDIA_ROOT, "test_case", f"{test_case_id}.py")
+
 def store_script(
     source,
     *,
     test_case_id,
     script_type,  # "robot" | "python"
     extract_description=False,
+    system_generated=False,
 ):
     """
     Stores script in a deterministic location with deterministic filename.
@@ -276,7 +282,30 @@ def store_script(
     - Server-hosted URLs
     - Relative MEDIA paths
     """
+    if system_generated:
+        system_path = _get_system_script_path(test_case_id, script_type)
 
+        if not os.path.exists(system_path):
+            raise ScriptValidationError(
+                f"System {script_type} script not found at '{system_path}'",
+                field= "robot_script" if script_type =="robot" else "python_script"
+            )
+
+        with open(system_path, "rb") as f:
+            content = f.read()
+
+        extracted_description = None
+
+        if script_type == "python":
+            validate_python_import(content)
+            if extract_description:
+                extracted_description = extract_description_from_python(content)
+
+        # DO NOT rewrite
+        relative_path = os.path.relpath(system_path, settings.MEDIA_ROOT)
+
+        return relative_path, extracted_description
+    
     if not source:
         return None, None
 
@@ -371,6 +400,11 @@ def store_script(
     return relative_path, extracted_description
 
 class TestCasesResource(resources.ModelResource):
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+
     category= fields.Field(
         column_name="category_name",
         attribute="category",
@@ -401,6 +435,7 @@ class TestCasesResource(resources.ModelResource):
             "is_configuration_push_required",
             "robot_script",
             "python_script",
+            "is_system_test_case"
             # "file"
         )
         export_order = (
@@ -415,7 +450,8 @@ class TestCasesResource(resources.ModelResource):
             # "file"
             "is_configuration_push_required",
             "robot_script",
-            "python_script"
+            "python_script",
+            "is_system_test_case",
         )
     
    
@@ -464,6 +500,12 @@ class TestCasesResource(resources.ModelResource):
         
         test_case_id = row.get("test_case_id")
         test_type_from_file = row.get("test_type")
+        system_generated = row.get("is_system_test_case")
+        if system_generated:
+            if not self.user or not self.user.is_superuser:
+                raise Exception(
+                    f"Non-superuser cannot import system test case: {test_case_id}"
+                )
         if test_type_from_file == "Device":
             row["robot_script"]= None
         else:
@@ -471,13 +513,14 @@ class TestCasesResource(resources.ModelResource):
                 row.get("robot_script"),
                 test_case_id=test_case_id,
                 script_type="robot",
+                system_generated= system_generated,
             )
-
         python_path, extracted_description = store_script(
             row.get("python_script"),
             test_case_id=test_case_id,
             script_type="python",
             extract_description=True,
+            system_generated= system_generated,
         )
 
         row["python_script"] = python_path
@@ -1160,13 +1203,21 @@ class TestCaseAdminForm(forms.ModelForm):
         except Exception as e:
             return False, f"Error validating Python file: {str(e)}" ,"python_ast"
 
+    def get_system_python_script(self, test_case_id):
+        return f"test_case/{test_case_id}.py"
+
+    def get_system_robot_script(self, test_case_id):
+        return f"test_case_robot/{test_case_id}.robot"
+    
     def clean(self):
         cleaned_data = super().clean()
         test_type = cleaned_data.get("test_type")
         python_script = cleaned_data.get("python_script")
         robot_script = cleaned_data.get("robot_script")
         test_case_id = cleaned_data.get("test_case_id")
-        
+        is_system_test_case = cleaned_data.get("is_system_test_case")
+        is_superuser= self.request.user.is_superuser
+
         # Validate Python script
         if python_script:
             if not python_script.name.endswith(".py"):
@@ -1178,13 +1229,18 @@ class TestCaseAdminForm(forms.ModelForm):
                         "python_script",
                         f"Python validation failed:\n{error_msg}"
                     )
+        elif is_superuser and test_case_id and is_system_test_case:
+            cleaned_data["python_script"]= self.get_system_python_script(test_case_id)
         else:
             self.add_error("python_script", "Python Script is Required.")
         
         # Robot Framework validation
         if test_type == TestTypeChoices.ROBOT_FRAMEWORK:
             if not robot_script:
-                self.add_error("robot_script", "Robot Script is Required for Robot Framework.")
+                if is_superuser and test_case_id and is_system_test_case:
+                    cleaned_data["robot_script"]= self.get_system_robot_script(test_case_id)
+                else:
+                    self.add_error("robot_script", "Robot Script is Required for Robot Framework.")
             elif not robot_script.name.endswith(".robot"):
                 self.add_error("robot_script", "Only .robot files allowed.")
             else:
@@ -1352,6 +1408,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         "name",
         "test_case_id",
         "test_type",  # ADD THIS
+        "is_system_test_case",
         "robot_script",
         "python_script",
         "params",  # ADD THIS - NEW FIELD
@@ -1435,54 +1492,56 @@ class TestCaseAdmin(BaseVersionAdmin):
     test_script_guidelines.short_description = "Guidelines"
 
     def get_fieldsets(self, request, obj=None):
-     guidelines_url = static("guidelines/test_script_guidelines.docx")
-     
-     fieldsets = [
-          (
-               None,
-               {
-                    "fields": (
-                         "category",
-                         "name",
-                         "test_case_id",
-                         "test_type",
-                    )
-               },
-          ),
-          (
-                format_html(
-                    '<div style="display:flex; justify-content:space-between; align-items:center;">'
-                    '<span>{}</span>'
-                    '<a href="{}" download class="guidelines-link">'
-                    'Download Test Script Guidelines'
-                    '</a>'
-                    '</div>',
-                    _("Test Scripts"),
-                    guidelines_url,
-                ),
-               {
-                    "fields": (
-                         "robot_script",
-                         "python_script",
+        guidelines_url = static("guidelines/test_script_guidelines.docx")
+        base_fields= [
+            "category",
+            "name",
+            "test_case_id",
+            "test_type",
+        ]
+        if request.user.is_superuser:
+            base_fields.append("is_system_test_case")
+        fieldsets = [
+            (
+                None,
+                {
+                        "fields": tuple(base_fields)
+                },
+            ),
+            (
+                    format_html(
+                        '<div style="display:flex; justify-content:space-between; align-items:center;">'
+                        '<span>{}</span>'
+                        '<a href="{}" download class="guidelines-link">'
+                        'Download Test Script Guidelines'
+                        '</a>'
+                        '</div>',
+                        _("Test Scripts"),
+                        guidelines_url,
                     ),
-                    
-               },
-          ),
-          (
-               _("Additional Details"),
-               {
-                    "fields": (
-                         "params",
-                         "json_file",
-                         "description",
-                         "is_active",
-                         "is_configuration_push_required",
-                    ),
-               },
-          ),
-     ]
+                {
+                        "fields": (
+                            "robot_script",
+                            "python_script",
+                        ),
+                        
+                },
+            ),
+            (
+                _("Additional Details"),
+                {
+                        "fields": (
+                            "params",
+                            "json_file",
+                            "description",
+                            "is_active",
+                            "is_configuration_push_required",
+                        ),
+                },
+            ),
+        ]
 
-     return fieldsets
+        return fieldsets
 
     # def get_readonly_fields(self, request, obj=None):
     #     fields = list(super().get_readonly_fields(request, obj))
@@ -1510,7 +1569,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         return True
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
-        
+        form.request= request
         # Category field
         if "category" in form.base_fields:
             form.base_fields["category"].help_text = _(
@@ -1737,6 +1796,9 @@ class TestCasesExportable(ImportExportMixin, TestCaseAdmin):
     resource_class= TestCasesResource
     actions = TestCaseAdmin.actions + ["export_selected_redirect" ]
 
+    def get_import_resource_kwargs(self, request, *args, **kwargs):
+        return {"user": request.user}
+    
     def export_selected_redirect(self, request, queryset):
         """
             this function help to navigate to export page from actions

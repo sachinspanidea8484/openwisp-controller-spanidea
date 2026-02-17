@@ -795,6 +795,7 @@ class TestCaseSerializer(ValidatedModelSerializer):
             "is_active",
             "is_configuration_push_required",
             "script_push_status",
+            "is_system_test_case",
             "created", 
             "modified",
             "created_by",
@@ -810,22 +811,34 @@ class TestCaseSerializer(ValidatedModelSerializer):
         """
         Reuse model clean() logic (same as admin)
         """
+        request = self.context.get("request")
+        user = request.user if request else None
+
         if self.instance and "test_case_id" in attrs:
             if attrs["test_case_id"] != self.instance.test_case_id:
                 raise serializers.ValidationError({
                     "test_case_id": "Test Case ID cannot be modified after creation."
                 })  
+            
         if self.instance:
             instance = self.instance
             for attr, value in attrs.items():
                 setattr(instance, attr, value)
         else:
             instance = TestCase(**attrs)
+        
+        if "is_system_test_case" in attrs:
+            if not user or not user.is_superuser:
+                raise serializers.ValidationError({
+                    "is_system_test_case": "Only superusers can set this field."
+                })
+
         try:
             instance.clean()
         except ValidationError as e:
             raise serializers.ValidationError(e.message_dict)
         
+        is_system_test_case= attrs.get("is_system_test_case", instance.is_system_test_case)
         test_type = attrs.get(
         "test_type",
         instance.test_type if self.instance else None
@@ -844,9 +857,19 @@ class TestCaseSerializer(ValidatedModelSerializer):
         )
         # ✅ DEVICE test
         if not python_script:
-            raise serializers.ValidationError({
-                "python_script": "Python script is required for Device and robot tests."
-            })
+            if (
+                user
+                and user.is_superuser
+                and is_system_test_case
+                and test_case_id
+            ):
+                python_script = f"test_case/{test_case_id}.py"
+                attrs["python_script"] = python_script
+            else:
+                raise serializers.ValidationError({
+                    "python_script": "Python script is required."
+                })
+
         if test_type == TestTypeChoices.AGENT:
             if robot_script:
                 raise serializers.ValidationError({
@@ -856,12 +879,22 @@ class TestCaseSerializer(ValidatedModelSerializer):
         # ✅ ROBOT test
         if test_type == TestTypeChoices.ROBOT_FRAMEWORK:
             if not robot_script:
-                raise serializers.ValidationError({
-                    "robot_script": "Robot script is required for Robot tests."
-                })
+                if (
+                    user
+                    and user.is_superuser
+                    and is_system_test_case
+                    and test_case_id
+                ):
+                    robot_script = f"test_case_robot/{test_case_id}.robot"
+                    attrs["robot_script"] = robot_script
+                    return attrs
+                else:
+                    raise serializers.ValidationError({
+                        "robot_script": "Robot script is required for Robot tests."
+                    })
             
             attrs["robot_script"] = update_robot_file_tag(
-                robot_script,
+                attrs["robot_script"],
                 test_case_id
             )
 

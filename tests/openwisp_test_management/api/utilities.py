@@ -164,12 +164,19 @@ def validate_robot_import(file_path):
     )
 
 
+def _get_system_script_path(test_case_id, script_type):
+    if script_type == "robot":
+        return os.path.join(settings.MEDIA_ROOT, "test_case_robot", f"{test_case_id}.robot")
+    return os.path.join(settings.MEDIA_ROOT, "test_case", f"{test_case_id}.py")
+
+
 def store_script(
     source,
     *,
     test_case_id,
     script_type,  # "robot" | "python"
     extract_description=False,
+    system_generated=False,
 ):
     """
     Stores script in a deterministic location with deterministic filename.
@@ -179,7 +186,30 @@ def store_script(
     - Server-hosted URLs
     - Relative MEDIA paths
     """
+    if system_generated:
+        system_path = _get_system_script_path(test_case_id, script_type)
 
+        if not os.path.exists(system_path):
+            raise ValidationError(
+                f"System {script_type} script not found at '{system_path}'",
+                field= "robot_script" if script_type =="robot" else "python_script"
+            )
+
+        with open(system_path, "rb") as f:
+            content = f.read()
+
+        extracted_description = None
+
+        if script_type == "python":
+            validate_python_import(content)
+            if extract_description:
+                extracted_description = extract_description_from_python(content)
+
+        # DO NOT rewrite
+        relative_path = os.path.relpath(system_path, settings.MEDIA_ROOT)
+
+        return relative_path, extracted_description
+    
     if not source:
         return None, None
 
@@ -345,6 +375,11 @@ TestCategory = load_model("TestCategory")
 TestCase = load_model("TestCase")
 
 class TestCasesResource(resources.ModelResource):
+    
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+
     category= fields.Field(
         column_name="category_name",
         attribute="category",
@@ -375,6 +410,7 @@ class TestCasesResource(resources.ModelResource):
             "is_configuration_push_required",
             "robot_script",
             "python_script",
+            "is_system_test_case"
             # "file"
         )
         export_order = (
@@ -389,7 +425,8 @@ class TestCasesResource(resources.ModelResource):
             # "file"
             "is_configuration_push_required",
             "robot_script",
-            "python_script"
+            "python_script",
+            "is_system_test_case"
         )
     
    
@@ -438,6 +475,12 @@ class TestCasesResource(resources.ModelResource):
         
         test_case_id = row.get("test_case_id")
         test_type_from_file = row.get("test_type")
+        system_generated = row.get("is_system_test_case")
+        if system_generated:
+            if not self.user or not self.user.is_superuser:
+                raise Exception(
+                    f"Non-superuser cannot import system test case: {test_case_id}"
+                )
         if test_type_from_file == "Device":
             row["robot_script"]= None
         else:
@@ -445,6 +488,7 @@ class TestCasesResource(resources.ModelResource):
                 row.get("robot_script"),
                 test_case_id=test_case_id,
                 script_type="robot",
+                system_generated= system_generated,
             )
 
         python_path, extracted_description = store_script(
@@ -452,6 +496,7 @@ class TestCasesResource(resources.ModelResource):
             test_case_id=test_case_id,
             script_type="python",
             extract_description=True,
+            system_generated= system_generated,
         )
 
         row["python_script"] = python_path
