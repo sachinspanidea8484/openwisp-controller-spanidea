@@ -2,7 +2,8 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from openwisp_utils.api.serializers import ValidatedModelSerializer
 from ..swapper import load_model
-
+from django.conf import settings
+import os
 from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Device
 from openwisp_users.models import Organization
@@ -863,7 +864,14 @@ class TestCaseSerializer(ValidatedModelSerializer):
                 and is_system_test_case
                 and test_case_id
             ):
-                python_script = f"test_case/{test_case_id}.py"
+                rel_path= f"test_case/{test_case_id}.py"
+                abs_path= os.path.join(settings.MEDIA_ROOT, rel_path)
+                if not os.path.exists(abs_path):
+                    raise serializers.ValidationError(
+                        _("System Python script not found for the test case with id '%(id)s' "),
+                        params={"id": test_case_id},
+                    )
+                python_script = rel_path
                 attrs["python_script"] = python_script
             else:
                 raise serializers.ValidationError({
@@ -885,7 +893,14 @@ class TestCaseSerializer(ValidatedModelSerializer):
                     and is_system_test_case
                     and test_case_id
                 ):
-                    robot_script = f"test_case_robot/{test_case_id}.robot"
+                    rel_path= f"test_case_robot/{test_case_id}.robot"
+                    abs_path= os.path.join(settings.MEDIA_ROOT, rel_path)
+                    if not os.path.exists(abs_path):
+                        raise serializers.ValidationError(
+                            _("System Robot Framework script not found for the test case with id '%(id)s' "),
+                            params={"id": test_case_id},
+                        )
+                    robot_script = rel_path
                     attrs["robot_script"] = robot_script
                     return attrs
                 else:
