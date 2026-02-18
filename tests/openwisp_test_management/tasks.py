@@ -33,19 +33,7 @@ import time
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)  # Capture all levels
 
-# LOG_FILE_PATH = "/var/log/openwisp/openwisp_test_management.log"
 LOG_FILE_PATH = "/opt/openwisp/logs/openwisp_test_management.log"
-
-# Configure logger for this module
-# os.makedirs(os.path.dirname(LOG_FILE_PATH), exist_ok=True)
-
-
-
-# File handler
-# file_handler = logging.FileHandler(LOG_FILE_PATH, mode='a')
-# file_handler.setLevel(logging.DEBUG)
-# file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-# logger.addHandler(file_handler)
 
 # Load models using swapper pattern for better modularity
 TestSuiteExecution = load_model("TestSuiteExecution")
@@ -57,8 +45,6 @@ TestCase= load_model("TestCase")
 ExecutionArtifact= load_model("ExecutionArtifact")
 ExecutionEmailLog = load_model("ExecutionEmailLog")
 
-# Device Execution Type Configuration
-DEVICE_EXECUTION_TYPE = 1 # 1 for SSH, 0 for MQTT (default is SSH)
 
 # ============================================================================
 # CONSTANTS & CONFIGURATION
@@ -93,7 +79,6 @@ def execute_test_suite(execution_id):
         Exception: Logs any errors that occur during execution setup
     """
     logger.info(f"Starting test suite execution with ID: {execution_id}")
-    # print(f"🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️: {execution_id})")
     try:
         # Retrieve the test suite execution record
         execution = TestSuiteExecution.objects.get(pk=execution_id)
@@ -183,42 +168,6 @@ def execute_tests_on_device(device_execution_id):
         
         logger.info(f"Updated device execution status to 'running' at {device_execution.started_at}")
         print(f"[TASK] execute_tests_on_device - Updated status to 'running' at {device_execution.started_at}")
-        
-        # Check device connection based on protocol
-        # device_conn = None
-        # has_connection = False
-        # connection_error = None
-        
-        # For SSH (protocol = 1), connection is required
-        # if device_execution_connection_protocol == 1:
-        #     try:
-        #         device_conn = DeviceConnection.get_working_connection(device)
-        #         has_connection = True
-        #         logger.info(f"Found working SSH connection: {device_conn}")
-        #         print(f"[TASK] execute_tests_on_device - Found working SSH connection: {device_conn}")
-                    
-        #     except DeviceConnection.DoesNotExist:
-        #         connection_error = f"SSH connection required but not found for device {device.name}"
-        #         logger.error(connection_error)
-        #         print(f"[ERROR] execute_tests_on_device - {connection_error}")
-                
-        #     except Exception as e:
-        #         connection_error = f"Device {device.name} is unreachable via SSH: {str(e)}"
-        #         logger.error(connection_error)
-        #         print(f"[ERROR] execute_tests_on_device - {connection_error}")
-        
-        # # For MQTT (protocol = 0), connection is optional
-        # else:
-        #     try:
-        #         device_conn = DeviceConnection.get_working_connection(device)
-        #         has_connection = True
-        #         logger.info(f"Found working MQTT connection: {device_conn}")
-        #         print(f"[TASK] execute_tests_on_device - Found working MQTT connection: {device_conn}")
-        #     except:
-        #         # For MQTT, no connection is acceptable
-        #         logger.info(f"No connection found for MQTT device {device.name}, proceeding without it")
-        #         print(f"[TASK] execute_tests_on_device - MQTT device, no connection required")
-         
 
         cred_info = DeviceConnection.get_credentials(device)
         device_conn = cred_info['connection']
@@ -236,8 +185,7 @@ def execute_tests_on_device(device_execution_id):
             test_cases= [
                 testcase_map[tc_id] for tc_id in ordered_ids if tc_id in testcase_map
             ]
-           
-            # test_cases= test_suite_execution.individual_test_cases.all()
+
         total_test_cases = len(test_cases)
         
         logger.info(f"Retrieved {total_test_cases} test cases from test suite")
@@ -290,7 +238,7 @@ def execute_tests_on_device(device_execution_id):
             all_test_execution_ids.append(test_execution.id)
             
             if test_execution and test_execution.id:
-                print(f"✅ Successfully created TestCaseExecution with ID: {test_execution.id}")
+                print(f"Successfully created TestCaseExecution with ID: {test_execution.id}")
            
             artifact= ExecutionArtifact.objects.filter(
              device= device,
@@ -298,7 +246,7 @@ def execute_tests_on_device(device_execution_id):
              execution= test_suite_execution
             ).only("config_file", "is_pushed").first()
 
-            # ✅ NEW: Prepare file parameters
+            # NEW: Prepare file parameters
             is_file_required = test_case.is_configuration_push_required
             file_download_url = None
 
@@ -326,8 +274,8 @@ def execute_tests_on_device(device_execution_id):
                 "test_type": test_case.test_type,
                 "params": test_case.params,
                 "execution_id": test_execution.id,
-                "is_file_required": is_file_required,  # ✅ NEW
-                "file_download_url": file_download_url  # ✅ NEW
+                "is_file_required": is_file_required,  # NEW
+                "file_download_url": file_download_url  # NEW
             })
             
             logger.debug(f"Created TestCaseExecution ID: {test_execution.id}")
@@ -351,12 +299,6 @@ def execute_tests_on_device(device_execution_id):
         else:
                 logger.warning("No tests found to execute")
                 print(f"[WARNING] execute_tests_on_device - No tests found")
-        
-        # Start completion checking
-        logger.info("Starting completion checking process")
-        print(f"[TASK] execute_tests_on_device - Starting completion checking")
-        # check_device_execution_completion.delay(device_execution_id)
-        # check_execution_completion.delay(device_execution_id)
         
     except TestSuiteExecutionDevice.DoesNotExist:
         error_msg = f"Device execution with ID {device_execution_id} not found"
@@ -391,7 +333,7 @@ def execute_selected_tests_in_test_execution(execution_id, device_tests_info_lis
     
     Args:
         execution_id (int): Primary key of the TestSuiteExecution record
-        exedevice_tests_info_listcution_id (list): device tests list
+        device_tests_info_list (list): device tests list
         
     Returns:
         None
@@ -400,7 +342,6 @@ def execute_selected_tests_in_test_execution(execution_id, device_tests_info_lis
         Exception: Logs any errors that occur during execution setup
     """
     logger.info(f"Starting selected tests for execution with ID: {execution_id}")
-    # print(f"🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️: {execution_id})")
     try:
         # Retrieve the test suite execution record
         execution = TestSuiteExecution.objects.get(pk=execution_id)
@@ -549,7 +490,7 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
             all_test_execution_ids.append(test_execution.id)
             
             if test_execution and test_execution.id:
-                print(f"✅ Successfully created TestCaseExecution with ID: {test_execution.id}")
+                print(f"Successfully created TestCaseExecution with ID: {test_execution.id}")
             
             artifact= ExecutionArtifact.objects.filter(
              device= device,
@@ -557,7 +498,7 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
              execution= test_suite_execution
             ).only("config_file", "is_pushed").first()
 
-            # ✅ NEW: Prepare file parameters
+            # NEW: Prepare file parameters
             is_file_required = test_case.is_configuration_push_required
             file_download_url = None
 
@@ -584,8 +525,8 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
                 "test_type": test_case.test_type,
                 "params": test_case.params,
                 "execution_id": test_execution.id,
-                "is_file_required": is_file_required,  # ✅ NEW
-                "file_download_url": file_download_url  # ✅ NEW
+                "is_file_required": is_file_required,  # NEW
+                "file_download_url": file_download_url  # NEW
             })
             
             logger.debug(f"Created TestCaseExecution ID: {test_execution.id}")
@@ -741,20 +682,20 @@ def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite
     print(f"\n[DEBUG] API Payload prepared")
     executor_api_url = f"{EXECUTOR_SERVER_IP}/api/v1/run-test/"
     
-    print(f"\n🔍 [DEBUG] Making API Call:")
-    print(f"📍 [DEBUG] API URL: {executor_api_url}")
-    print(f"📮 [DEBUG] Method: POST")
-    print(f"⏱️  [DEBUG] Timeout: 300 seconds")
+    print(f"\n[DEBUG] Making API Call:")
+    print(f"[DEBUG] API URL: {executor_api_url}")
+    print(f"[DEBUG] Method: POST")
+    print(f"[DEBUG] Timeout: 300 seconds")
     
     # Check if API is reachable first
     try:
-        print(f"🔄 [DEBUG] Checking if executor server is reachable....")
+        print(f"[DEBUG] Checking if executor server is reachable....")
         base_url = executor_api_url.rsplit('/', 2)[0]
         test_response = requests.get(base_url, timeout=60)
-        print(f"✅ [DEBUG] Executor server is reachable at {base_url}")
+        print(f"[DEBUG] Executor server is reachable at {base_url}")
     except Exception as e:
-        print(f"❌ [ERROR] Cannot reach executor server: {e}")
-        print(f"⚠️  [ERROR] Make sure the server at {executor_api_url} is running")
+        print(f"[ERROR] Cannot reach executor server: {e}")
+        print(f"[ERROR] Make sure the server at {executor_api_url} is running")
         
         # Mark all tests as failed
         for exec_id in test_execution_ids:
@@ -790,7 +731,7 @@ def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite
         
         if response.status_code == 200:
             logger.info("Executor server API called successfully")
-            print(f"\n[DEBUG] ✅ API call successful! Tests submitted to executor server")
+            print(f"\n[DEBUG] API call successful! Tests submitted to executor server")
             
             # Update test execution records to running (optional - executor can do this)
             for idx, exec_id in enumerate(test_execution_ids, 1):
@@ -801,16 +742,16 @@ def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite
                     print(f"[DEBUG] Test execution {exec_id} submitted to executor")
                     
                 except TestCaseExecution.DoesNotExist:
-                    print(f"[DEBUG] ❌ Test execution {exec_id} not found in database!")
+                    print(f"[DEBUG] Test execution {exec_id} not found in database!")
                     logger.error(f"Test execution {exec_id} not found")
                     
                 except Exception as e:
-                    print(f"[DEBUG] ❌ Error with test execution {exec_id}: {str(e)}")
+                    print(f"[DEBUG] Error with test execution {exec_id}: {str(e)}")
                     logger.error(f"Error with test execution {exec_id}: {str(e)}")
                     
         else:
             logger.error(f"Executor server API call failed: {response.status_code}")
-            print(f"\n[DEBUG] ❌ API call failed! Status: {response.status_code}")
+            print(f"\n[DEBUG] API call failed! Status: {response.status_code}")
             print(f"[DEBUG] Marking all tests as failed...")
             
             # Mark tests as failed
@@ -823,14 +764,14 @@ def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite
                     test_exec.completed_at = timezone.now()
                     test_exec.save()
                     
-                    print(f"[DEBUG] ✅ Marked test execution {exec_id} as FAILED")
+                    print(f"[DEBUG] Marked test execution {exec_id} as FAILED")
                     
                 except Exception as e:
-                    print(f"[DEBUG] ❌ Error updating failed test {exec_id}: {str(e)}")
+                    print(f"[DEBUG] Error updating failed test {exec_id}: {str(e)}")
                     logger.error(f"Error updating failed test {exec_id}: {str(e)}")
                     
     except requests.exceptions.Timeout:
-        print(f"\n[DEBUG] ❌ API call timed out!")
+        print(f"\n[DEBUG] API call timed out!")
         logger.error("Executor server API call timed out")
         
         # Mark all tests as failed due to timeout
@@ -846,7 +787,7 @@ def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite
                 print(f"[DEBUG] Error updating test {exec_id} after timeout: {str(e)}")
                 
     except Exception as e:
-        print(f"\n[DEBUG] ❌ Unexpected error calling executor server API!")
+        print(f"\n[DEBUG] Unexpected error calling executor server API!")
         print(f"[DEBUG] Error type: {type(e).__name__}")
         print(f"[DEBUG] Error message: {str(e)}")
         
@@ -866,6 +807,7 @@ def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite
     
     print(f"\n[DEBUG] Executor server test execution task completed")
     print(f"{'='*80}\n")
+
 @shared_task
 def retry_test_execution(test_execution_id):
     """
@@ -946,7 +888,7 @@ def retry_test_execution(test_execution_id):
          execution= test_suite_execution
         ).only("config_file", "is_pushed").first()
 
-        # ✅ NEW: Prepare file parameters
+        # NEW: Prepare file parameters
         is_file_required = test_case.is_configuration_push_required
         file_download_url = None
 
@@ -970,8 +912,8 @@ def retry_test_execution(test_execution_id):
                 "test_type": test_case.test_type,
                 "params": test_case.params,
                 "execution_id": test_execution_id,
-                "is_file_required": is_file_required,  # ✅ NEW
-                "file_download_url": file_download_url  # ✅ NEW
+                "is_file_required": is_file_required,  # NEW
+                "file_download_url": file_download_url  # NEW
             }]
         }
         
@@ -1008,13 +950,13 @@ def abort_device_pending_tests(test_group_execution_id, device_id):
         }
         # Check if API is reachable first
         try:
-            print(f"🔄 [DEBUG] Checking if executor server is reachable....")
+            print(f"[DEBUG] Checking if executor server is reachable....")
             base_url = abort_pending_tests_api_url.rsplit('/', 2)[0]
             test_response = requests.get(base_url, timeout=60)
-            print(f"✅ [DEBUG] Executor server is reachable at {base_url}")
+            print(f"[DEBUG] Executor server is reachable at {base_url}")
         except Exception as e:
-            print(f"❌ [ERROR] Cannot reach executor server: {e}")
-            print(f"⚠️  [ERROR] Make sure the server at {abort_pending_tests_api_url} is running")
+            print(f"[ERROR] Cannot reach executor server: {e}")
+            print(f"[ERROR] Make sure the server at {abort_pending_tests_api_url} is running")
             return
 
         print(f"[DEBUG] Sending abort pending tests request to executor server...")
@@ -1035,10 +977,10 @@ def abort_device_pending_tests(test_group_execution_id, device_id):
         
         if response.status_code == 200:
             logger.info("Executor server API called successfully")
-            print(f"\n[DEBUG] ✅ API call successful! Tests submitted to executor server")
+            print(f"\n[DEBUG] API call successful! Tests submitted to executor server")
         else:
             logger.error(f"Executor server API call failed: {response.status_code}")
-            print(f"\n[DEBUG] ❌ API call failed! Status: {response.status_code}")
+            print(f"\n[DEBUG] API call failed! Status: {response.status_code}")
     except Exception as e:
         logger.error(f"Error aborting pending tests for device execution {device_id }: {str(e)}")
         print(f"[ERROR] abort_device_pending_tests - Error: {str(e)}")
@@ -1104,20 +1046,20 @@ def abort_test_execution(test_execution_id):
         print(f"\n[DEBUG] API Payload prepared")
         abort_api_url = f"{EXECUTOR_SERVER_IP}/api/v1/abort-test/"
     
-        print(f"\n🔍 [DEBUG] Making API Call:")
-        print(f"📍 [DEBUG] API URL: {abort_api_url}")
-        print(f"📮 [DEBUG] Method: POST")
-        print(f"⏱️  [DEBUG] Timeout: 300 seconds")
+        print(f"\n[DEBUG] Making API Call:")
+        print(f"[DEBUG] API URL: {abort_api_url}")
+        print(f"[DEBUG] Method: POST")
+        print(f"[DEBUG] Timeout: 300 seconds")
     
         # Check if API is reachable first
         try:
-            print(f"🔄 [DEBUG] Checking if executor server is reachable....")
+            print(f"[DEBUG] Checking if executor server is reachable....")
             base_url = abort_api_url.rsplit('/', 2)[0]
             test_response = requests.get(base_url, timeout=60)
-            print(f"✅ [DEBUG] Executor server is reachable at {base_url}")
+            print(f"[DEBUG] Executor server is reachable at {base_url}")
         except Exception as e:
-            print(f"❌ [ERROR] Cannot reach executor server: {e}")
-            print(f"⚠️  [ERROR] Make sure the server at {abort_api_url} is running")
+            print(f"[ERROR] Cannot reach executor server: {e}")
+            print(f"[ERROR] Make sure the server at {abort_api_url} is running")
         
         # Mark all tests as failed
             try:
@@ -1152,12 +1094,12 @@ def abort_test_execution(test_execution_id):
         
             if response.status_code == 200:
                 logger.info("Executor server API called successfully")
-                print(f"\n[DEBUG] ✅ API call successful! Tests submitted to executor server")
+                print(f"\n[DEBUG] API call successful! Tests submitted to executor server")
                 
                     
             else:
                 logger.error(f"Executor server API call failed: {response.status_code}")
-                print(f"\n[DEBUG] ❌ API call failed! Status: {response.status_code}")
+                print(f"\n[DEBUG] API call failed! Status: {response.status_code}")
                 print(f"[DEBUG] Marking all tests as failed...")
                 
                 # Mark tests as failed
@@ -1168,14 +1110,14 @@ def abort_test_execution(test_execution_id):
                     test_execution.completed_at = timezone.now()
                     test_execution.save()
                     
-                    print(f"[DEBUG] ✅ Marked test execution {test_execution_id} as FAILED")
+                    print(f"[DEBUG] Marked test execution {test_execution_id} as FAILED")
                     
                 except Exception as e:
-                    print(f"[DEBUG] ❌ Error updating failed test {test_execution_id}: {str(e)}")
+                    print(f"[DEBUG] Error updating failed test {test_execution_id}: {str(e)}")
                     logger.error(f"Error updating failed test {test_execution_id}: {str(e)}")
                     
         except requests.exceptions.Timeout:
-            print(f"\n[DEBUG] ❌ API call timed out!")
+            print(f"\n[DEBUG] API call timed out!")
             logger.error("Executor server API call timed out")
         
             # Mark all tests as failed due to timeout
@@ -1189,7 +1131,7 @@ def abort_test_execution(test_execution_id):
                 print(f"[DEBUG] Error updating test {test_execution_id} after timeout: {str(e)}")
                 
         except Exception as e:
-            print(f"\n[DEBUG] ❌ Unexpected error calling executor server API!")
+            print(f"\n[DEBUG] Unexpected error calling executor server API!")
             print(f"[DEBUG] Error type: {type(e).__name__}")
             print(f"[DEBUG] Error message: {str(e)}")
             
@@ -1248,9 +1190,6 @@ def timeout_stuck_tests():
     logger.info("Starting check for pending Device Agent tests")
     print(f"[TASK] timeout_stuck_tests - Checking for pending Device Agent tests")
 
-
-    # reachable = ping_host("127.0.0.1")
-
     TestCaseExecution = load_model("TestCaseExecution")
 
     try:
@@ -1296,12 +1235,12 @@ def timeout_stuck_tests():
             # Step 2: Check HTTP accessibility
             api_url = f"http://{management_ip}/"
             try:
-                print(f"🔄 [DEBUG] Checking if HTTP server is reachable at {api_url}...")
+                print(f"[DEBUG] Checking if HTTP server is reachable at {api_url}...")
                 response = requests.get(api_url, timeout=10)
 
                 if response.status_code == 200:
                     logger.info(f"HTTP server reachable at {api_url}")
-                    print(f"[TASK] ✅ HTTP server reachable for device: {device.name}")
+                    print(f"[TASK] HTTP server reachable for device: {device.name}")
                 else:
                     logger.warning(f"HTTP check failed with status {response.status_code} for {device.name}")
                     print(f"[WARNING] HTTP check failed for {device.name} ({management_ip}), status {response.status_code}")
@@ -1588,343 +1527,6 @@ def cleanup_old_executions():
     return f"Cleaned up {deleted_count} records"
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## OLD 
-
-@shared_task
-def execute_single_test_case(test_execution_id, ssh_params, device_ip, device_execution_id):
-    """
-    Execute a single test case on a device via SSH or NB_API based on DEVICE_EXECUTION_TYPE.
-    """
-    print(f"✅✅✅  Successfully created TestCaseExecution with ID: {test_execution_id}")
-    
-    # Route to appropriate execution method based on DEVICE_EXECUTION_TYPE
-    if DEVICE_EXECUTION_TYPE == 1:
-        # SSH execution
-        execute_test_via_ssh(test_execution_id, ssh_params, device_ip, device_execution_id)
-    elif DEVICE_EXECUTION_TYPE == 2:
-        # NB_API execution
-        execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_execution_id)
-    else:
-        logger.error(f"Invalid DEVICE_EXECUTION_TYPE: {DEVICE_EXECUTION_TYPE}. Must be 1 (SSH) or 2 (NB_API)")
-        print(f"[ERROR] Invalid DEVICE_EXECUTION_TYPE: {DEVICE_EXECUTION_TYPE}")
-
-
-def execute_test_via_ssh(test_execution_id, ssh_params, device_ip, device_execution_id):
-    """
-    Execute a test case via SSH connection.
-    This is the original SSH-based execution logic.
-    """
-    try:
-        # Retrieve the test execution record
-        test_execution = TestCaseExecution.objects.get(pk=test_execution_id)
-        test_case = test_execution.test_case
-        
-        logger.info(f"Retrieved test execution: {test_execution}")
-        logger.info(f"Test case: {test_case.name} (ID: {test_case.test_case_id})")
-        print(f"[TASK] execute_test_via_ssh - Test case: {test_case.name} (ID: {test_case.test_case_id})")
-        print(f"[TASK] execute_test_via_ssh - Device: {test_execution.device.name}")
-        
-        # Update status to running
-        test_execution.status = TestExecutionStatus.RUNNING
-        test_execution.started_at = timezone.now()
-        test_execution.save()
-        
-        logger.info(f"Updated test execution status to 'running' at {test_execution.started_at}")
-        print(f"[TASK] execute_test_via_ssh - Updated status to 'running' at {test_execution.started_at}")
-        
-        # Create SSH connection for this specific test
-        logger.info(f"Creating SSH connection to {device_ip}")
-        print(f"[TASK] execute_test_via_ssh - Creating SSH connection to {device_ip}")
-        
-        ssh_conn = Ssh(ssh_params, [device_ip])
-        
-        try:
-            # Establish SSH connection
-            logger.info("Attempting to connect via SSH")
-            print(f"[TASK] execute_test_via_ssh - Attempting SSH connection")
-            
-            ssh_conn.connect()
-            
-            logger.info("SSH connection established successfully")
-            print(f"[TASK] execute_test_via_ssh - SSH connection established")
-            
-            # Prepare test execution command
-            test_path = f"/usr/bin/tests/Test_Cases/{test_case.test_case_id}/{test_case.test_case_id}.py"
-            print("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅")
-            print(test_path)
-            print("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅")
-
-            command = f"python3 {test_path}"
-            
-            logger.info(f"Executing test script: {command}")
-            print(f"[TASK] execute_test_via_ssh - Executing command: {command}")
-            
-            # Execute the test with timeout
-            logger.info(f"Starting test execution for {test_case.test_case_id} on {device_ip}")
-            print(f"[TASK] execute_test_via_ssh - Starting test execution")
-            
-            output, exit_code = ssh_conn.exec_command(
-                command,
-                timeout=86400,  # 1 day (24 hours) max per test
-                exit_codes=[0, 1, 2, 3, 4, 5],  # Accept multiple exit codes
-                raise_unexpected_exit=False
-            )
-            
-            logger.info(f"Test execution completed with exit code: {exit_code}")
-            print(f"[TASK] execute_test_via_ssh - Test completed with exit code: {exit_code}")
-            print(f"[TASK] execute_test_via_ssh - Output length: {len(output) if output else 0} characters")
-            
-            # Log output for debugging (truncated)
-            if output:
-                output_preview = output[:200] + "..." if len(output) > 200 else output
-                logger.debug(f"Test output preview: {output_preview}")
-                print(f"[DEBUG] execute_test_via_ssh - Output preview: {output_preview}")
-            
-            # Save results to database
-            test_execution.stdout = output
-            test_execution.exit_code = exit_code
-            test_execution.completed_at = timezone.now()
-            
-            # Determine test status based on exit code
-            if exit_code == 0:
-                test_execution.status = TestExecutionStatus.SUCCESS
-                logger.info(f"Test {test_case.test_case_id} PASSED")
-                print(f"[TASK] execute_test_via_ssh - Test {test_case.test_case_id} PASSED")
-            else:
-                test_execution.status = TestExecutionStatus.FAILED
-                logger.info(f"Test {test_case.test_case_id} FAILED with exit code {exit_code}")
-                print(f"[TASK] execute_test_via_ssh - Test {test_case.test_case_id} FAILED with exit code {exit_code}")
-                
-            test_execution.save()
-            
-            logger.info(f"Test execution results saved to database")
-            print(f"[TASK] execute_test_via_ssh - Results saved to database")
-            
-        except Exception as e:
-            error_msg = f"Error executing test {test_case.test_case_id}: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            print(f"[ERROR] execute_test_via_ssh - {error_msg}")
-            
-            # Update test execution with error
-            test_execution.status = TestExecutionStatus.FAILED
-            test_execution.error_message = str(e)
-            test_execution.completed_at = timezone.now()
-            test_execution.save()
-            
-            logger.info("Updated test execution with error status")
-            print(f"[TASK] execute_test_via_ssh - Updated with error status")
-            
-        finally:
-            # Always disconnect SSH connection
-            try:
-                logger.info("Disconnecting SSH connection")
-                print(f"[TASK] execute_test_via_ssh - Disconnecting SSH")
-                ssh_conn.disconnect()
-                logger.info("SSH connection disconnected")
-                print(f"[TASK] execute_test_via_ssh - SSH disconnected")
-            except Exception as disconnect_error:
-                logger.warning(f"Error disconnecting SSH: {disconnect_error}")
-                print(f"[WARNING] execute_test_via_ssh - Error disconnecting SSH: {disconnect_error}")
-        
-        # Check if all tests are done for this device
-        logger.info("Triggering device completion check")
-        print(f"[TASK] execute_test_via_ssh - Triggering completion check")
-        check_device_execution_completion.delay(device_execution_id)
-        
-    except TestCaseExecution.DoesNotExist:
-        error_msg = f"Test execution with ID {test_execution_id} not found"
-        logger.error(error_msg)
-        print(f"[ERROR] execute_test_via_ssh - {error_msg}")
-        
-    except Exception as e:
-        error_msg = f"Error in SSH test execution: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        print(f"[ERROR] execute_test_via_ssh - {error_msg}")
-
-
-def execute_test_via_nb_api(test_execution_id, ssh_params, device_ip, device_execution_id):
-    """
-    Execute a test case via NB_API.
-    Makes GET request to device's CGI endpoint and waits for completion.
-    """
-    try:
-        # Retrieve the test execution record
-        test_execution = TestCaseExecution.objects.get(pk=test_execution_id)
-        test_case = test_execution.test_case
-        
-        logger.info(f"Retrieved test execution for NB_API: {test_execution}")
-        logger.info(f"Test case: {test_case.name} (ID: {test_case.test_case_id})")
-        print(f"[TASK] execute_test_via_nb_api - Test case: {test_case.name} (ID: {test_case.test_case_id})")
-        print(f"[TASK] execute_test_via_nb_api - Device: {test_execution.device.name}")
-        
-        # Update status to running
-        # test_execution.status = TestExecutionStatus.RUNNING
-        # test_execution.started_at = timezone.now()
-        # test_execution.save()
-        
-        logger.info(f"Updated test execution status to 'running' at {test_execution.started_at}")
-        print(f"[TASK] execute_test_via_nb_api - Updated status to 'running'",device_ip)
-        
-        # Construct API URL
-        api_url = f"http://{device_ip}/cgi-bin/nb_script_runner.py?test_id={test_case.test_case_id}&execution_id={test_execution_id}"
-
-
-        try:
-             print(f"🔄 [DEBUG] Checking if API is reachable...")
-             base_url = api_url.rsplit('/', 2)[0]  # Get base URL
-             test_response = requests.get(base_url, timeout=60)
-             print(f"✅✅✅✅✅✅✅✅✅✅✅✅         ✅✅✅✅✅✅✅✅✅✅✅✅ [DEBUG] API server is reachable at {base_url}")
-        except Exception as e:
-             print(f"❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌ [ERROR] Cannot reach API server: {e}")
-             print(f"⚠️  [ERROR] Make sure the server at {api_url} is running")
-         # curl "http://10.10.10.20/cgi-bin/nb_script_runner.py?test_id=TestCase_001&execution_id=1001"
-
-        logger.info(f"NB_API URL: {api_url}")
-        print(f"[TASK] execute_test_via_nb_api - Calling API: {api_url}")
-        
-        try:
-            # Make GET request with no timeout (wait indefinitely)
-            # This ensures requests are processed sequentially on resource-limited devices
-            logger.info(f"Starting NB_API request for test {test_case.test_case_id}")
-            print(f"[TASK] execute_test_via_nb_api - Sending GET request (no timeout)")
-            
-            response = requests.get(
-                api_url,
-                timeout=300,  # No timeout - wait indefinitely
-                allow_redirects=True
-            )
-            
-            logger.info(f"NB_API response received. Status code: {response.status_code}")
-            print(f"[TASK] execute_test_via_nb_api - Response status: {response.status_code}")
-            
-            # Process response
-            # test_execution.stdout = response.text
-            # test_execution.completed_at = timezone.now()
-            
-            # Determine success based on HTTP status code
-            # if response.status_code == 200:
-            #     test_execution.status = TestExecutionStatus.SUCCESS
-            #     test_execution.exit_code = 0
-            #     logger.info(f"Test {test_case.test_case_id} PASSED via NB_API")
-            #     print(f"[TASK] execute_test_via_nb_api - Test PASSED")
-            # else:
-            #     test_execution.status = TestExecutionStatus.FAILED
-            #     test_execution.exit_code = response.status_code
-            #     test_execution.error_message = f"HTTP {response.status_code}: {response.reason}"
-            #     logger.warning(f"Test {test_case.test_case_id} FAILED with HTTP {response.status_code}")
-            #     print(f"[TASK] execute_test_via_nb_api - Test FAILED with HTTP {response.status_code}")
-            
-            # Log response details
-            if response.text:
-                output_preview = response.text[:200] + "..." if len(response.text) > 200 else response.text
-                logger.debug(f"Response preview: {output_preview}")
-                print(f"[DEBUG] execute_test_via_nb_api - Response preview: {output_preview}")
-            
-            # test_execution.save()
-            logger.info("Test execution results saved to database")
-            print(f"[TASK] execute_test_via_nb_api - Results saved")
-            
-        except requests.exceptions.ConnectionError as e:
-            error_msg = f"Failed to connect to device at {device_ip}: {str(e)}"
-            logger.error(error_msg)
-            print(f"[ERROR] execute_test_via_nb_api - Connection error: {error_msg}")
-            
-            test_execution.status = TestExecutionStatus.FAILED
-            test_execution.error_message = error_msg
-            test_execution.stdout = "Connection failed - device unreachable"
-            test_execution.exit_code = -1
-            test_execution.completed_at = timezone.now()
-            test_execution.save()
-            
-        except requests.exceptions.Timeout as e:
-            # This shouldn't happen with timeout=None, but handle it anyway
-            error_msg = f"Request timed out for test {test_case.test_case_id}: {str(e)}"
-            logger.error(error_msg)
-            print(f"[ERROR] execute_test_via_nb_api - Timeout: {error_msg}")
-            
-            # test_execution.status = TestExecutionStatus.TIMEOUT
-            test_execution.status = TestExecutionStatus.FAILED
-            test_execution.error_message = error_msg
-            test_execution.stdout = "Connection failed - device unreachable"
-            test_execution.exit_code = -2
-            test_execution.completed_at = timezone.now()
-            test_execution.save()
-            
-        except requests.exceptions.RequestException as e:
-            # Catch all other requests exceptions
-            error_msg = f"HTTP request failed for test {test_case.test_case_id}: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            print(f"[ERROR] execute_test_via_nb_api - Request error: {error_msg}")
-            
-            test_execution.status = TestExecutionStatus.FAILED
-            test_execution.error_message = error_msg
-            test_execution.stdout = f"HTTP request error: {type(e).__name__}"
-            test_execution.exit_code = -3
-            test_execution.completed_at = timezone.now()
-            test_execution.save()
-            
-        except Exception as e:
-            # Catch any other unexpected errors
-            error_msg = f"Unexpected error during NB_API execution: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            print(f"[ERROR] execute_test_via_nb_api - Unexpected error: {error_msg}")
-            
-            test_execution.status = TestExecutionStatus.FAILED
-            test_execution.error_message = error_msg
-            test_execution.stdout = "Unexpected error occurred"
-            test_execution.exit_code = -4
-            test_execution.completed_at = timezone.now()
-            test_execution.save()
-        
-        # Check if all tests are done for this device
-        logger.info("Triggering device completion check")
-        print(f"[TASK] execute_test_via_nb_api - Triggering completion check")
-        check_device_execution_completion.delay(device_execution_id)
-        
-    except TestCaseExecution.DoesNotExist:
-        error_msg = f"Test execution with ID {test_execution_id} not found"
-        logger.error(error_msg)
-        print(f"[ERROR] execute_test_via_nb_api - {error_msg}")
-        
-    except Exception as e:
-        error_msg = f"Error in NB_API test execution setup: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        print(f"[ERROR] execute_test_via_nb_api - {error_msg}")
-
-
 @shared_task
 def check_device_execution_completion(device_execution_id, retry_count=0):
     """
@@ -1964,13 +1566,6 @@ def check_device_execution_completion(device_execution_id, retry_count=0):
         logger.info(f"Retrieved device execution for device: {device_execution.device.name}")
         print(f"[TASK] check_device_execution_completion - Device: {device_execution.device.name}")
         
-        # Count pending/running tests for this device
-        # pending_or_running = TestCaseExecution.objects.filter(
-        #     test_suite_execution=test_suite_execution,
-        #     device=device_execution.device,
-        #     status__in=[TestExecutionStatus.PENDING, TestExecutionStatus.RUNNING],
-        # ).count()
-
         pending_or_running = TestCaseExecution.objects.filter(
          test_suite_execution=test_suite_execution,
          device=device_execution.device,
@@ -1988,7 +1583,6 @@ def check_device_execution_completion(device_execution_id, retry_count=0):
                 
                 check_device_execution_completion.apply_async(
                     args=[device_execution_id, retry_count + 1],
-                    # countdown=5  # Check again in 5 seconds
                     countdown=30  # Check again in 1 hour (3600 seconds)
 
                 )
@@ -2008,16 +1602,9 @@ def check_device_execution_completion(device_execution_id, retry_count=0):
         logger.info(f"All tests completed for device {device_execution.device.name}")
         print(f"[TASK] check_device_execution_completion - All tests completed for {device_execution.device.name}")
         
-        # Get all test executions for this device
-        # test_executions = TestCaseExecution.objects.filter(
-        #     test_suite_execution=test_suite_execution,
-        #     device=device_execution.device
-        # ).order_by('test_case__name')  # Order by name since we're not using execution_order
-        # With this:
         test_executions = TestCaseExecution.objects.filter(
           test_suite_execution=test_suite_execution,
           device=device_execution.device,
-          # test_case__test_type=2  # Remove this line
         ).order_by('test_case__name')
         
         total_executions = test_executions.count()
@@ -2053,7 +1640,7 @@ def check_device_execution_completion(device_execution_id, retry_count=0):
                 logger.debug(f"Test PASSED: {test_exec.test_case.name}")
                 print(f"[DEBUG] check_device_execution_completion - PASSED: {test_exec.test_case.name}")
 
-                print(f"🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️🖥️: {test_exec.stdout}")
+                print(f"{test_exec.stdout}")
 
                 
                 
@@ -2434,7 +2021,7 @@ def send_execution_completed_email(self, execution_id, created_by_id=None):
     3. Dispatches individual email tasks in batches
     """
     task_id = self.request.id
-    logger.info(f"[Task {task_id}] 📧 Starting email orchestration for Execution: {execution_id}")
+    logger.info(f"[Task {task_id}] Starting email orchestration for Execution: {execution_id}")
     
     lock_key = get_execution_lock_key(execution_id)
     
@@ -2539,7 +2126,7 @@ def send_execution_completed_email(self, execution_id, created_by_id=None):
                     email_address=email
                 ).update(celery_task_id=task.id)
         
-        logger.info(f"[Task {task_id}] ✅ Dispatched {len(pending_emails)} emails in {batch_count} batches")
+        logger.info(f"[Task {task_id}] Dispatched {len(pending_emails)} emails in {batch_count} batches")
         
         return {
             "status": "dispatched",
@@ -2548,7 +2135,7 @@ def send_execution_completed_email(self, execution_id, created_by_id=None):
         }
         
     except Exception as e:
-        logger.exception(f"[Task {task_id}] ❌ Failed to orchestrate emails: {str(e)}")
+        logger.exception(f"[Task {task_id}] Failed to orchestrate emails: {str(e)}")
         raise
     
     finally:
@@ -2579,7 +2166,7 @@ def send_single_execution_email(self, execution_id, email_address):
     4. Updating email log status
     """
     task_id = self.request.id
-    logger.info(f"[Task {task_id}] 📨 Sending email to {email_address} for execution {execution_id}")
+    logger.info(f"[Task {task_id}] Sending email to {email_address} for execution {execution_id}")
     
     # Acquire lock for this specific email
     lock_key = get_email_lock_key(execution_id, email_address)
@@ -2679,7 +2266,7 @@ def send_single_execution_email(self, execution_id, email_address):
             email_log.error_message = ""
             email_log.save(update_fields=['status', 'sent_at', 'error_message'])
             
-            logger.info(f"[Task {task_id}] ✅ Email sent successfully to {email_address}")
+            logger.info(f"[Task {task_id}] Email sent successfully to {email_address}")
             
             # Check if all emails for this execution are now sent
             check_and_update_execution_email_status.delay(execution_id)
@@ -2703,7 +2290,7 @@ def send_single_execution_email(self, execution_id, email_address):
                 return {"status": "failed", "error": error_msg}
             
     except Exception as e:
-        logger.exception(f"[Task {task_id}] ❌ Unexpected error sending to {email_address}: {str(e)}")
+        logger.exception(f"[Task {task_id}] Unexpected error sending to {email_address}: {str(e)}")
         raise
     
     finally:
@@ -2767,7 +2354,7 @@ def check_and_update_execution_email_status(self, execution_id):
             execution.save(update_fields=['completion_email_sent'])
             
             logger.info(
-                f"[Task {task_id}] ✅ Execution {execution_id} email completion marked. "
+                f"[Task {task_id}] Execution {execution_id} email completion marked. "
                 f"Sent: {sent_count}, Failed: {failed_count}"
             )
             
@@ -2803,7 +2390,7 @@ def retry_failed_emails(self, execution_id=None, max_age_hours=24):
     Can be called manually or scheduled as a periodic task.
     """
     task_id = self.request.id
-    logger.info(f"[Task {task_id}] 🔄 Retrying failed emails")
+    logger.info(f"[Task {task_id}] Retrying failed emails")
     
     cutoff_time = timezone.now() - timedelta(hours=max_age_hours)
     
@@ -2836,7 +2423,7 @@ def retry_failed_emails(self, execution_id=None, max_age_hours=24):
         )
         retried_count += 1
     
-    logger.info(f"[Task {task_id}] ✅ Queued {retried_count} emails for retry")
+    logger.info(f"[Task {task_id}] Queued {retried_count} emails for retry")
     
     return {"status": "retried", "count": retried_count}
 
@@ -2852,7 +2439,7 @@ def cleanup_old_email_logs(self, days_to_keep=30):
     Schedule this as a periodic task (e.g., weekly).
     """
     task_id = self.request.id
-    logger.info(f"[Task {task_id}] 🧹 Cleaning up email logs older than {days_to_keep} days")
+    logger.info(f"[Task {task_id}] Cleaning up email logs older than {days_to_keep} days")
     
     cutoff_date = timezone.now() - timedelta(days=days_to_keep)
     
@@ -2861,7 +2448,7 @@ def cleanup_old_email_logs(self, days_to_keep=30):
         status=ExecutionEmailLog.EmailStatus.SENT  # Only delete successful ones
     ).delete()
     
-    logger.info(f"[Task {task_id}] ✅ Deleted {deleted_count} old email logs")
+    logger.info(f"[Task {task_id}] Deleted {deleted_count} old email logs")
     
     return {"status": "cleaned", "deleted": deleted_count}
 
@@ -2877,7 +2464,7 @@ def send_bulk_execution_emails(self, execution_ids):
     Use this when you have 50+ executions to process.
     """
     task_id = self.request.id
-    logger.info(f"[Task {task_id}] 📧 Starting bulk email for {len(execution_ids)} executions")
+    logger.info(f"[Task {task_id}] Starting bulk email for {len(execution_ids)} executions")
     
     results = {
         'total': len(execution_ids),
@@ -2902,7 +2489,7 @@ def send_bulk_execution_emails(self, execution_ids):
             results['errors'] += 1
     
     logger.info(
-        f"[Task {task_id}] ✅ Bulk dispatch complete: "
+        f"[Task {task_id}] Bulk dispatch complete: "
         f"Dispatched={results['dispatched']}, Errors={results['errors']}"
     )
     
