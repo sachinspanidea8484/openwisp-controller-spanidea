@@ -201,3 +201,7 @@ docker compose down -v --remove-orphans
 - [Django Documentation](https://docs.djangoproject.com/)
 - [Celery Documentation](https://docs.celeryq.dev/)
 - [Docker Documentation](https://docs.docker.com/)
+
+
+
+
