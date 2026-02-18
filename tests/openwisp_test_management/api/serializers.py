@@ -8,7 +8,8 @@ from openwisp_controller.connection.models import DeviceConnection
 from openwisp_controller.config.models import Device
 from openwisp_users.models import Organization
 
-
+from django.core.validators import RegexValidator, MinLengthValidator, MaxLengthValidator
+from django.utils.translation import gettext_lazy as _
 
 from ..base.models import TestExecutionStatus  # ADD THIS IMPORT
 from ..swapper import load_model
@@ -779,6 +780,22 @@ class TestCaseSerializer(ValidatedModelSerializer):
     category_name = serializers.CharField(source="category.name", read_only=True)
     test_type_display = serializers.CharField(source='get_test_type_display', read_only=True)
 
+
+    test_case_id_validators = [
+        RegexValidator(
+            regex=r'^[A-Za-z][A-Za-z0-9_\-.:/]*$',
+            message=_(
+                "Test Case ID must start with a letter and contain only "
+                "letters, numbers, _, -, ., :, /"
+            ),
+        ),
+        MinLengthValidator(3, message=_("Test Case ID must be at least 3 characters long.")),
+        MaxLengthValidator(20, message=_("Test Case ID must not exceed 20 characters.")),
+    ]
+
+    test_case_id = serializers.CharField(
+        validators=test_case_id_validators
+    )
     class Meta:
         model = TestCase
         fields = [
@@ -867,9 +884,9 @@ class TestCaseSerializer(ValidatedModelSerializer):
                 rel_path= f"test_case/{test_case_id}.py"
                 abs_path= os.path.join(settings.MEDIA_ROOT, rel_path)
                 if not os.path.exists(abs_path):
-                    raise serializers.ValidationError(
-                        _("System Python script not found for the test case with id '%(id)s' "),
-                        params={"id": test_case_id},
+                    raise serializers.ValidationError({
+                        "python_script":f"System Python script not found for the given test case with id '{test_case_id}' "
+                    }  
                     )
                 python_script = rel_path
                 attrs["python_script"] = python_script
@@ -896,9 +913,9 @@ class TestCaseSerializer(ValidatedModelSerializer):
                     rel_path= f"test_case_robot/{test_case_id}.robot"
                     abs_path= os.path.join(settings.MEDIA_ROOT, rel_path)
                     if not os.path.exists(abs_path):
-                        raise serializers.ValidationError(
-                            _("System Robot Framework script not found for the test case with id '%(id)s' "),
-                            params={"id": test_case_id},
+                        raise serializers.ValidationError({
+                            "robot_script":f"System Robot Framework script not found for the given test case with id '{test_case_id}'"
+                            }
                         )
                     robot_script = rel_path
                     attrs["robot_script"] = robot_script
