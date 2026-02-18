@@ -515,6 +515,8 @@ class TestCasesResource(resources.ModelResource):
                 script_type="robot",
                 system_generated= system_generated,
             )
+            if not row["robot_script"]:
+                raise ScriptValidationError("Robot script is missing", field="robot_script")
         python_path, extracted_description = store_script(
             row.get("python_script"),
             test_case_id=test_case_id,
@@ -522,7 +524,8 @@ class TestCasesResource(resources.ModelResource):
             extract_description=True,
             system_generated= system_generated,
         )
-
+        if not python_path:
+                raise ScriptValidationError("python script is missing", field="python_script")
         row["python_script"] = python_path
 
         if(not row.get("description")) and extracted_description : 
