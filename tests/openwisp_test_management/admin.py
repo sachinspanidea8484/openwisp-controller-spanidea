@@ -515,6 +515,8 @@ class TestCasesResource(resources.ModelResource):
                 script_type="robot",
                 system_generated= system_generated,
             )
+            if not row["robot_script"]:
+                raise ScriptValidationError("Robot script is missing", field="robot_script")
         python_path, extracted_description = store_script(
             row.get("python_script"),
             test_case_id=test_case_id,
@@ -522,7 +524,8 @@ class TestCasesResource(resources.ModelResource):
             extract_description=True,
             system_generated= system_generated,
         )
-
+        if not python_path:
+                raise ScriptValidationError("python script is missing", field="python_script")
         row["python_script"] = python_path
 
         if(not row.get("description")) and extracted_description : 
@@ -1204,10 +1207,25 @@ class TestCaseAdminForm(forms.ModelForm):
             return False, f"Error validating Python file: {str(e)}" ,"python_ast"
 
     def get_system_python_script(self, test_case_id):
-        return f"test_case/{test_case_id}.py"
+        rel_path= f"test_case/{test_case_id}.py"
+        abs_path= os.path.join(settings.MEDIA_ROOT, rel_path)
+        if not os.path.exists(abs_path):
+            raise forms.ValidationError(
+                _("System Python script not found for the given test case with id '%(id)s' "),
+                params={"id": test_case_id},
+            )
+        return rel_path
 
     def get_system_robot_script(self, test_case_id):
-        return f"test_case_robot/{test_case_id}.robot"
+        rel_path= f"test_case_robot/{test_case_id}.robot"
+        abs_path= os.path.join(settings.MEDIA_ROOT, rel_path)
+        if not os.path.exists(abs_path):
+            raise forms.ValidationError(
+                _("System Robot Framework script not found for the given test case with id '%(id)s' "),
+                params={"id": test_case_id},
+            )
+        return rel_path
+        
     
     def clean(self):
         cleaned_data = super().clean()
@@ -1431,7 +1449,7 @@ class TestCaseAdmin(BaseVersionAdmin):
     def get_readonly_fields(self, request, obj=None):
         # obj is None when adding, and not None when editing
         if obj:
-            return self.readonly_fields + ["test_type" , "test_case_id"]
+            return self.readonly_fields + ["test_type" , "test_case_id", "is_system_test_case"]
         return self.readonly_fields
     def get_queryset(self, request):
         qs = super().get_queryset(request)
