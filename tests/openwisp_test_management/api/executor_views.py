@@ -59,7 +59,6 @@ from .serializers import (
 from django.utils.dateparse import parse_datetime
 
 from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
-# from openwisp_users.api.pagination import LinkHeaderPagination
 
 from ..swapper import load_model
 from .filters import TestCategoryFilter, TestCaseFilter
@@ -69,7 +68,6 @@ from .serializers import (
     TestCaseListSerializer,
     TestCaseSerializer,
     TestSuiteSerializer ,
-    # TestSuiteFilter
 )
 
 from ..base.models import TestExecutionStatus
@@ -233,7 +231,6 @@ class TestSuiteListCreateView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
     queryset = TestSuite.objects.all()
     serializer_class = TestSuiteSerializer
-    # filterset_class = []
     filterset_class = TestSuiteFilter
 
     filter_backends = [
@@ -1987,7 +1984,6 @@ class TestCaseExecutionResultView(generics.GenericAPIView):
     def patch(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        # return Response({"status" : "new_status" })
 
         
         validated_data = serializer.validated_data
@@ -1997,19 +1993,17 @@ class TestCaseExecutionResultView(generics.GenericAPIView):
 
             # Get the new status
             new_status = validated_data['status']
-            print(">>>>>>>>>>>>>>>>>>>>>>>>>Result call✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅")
+            print(">>>>>>>>>>>>>>>>>>>>>>>>>Result call")
             
             # Update based on status
             if new_status == TestExecutionStatus.RUNNING:
                 # Mark as running
                 execution.status = new_status
-                # execution.started_at = timezone.now()
                 execution.save(update_fields=['status', 'started_at'])
                 
             elif new_status in [TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED]:
                 # Mark as completed (success or failed)
                 execution.status = new_status
-                # execution.completed_at = timezone.now()
                 execution.exit_code = validated_data.get('exit_code')
                 execution.stdout = validated_data.get('stdout', '')
                 execution.stderr = validated_data.get('stderr', '')
@@ -2030,7 +2024,6 @@ class TestCaseExecutionResultView(generics.GenericAPIView):
             elif new_status == TestExecutionStatus.TIMEOUT:
                 # Mark as timeout
                 execution.status = new_status
-                # execution.completed_at = timezone.now()
                 execution.error_message = "Test execution timed out"
                 
                 if execution.started_at:
@@ -2043,7 +2036,6 @@ class TestCaseExecutionResultView(generics.GenericAPIView):
             elif new_status == TestExecutionStatus.CANCELLED:
                 # Mark as cancelled
                 execution.status = new_status
-                # execution.completed_at = timezone.now()
                 execution.error_message = "Test execution was cancelled"
                 
                 if execution.started_at:
@@ -2073,7 +2065,6 @@ class TestCaseExecutionResultView(generics.GenericAPIView):
                     "stdout": execution.stdout,
                     "stderr": execution.stderr,
                     "error_message": execution.error_message,
-                    # "duration": execution.formatted_duration,
 
                 }
             }
@@ -2179,8 +2170,7 @@ class RobotTestResultView(APIView):
             completed_at= parse_datetime(data.get('completed_at'))
            
             logger.info(f"Received Robot Framework test result: {data}")
-            print(f"✅ Robot Framework Result API called with data: {data}")
-            # return Response({"status" : "done"}, status=status.HTTP_200_OK)
+            print(f"Robot Framework Result API called with data: {data}")
             
             # Extract execution_id
             execution_id = data.get('execution_id')
@@ -2192,7 +2182,7 @@ class RobotTestResultView(APIView):
             # Find the TestCaseExecution record
             try:
                 execution = TestCaseExecution.objects.get(id=execution_id)
-                print(f"✅ Found TestCaseExecution: {execution}")
+                print(f"Found TestCaseExecution: {execution}")
             except TestCaseExecution.DoesNotExist:
                 return Response({
                     "error": f"TestCaseExecution with id {execution_id} not found"
@@ -2230,7 +2220,7 @@ class RobotTestResultView(APIView):
                 else:
                     execution.started_at = timezone.now()
                 execution.save(update_fields=['status', 'started_at'])
-                print(f"✅ Updated to RUNNING status")
+                print(f"Updated to RUNNING status")
                 
             elif execution_status in [TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED]:
                 execution.status = execution_status
@@ -2259,7 +2249,7 @@ class RobotTestResultView(APIView):
                     'status', 'completed_at', 'exit_code', 'stdout', 
                     'stderr', 'execution_duration', 'error_message'
                 ])
-                print(f"✅ Updated to {execution_status} status")
+                print(f"Updated to {execution_status} status")
                 
             elif execution_status == TestExecutionStatus.TIMEOUT:
                 execution.status = execution_status
@@ -2275,7 +2265,7 @@ class RobotTestResultView(APIView):
                 execution.save(update_fields=[
                     'status', 'completed_at', 'error_message', 'execution_duration','started_at'
                 ])
-                print(f"✅ Updated to TIMEOUT status")
+                print(f"Updated to TIMEOUT status")
                 
             elif execution_status == TestExecutionStatus.CANCELLED:
                 execution.status = execution_status
@@ -2291,7 +2281,7 @@ class RobotTestResultView(APIView):
                 execution.save(update_fields=[
                     'status', 'completed_at', 'error_message', 'execution_duration'
                 ])
-                print(f"✅ Updated to CANCELLED status")
+                print(f"Updated to CANCELLED status")
             
             # Check if all test cases are completed for this suite execution
             self._check_suite_execution_completion(execution.test_suite_execution, execution.device)
@@ -2361,7 +2351,7 @@ class RobotTestResultView(APIView):
                 suite_device.completed_at = timezone.now()
                 suite_device.save(update_fields=['status', 'completed_at'])
                 
-                print(f"✅ Updated TestSuiteExecutionDevice status to: {suite_device.status}")
+                print(f"Updated TestSuiteExecutionDevice status to: {suite_device.status}")
                 
                 # Check if all devices are completed for the suite execution
                 self._check_overall_suite_completion(test_suite_execution)
@@ -2379,7 +2369,7 @@ class RobotTestResultView(APIView):
             
             if incomplete_devices == 0:
                 # All devices completed - don't set is_executed here as it's controlled by admin action
-                print(f"✅ All devices completed for test suite execution: {test_suite_execution}")
+                print(f"All devices completed for test suite execution: {test_suite_execution}")
                 
         except Exception as e:
             logger.error(f"Error checking overall suite completion: {e}")
@@ -2420,8 +2410,7 @@ class TestResultView(APIView):
             completed_at= parse_datetime(data.get('completed_at'))
            
             logger.info(f"Received Executor test result: {data}")
-            print(f"✅ Executor Result API called with data: {data}")
-            # return Response({"status" : "done"}, status=status.HTTP_200_OK)
+            print(f"Executor Result API called with data: {data}")
             
             # Extract execution_id
             execution_id = data.get('execution_id')
@@ -2433,7 +2422,7 @@ class TestResultView(APIView):
             # Find the TestCaseExecution record
             try:
                 execution = TestCaseExecution.objects.get(id=execution_id)
-                print(f"✅ Found TestCaseExecution: {execution}")
+                print(f"Found TestCaseExecution: {execution}")
             except TestCaseExecution.DoesNotExist:
                 return Response({
                     "error": f"TestCaseExecution with id {execution_id} not found"
@@ -2471,7 +2460,7 @@ class TestResultView(APIView):
                 else:
                     execution.started_at = timezone.now()
                 execution.save(update_fields=['status', 'started_at'])
-                print(f"✅ Updated to RUNNING status")
+                print(f"Updated to RUNNING status")
                 
             elif execution_status in [TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED]:
                 execution.status = execution_status
@@ -2500,7 +2489,7 @@ class TestResultView(APIView):
                     'status', 'completed_at', 'exit_code', 'stdout', 
                     'stderr', 'execution_duration', 'error_message'
                 ])
-                print(f"✅ Updated to {execution_status} status")
+                print(f"Updated to {execution_status} status")
                 
             elif execution_status == TestExecutionStatus.TIMEOUT:
                 execution.status = execution_status
@@ -2516,7 +2505,7 @@ class TestResultView(APIView):
                 execution.save(update_fields=[
                     'status', 'completed_at', 'error_message', 'execution_duration','started_at'
                 ])
-                print(f"✅ Updated to TIMEOUT status")
+                print(f"Updated to TIMEOUT status")
                 
             elif execution_status == TestExecutionStatus.CANCELLED:
                 execution.status = execution_status
@@ -2532,7 +2521,7 @@ class TestResultView(APIView):
                 execution.save(update_fields=[
                     'status', 'completed_at', 'error_message', 'execution_duration'
                 ])
-                print(f"✅ Updated to CANCELLED status")
+                print(f"Updated to CANCELLED status")
             elif execution_status == TestExecutionStatus.ABORTED:
                 execution.status = execution_status
                 if data.get('completed_at'):
@@ -2551,7 +2540,7 @@ class TestResultView(APIView):
                     'status', 'completed_at', 'stdout', 
                     'stderr', 'error_message', 'execution_duration'
                 ])
-                print(f"Updated to ABORTED status")
+                print(f"Updated to ABORTED status for execution id: {execution_id} status: {execution.status}")
             
             # Check if all test cases are completed for this suite execution
             self._check_suite_execution_completion(execution.test_suite_execution, execution.device)
@@ -2621,7 +2610,7 @@ class TestResultView(APIView):
                 suite_device.completed_at = timezone.now()
                 suite_device.save(update_fields=['status', 'completed_at'])
                 
-                print(f"✅ Updated TestSuiteExecutionDevice status to: {suite_device.status}")
+                print(f"Updated TestSuiteExecutionDevice status to: {suite_device.status}")
                 
                 # Check if all devices are completed for the suite execution
                 self._check_overall_suite_completion(test_suite_execution)
@@ -2639,7 +2628,7 @@ class TestResultView(APIView):
             
             if incomplete_devices == 0:
                 # All devices completed - don't set is_executed here as it's controlled by admin action
-                print(f"✅ All devices completed for test suite execution: {test_suite_execution}")
+                print(f"All devices completed for test suite execution: {test_suite_execution}")
                 
         except Exception as e:
             logger.error(f"Error checking overall suite completion: {e}")
@@ -2669,7 +2658,7 @@ class RobotTestRunningResultView(APIView):
         try:
             data = request.data
             logger.info(f"Received Robot Framework test result: {data}")
-            print(f"✅ Robot Framework Result API called with data running>>>>>>>>>>>>>>>: {data}")
+            print(f"Robot Framework Result API called with data running>>>>>>>>>>>>>>>: {data}")
             
             # Extract execution_id
             execution_id = data.get('execution_id')
@@ -2682,7 +2671,7 @@ class RobotTestRunningResultView(APIView):
             # Find the TestCaseExecution record
             try:
                 execution = TestCaseExecution.objects.get(id=execution_id)
-                print(f"✅ Found TestCaseExecution: {execution}")
+                print(f"Found TestCaseExecution: {execution}")
             except TestCaseExecution.DoesNotExist:
                 return Response({
                     "error": f"TestCaseExecution with id {execution_id} not found"
@@ -2784,7 +2773,7 @@ class RobotTestRunningResultView(APIView):
                 suite_device.completed_at = timezone.now()
                 suite_device.save(update_fields=['status', 'completed_at'])
                 
-                print(f"✅ Updated TestSuiteExecutionDevice status to: {suite_device.status}")
+                print(f"Updated TestSuiteExecutionDevice status to: {suite_device.status}")
                 
                 # Check if all devices are completed for the suite execution
                 self._check_overall_suite_completion(test_suite_execution)
@@ -2802,13 +2791,12 @@ class RobotTestRunningResultView(APIView):
             
             if incomplete_devices == 0:
                 # All devices completed - don't set is_executed here as it's controlled by admin action
-                print(f"✅ All devices completed for test suite execution: {test_suite_execution}")
+                print(f"All devices completed for test suite execution: {test_suite_execution}")
                 
         except Exception as e:
             logger.error(f"Error checking overall suite completion: {e}")
 
 
-# @swagger_auto_schema(method='post', auto_schema=None) 
 class TestRunningResultView(APIView):
     """
     API endpoint to receive test results from Robot Framework server
@@ -2834,7 +2822,7 @@ class TestRunningResultView(APIView):
         try:
             data = request.data
             logger.info(f"Received Robot Framework test result: {data}")
-            print(f"✅ Robot Framework Result API called with data running>>>>>>>>>>>>>>>: {data}")
+            print(f"Robot Framework Result API called with data running>>>>>>>>>>>>>>>: {data}")
             
             # Extract execution_id
             execution_id = data.get('execution_id')
@@ -2848,7 +2836,7 @@ class TestRunningResultView(APIView):
             # Find the TestCaseExecution record
             try:
                 execution = TestCaseExecution.objects.get(id=execution_id)
-                print(f"✅ Found TestCaseExecution: {execution}")
+                print(f"Found TestCaseExecution: {execution}")
             except TestCaseExecution.DoesNotExist:
                 return Response({
                     "error": f"TestCaseExecution with id {execution_id} not found"
@@ -2957,7 +2945,7 @@ class TestRunningResultView(APIView):
                 suite_device.completed_at = timezone.now()
                 suite_device.save(update_fields=['status', 'completed_at'])
                 
-                print(f"✅ Updated TestSuiteExecutionDevice status to: {suite_device.status}")
+                print(f"Updated TestSuiteExecutionDevice status to: {suite_device.status}")
                 
                 # Check if all devices are completed for the suite execution
                 self._check_overall_suite_completion(test_suite_execution)
@@ -2975,7 +2963,7 @@ class TestRunningResultView(APIView):
             
             if incomplete_devices == 0:
                 # All devices completed - don't set is_executed here as it's controlled by admin action
-                print(f"✅ All devices completed for test suite execution: {test_suite_execution}")
+                print(f"All devices completed for test suite execution: {test_suite_execution}")
                 
         except Exception as e:
             logger.error(f"Error checking overall suite completion: {e}")
@@ -3010,7 +2998,7 @@ class DeviceTestResultView(APIView):
         """
         try:
             data = request.data
-            logger.info(f"Received NB test result✅✅✅✅✅✅✅✅✅✅✅✅✅result✅✅✅✅✅✅✅✅✅✅✅✅✅: {data}")
+            logger.info(f"Received NB test result : {data}")
 
 
 
@@ -3029,10 +3017,10 @@ class DeviceTestResultView(APIView):
             # Find the TestCaseExecution record
             try:
                 execution = TestCaseExecution.objects.get(id=execution_id)
-                print(f"✅ Found TestCaseExecution: {execution}")
-                print(f"📊 Current DB status: {execution.status}")
+                print(f"Found TestCaseExecution: {execution}")
+                print(f"Current DB status: {execution.status}")
             except TestCaseExecution.DoesNotExist:
-                print(f"❌ TestCaseExecution with id {execution_id} not found")
+                print(f"TestCaseExecution with id {execution_id} not found")
                 return Response({
                     "error": f"TestCaseExecution with id {execution_id} not found"
                 }, status=status.HTTP_404_NOT_FOUND)
@@ -3041,23 +3029,11 @@ class DeviceTestResultView(APIView):
             new_status = data.get('status')
             exit_code = data.get('exit_code')
             
-            # Status icons mapping
-            status_icons = {
-                'running': '🏃‍♂️',
-                'success': '✅',
-                'failed': '❌',
-                'timeout': '⏰',
-                'cancelled': '🚫'
-            }
-            
-            # Print status with icon
-            icon = status_icons.get(new_status, '❓')
-            print(f"{icon} Received status: {new_status}")
+            print(f"Received status: {new_status}")
             
             # Print exit code with icon
             if exit_code is not None:
-                exit_icon = '✓' if exit_code == 0 else '✗'
-                print(f"{exit_icon} Exit code: {exit_code}")
+                print(f"Exit code: {exit_code}")
 
             if not new_status:
                 return Response({
@@ -3075,31 +3051,31 @@ class DeviceTestResultView(APIView):
             }
             
             if new_status not in status_mapping:
-                print(f"⚠️ Invalid status received: {new_status}")
+                print(f"Invalid status received: {new_status}")
                 return Response({
                     "error": f"Invalid status: {new_status}. Must be one of {list(status_mapping.keys())}"
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             execution_status = status_mapping[new_status]
-            print(f"🔄 Mapped '{new_status}' to TestExecutionStatus: {execution_status}")
+            print(f"Mapped '{new_status}' to TestExecutionStatus: {execution_status}")
             
             # ===== STATUS UPDATE LOGIC COMMENTED OUT =====
             # Update execution based on status
             if execution_status == TestExecutionStatus.RUNNING:
                 execution.status = execution_status
                 if data.get('started_at'):
-                    print("⏱️ Using provided started_at timestamp",data.get('started_at'))
+                    print("Using provided started_at timestamp",data.get('started_at'))
                     execution.started_at = parse_datetime(data.get('started_at'))
                 else:
                     execution.started_at = timezone.now()
-                    print("⏱️ Setting started_at to current time")
+                    print("Setting started_at to current time")
                 execution.save(update_fields=['status', 'started_at'])
-                print(f"🏃‍♂️ Updated to RUNNING status")
+                print(f"Updated to RUNNING status")
                 
             elif execution_status in [TestExecutionStatus.SUCCESS, TestExecutionStatus.FAILED]:
                    # Check if status is success but completed_at is None
                 if execution_status == TestExecutionStatus.SUCCESS and not data.get('completed_at'):
-                    print(f"⚠️ Received SUCCESS status but completed_at is None - keeping status as PENDING")
+                    print(f"Received SUCCESS status but completed_at is None - keeping status as PENDING")
                     return Response({
                        "success": True,
                        "message": "Success status received but completed_at is missing - keeping as pending",
@@ -3117,25 +3093,25 @@ class DeviceTestResultView(APIView):
     
                       # Continue with normal update if not the above case
                 # Debug print before update
-                print(f"🔍 Before update - execution.status: {execution.status}")
-                print(f"🔍 Setting execution.status to: {execution_status}")
+                print(f"Before update - execution.status: {execution.status}")
+                print(f"Setting execution.status to: {execution_status}")
                 
                 execution.status = execution_status
     
                 if data.get('started_at'):
-                    print("⏱️ Using provided started_at timestamp",data.get('started_at'))
+                    print("Using provided started_at timestamp",data.get('started_at'))
                     execution.started_at = parse_datetime(data.get('started_at'))
                 else:
                     execution.started_at = timezone.now()
-                    print("⏱️ Setting started_at to current time")
+                    print("Setting started_at to current time")
 
                 # Set completion time
                 if data.get('completed_at'):
                     execution.completed_at = parse_datetime(data.get('completed_at'))
-                    print("⏱️ Using provided completed_at timestamp", data.get('completed_at'))
+                    print("Using provided completed_at timestamp", data.get('completed_at'))
                 else:
                     execution.completed_at = timezone.now()
-                    print("⏱️ Setting completed_at to current time")
+                    print("Setting completed_at to current time")
                 
                 # Set other fields
                 execution.exit_code = data.get('exit_code')
@@ -3143,7 +3119,7 @@ class DeviceTestResultView(APIView):
                 execution.stderr = data.get('stderr', '')
                 
                 # Debug: Print what we're about to save
-                print(f"📝 About to save:")
+                print(f"About to save:")
                 print(f"   - status: {execution.status}")
                 print(f"   - exit_code: {execution.exit_code}")
                 print(f"   - stdout length: {len(execution.stdout)} chars")
@@ -3162,9 +3138,9 @@ class DeviceTestResultView(APIView):
                             execution.error_message = '\n'.join(error_lines) if error_lines else 'Test failed'
                         else:
                             execution.error_message = 'Test failed'
-                    print(f"❌ Test FAILED with error: {execution.error_message[:100]}...")
+                    print(f"Test FAILED with error: {execution.error_message[:100]}...")
                 else:
-                    print(f"✅ Test SUCCEEDED")
+                    print(f"Test SUCCEEDED")
                 
                 # Save with explicit field list
                 fields_to_update = [
@@ -3181,67 +3157,66 @@ class DeviceTestResultView(APIView):
                 
                 # Verify the save worked
                 execution.refresh_from_db()
-                print(f"🔍 After save - execution.status from DB: {execution.status}")
+                print(f"After save - execution.status from DB: {execution.status}")
                 
-                status_icon = '✅' if execution_status == TestExecutionStatus.SUCCESS else '❌'
-                print(f"{status_icon} Updated to {execution_status} status (verified from DB: {execution.status})")
+                print(f"Updated to {execution_status} status (verified from DB: {execution.status})")
                 
             elif execution_status == TestExecutionStatus.TIMEOUT:
                 execution.status = execution_status
                 if data.get('completed_at'):
-                    print("⏱️ Using provided completed_at timestamp")
+                    print("Using provided completed_at timestamp")
                 else:
                     execution.completed_at = timezone.now()
-                    print("⏱️ Setting completed_at to current time")
+                    print("Setting completed_at to current time")
                 execution.error_message = data.get('error_message', 'Test execution timed out')
                 
                 if execution.started_at:
                     execution.execution_duration = execution.completed_at - execution.started_at
-                    print(f"⏱️ Execution duration: {execution.execution_duration}")
+                    print(f"Execution duration: {execution.execution_duration}")
                 
                 execution.save(update_fields=[
                     'status', 'completed_at', 'error_message', 'execution_duration'
                 ])
-                print(f"⏰ Updated to TIMEOUT status")
+                print(f"Updated to TIMEOUT status")
                 
             elif execution_status == TestExecutionStatus.CANCELLED:
                 execution.status = execution_status
                 if data.get('completed_at'):
-                    print("⏱️ Using provided completed_at timestamp")
+                    print("Using provided completed_at timestamp")
                 else:
                     execution.completed_at = timezone.now()
-                    print("⏱️ Setting completed_at to current time")
+                    print("Setting completed_at to current time")
                 execution.error_message = data.get('error_message', 'Test execution was cancelled')
                 
                 if execution.started_at:
                     execution.execution_duration = execution.completed_at - execution.started_at
-                    print(f"⏱️ Execution duration: {execution.execution_duration}")
+                    print(f"Execution duration: {execution.execution_duration}")
                 
                 execution.save(update_fields=[
                     'status', 'completed_at', 'error_message', 'execution_duration'
                 ])
-                print(f"🚫 Updated to CANCELLED status")
+                print(f"Updated to CANCELLED status")
             elif execution_status == TestExecutionStatus.ABORTED:
                 execution.status = execution_status
                 if data.get('completed_at'):
                     execution.completed_at = parse_datetime(data.get('completed_at'))
-                    print("⏱️ Using provided completed_at timestamp")
+                    print("Using provided completed_at timestamp")
                 else:
                     execution.completed_at = timezone.now()
-                    print("⏱️ Setting completed_at to current time")
+                    print("Setting completed_at to current time")
                 execution.error_message = data.get('error_message', 'Test execution was aborted')
                 
                 if execution.started_at:
                     execution.execution_duration = execution.completed_at - execution.started_at
-                    print(f"⏱️ Execution duration: {execution.execution_duration}")
+                    print(f"Execution duration: {execution.execution_duration}")
                 
                 execution.save(update_fields=[
                     'status', 'completed_at', 'error_message', 'execution_duration'
                 ])
-                print(f"🚫 Updated to ABORTED status")
+                print(f"Updated to ABORTED status")
             # ===== END OF COMMENTED STATUS UPDATE LOGIC =====
             
-            print(f"⚠️ STATUS UPDATE LOGIC IS COMMENTED OUT - NO DATABASE CHANGES MADE")
+            print(f"STATUS UPDATE LOGIC IS COMMENTED OUT - NO DATABASE CHANGES MADE")
             
             # Check if all test cases are completed for this suite execution
             # ALSO COMMENTING THIS OUT SINCE IT DEPENDS ON STATUS
@@ -3266,14 +3241,14 @@ class DeviceTestResultView(APIView):
                 }
             }
             
-            print(f"✉️ Sending response: Status update SKIPPED (current DB status: {execution.status})")
+            print(f"Sending response: Status update SKIPPED (current DB status: {execution.status})")
             return Response(response_data, status=status.HTTP_200_OK)
             
         except Exception as e:
             logger.error(f"Error updating robot test result: {str(e)}")
             import traceback
             traceback.print_exc()
-            print(f"💥 Error occurred: {str(e)}")
+            print(f"Error occurred: {str(e)}")
             
             return Response({
                 "error": "Failed to update test case execution",
@@ -3309,22 +3284,22 @@ class DeviceTestResultView(APIView):
                 
                 if failed_count > 0:
                     suite_device.status = 'failed'
-                    print(f"❌ TestSuiteExecutionDevice marked as FAILED (failed tests: {failed_count})")
+                    print(f"TestSuiteExecutionDevice marked as FAILED (failed tests: {failed_count})")
                 else:
                     suite_device.status = 'completed'
-                    print(f"✅ TestSuiteExecutionDevice marked as COMPLETED (all tests passed)")
+                    print(f"TestSuiteExecutionDevice marked as COMPLETED (all tests passed)")
                 
                 suite_device.completed_at = timezone.now()
                 suite_device.save(update_fields=['status', 'completed_at'])
                 
-                print(f"📊 Updated TestSuiteExecutionDevice status to: {suite_device.status}")
+                print(f"Updated TestSuiteExecutionDevice status to: {suite_device.status}")
                 
                 # Check if all devices are completed for the suite execution
                 self._check_overall_suite_completion(test_suite_execution)
                 
         except Exception as e:
             logger.error(f"Error checking suite execution completion: {e}")
-            print(f"⚠️ Error in _check_suite_execution_completion: {e}")
+            print(f"Error in _check_suite_execution_completion: {e}")
     
     def _check_overall_suite_completion(self, test_suite_execution):
         """Check if all devices have completed the suite execution"""
@@ -3336,13 +3311,13 @@ class DeviceTestResultView(APIView):
             
             if incomplete_devices == 0:
                 # All devices completed - don't set is_executed here as it's controlled by admin action
-                print(f"🎉 All devices completed for test suite execution: {test_suite_execution}")
+                print(f"All devices completed for test suite execution: {test_suite_execution}")
             else:
-                print(f"⏳ Still waiting for {incomplete_devices} device(s) to complete")
+                print(f"Still waiting for {incomplete_devices} device(s) to complete")
                 
         except Exception as e:
             logger.error(f"Error checking overall suite completion: {e}")
-            print(f"⚠️ Error in _check_overall_suite_completion: {e}")
+            print(f"Error in _check_overall_suite_completion: {e}")
 # views.py
 class TestSuiteExecutionDeleteView(ProtectedAPIMixin, generics.DestroyAPIView):
     """
@@ -3811,7 +3786,6 @@ def get_category_test_cases(request, category_id):
 
 
 from uuid import UUID
-# @swagger_auto_schema(method='get', auto_schema=None)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_categories_test_cases(request):
@@ -3873,7 +3847,7 @@ def get_categories_test_cases(request):
 
 
 
-@swagger_auto_schema(method='get', auto_schema=None)
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_test_suite_details(request, suite_id):
@@ -3904,7 +3878,6 @@ def get_test_suite_details(request, suite_id):
                 'id': str(tc.id),
                 'name': tc.name,
                 'test_case_id': tc.test_case_id,
-                # 'category': tc.category.name,
                 'test_type': tc.test_type,
                 'test_type_display': tc.get_test_type_display(),
                 'order': suite_case.order,
@@ -3916,8 +3889,6 @@ def get_test_suite_details(request, suite_id):
         test_suite_data = {
             'id': str(test_suite.id),
             'name': test_suite.name,
-            # 'category': test_suite.category.name,
-            # 'category_id': str(test_suite.category.id),
             'description': test_suite.description or '',
             'is_active': test_suite.is_active,
             'test_case_count': len(test_cases_data),
@@ -3960,7 +3931,7 @@ def get_available_devices(request):
     # ============= CONFIGURATION SECTION =============
     # Set this to True to show only devices with connections
     # Set this to False to show all devices regardless of connection status
-    FILTER_BY_CONNECTION = False  # ← Change this to False when you want to show all devices
+    FILTER_BY_CONNECTION = False  # Change this to False when you want to show all devices
     # =================================================
     
     try:
@@ -4034,18 +4005,10 @@ def get_available_devices(request):
                 is_deactivated = getattr(device, '_is_deactivated', False)
 
                 
-                # if is_deactivated:
-                #     device_status = 'Deactivated'
-                # elif getattr(device, 'last_ip', None) and getattr(device, 'management_ip', None):
-                #     device_status = 'Online'
-                # elif getattr(device, 'last_ip', None):
-                #     device_status = 'Reachable'
-
                 # Get ping metric status
                 device_status = "Online"
                 try:
                  ping_metric = Metric.objects.get(
-                                #  content_type__model='device',
                                  object_id=str(device.id),
                                  configuration='ping',
                                  key='ping',
@@ -4057,8 +4020,6 @@ def get_available_devices(request):
                  logger.debug(f"ping_metric {ping_metric} ")
                  device_status = "Offline"
 
-                # logger.debug(f"device_status ::::::::::::: {device.name} {device_status}")
-                # logger.debug(f"device_status {device_status}")
                 print(f"device_status ::::::::::::: {device.name} {device_status}")
                 
                 device_data = {
@@ -4190,15 +4151,10 @@ def test_execution_historys(request, execution_id):
                     'status': test_exec.status,
                     'status_display': test_exec.get_status_display(),
                     'has_log': bool(test_exec.stdout),
-                    # 'stdout': test_exec.stdout,
-                    # 'stderr': test_exec.stderr,
 
-                    
-                    
                     'can_retry': test_exec.status == 'failed',
                     'started_at': test_exec.started_at.isoformat() if test_exec.started_at else None,
                     'completed_at': test_exec.completed_at.isoformat() if test_exec.completed_at else None,
-                    # 'duration': test_exec.formatted_duration,
                 })
                 
             
@@ -4228,8 +4184,6 @@ def test_execution_historys(request, execution_id):
             'execution_id': str(execution.pk),
             'test_suite_name': execution.test_suite.name,
             'test_suite_id': str(execution.test_suite.pk),
-            # 'category_name': execution.test_suite.category.name,
-            # 'category_id': str(execution.test_suite.category.pk),
             'total_devices': execution.device_count,
             'total_test_cases': execution.test_suite.test_case_count,
             'is_executed': execution.is_executed,
@@ -4280,15 +4234,9 @@ def test_execution_history(request, execution_id):
             for d in Device.all_objects.filter(id__in=device_ids)
         }
         # Get all test case executions
-        # test_case_executions = TestCaseExecution.objects.filter(
-        #     test_suite_execution=execution
-        # ).select_related('device', 'test_case')
         test_case_executions = TestCaseExecution.objects.filter(
             test_suite_execution=execution
         ).select_related('device', 'test_case')
-        # .order_by(
-        #     'test_case__name'
-        # )
         print("<<<test_case_executions>>>",test_case_executions)
         
         # Build response data
@@ -4348,8 +4296,6 @@ def test_execution_history(request, execution_id):
                     'status': test_exec.status,
                     'status_display': test_exec.get_status_display(),
                     'has_log': bool(test_exec.stdout),
-                    # 'stdout': test_exec.stdout,
-                    # 'stderr': test_exec.stderr,
                     'can_retry': test_exec.status == 'failed',
                     'started_at': test_exec.started_at.isoformat() if test_exec.started_at else None,
                     'completed_at': test_exec.completed_at.isoformat() if test_exec.completed_at else None,
@@ -4496,8 +4442,6 @@ def test_execution_history(request, execution_id):
             'execution_name' : execution.name,
             'test_suite_name': test_suite_name,
             'test_suite_id': test_suite_id,
-            # 'category_name': execution.test_suite.category.name,
-            # 'category_id': str(execution.test_suite.category.pk),
             'total_devices': execution.device_count,
             'total_test_cases': total_test_cases,
             'is_executed': execution.is_executed,
@@ -4950,8 +4894,6 @@ def test_execution_abort(request, execution_id):
             )
             #Abort running tests for this device
             for test in running_tests:
-                test.status = TestExecutionStatus.ABORTING
-                test.save()
                 abort_task.delay(str(test.pk))
 
         return Response({
@@ -4974,7 +4916,6 @@ def test_execution_abort(request, execution_id):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# @swagger_auto_schema(method='post', auto_schema=None)
 @api_view(['POST'])
 def upload_allure_report(request, test_group_execution_id, dev_id):
     """
@@ -4985,7 +4926,7 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
     2. Validates the device execution exists and is in completed/failed state
     3. Saves the file to media/allure_report/ directory
     4. Updates the database with the file path
-    5. ✅ NEW: Checks if all devices completed and updates execution status
+    5. NEW: Checks if all devices completed and updates execution status
     """
     print(f"\n=== UPLOAD ALLURE REPORT START ===")
     print(f"Device Execution ID: {dev_id}")
@@ -4997,7 +4938,6 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
                
  
         # Step 1: Get the device execution record from database
-        # device_execution = TestSuiteExecutionDevice.objects.get(pk=device_execution_id)
         device_execution = TestSuiteExecutionDevice.objects.get(
                 test_suite_execution=test_group_execution_id,
                 device=dev_id
@@ -5005,19 +4945,7 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
         print(f"Found test suite device execution: {device_execution}")
         print(f"Device: {device_execution.device.name}")
         print(f"Status: {device_execution.status}")
-        
 
-        
-        # Step 2: Check if execution is in a valid state for report upload
-        # Reports should only be uploaded for completed or failed executions
-        # if device_execution.status not in ['completed', 'failed']:
-        #     print(f"ERROR: Invalid status '{device_execution.status}' for report upload")
-        #     return Response({
-        #         'success': False,
-        #         'error': f"Cannot upload report for execution in '{device_execution.status}' status. "
-        #                  "Execution must be completed or failed."
-        #     }, status=status.HTTP_400_BAD_REQUEST)
-        
         # Step 3: Validate the uploaded file using serializer
         print(f"Validating uploaded file...")
         serializer = AllureReportUploadSerializer(data=request.data)
@@ -5083,7 +5011,7 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
             context={'request': request}
         )
 
-        # ✅✅✅ NEW: Step 10 - Check if ALL devices have completed reports ✅✅✅
+        # NEW: Step 10 - Check if ALL devices have completed reports
         check_and_complete_execution(test_group_execution_id)
         
         print(f"Report uploaded successfully!")
@@ -5096,7 +5024,6 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
         }, status=status.HTTP_200_OK)
         
     except TestSuiteExecutionDevice.DoesNotExist:
-        # print(f"ERROR: Device execution not found with ID: {device_execution_id}")
         return Response({
             'success': False,
             'error': 'Device execution not found'
@@ -5137,7 +5064,6 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
 )
 
 
-# @swagger_auto_schema(method='get', auto_schema=None)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_organization_devices(request):
@@ -5606,13 +5532,13 @@ def check_and_complete_execution(test_group_execution_id):
         if execution.execution_status != new_status:
             execution.execution_status = new_status
             execution.save(update_fields=['execution_status'])
-            print(f"  ✅✅✅✅✅✅✅✅ Status updated_new  {new_status}: {test_group_execution_id}")
+            print(f"Status updated_new  {new_status}: {test_group_execution_id}")
         
     except TestSuiteExecution.DoesNotExist:
-        print(f"  ⚠️ Test execution not found: {test_group_execution_id}")
+        print(f"  Test execution not found: {test_group_execution_id}")
         logger.error(f"Test execution not found: {test_group_execution_id}")
     except Exception as e:
-        print(f"  ⚠️ Error checking completion: {str(e)}")
+        print(f"  Error checking completion: {str(e)}")
         import traceback
         traceback.print_exc()
         logger.error(f"Error checking execution completion: {str(e)}")
