@@ -836,8 +836,14 @@ class TestCaseSerializer(ValidatedModelSerializer):
             if attrs["test_case_id"] != self.instance.test_case_id:
                 raise serializers.ValidationError({
                     "test_case_id": "Test Case ID cannot be modified after creation."
-                })  
-            
+                })
+              
+        if self.instance and "test_type" in attrs:
+            if attrs["test_type"] != self.instance.test_type:
+                raise serializers.ValidationError({
+                    "test_type": "Test Type cannot be modified after creation."
+                })
+             
         if self.instance:
             instance = self.instance
             for attr, value in attrs.items():
@@ -850,6 +856,12 @@ class TestCaseSerializer(ValidatedModelSerializer):
                 raise serializers.ValidationError({
                     "is_system_test_case": "Only superusers can set this field."
                 })
+            
+        if self.instance and "is_system_test_case" in attrs:
+            if attrs["is_system_test_case"] != self.instance.is_system_test_case:
+                raise serializers.ValidationError({
+                    "test_type": "is_system_test_case cannot be modified after creation."
+                }) 
 
         try:
             instance.clean()
