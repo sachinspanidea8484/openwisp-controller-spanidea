@@ -856,7 +856,7 @@ class TestCaseSerializer(ValidatedModelSerializer):
             "test_case_id",
             instance.test_case_id if self.instance else None
         )
-        # ✅ DEVICE test
+        # DEVICE test
         if not python_script:
             if (
                 user
@@ -884,7 +884,7 @@ class TestCaseSerializer(ValidatedModelSerializer):
                     "robot_script": "Robot script is not allowed for Device tests."
                 })
 
-        # ✅ ROBOT test
+        # ROBOT test
         if test_type == TestTypeChoices.ROBOT_FRAMEWORK:
             if not robot_script:
                 if (
@@ -1214,7 +1214,7 @@ class TestSuiteExecutionSerializer(serializers.ModelSerializer):
 
 class TestSuiteExecutionCreateSerializer(serializers.Serializer):
     id = serializers.UUIDField(read_only=True)
-    name = serializers.CharField(required=False, allow_blank=True)
+    name = serializers.CharField(required=True, allow_blank=False, max_length=50)
     individual_test_cases = serializers.PrimaryKeyRelatedField(
         queryset=TestCase.objects.all(),
         many=True,
@@ -1386,12 +1386,16 @@ class TestSuiteExecutionCreateSerializer(serializers.Serializer):
         test_suite = attrs.get("test_group")
         individual_cases = attrs.get("individual_test_cases")
 
-        if test_selection_type == 1 and not test_suite:
+        if test_selection_type  in [1, "1", "group"] and not test_suite:
             raise serializers.ValidationError({
                 "test_suite": "Test group is required when test_selection_type is 'Group'."
             })
 
-        if test_selection_type == 0 and not individual_cases:
+        if test_selection_type in [0, "0", "individual"] and not individual_cases:
+            raise serializers.ValidationError({
+                "individual_test_cases": "At least one test case is required for individual selection."
+            })
+        if test_selection_type  in [0, "0", "individual"] and len(individual_cases) == 0:
             raise serializers.ValidationError({
                 "individual_test_cases": "At least one test case is required for individual selection."
             })
