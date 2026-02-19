@@ -843,7 +843,19 @@ class TestCaseSerializer(ValidatedModelSerializer):
                 raise serializers.ValidationError({
                     "test_type": "Test Type cannot be modified after creation."
                 })
-             
+
+        if "is_system_test_case" in attrs:
+            if not user or not user.is_superuser:
+                raise serializers.ValidationError({
+                    "is_system_test_case": "Only superusers can set this field."
+                })
+        
+        if self.instance and "is_system_test_case" in attrs:
+            if attrs["is_system_test_case"] != self.instance.is_system_test_case:
+                raise serializers.ValidationError({
+                    "test_type": "is_system_test_case cannot be modified after creation."
+                })
+                
         if self.instance:
             instance = self.instance
             for attr, value in attrs.items():
@@ -851,17 +863,7 @@ class TestCaseSerializer(ValidatedModelSerializer):
         else:
             instance = TestCase(**attrs)
         
-        if "is_system_test_case" in attrs:
-            if not user or not user.is_superuser:
-                raise serializers.ValidationError({
-                    "is_system_test_case": "Only superusers can set this field."
-                })
-            
-        if self.instance and "is_system_test_case" in attrs:
-            if attrs["is_system_test_case"] != self.instance.is_system_test_case:
-                raise serializers.ValidationError({
-                    "test_type": "is_system_test_case cannot be modified after creation."
-                }) 
+        
 
         try:
             instance.clean()
@@ -938,7 +940,7 @@ class TestCaseSerializer(ValidatedModelSerializer):
                     })
             
             attrs["robot_script"] = update_robot_file_tag(
-                attrs["robot_script"],
+                robot_script,
                 test_case_id
             )
 
