@@ -709,47 +709,6 @@ class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyA
         
         return super().perform_destroy(instance)
 
-class TestExecutionStartViewOld(ProtectedExternalAPIMixin, APIView):
-    """
-    API endpoint for starting a test execution
-    
-    POST /api/v1/test-management/execution/<uuid:pk>/start-execution/
-    - Start a test execution
-    """
-
-    def post(self, request, execution_id):
-        from ..tasks import execute_test_suite as execute_test_suite_task
-        execution = get_object_or_404(TestExecution, id=execution_id)
-
-        # 🔒 Safety checks
-        if execution.is_executed:
-            return Response(
-                {"detail": "Test Execution is already executed."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Optional: permission check
-        if execution.created_by != request.user:
-            return Response(
-                {"detail": "Not allowed to start this execution."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Update status
-        execution.is_executed = True
-        execution.save(update_fields=['is_executed'])
-
-        # 🚀 Trigger async execution
-        execute_test_suite_task.delay(str(execution.id))
-
-        return Response(
-            {
-                "execution_id": execution.id,
-                "status": execution.status,
-                "message": "Execution started successfully"
-            },
-            status=status.HTTP_202_ACCEPTED
-        )
 
 class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
     """
@@ -809,7 +768,7 @@ class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
             for r in execution.get_required_artifacts()
         )
 
-        # 3️⃣ Parse uploaded artifacts
+        # Parse uploaded artifacts
         uploaded = {}
         invalid_keys = []
 
@@ -992,7 +951,7 @@ class TestExecutionReExecuteSelectedView(ProtectedExternalAPIMixin, APIView):
             device_tests_info = serializer.validated_data["device_tests_info"]
 
             with transaction.atomic():
-                # 🔁 Create new test execution
+                # Create new test execution
                 new_execution = create_test_execution_clone_for_selected_tests(execution, device_tests_info, request)
                 new_execution.is_executed= True
                 new_execution.save()
