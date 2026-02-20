@@ -1390,6 +1390,9 @@ class TestCaseAdminForm(forms.ModelForm):
             )
         
 class ForceDownloadFileWidget(AdminFileWidget):
+    def __init__(self, attrs=None):
+        super().__init__(attrs=attrs)
+
     def render(self, name, value, attrs=None, renderer=None):
         html = super().render(name, value, attrs, renderer)
 
@@ -1652,9 +1655,14 @@ class TestCaseAdmin(BaseVersionAdmin):
                 'style': 'display: none;'
             })
 
-        for field_name in ("python_script", "robot_script"):
+        for field_name, accept in (
+            ("python_script", ".py"),
+            ("robot_script", ".robot"),
+        ):
             if field_name in form.base_fields:
-                form.base_fields[field_name].widget = ForceDownloadFileWidget()
+                form.base_fields[field_name].widget = ForceDownloadFileWidget(
+                    attrs={"accept": accept}
+                )
         # **NEW: Add warning messages for EDIT mode**
         # if obj:  # Edit mode
         #  if "python_script" in form.base_fields:
