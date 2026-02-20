@@ -1,27 +1,36 @@
 import logging
 from django.utils import timezone
 import os
-from django.urls import reverse
 
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from openwisp_users.mixins import OrgMixin
 
-
 from openwisp_utils.base import TimeStampedEditableModel
 
 logger = logging.getLogger(__name__)
-from pathlib import Path
-from .. import settings as app_settings
-from private_storage.fields import PrivateFileField
+
+from ..private_storage import storage
+overwrite_storage= storage.OverwriteStorage()
+
+def rename_script(instance, filename):
+    ext= filename.split('.')[1]
+
+    new_name= f"{instance.test_case_id}.{ext}"
+
+    if ext == 'py' :
+        return os.path.join("test_case", new_name)
+    elif ext== 'robot':
+        return os.path.join("test_case_robot", new_name)
+  
 
 def get_build_directory(instance, filename):
     build_pk = str(instance.name)
     # return "/".join([STORED_DATA_DIR,build_pk, filename])
     return f"{build_pk}/{filename}"
 
-# ADD THIS NEW ENUM CLASS HERE
+# ENUM class for test type choice
 class TestTypeChoices(models.IntegerChoices):
     ROBOT_FRAMEWORK = 1, _('Robot Framework')
     AGENT = 2, _('Device')
@@ -42,6 +51,7 @@ class AbstractTestCategory(TimeStampedEditableModel):
     Abstract model for Test Categories
     Categories group test cases by type or purpose
     """
+
     name = models.CharField(
         _("category Name"),
         max_length=50,
@@ -52,8 +62,8 @@ class AbstractTestCategory(TimeStampedEditableModel):
     code = models.CharField(
         _("category Code"),
         max_length=50,
-        blank=False,  # Changed from blank=True to blank=False
-        help_text=_("Required code for this category")  # Updated help text
+        blank=False,  
+        help_text=_("Required code for this category") 
     )
     description = models.TextField(
         _("description"),
@@ -94,29 +104,13 @@ class AbstractTestCategory(TimeStampedEditableModel):
         TestCase = load_model("TestCase")
         return TestCase.objects.filter(category=self).count()
 
- 
-
     @property
     def is_deletable(self):
         """Check if category can be deleted"""
         # Categories with test cases or test suites cannot be deleted
         return self.test_case_count == 0 
     
-from ..private_storage import storage
-
-overwrite_storage= storage.OverwriteStorage()
-
-
-def rename_script(instance, filename):
-    ext= filename.split('.')[1]
-
-    new_name= f"{instance.test_case_id}.{ext}"
-
-    if ext == 'py' :
-        return os.path.join("test_case", new_name)
-    elif ext== 'robot':
-        return os.path.join("test_case_robot", new_name)
-    
+  
 class AbstractTestCase(TimeStampedEditableModel):
     """
     Abstract model for Test Cases
@@ -128,8 +122,6 @@ class AbstractTestCase(TimeStampedEditableModel):
         COMPLETED = 1, _('Completed')
         FAILED = 2, _('Failed')
         
-
-
     name = models.CharField(
         _("Test Case"),
         max_length=50,
@@ -148,7 +140,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         on_delete=models.PROTECT,
         blank=False,  
         related_name='test_cases',
-        verbose_name=_("Select Test Category"),  # Changed label
+        verbose_name=_("Select Test Category"), 
         help_text=_("Category this test case belongs to")
     )
     description = models.TextField(
@@ -156,7 +148,7 @@ class AbstractTestCase(TimeStampedEditableModel):
         max_length=10000,
         help_text=_("Detailed description of what this test does")
     )
-    # Additional fields for future use
+    
     is_active = models.BooleanField(
         _("Is Active"),
         default=True,
@@ -234,20 +226,17 @@ class AbstractTestCase(TimeStampedEditableModel):
 
         # Validate JSON params if provided
         if self.params and self.params != {}:
-         print(f"🔍 Validating params...")
-         try:
-             if not isinstance(self.params, dict):
-                  print(f"❌ Params is not a dict, it's: {type(self.params)}")
-                  raise ValidationError({
-                      "params": _("Parameters must be a valid JSON object (key-value pairs).")
-                  })
-             else:
-                  print(f"✅ Params is a valid dict")
-         except (TypeError, ValueError) as e:
-             print(f"❌ Params validation error: {e}")
-             raise ValidationError({
-                  "params": _("Parameters must be valid JSON format")
-             })
+            try:
+                if not isinstance(self.params, dict):
+                    raise ValidationError({
+                        "params": _("Parameters must be a valid JSON object (key-value pairs).")
+                    })
+                else:
+                    pass
+            except (TypeError, ValueError) as e:
+                raise ValidationError({
+                    "params": _("Parameters must be valid JSON format")
+                })
          
         # Check for duplicate test_case_id
         qs = self.__class__.objects.filter(
@@ -255,13 +244,11 @@ class AbstractTestCase(TimeStampedEditableModel):
         ).exclude(pk=self.pk)
         
         if qs.exists():
-                print(f"❌ Duplicate test_case_id found: {self.test_case_id}")
                 raise ValidationError({
-                            "test_case_id": _(
-                                    f"A test case with ID '{self.test_case_id}' already exists"
-                            )
+                        "test_case_id": _(
+                                f"A test case with ID '{self.test_case_id}' already exists"
+                        )
                 }) 
-
 
     def delete(self, *args, **kwargs):
         if not self.is_deletable:
@@ -270,9 +257,6 @@ class AbstractTestCase(TimeStampedEditableModel):
             )
         super().delete(*args, **kwargs)      
         
-        
-
-
     def save(self, *args, **kwargs):
         # Ensure params is always a dict, never None or empty string
         if self.params in (None, ""):
@@ -321,29 +305,29 @@ class AbstractTestSuite(TimeStampedEditableModel):
     Abstract model for Test Suites
     Groups test cases for coordinated execution
     """
+
     name = models.CharField(
-        _("Test Group Name"),  # Changed label
+        _("Test Group Name"),  
         max_length=50,
         db_index=True,
-        help_text=_("Descriptive name for the test group")  # Changed help text
+        help_text=_("Descriptive name for the test group")  
     )
     description = models.TextField(
         _("Description"),
         max_length=1000,
-        help_text=_("Detailed description of what this test group does")  # Changed help text
+        help_text=_("Detailed description of what this test group does")  
     )
     is_active = models.BooleanField(
-        _("Is Active"),  # Changed label
+        _("Is Active"), 
         default=True,
-        help_text=_("Whether this test group is currently active")  # Changed help text
+        help_text=_("Whether this test group is currently active")  
     )
-
     test_cases = models.ManyToManyField(
         'test_management.TestCase',
         through='test_management.TestSuiteCase',
         related_name='test_suites',  # Keep model relation name same
-        verbose_name=_("Test Cases"),  # Changed label
-        help_text=_("Test cases included in this group")  # Changed help text
+        verbose_name=_("Test Cases"),  
+        help_text=_("Test cases included in this group")  
     )
     created_by = models.ForeignKey(
         'openwisp_users.User',
@@ -355,9 +339,8 @@ class AbstractTestSuite(TimeStampedEditableModel):
 
     class Meta:
         abstract = True
-        verbose_name = _("Test Group")  # Changed from "Test Suite"
-        verbose_name_plural = _("Test Groups")  # Changed from "Test Suites"
-        # unique_together = ( "name")
+        verbose_name = _("Test Group")  
+        verbose_name_plural = _("Test Groups")  
         ordering = [ "name"]
 
     def __str__(self):
@@ -374,7 +357,6 @@ class AbstractTestSuite(TimeStampedEditableModel):
             raise ValidationError({
                 "name": _("A test group with this name already exists")
             })
-
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -399,6 +381,7 @@ class AbstractTestSuite(TimeStampedEditableModel):
 
     def get_ordered_test_cases(self):
         """Get test cases in execution order"""
+
         from ..swapper import load_model
         TestSuiteCase = load_model("TestSuiteCase")
         return TestSuiteCase.objects.filter(
@@ -412,27 +395,28 @@ class AbstractTestSuiteCase(TimeStampedEditableModel):
     Represents the many-to-many relationship between test suites and test cases
     with ordering support
     """
+
     test_suite = models.ForeignKey(
         'test_management.TestSuite',
         related_name='suite_cases',
         on_delete=models.CASCADE,
-        verbose_name=_("Test Group")  # Changed label
+        verbose_name=_("Test Group")  
     )
     test_case = models.ForeignKey(
         'test_management.TestCase',
         on_delete=models.CASCADE,
-        verbose_name=_("Test Case")  # Keep same
+        verbose_name=_("Test Case") 
     )
     order = models.PositiveIntegerField(
         _("order"),
         default=0,
-        help_text=_("Execution order of test case within the group")  # Changed help text
+        help_text=_("Execution order of test case within the group") 
     )
 
     class Meta:
         abstract = True
-        verbose_name = _("Test Group Case")  # Changed
-        verbose_name_plural = _("Test Group Cases")  # Changed
+        verbose_name = _("Test Group Case") 
+        verbose_name_plural = _("Test Group Cases") 
         unique_together = ("test_suite", "test_case")
         ordering = ["test_suite", "order", "test_case"]
 
@@ -461,7 +445,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
     Abstract model for Test Suite Executions
     Tracks execution of a test suite on multiple devices
     """
-    # Device selection choices
+   
     DEVICE_SELECTION_CHOICES = (
         (0, _('Individual')),
         (1, _('Device Group')),
@@ -485,7 +469,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
     test_selection_type = models.IntegerField(
         _("test selection type"),
         choices=TEST_SELECTION_CHOICES,
-        default=1,  # Default to Test Suite for backward compatibility
+        default=1,  # Default to Test Group for backward compatibility
         db_index=True,
         help_text=_("Select individual test cases or a test Group")
     )
@@ -506,14 +490,11 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         help_text=_("Individual test cases to execute (required if selection type is 'Individual Test Cases')")
     )
     test_case_execution_order = models.JSONField(default=list, blank=True)
-    
     is_executed = models.BooleanField(
         _("is executed"),
         default=False,
         help_text=_("Whether the execution has completed")
     )
-
-    # NEW FIELDS
     device_count = models.PositiveIntegerField(
         _("device count"),
         default=0,
@@ -530,14 +511,12 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         default=0,
         help_text=_("Number of test cases in this execution")
     )
-
     device_selection = models.IntegerField(
         _("device selection type"),
         choices=DEVICE_SELECTION_CHOICES,
         default=0,
         help_text=_("Type of device selection: Individual or Device Group")
     )
-
     device_group = models.ForeignKey(
         'test_management.TestDeviceGroup',
         on_delete=models.SET_NULL,
@@ -570,27 +549,21 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
         db_index=True,
         help_text=_("Original execution if this is a re-execution")
     )
-
     re_execution_index = models.PositiveIntegerField(
         null=True,
         blank=True,
         help_text=_("1 for first re-execution, 2 for second, etc.")
     )
-
     execution_status = models.IntegerField(
         _("Execution Status"),
         choices=EXECUTION_STATUS_CHOICE,
         default=0,
         help_text=_("execution status")
     )
-
     execution_start_time = models.DateTimeField(
         null=True,
         blank=True
     )
-
-
-
 
     class Meta:
         abstract = True
@@ -706,10 +679,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
                         device=device,
                         defaults={"status": "pending"}
                     )
-                ############NOTE: here test case will be saved after M2M is saved
-
-
-
+               
         # Update device_count ALWAYS (single or group)
         self.device_count = TestSuiteExecutionDevice.objects.filter(
             test_suite_execution=self
@@ -725,7 +695,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
 
 
     def execute_tests(self):
-        print("⚡ EXECUTING tests for:", self.pk)
+       
         # Example async call:
         # from .tasks import run_testsuite_task
         # run_testsuite_task.delay(self.pk)
@@ -825,6 +795,7 @@ class AbstractTestSuiteExecution(TimeStampedEditableModel):
             device__is_deleted=False
         ).count()
 
+
 class AbstractScheduledExecution(models.Model):
 
     class Status(models.IntegerChoices):
@@ -846,13 +817,9 @@ class AbstractScheduledExecution(models.Model):
         default=Status.PENDING
     )
     celery_task_id = models.CharField(max_length=255, blank=True, null=True)
-
-    
     queued_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-    
-    
     error_message = models.TextField(blank=True)
     retry_count = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -875,6 +842,7 @@ class AbstractScheduledExecution(models.Model):
             self.status == self.Status.PENDING and 
             self.scheduled_time <= timezone.now()
         )
+
 
 class AbstractTestSuiteExecutionDevices(TimeStampedEditableModel):
     """
@@ -934,7 +902,6 @@ class AbstractTestSuiteExecutionDevices(TimeStampedEditableModel):
         return f"{self.test_suite_execution} - {self.device.name}"
     
 
-
 class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
     """
     Abstract model for Test Suite Execution Devices
@@ -985,15 +952,12 @@ class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
         blank=True,
         help_text=_("Execution output/logs")
     )
-    
-    # ADD THIS NEW FIELD FOR ALLURE REPORT
     allure_report_path = models.CharField(
         _("allure report path"),
         max_length=255,
         blank=True,
         help_text=_("Path to the Allure report HTML file for this device execution")
-    )
-    
+    ) 
     connection_protocol = models.IntegerField(
         _("Connection Protocol"),
         choices=CONNECTION_PROTOCOL_CHOICES,
@@ -1066,8 +1030,6 @@ class AbstractTestCaseExecution(TimeStampedEditableModel):
         verbose_name=_("test case"),
         help_text=_("The test case that was executed")
     )
-    
-    # Execution timing
     started_at = models.DateTimeField(
         _("started at"),
         null=True,
@@ -1080,8 +1042,6 @@ class AbstractTestCaseExecution(TimeStampedEditableModel):
         blank=True,
         help_text=_("When this test case execution completed")
     )
-    
-    # Execution status and results
     status = models.CharField(
         _("status"),
         max_length=20,
@@ -1090,23 +1050,17 @@ class AbstractTestCaseExecution(TimeStampedEditableModel):
         db_index=True,
         help_text=_("Current execution status")
     )
-    
-    # Execution order within the suite
     execution_order = models.PositiveIntegerField(
         _("execution order"),
         default=0,
         help_text=_("Order in which this test case should be executed within the suite")
     )
-    
-    #Process ID
     process_id = models.IntegerField(
         _("Process ID"),
         null=True,
         blank=True,
         help_text=_("Process ID returned by executor server.")
     )
-
-    # Results and output
     exit_code = models.IntegerField(
         _("exit code"),
         null=True,
@@ -1169,12 +1123,12 @@ class AbstractTestCaseExecution(TimeStampedEditableModel):
         """Validate the test case execution"""
         super().clean()
         
-        # Ensure test case belongs to the same suite
+        # Ensure test case belongs to the same group
         if (self.test_case and self.test_suite_execution and 
             self.test_case not in self.test_suite_execution.test_suite.test_cases.all()):
             raise ValidationError({
                 "test_case": _(
-                    "Test case must belong to the test suite being executed"
+                    "Test case must belong to the test group being executed"
                 )
             })
         
@@ -1183,11 +1137,10 @@ class AbstractTestCaseExecution(TimeStampedEditableModel):
             not self.test_suite_execution.devices.filter(device=self.device).exists()):
             raise ValidationError({
                 "device": _(
-                    "Device must be part of the test suite execution"
+                    "Device must be part of the test group execution"
                 )
             })
         
-        # Validate timing
         if self.started_at and self.completed_at and self.started_at > self.completed_at:
             raise ValidationError({
                 "completed_at": _("Completion time cannot be before start time")
@@ -1198,14 +1151,9 @@ class AbstractTestCaseExecution(TimeStampedEditableModel):
         if self.started_at and self.completed_at:
             self.execution_duration = self.completed_at - self.started_at
         
-        # Just call super().save() without validation for now
-        super().save(*args, **kwargs)  # ← This is essential!
+        super().save(*args, **kwargs)  
 
  
-    
-
- 
-
 class AbstractTestDeviceGroup(OrgMixin, TimeStampedEditableModel):
     """
     Abstract model for Test Device Groups
@@ -1331,16 +1279,16 @@ class AbstractTestDeviceGroupDevice(TimeStampedEditableModel):
         super().save(*args, **kwargs)
 
 
-
 class AbstractExecutionArtifact(models.Model):
-   
+    """
+    Abstract model to save configuration files for testcases over different devices of the execution.
+    """
     
     execution= models.ForeignKey(
         "test_management.TestSuiteExecution",
         on_delete=models.CASCADE,
         related_name="artifacts"
     )
-
     device= models.ForeignKey(
         "config.Device",
         on_delete=models.CASCADE
@@ -1368,7 +1316,6 @@ class AbstractExecutionArtifact(models.Model):
                 raise ValidationError(
                     "Configuration file cannot be modified after it has been pushed."
                 )
-
 
 
 class AbstractExecutionEmailLog(TimeStampedEditableModel):
