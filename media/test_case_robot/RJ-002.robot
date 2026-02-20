@@ -1,5 +1,5 @@
 *** Settings ***
-Library           ../../resources/keywords/robot_001.py
+Library           ../../../resources/keywords/robot_001.py
 Library           JSONLibrary
 Library           BuiltIn
 Library           Collections
@@ -7,7 +7,7 @@ Library           Collections
 *** Variables ***
 ${DEVICE_JSON}     ${EMPTY}
 ${TEST_JSON}       ${EMPTY}
-${LOG_FOLDER}      ${CURDIR}/../../logs
+${LOG_FOLDER}      ${CURDIR}/../../../logs
 
 *** Test Cases ***
 Verify SSH Access - PC Then BB

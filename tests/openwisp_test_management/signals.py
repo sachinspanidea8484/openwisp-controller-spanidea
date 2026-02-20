@@ -15,40 +15,78 @@ logger = logging.getLogger(__name__)
 @receiver(pre_save, sender=TestCase)
 def capture_old_testcase_data(sender, instance, **kwargs):
     """Capture old values before save to detect changes"""
+    
+    # NEW OBJECT
     if not instance.pk:
         instance._is_new = True
         instance._needs_push = True
         return
-    
+
     try:
         old = sender.objects.get(pk=instance.pk)
+
         instance._old_test_case_id = old.test_case_id
         instance._old_python_script = old.python_script.name if old.python_script else None
         instance._old_robot_script = old.robot_script.name if old.robot_script else None
         instance._is_new = False
-        
-        # Detect changes
+
+        # ✅ Detect test_case_id change
         test_case_id_changed = old.test_case_id != instance.test_case_id
-        python_changed = (old.python_script.name if old.python_script else None) != (instance.python_script.name if instance.python_script else None)
-        robot_changed = (old.robot_script.name if old.robot_script else None) != (instance.robot_script.name if instance.robot_script else None)
-        
-        # Mark if push needed
-        instance._needs_push = test_case_id_changed or python_changed or robot_changed
+
+        # ✅ FIXED: Properly detect file replacement (even if filename same)
+        python_changed = False
+        robot_changed = False
+
+        # ----- Detect Python change -----
+        if instance.python_script:
+            # New file uploaded
+            if instance.python_script._file is not None and not instance.python_script._committed:
+                python_changed = True
+            else:
+                python_changed = (
+                    (old.python_script.name if old.python_script else None)
+                    !=
+                    (instance.python_script.name if instance.python_script else None)
+                )
+        else:
+            python_changed = old.python_script is not None
+
+        # ----- Detect Robot change -----
+        if instance.robot_script:
+            # New file uploaded
+            if instance.robot_script._file is not None and not instance.robot_script._committed:
+                robot_changed = True
+            else:
+                robot_changed = (
+                    (old.robot_script.name if old.robot_script else None)
+                    !=
+                    (instance.robot_script.name if instance.robot_script else None)
+                )
+        else:
+            robot_changed = old.robot_script is not None
+
+        # ✅ Mark if push needed
+        instance._needs_push = (
+            test_case_id_changed or python_changed or robot_changed
+        )
+
         instance._test_case_id_changed = test_case_id_changed
         instance._python_changed = python_changed
         instance._robot_changed = robot_changed
-        
+
         if instance._needs_push:
-            print(f"[DEBUG] Changes detected:")
-            print(f"  - Test Case ID changed: {test_case_id_changed}")
-            print(f"  - Python script changed: {python_changed}")
-            print(f"  - Robot script changed: {robot_changed}")
-            
+            logger.info(
+                f"Changes detected for {instance.test_case_id} | "
+                f"ID changed: {test_case_id_changed}, "
+                f"Python changed: {python_changed}, "
+                f"Robot changed: {robot_changed}"
+            )
+
     except sender.DoesNotExist:
         instance._is_new = True
         instance._needs_push = True
 
-
+        
 
 @receiver(post_save, sender=TestCase, dispatch_uid="push_to_executor_last")
 def robot_framework_server_push(sender, instance, created, **kwargs):

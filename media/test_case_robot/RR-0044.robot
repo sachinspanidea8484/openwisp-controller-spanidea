@@ -1,5 +1,5 @@
 *** Settings ***
-Library           ../../resources/keywords/robot_001.py
+Library           ../../../resources/keywords/RR-0044.py
 Library           JSONLibrary
 Library           BuiltIn
 Library           Collections
@@ -7,11 +7,11 @@ Library           Collections
 *** Variables ***
 ${DEVICE_JSON}     ${EMPTY}
 ${TEST_JSON}       ${EMPTY}
-${LOG_FOLDER}      ${CURDIR}/../../logs
+${LOG_FOLDER}      ${CURDIR}/../../../logs
 
 *** Test Cases ***
 Verify SSH Access - PC Then BB
-    [Tags]    RJ-001
+    [Tags]    RR-0044
     Load Device Info
      Sleep    20s
      Log To Console    ==== PING BB ====
