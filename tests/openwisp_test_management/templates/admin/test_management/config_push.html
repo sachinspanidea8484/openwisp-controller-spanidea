@@ -155,6 +155,10 @@
   </fieldset>
   <div class="submit-row">
     <a class="button"
+      href="{% url 'admin:test_management_testsuiteexecution_changelist' %}">
+        Close
+    </a>
+    <a class="button"
        href="{% url 'admin:test_management_testsuiteexecution_change' execution.pk %}">
       Back to Execution
     </a>

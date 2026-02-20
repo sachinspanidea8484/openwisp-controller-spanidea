@@ -2816,6 +2816,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         wants_schedule = "_schedule_execution" in request.POST
 
         if wants_execute:
+            self.message_user(
+                request,
+                f"Execution saved successfully. Please upload the required files to start execution.",
+                messages.SUCCESS
+            )
             return HttpResponseRedirect(
             reverse("admin:execution_config_push", args=[obj.pk]) + "?execute=1"
             )
@@ -2823,10 +2828,20 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             schedule_datetime = request.POST.get("schedule_datetime")
             if schedule_datetime:
                 request.session["execution_schedule_time"]= schedule_datetime
+                self.message_user(
+                    request,
+                    f"Execution saved successfully. Please upload the required files to schedule execution.",
+                    messages.SUCCESS
+                )
                 return HttpResponseRedirect(
                     reverse("admin:execution_config_push", args=[obj.pk]) + "?schedule=1"
                     )
-        
+            
+        self.message_user(
+                    request,
+                    f"Execution saved successfully. Please upload the required files.",
+                    messages.SUCCESS
+                )
         return HttpResponseRedirect(
                 reverse("admin:execution_config_push", args=[obj.pk])
             )
@@ -2837,6 +2852,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         wants_schedule = "_schedule_execution" in request.POST
 
         if wants_execute:
+            self.message_user(
+                request,
+                f"Execution saved successfully. Please upload the required files to start execution.",
+                messages.SUCCESS
+            )
             return HttpResponseRedirect(
                 reverse("admin:execution_config_push", args=[obj.pk]) + "?execute=1"
             )
@@ -2844,9 +2864,19 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             schedule_datetime = request.POST.get("schedule_datetime")
             if schedule_datetime:
                 request.session["execution_schedule_time"]= schedule_datetime
+                self.message_user(
+                    request,
+                    f"Execution saved successfully. Please upload the required files to schedule execution.",
+                    messages.SUCCESS
+                )
                 return HttpResponseRedirect(
                     reverse("admin:execution_config_push", args=[obj.pk]) + "?schedule=1"
                 )
+        self.message_user(
+                request,
+                f"Execution saved successfully. Please upload the required files.",
+                messages.SUCCESS
+            )
         return HttpResponseRedirect(
                 reverse("admin:execution_config_push", args=[obj.pk])
             )
