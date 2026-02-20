@@ -226,7 +226,11 @@ urlpatterns = [
                 }),
                 name="device-group-list",
             ),
-
+            path(
+                "test-suite/<uuid:suite_id>/details/",
+                executor_views.get_test_suite_details,
+                name="api_test_suite_details",
+            ),
 
     # Un Use APIS  
     # path(
@@ -259,8 +263,6 @@ urlpatterns = [
     #     views.test_execution_available_devices,
     #     name="api_test_execution_available_devices",
     # ),
-
-
         ]),
     ),
 ]

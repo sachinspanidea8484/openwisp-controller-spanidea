@@ -1,85 +1,57 @@
+# START_DESCRIPTION 
+#1. Verify band to which BB is currently attached
+#2. Perform band lock to set band to a different band
+#3. Verify that the BB detaches from the first band and re-attached to the specific band.
+# END_DESCRIPTION
+
+
 #!/usr/bin/env python3
 """
-4G BAND LOCK TEST (BB-INT-4G-005)
+4G BAND LOCK  TEST (BB-INT-4G-005)
 Dynamic target band input via command-line parameter
-python3 BB_INT_4G_005.py CONFIGURATION='{"LOCK_BAND": "66"}'
+python3 BB_INT_4G_005.py CONFIGURATION='{"cellular_interface": "Modem1", "error_threshold_percent":"10", "LOCK_BAND": "66"}'
 """
+
 
 import re
 import sys
 import time
 import json
 import argparse
-import subprocess
 from datetime import datetime
- 
- 
-def parse_config(config_str):
-    """Parse CONFIGURATION=... style string into a Python dict"""
- 
-    # Remove 'CONFIGURATION=' prefix if present
-    if config_str.startswith("CONFIGURATION="):
-        config_str = config_str[len("CONFIGURATION="):]
- 
-    # Try to parse the remaining string as JSON
-    try:
-        return json.loads(config_str)
-    except json.JSONDecodeError as e:
-        print(f"Error parsing CONFIGURATION JSON: {e}", file=sys.stderr)
-        return {}
+from common_helper import (log, run_local_command, parse_config, get_modem_status, ensure_modem_connected, validate_ifconfig_errors, EXIT_SUCCESS,EXIT_FAILED)
 
 
-# === CONFIGURATION ===
-BB_AT_PORT = "/dev/ttyUSB3"
-BB_QMI_DEVICE = "/dev/cdc-wdm0"
-LOG_FILE = "BB_INT_4G_005.log"
 
-# === EXIT CODES ===
+#CONSTANTS
+MAX_RETRIES = 3
 EXIT_SUCCESS = 0
 EXIT_FAILED = 1
-EXIT_PRECONDITION_FAILED = 2
-EXIT_CMDS_NON_RESPONSIVE = 3
-
-# === CONSTANTS ===
 DEFAULT_BND = ["0", "22", "A7E2BB0F38DF", "42", "1A0290828D7", "7042", "81A03B0A38D7", "7C42"]
 WAITING_TIME = 120  # seconds
-MAX_RETRIES = 3
 
-# === LOGGING ===
-def timestamp():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def log(message):
-    line = f"[+] {timestamp()} - {message}"
-    print(line)
-    with open(LOG_FILE, "a") as f:
-        f.write(line + "\n")
-
-# === SHELL HELPER ===
-def run_cmd(command):
-    log(f"Executing command: {command}")
-    try:
-        result = subprocess.run(
-            command, shell=True, text=True, capture_output=True, check=False
-        )
-        output = result.stdout.strip()
-        error = result.stderr.strip()
-        if output:
-            log(f"Output: {output}")
-        if error:
-            log(f"Error: {error}")
-        return output, error
-    except Exception as e:
-        log(f"Command execution failed: {e}")
-        return "", str(e)
-
-# === AT Command Helper ===
+# === AT COMMAND HELPER FUNCTIONS  ===
 def at_cmd(cmd):
-    """Send AT command to modem via socat"""
-    return run_cmd(f"echo -e '{cmd}\\r' | socat - {BB_AT_PORT},raw,echo=0,crnl")
+    full_cmd = f'echo -e "{cmd}\\r" | socat - {BB_AT_PORT},raw,echo=0,crnl'
+    stdout, stderr, rc = run_local_command(full_cmd, allow_fail=True)
+
+    if stdout:
+            log("OUT: %s", stdout)
+
+    if stderr:
+            log("ERR: %s",stderr, level="ERROR")
+
+    if rc != 0:
+        log("AT command failed (RC=%d): %s", rc, cmd, level="ERROR")
+
+    if stdout and "ERROR" in stdout:
+        log("Modem responded with ERROR for command: %s", cmd, level="ERROR")
+
+    return stdout, stderr
 
 
-# === PARSERS ===
+# === Parsers ===
 def parse_cops(output):
     match = re.search(r'\+COPS:.*?,.*?,\"([^\"]+)\",(\d+)', output)
     if match:
@@ -96,10 +68,6 @@ def parse_cops(output):
         return {"operator": operator, "act_code": act_code, "act_name": act_name}
     return None
 
-def parse_cereg(output):
-    match = re.search(r"\+CEREG:\s*\d+,(\d+)", output)
-    return int(match.group(1)) if match else None
-
 def parse_cpin(output):
     if "+CME ERROR: 10" in output:
         return "NOT_INSERTED"
@@ -111,12 +79,11 @@ def parse_cpin(output):
         return "READY"
     return "UNKNOWN"
 
-def parse_cgatt(output):
-    if "+CGATT: 1" in output:
-        return True
-    elif "+CGATT: 0" in output:
-        return False
-    return None
+
+def parse_cereg(output):
+    match = re.search(r"\+CEREG:\s*\d+,(\d+)", output)
+    return int(match.group(1)) if match else None
+
 
 def parse_bnd(output):
     match = re.search(r"#BND:\s*(.*)", output)
@@ -137,6 +104,7 @@ def parse_rfsts(output):
         return {"operator": operator, "tech": tech, "band": int(band)}
     return None
 
+
 # === BAND HELPERS ===
 def band_to_bitmask(band_num):
     if not (1 <= band_num <= 128):
@@ -147,6 +115,7 @@ def band_to_bitmask(band_num):
     else:
         high_mask = 1 << (band_num - 65)
     return f"{low_mask:X}", f"{high_mask:X}"
+
 
 def get_band_config():
     out, _ = at_cmd("AT#BND?")
@@ -183,91 +152,147 @@ def lock_band(band_num):
     set_band_config(new_cfg)
     time.sleep(5)
 
-def unlock_band():
-    log("Unlocking (restoring all default LTE/5G bands)...")
-    set_band_config(DEFAULT_BND)
-    time.sleep(5)
-    verify_current_band()
 
-# === MAIN ===
+
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description='4G BAND LOCK TEST (BB-INT-4G-005)')
     parser.add_argument('config', help='Configuration string')
- 
     args = parser.parse_args()
- 
-    # Parse configuration
+
     config = parse_config(args.config)
- 
-    # Access by key and print
-    TARGET_BAND = config.get('LOCK_BAND', config.get('LOCK_BAND', '66'))
- 
-    #print(f"TARGET_BAND : {TARGET_BAND}")
+
+    CELLULAR_IFACE = config.get('cellular_interface', 'Modem1')
+    TARGET_BAND = int(config.get('LOCK_BAND', 66))
+    THRESHOLD = float(config.get('error_threshold_percent', 10))
     
-    log(f"=== Starting 4G BAND LOCK (BB-INT-5G-005) Test with target band {TARGET_BAND} ===")
+    if CELLULAR_IFACE == "Modem1":
+        BB_AT_PORT = "/dev/ttyUSB3"
+    elif CELLULAR_IFACE == "Modem2":
+        BB_AT_PORT = "/dev/ttyUSB7"
+    else:
+        BB_AT_PORT = None
 
+     
+    log(f"Starting 4G BAND LOCK Test BB-INT-4G-005 with target band {TARGET_BAND}...")
+    
     try:
-        log("=== STEP 1: Checking SIM status ===")
-        sim_out, _ = at_cmd("AT+CPIN?")
-        sim_status = parse_cpin(sim_out)
-        if sim_status != "READY":
-            log(f"TEST FAILED: SIM not ready ({sim_status}). Aborting.")
-            sys.exit(EXIT_PRECONDITION_FAILED)
-        log("SIM is ready.")
+        info = get_modem_status(CELLULAR_IFACE)
 
-        log("=== STEP 2: Checking 4G Network (Operator + RAT) ===")
-        cops_out, _ = at_cmd("AT+COPS?")
-        info = parse_cops(cops_out)
-        if info:
-            log(f"Operator: {info['operator']} | RAT: {info['act_name']} (Code {info['act_code']})")
-        else:
-            log("Could not parse AT+COPS? output.")
-            
-        log("=== STEP 3: Check packet domain attach ===")
-        for attempt in range(MAX_RETRIES):
-            cgatt_out, _ = at_cmd("AT+CGATT?")
-            attached = parse_cgatt(cgatt_out)
-            if attached:
-                log("Attached to packet domain.")
-                break
-            log(f"Retrying packet domain attach ({attempt+1})...")
-            time.sleep(5)
-        else:
-            log("Failed to attach to packet domain.")
-            sys.exit(EXIT_PRECONDITION_FAILED)
-
-        log("=== STEP 4: Check registration status ===")
-        nw_status_out, _ = at_cmd("AT+CEREG?")
-        reg_status = parse_cereg(nw_status_out)
-        if reg_status not in [1, 5]:
-            log(f"Not registered to 4G network (CEREG={reg_status}).")
-            sys.exit(EXIT_PRECONDITION_FAILED)
-        log(f"Registered to 4G network ({'Home' if reg_status == 1 else 'Roaming'})")
-
-        log("=== STEP 5: Band operations ===")
-        log("*** Step 5(I): Check current active band ***")
-        band1 = verify_current_band()
-
-        log(f"*** Step 5(II): Lock to LTE band {TARGET_BAND} ***")
-        lock_band(TARGET_BAND)
-
-        log(f"*** Step 5(III): Waiting {WAITING_TIME}s for network reacquisition ***")
-        time.sleep(WAITING_TIME)
-
-        log("*** Step 5(IV): Verify current band after locking ***")
-        band2 = verify_current_band()
-
-        if band2 == TARGET_BAND:
-            log(f"BB successfully detached from Band {band1} and reattached to specific Band {TARGET_BAND}")
-            log("TEST PASSED!!! — Band lock successful.")
-            sys.exit(EXIT_SUCCESS)
-        else:
-            log(f"TEST FAILED!!! — Expected Band {TARGET_BAND} but still on Band {band2}")
+        if not info:
+            log("TEST FAILED - Failed to get modem status", level="ERROR")
             sys.exit(EXIT_FAILED)
 
+        QMI_DEVICE = info["qmi_device"]
+        DATA_INTERFACE = info["data_interface"]
+        NETWORK_TYPE = info["network_type"]
+
+        log("Modem Info - QMI Device: %s | Data Interface: %s | Network Type: %s",
+            QMI_DEVICE, DATA_INTERFACE, NETWORK_TYPE)
+
+         # === Pre-check 1: Modem Connection ===
+        log("=== Pre-check 1: Checking Modem Connection Status ===")
+        if not ensure_modem_connected(CELLULAR_IFACE, QMI_DEVICE):
+            log("TEST FAILED - Modem failed to connect.", level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+        log("Modem connection: OK")
+        
+        # === Pre-check 2: SIM Status ===
+        log("=== Pre-check 2: Checking SIM Status ===")
+        sim_out, _ = at_cmd("AT+CPIN?")
+        sim_status = parse_cpin(sim_out)
+
+        if sim_status != "READY":
+            log(f"TEST FAILED - SIM state invalid: {sim_status}", level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+        log("SIM status: READY")
+       
+        # === Pre-check 3: Network Registration ===
+        log("=== Pre-check 3: Checking Network Registration ===")
+        nw_status_out, _ = at_cmd("AT+CEREG?")
+        reg_status = parse_cereg(nw_status_out)
+
+        if reg_status not in [1, 5]:
+            log(f"TEST FAILED - Not registered to 4G network (CEREG={reg_status})", level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+        log(f"Registered to 4G network ({'Home' if reg_status == 1 else 'Roaming'})")
+
+
+        # === STEP 1: Verify current attached band ===
+        log("=== STEP 1: Verify current LTE band ===")
+        band1 = verify_current_band()
+
+        if band1 is None:
+            log("TEST FAILED - Unable to determine current LTE band", level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+        log(f"Currently attached to LTE Band {band1}")
+
+        if band1 == TARGET_BAND:
+            log(f"TEST FAILED - Already on target Band {TARGET_BAND}. "
+                "Cannot validate band switch.", level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+        # === STEP 2: Perform band lock ===
+        log(f"=== STEP 2: Locking to LTE Band {TARGET_BAND} ===")
+        lock_band(TARGET_BAND)
+
+        log(f"Waiting {WAITING_TIME}s for network reacquisition...")
+        time.sleep(WAITING_TIME)
+
+        # === STEP 3: Verify detach + reattach (with one retry) ===
+        log("=== STEP 3: Verify band switch ===")
+
+        max_attempts = 2   # 1 initial + 1 retry
+        attempt = 1
+        band2 = None
+        band_switch_success = False
+
+        while attempt <= max_attempts:
+
+            log("Verification attempt %d/%d...", attempt, max_attempts)
+
+            band2 = verify_current_band()
+
+            if band2 is not None:
+                log("Detected Band: %s", band2)
+
+                if band2 != band1 and band2 == TARGET_BAND:
+                    log("BB successfully detached from Band %s and reattached to Band %s",
+                        band1, TARGET_BAND)
+                    band_switch_success = True
+                    break
+
+            if attempt < max_attempts:
+                log("Band verification failed. Waiting 10s before retry...")
+                time.sleep(10)
+
+            attempt += 1
+
+
+        # === After Retry Loop ===
+        if not band_switch_success:
+            log("TEST FAILED - Expected Band %s, but final detected Band is %s",
+                TARGET_BAND, band2, level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+
+        # === Step 4: Validate interface errors ===
+        log("=== Step 4: Validating Interface Error Counters ===")
+
+        if not validate_ifconfig_errors(DATA_INTERFACE, THRESHOLD):
+            log("TEST FAILED: Interface error threshold exceeded.", level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+        log("Interface error validation passed.")
+
+        # Final PASS
+        log("=== TEST PASSED — Band lock successful ===")
+        sys.exit(EXIT_SUCCESS)
+
+
     except Exception as e:
-        log(f"TEST FAILED - Exception: {e}")
+        log("TEST FAILED - Unhandled exception: %s", e, level="ERROR")
         sys.exit(EXIT_FAILED)
-
-

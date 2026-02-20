@@ -1,93 +1,62 @@
-import subprocess                              
-import time                                                         
-import re                                                   
-import sys                                          
-import os
-                                                                      
+#!/usr/bin/env python3
+import sys, time, re
+from common_helper import log, run_local_command, verify_file_exists, EXIT_SUCCESS, EXIT_FAILED
+
 SENSOR_SCRIPT = "/usr/bin/sensor_monitor.py"
-NUM_READINGS = 5                                         
-DELAY_BETWEEN_READS = 1  # seconds
-                                                                             
-def run_local_command(command):                                          
-    """                                         
-    Runs a shell command locally and returns stdout.         
-    """                                                   
-    result = subprocess.run(command, shell=True, capture_output=True, text=True)
-    return result.stdout.strip()    
-           
-def extract_sht4x_block(output):                           
-    """                                             
-    Extracts the SHT4X_HWMON0 block from the sensor output.         
-    """                                                     
-    match = re.search(                   
-        r"SHT4X_HWMON0\s*\n(?: {2}.+\n?){2,5}",
-        output                                                                             
-    )                                                                           
-    return match.group(0).strip() if match else None     
-                 
-def parse_temp_and_humidity(block):                                                 
-    """                                                                     
-    Parse temperature and humidity values from the block.
-    """
-    
-    temp_match = re.search(r"Temperature\s*\(.*C\)\s*:\s*([\d\.\-]+)", block)
-    hum_match  = re.search(r"Humidity\s*\(.*\)\s*:\s*([\d\.\-]+)", block)
-                                                                        
-    temp = float(temp_match.group(1)) if temp_match else None
-    hum = float(hum_match.group(1)) if hum_match else None 
-    return temp, hum              
-    
-def main():                                                                  
-    # STEP 0: Check script presence                                             
-    if not os.path.exists(SENSOR_SCRIPT):                                       
-        print(f"[ERROR] Sensor script not found at {SENSOR_SCRIPT}")            
-        print("[RESULT] FAILURE ... Missing sensor script.")                    
-        sys.exit(1)                                                             
-                                                                                
-    print("[STEP 1] Fetching only SHT4X_HWMON0 readings locally...\n")          
-                                                                             
-    readings = []  # Store tuples (temperature, humidity)                    
-                                                                             
-    for i in range(1, NUM_READINGS + 1):                                        
-        output = run_local_command(f"python3 {SENSOR_SCRIPT}")               
-        sht4x_data = extract_sht4x_block(output)                             
-                                                                                
-        print(f"[{i}]")                                                      
-        if sht4x_data:                                                       
-            print(sht4x_data + "\n")                                     
-                                                                             
-            temp, hum = parse_temp_and_humidity(sht4x_data)                  
-            if temp is not None and hum is not None:                         
-                readings.append((temp, hum))                                 
-                                                                             
-                # Check temperature range                                                  
-                if not (-45 <= temp <= 80):                                     
-                    print(f"[{i}] [ERROR] Temperature {temp}..C out of range (-45 to 80).")
-                    print("[RESULT] FAILURE ... Device Temperature test failed")           
-                    sys.exit(1)                                                            
-            else:                                                                          
-                print(f"[{i}] [ERROR] Could not parse Temperature/Humidity values.")       
-                print("[RESULT] FAILURE ... Device Temperature test failed")               
-                sys.exit(1)                                                                
-                                                                                           
-        else:                                                                              
-            print("[ERROR] SHT4X_HWMON0 block not found.\n")                               
-            print("[RESULT] FAILURE ... Device Temperature test failed")            
-            sys.exit(1)                                                                    
-                                                                                           
-        time.sleep(DELAY_BETWEEN_READS)                                             
-                                                                                           
-    # STEP 2: Identical values check (only if we collected 5 readings)                     
-    if len(readings) == NUM_READINGS:                                                                       
-        if all(r == readings[0] for r in readings):                                        
-            print("[ERROR] All 5 readings are identical. Possible hard-coded values, not live sensor data.")
-            print("[RESULT] FAILURE ... Device Temperature test failed.")                                   
-            sys.exit(1)                                                                                     
-                                                                                                            
-    # Final result                                                                                          
-    print("[RESULT] SUCCESS ... All SHT4X_HWMON0 checks passed.")                                           
-    sys.exit(0)                                                                                             
-                                                                                                            
-if __name__ == "__main__":                                                                                  
-    main()         
+TARGET_SENSOR = "SHT4X_HWMON0"
+NUM_READINGS, DELAY = 5, 1
+TEMP_MIN, TEMP_MAX = -45, 80
+
+
+def extract_block(out):
+    m = re.search(r"SHT4X_HWMON0\s*\n(?: {2}.+\n?){2,5}", out)
+    return m.group(0).strip() if m else None
+
+
+def parse_values(block):
+    t = re.search(r"Temperature\s*\(.*C\)\s*:\s*([\d\.\-]+)", block)
+    h = re.search(r"Humidity\s*\(.*\)\s*:\s*([\d\.\-]+)", block)
+    return (float(t.group(1)) if t else None,
+            float(h.group(1)) if h else None)
+
+
+def main():
+    log("[STEP 1] Starting SHT4X Temperature & Humidity Test")
+    if not verify_file_exists(SENSOR_SCRIPT): sys.exit(EXIT_FAILED)
+
+    readings = []
+
+    for i in range(1, NUM_READINGS + 1):
+        out, _, rc = run_local_command(f"python3 {SENSOR_SCRIPT}", allow_fail=True)
+        if rc != 0 or not out:
+            log("[FAIL] No sensor output", level="FAIL"); sys.exit(EXIT_FAILED)
+
+        block = extract_block(out)
+        if not block:
+            log("[FAIL] %s block not found", TARGET_SENSOR, level="FAIL"); sys.exit(EXIT_FAILED)
+
+        log("[%d] Retrieved %s Data:", i, TARGET_SENSOR)
+        for l in block.splitlines(): log("%s", l)
+
+        temp, hum = parse_values(block)
+        if temp is None or hum is None:
+            log("[FAIL] Could not parse Temperature/Humidity", level="FAIL"); sys.exit(EXIT_FAILED)
+
+        if not (TEMP_MIN <= temp <= TEMP_MAX):
+            log("[FAIL] Temperature %.2f°C out of range (%d-%d°C)",
+                temp, TEMP_MIN, TEMP_MAX, level="FAIL"); sys.exit(EXIT_FAILED)
+
+        readings.append((temp, hum))
+        time.sleep(DELAY)
+
+    if len(readings)==NUM_READINGS and all(r==readings[0] for r in readings):
+        log("[FAIL] All readings identical. Sensor not updating.", level="FAIL")
+        sys.exit(EXIT_FAILED)
+
+    log("[PASS] SHT4X Temperature & Humidity Test PASSED", level="PASS")
+    sys.exit(EXIT_SUCCESS)
+
+
+if __name__ == "__main__":
+    main()
 

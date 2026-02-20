@@ -76,11 +76,6 @@ TestDeviceGroup = load_model("TestDeviceGroup")
 TestDeviceGroupDevice = load_model("TestDeviceGroupDevice")
 
 
-
-# Device = load_model("config", "Device")
-# Credentials = load_model("connection", "Credentials")
-# DeviceConnection = load_model("connection", "DeviceConnection")
-
 from import_export import resources, fields
 from import_export.widgets import ForeignKeyWidget
 from import_export.formats import base_formats
@@ -101,15 +96,6 @@ class BaseVersionAdmin(TimeReadonlyAdminMixin, VersionAdmin):
     save_on_top = True
     list_per_page= 10
 
-# class TestCategoryResource(resources.ModelResource):
-    
-#     class Meta:
-#         model = TestCategory
-    
-#     def before_import_row(self, row, **kwargs):
-#         # Replace None with empty string for description
-#         if row.get('description') is None:
-#             row['description'] = ''
 class TestTypeChoices(models.IntegerChoices):
     ROBOT_FRAMEWORK = 1, _('Robot Framework')
     AGENT = 2, _('Device')
@@ -447,7 +433,6 @@ class TestCasesResource(resources.ModelResource):
             "is_active",
             "test_type",
             "params",
-            # "file"
             "is_configuration_push_required",
             "robot_script",
             "python_script",
@@ -546,11 +531,9 @@ class TestCategoryAdmin(BaseVersionAdmin):
 
     fields = [
         "name",
-        "code",    # ✅ code visible only in Add/Edit form
+        "code",    # code visible only in Add/Edit form
         "description",
         "related_testcases"
-        # "created", 
-        # "modified",
     ]
     readonly_fields = ["created", "modified", "related_testcases"]
     
@@ -716,67 +699,45 @@ def delete_selected(self, request, queryset):
     delete_selected.short_description = _("Delete selected test categories")
 
 
-# class TestCategoryExportable(ImportExportMixin, TestCategoryAdmin):
-#     resource_class= TestCategoryResource
-#     actions = TestCategoryAdmin.actions + ["export_selected_objects"]
-
-#     def export_selected_objects(self, request, queryset):
-#         if not queryset.exists():
-#             self.message_user(request, "No categories selected.", level=messages.WARNING)
-#             return
-
-#         dataset = self.resource_class().export(queryset)
-#         export_format = base_formats.XLSX()
-
-#         response = HttpResponse(
-#             dataset.xlsx,
-#             content_type=export_format.get_content_type()
-#         )
-#         response['Content-Disposition'] = 'attachment; filename=selected_test_categories.xlsx'
-#         return response
-
-#     export_selected_objects.short_description = _("Export selected test categories")
-
-
 class FormattedJSONField(forms.CharField):
     """Custom field that formats JSON for display"""
     
     def prepare_value(self, value):
         """Format JSON value before displaying in the widget"""
         print("=" * 50)
-        print("🔍 DEBUG: FormattedJSONField.prepare_value()")
+        print("DEBUG: FormattedJSONField.prepare_value()")
         print(f"Input value type: {type(value)}")
         print(f"Input value: {repr(value)}")
         
         if value is None or value == '':
-            print("✅ Returning empty string")
+            print("Returning empty string")
             return ''
         
         try:
             # Handle dict
             if isinstance(value, dict):
                 parsed = value
-                print(f"✅ Value is dict: {parsed}")
+                print(f"Value is dict: {parsed}")
             # Handle string
             elif isinstance(value, str):
                 value = value.strip()
                 if not value or value == '{}':
-                    print("✅ Empty string or empty object")
+                    print("Empty string or empty object")
                     return ''
                 parsed = json.loads(value)
-                print(f"✅ Parsed from string: {parsed}")
+                print(f"Parsed from string: {parsed}")
             else:
-                print(f"⚠️ Unexpected type, returning as-is: {type(value)}")
+                print(f"Unexpected type, returning as-is: {type(value)}")
                 return value
             
             # Format with proper indentation
             formatted = json.dumps(parsed, indent=4, ensure_ascii=False, sort_keys=True)
-            print(f"✅ Formatted output:\n{formatted}")
+            print(f"Formatted output:\n{formatted}")
             return formatted
             
         except (json.JSONDecodeError, TypeError) as e:
-            print(f"❌ Error formatting JSON: {e}")
-            print(f"⚠️ Returning original value")
+            print(f"Error formatting JSON: {e}")
+            print(f"Returning original value")
             return value
         finally:
             print("=" * 50)
@@ -784,17 +745,17 @@ class FormattedJSONField(forms.CharField):
     def to_python(self, value):
         """Convert widget value to Python object"""
         print("=" * 50)
-        print("🔍 DEBUG: FormattedJSONField.to_python()")
+        print("DEBUG: FormattedJSONField.to_python()")
         print(f"Input: {repr(value)}")
         
         if value in (None, '', '{}'):
-            print("✅ Returning empty dict")
+            print("Returning empty dict")
             result = {}
         elif isinstance(value, dict):
-            print("✅ Already a dict")
+            print("Already a dict")
             result = value
         else:
-            print(f"✅ Returning string for validation: {repr(value)}")
+            print(f"Returning string for validation: {repr(value)}")
             result = value  # Return as string for clean_params to handle
         
         print(f"Output: {repr(result)}")
@@ -1327,24 +1288,24 @@ class TestCaseAdminForm(forms.ModelForm):
         params = self.cleaned_data.get('params', '')
         
         print("=" * 50)
-        print("🔍 DEBUG: clean_params() started")
+        print("DEBUG: clean_params() started")
         print(f"Raw params type: {type(params)}")
         print(f"Raw params value: {repr(params)}")
         print("=" * 50)
         
         # Handle empty values
         if params in (None, '', '{}', {}):
-            print("✅ Params is empty - returning empty dict")
+            print("Params is empty - returning empty dict")
             return {}
         
         # If already a dict (shouldn't happen but handle it)
         if isinstance(params, dict):
-            print(f"✅ Params is already a dict: {params}")
+            print(f"Params is already a dict: {params}")
             return params
         
         # Must be string at this point
         if not isinstance(params, str):
-            print(f"❌ Params is not a string, it's: {type(params)}")
+            print(f"Params is not a string, it's: {type(params)}")
             raise ValidationError(
                 _("Parameters must be a valid JSON object.")
             )
@@ -1354,35 +1315,35 @@ class TestCaseAdminForm(forms.ModelForm):
         print(f"Trimmed params: {repr(params)}")
         
         if not params:
-            print("✅ Params is empty after trim - returning empty dict")
+            print("Params is empty after trim - returning empty dict")
             return {}
         
         # Try to parse JSON
         try:
             parsed = json.loads(params)
-            print(f"✅ JSON parsed successfully: {parsed}")
+            print(f"JSON parsed successfully: {parsed}")
             print(f"Parsed type: {type(parsed)}")
             
             # Must be a dictionary (object), not array or primitive
             if not isinstance(parsed, dict):
-                print(f"❌ Parsed JSON is not a dict, it's: {type(parsed)}")
+                print(f"Parsed JSON is not a dict, it's: {type(parsed)}")
                 raise ValidationError(
                     _("Parameters must be a JSON object (key-value pairs), not an array or primitive value. "
                       "Example: {\"username\": \"admin\", \"timeout\": 30}")
                 )
             
-            print(f"✅ Final validated params: {parsed}")
+            print(f"Final validated params: {parsed}")
             return parsed
             
         except json.JSONDecodeError as e:
-            print(f"❌ JSON parsing failed: {e}")
+            print(f"JSON parsing failed: {e}")
             print(f"Error at position {e.pos}: {e.msg}")
             raise ValidationError(
                 _(f"Invalid JSON format: {e.msg} at position {e.pos}. "
                   f"Please enter valid JSON like: {{\"key\": \"value\"}}")
             )
         except Exception as e:
-            print(f"❌ Unexpected error: {e}")
+            print(f"Unexpected error: {e}")
             raise ValidationError(
                 _(f"Error validating parameters: {str(e)}")
             )
@@ -1410,7 +1371,6 @@ class TestCaseAdmin(BaseVersionAdmin):
         "test_case_id",      # 2nd - Test Case ID  
         "category_link",     # 3rd - Category
         "is_active",         # 4th - Is Active
-        # "script_push_status",
         "test_type_display", # 5th - Test Type
         "created",           # 6th - Created
         "modified",          # 7th - Modified
@@ -1438,8 +1398,6 @@ class TestCaseAdmin(BaseVersionAdmin):
         # "file",
         "is_active",
         "is_configuration_push_required"
-        # "created",
-        # "modified",
     ]
     readonly_fields = ["created", "modified","test_script_guidelines"]
     autocomplete_fields = ["category"]
@@ -1564,11 +1522,6 @@ class TestCaseAdmin(BaseVersionAdmin):
 
         return fieldsets
 
-    # def get_readonly_fields(self, request, obj=None):
-    #     fields = list(super().get_readonly_fields(request, obj))
-    #     if obj:
-    #         fields.append("script_push_status")
-    #     return fields
 
     def changelist_view(self, request, extra_context=None):
         """Override to add custom title"""
@@ -1756,17 +1709,7 @@ class TestCaseAdmin(BaseVersionAdmin):
 
         delete_selected.short_description = _("Delete selected test cases")
 
-        
-
-    # @admin.action(description=_("Recover deleted test cases"))
-    # def recover_deleted(self, request, queryset):
-    #     """Action to recover soft-deleted test cases"""
-    #     # This is a placeholder for future soft-delete functionality
-    #     self.message_user(
-    #         request,
-    #         _("Recovery functionality will be implemented in a future version"),
-    #         messages.INFO
-    #     )
+     
 
     @admin.action(description=_("Activate selected test cases"))
     def activate_cases(self, request, queryset):
@@ -1796,23 +1739,6 @@ class TestCaseAdmin(BaseVersionAdmin):
             messages.SUCCESS,
         )
 
-    # @admin.action(description=_("Export scripts"))
-    # def export_scripts_zip(self, request, queryset):
-    #     if not queryset.exists():
-    #         self.message_user(request, _("No test cases selected."), messages.WARNING)
-    #         return
-
-    #     zip_buffer = build_all_testcases_zip(queryset)
-
-    #     timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
-    #     response = HttpResponse(
-    #         zip_buffer,
-    #         content_type="application/zip"
-    #     )
-    #     response["Content-Disposition"] = (
-    #         f'attachment; filename="testcase_scripts_{timestamp}.zip"'
-    #     )
-    #     return response
     
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -1990,7 +1916,6 @@ class TestSuiteAdmin(BaseVersionAdmin):
     
     list_display = [
         "name",
-        # "category_link", 
         "test_case_count",
         "is_active",
         "created",
@@ -1998,13 +1923,10 @@ class TestSuiteAdmin(BaseVersionAdmin):
     ]
     
     list_filter = [
-        # TestSuiteCategoryFilter,
         TestSuiteActiveFilter,
     ]
     
-    # list_select_related = ["category"]
     search_fields = ["name", "description"]
-    # ordering = ["category__name", "name"]
     ordering = ["-created"]
 
     
@@ -2012,11 +1934,9 @@ class TestSuiteAdmin(BaseVersionAdmin):
         "name",
         "description",
         "is_active",
-        # "category",
     ]
     
     readonly_fields = ["created", "modified"]
-    # autocomplete_fields = ["category"]
     
     # Enable history button
     object_history_template = "reversion/object_history.html"
@@ -2055,17 +1975,6 @@ class TestSuiteAdmin(BaseVersionAdmin):
         
         return form
 
-    # def category_link(self, obj):
-    #     """Display category as a link"""
-    #     if obj.category:
-    #         return format_html(
-    #             '<a href="../testcategory/{}/change/">{}</a>',
-    #             obj.category.pk,
-    #             obj.category.name
-    #         )
-    #     return "-"
-    # category_link.short_description = _("Category")
-    # category_link.admin_order_field = "category__name"
 
     def test_case_count(self, obj):
         """Display count of test cases in this suite"""
@@ -2105,7 +2014,6 @@ class TestSuiteAdmin(BaseVersionAdmin):
             "name",
             "description", 
             "is_active",
-            # "category",
         ]
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
@@ -2357,7 +2265,6 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                 preserved_order = Case(
                     *[When(id=pk, then=pos) for pos, pk in enumerate(ordered_ids)]
                 )
-                # self.fields["individual_test_cases"].queryset = qs.order_by(preserved_order)
     
     class Meta:
         model = TestSuiteExecution
@@ -2430,12 +2337,6 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
             # attach for later saving
             cleaned_data["device_group"] = (device_group)
 
-            # org check
-            # from .models import 
-            # device_group = DeviceGroup.objects.filter(id=device_group).first()
-            # if device_group and test_suite and device_group.organization_id != test_suite.organization_id:
-                # raise forms.ValidationError("Device group must belong to the same organization")
-
 
         if selected_devices_data:
             try:
@@ -2452,7 +2353,6 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
                 # Validate that all selected devices exist and are working
                 valid_devices = Device.objects.filter(
                     id__in=selected_device_ids,
-                    # is_working=True
                 ).count()
                 
                 print(f">>> Valid devices count: {valid_devices}, Selected count: {len(selected_device_ids)} <<<")
@@ -2548,9 +2448,6 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
     def save_devices(self, instance):
         """Save devices for the test suite execution"""
         print(f">>> SAVE_DEVICES METHOD STARTED for instance: {instance.id} <<<")
-        # if instance.device_selection == 1:
-        #  # Skip, because model.save() already creates devices + testcases
-        #  return
         
         # Use stored device data or get from form data
         selected_devices_data = self._selected_devices_data or self.data.get('selected_devices_data', '')
@@ -2645,30 +2542,6 @@ class TestSuiteExecutionAdminForm(forms.ModelForm):
             instance.testcase_count = instance.individual_test_cases.all().count()
             instance.save(update_fields=['testcase_count'])
        
-         # if commit:
-        #     instance.save()
-        #     print(f">>> Instance saved to DB. ID: {instance.id} <<<")
-            
-        #     self.save_m2m()
-        #     # Save devices after the instance is saved
-        #     self.save_devices(instance)
-        #     if instance.test_selection_type ==0 :
-        #         instance.testcase_count = instance.individual_test_cases.all().count()
-        #         instance.save(update_fields=['testcase_count'])
-        #     # self.create_test_case_executions(instance)
-        # else:
-        #     # When commit=False, we need to add a hook to save devices later
-        #     print(">>> Commit=False, adding save_m2m hook for devices <<<")
-            
-        #     # self.save_m2m()
-        #     self.save_devices(instance)
-        #         # self.create_test_case_executions(instance)
-        #     print(">>>>>>>>>>>>>>>>>>>>>>>instance", instance.__dict__)
-        #     if instance.test_selection_type ==0 :
-        #         instance.testcase_count = instance.individual_test_cases.all().count()
-        #         insta
-           
-        
         print(f">>> SAVE METHOD COMPLETED. Returning instance: {instance} <<<")
         return instance
 
@@ -2680,11 +2553,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
     change_form_template = 'admin/test_management/testsuitexecution/change_form.html'
     list_display = [
         "name",
-        # "test_selection_display",
-        # "test_suite_name",
         "active_device_count",
         "testcase_count",
-        # "status_label",
         "created",
         "view_history",
      ]
@@ -2704,13 +2574,12 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         "test_suite",
         "individual_test_cases",
         "device_selection",
-        # "device_group",
     ]
     autocomplete_fields=["test_suite"]
     
     filter_horizontal=["individual_test_cases"]
     readonly_fields = ["created", "modified", "device_count", "testcase_count"]
-    actions = ["execute_test_suite", "re_execute_test_suite"]
+    actions = ["execute_or_reexecute_test_suite"]
 
     def get_actions(self, request):
        
@@ -2999,15 +2868,15 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             test_source_name= f"Individual Tests ({execution.testcase_count})"
         
         context = dict(
-        self.admin_site.each_context(request),  # ✅ REQUIRED
+        self.admin_site.each_context(request),  # REQUIRED
         title="All History",
         execution=execution,
         execution_id=str(execution.pk),
         execution_devices=execution_devices,
         device_executions=device_executions,
         test_case_executions=test_case_executions,
-        opts=self.model._meta,                  # ✅ REQUIRED
-        original=execution,                     # ✅ REQUIRED
+        opts=self.model._meta,                  # REQUIRED
+        original=execution,                     # REQUIRED
         preserved_filters=self.get_preserved_filters(request),
         has_view_permission=True,
         )
@@ -3079,15 +2948,15 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             test_source_name= f"Individual Tests ({execution.testcase_count})"
         
         context = dict(
-        self.admin_site.each_context(request),  # ✅ REQUIRED
+        self.admin_site.each_context(request),  # REQUIRED
         title="Test Execution History",
         execution=execution,
         execution_id=str(execution.pk),
         execution_devices=execution_devices,
         device_executions=device_executions,
         test_case_executions=test_case_executions,
-        opts=self.model._meta,                  # ✅ REQUIRED
-        original=execution,                     # ✅ REQUIRED
+        opts=self.model._meta,                  # REQUIRED
+        original=execution,                     # REQUIRED
         preserved_filters=self.get_preserved_filters(request),
         has_view_permission=True,
         show_re_execution= getattr(settings, "SHOW_RE_EXECUTION"),
@@ -3173,7 +3042,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             for tc in testcases:
                 ExecutionArtifact.objects.get_or_create(
                     execution=execution,
-                    device_id=d.device_id,  # ✅ SAFE
+                    device_id=d.device_id,  # SAFE
                     testcase=tc,
                 )
     def _missing_config_artifacts(self, execution):
@@ -3262,11 +3131,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             formset = ExecutionArtifactFormSet(instance=execution)
         
         context = dict(
-            self.admin_site.each_context(request),  # ✅ REQUIRED
+            self.admin_site.each_context(request),  # REQUIRED
             title="Additional Details",
             execution=execution,
-            opts=self.model._meta,                  # ✅ REQUIRED
-            original=execution,                     # ✅ REQUIRED
+            opts=self.model._meta,                  # REQUIRED
+            original=execution,                     # REQUIRED
             formset=formset
         )
 
@@ -3375,9 +3244,6 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     new_execution.is_executed = True
                     new_execution.save(update_fields=['device_count', 'testcase_count', 'is_executed'])
                     
-                    # DON'T trigger task here - store for later
-                    # executions_to_trigger.append(new_execution.id)
-
                     execution_id = str(new_execution.id)
 
                     transaction.on_commit(
@@ -3395,18 +3261,6 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                         messages.ERROR
                 )
      
-        # NOW trigger all Celery tasks AFTER all transactions have committed
-        # for execution_id in executions_to_trigger:
-        #     try:
-        #         execute_test_suite_task.delay(str(execution_id))
-        #         logger.info(f"Queued Celery task for execution {execution_id}")
-        #     except Exception as e:
-        #         logger.error(f"Failed to queue task for {execution_id}: {e}")
-        #         self.message_user(
-        #                 request,
-        #                 f"Created execution {execution_id} but failed to start: {str(e)}",
-        #                 messages.WARNING
-        #         )
         
         if re_executed_count > 0:
             self.message_user(
@@ -3433,19 +3287,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 },
                 messages.WARNING,
             )       
-    # def execution_status(self, obj):
-    #     """Display execution status summary"""
-    #     summary = obj.status_summary
-    #     if isinstance(summary, str):
-    #         return summary
-        
-    #     return format_html(
-    #         '<span title="Total: {total}, Completed: {completed}, Failed: {failed}, Running: {running}, Pending: {pending}">'
-    #         '✓ {completed} | ✗ {failed} | ⚡ {running} | ⏳ {pending}'
-    #         '</span>',
-    #         **summary
-    #     )
-    
+      
 
 
 
@@ -3455,9 +3297,6 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
         print(f">>> Object saved with ID: {obj.id} <<<")
-        # if '_save_execute' in request.POST and not change:
-        #     # Object is being saved for the first time, and "Save and Execute" was clicked
-        #     self._start_execution(request, obj,False)
         # Ensure devices are saved
         if hasattr(form, 'save_devices'):
             form.save_devices(obj)
@@ -3545,9 +3384,12 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 scheduled_time__gt=timezone.now()
             ).values_list('execution_id', flat=True)
             future_scheduled = queryset.filter(id__in=future_scheduled_ids, is_executed=False)
-            to_execute = queryset.filter(is_executed=False).exclude(
-                id__in=set(future_scheduled_ids) 
-            )
+
+            if future_scheduled.exists():
+                future_scheduled.update(
+                    status=ScheduledExecution.Status.CANCELLED
+                )
+            to_execute = queryset.filter(is_executed=False)
         
         # Currently running/queued
         if active_scheduled.exists():
@@ -3559,13 +3401,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     messages.WARNING
                 )
             
-        # Scheduled for future
-        if future_scheduled.exists():
-            count = future_scheduled.count()
-            msg = f"{count} test Group(s) already scheduled for future execution."
-            if request:
-                self.message_user(request, _(msg), messages.WARNING)
-        
+       
         
         # Nothing to execute
         if to_execute.count() == 0:
@@ -3596,15 +3432,6 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
                 device_count = execution.active_device_count
                 
-                # if test_count == 0:
-                #     logger.warning(f"No tests found for execution {execution.id}")
-                #     if request:
-                #         self.message_user(
-                #             request,
-                #             f"Skipped {execution}: No tests found",
-                #             messages.WARNING
-                #         )
-                #     continue
                 
                 if device_count == 0:
                     logger.warning(f"No devices for execution {execution.id}")
@@ -3767,7 +3594,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
         if version:
 
-            # 🔹 Add device_group info if it exists
+            # Add device_group info if it exists
             execution_obj = version._object_version.object 
             device_group = getattr(execution_obj, "device_group", None)
             if device_group:
@@ -3824,19 +3651,219 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
         return super().recover_view(request, version_id, extra_context=extra_context)
 
+    @admin.action(description=_("Execute / Re-Execute Selected Test Executions"))
+    def execute_or_reexecute_test_suite(self, request, queryset):
+        from .tasks import execute_test_suite as execute_test_suite_task
+        from .models import ScheduledExecution, ExecutionArtifact
+        from django.db import transaction
+        from django.utils import timezone
+
+        executed_count = 0
+        reexecuted_count = 0
+        skipped_count = 0
+        failed_count = 0
+
+        for execution in queryset:
+            try:
+                # -----------------------------------------
+                # 1. Detect scheduling state
+                # -----------------------------------------
+                schedules = ScheduledExecution.objects.filter(execution=execution)
+
+                active_schedule = schedules.filter(
+                    status__in=[
+                        ScheduledExecution.Status.QUEUED,
+                        ScheduledExecution.Status.IN_PROCESS
+                    ]
+                ).exists()
+
+                future_schedule = schedules.filter(
+                    status=ScheduledExecution.Status.PENDING,
+                    scheduled_time__gt=timezone.now()
+                )
+
+                overdue_schedule = schedules.filter(
+                    status=ScheduledExecution.Status.PENDING,
+                    scheduled_time__lte=timezone.now()
+                )
+
+                if active_schedule:
+                    skipped_count += 1
+                    continue
+
+                # -----------------------------------------
+                # 2. Cancel future schedule if exists
+                # -----------------------------------------
+                if future_schedule.exists():
+                    future_schedule.update(status=ScheduledExecution.Status.CANCELLED)
+                
+                if overdue_schedule.exists():
+                    overdue_schedule.update(status=ScheduledExecution.Status.CANCELLED)
+
+                # -----------------------------------------
+                # 3. If NOT executed → Execute
+                # -----------------------------------------
+                if not execution.is_executed:
+
+                    device_count = execution.active_device_count
+                    if device_count == 0:
+                        self.message_user(
+                            request,
+                            f"Skipped {execution}: No devices configured",
+                            messages.WARNING
+                        )
+                        skipped_count += 1
+                        continue
+
+                    required_config = {
+                        (UUID(r["device_id"]), UUID(r["testcase_id"]))
+                        for r in execution.get_required_artifacts()
+                    }
+
+                    existing_config = set(
+                        ExecutionArtifact.objects
+                        .filter(execution=execution, config_file__isnull=False)
+                        .exclude(config_file="")
+                        .values_list("device_id", "testcase_id")
+                    )
+
+                    if required_config - existing_config:
+                        self.message_user(
+                            request,
+                            f"Missing execution artifacts for {execution.name}",
+                            messages.WARNING
+                        )
+                        skipped_count += 1
+                        continue
+
+                    execution.is_executed = True
+                    execution.save(update_fields=["is_executed"])
+
+                    transaction.on_commit(
+                        lambda eid=str(execution.id): execute_test_suite_task.delay(eid)
+                    )
+
+                    executed_count += 1
+                    continue
+
+                # -----------------------------------------
+                # 4. If already executed → Re-execute
+                # -----------------------------------------
+                with transaction.atomic():
+                    root = execution.parent_execution or execution
+                    new_index = root.re_executions.count() + 1
+
+                    new_execution = TestSuiteExecution.objects.create(
+                        name=f"{root.name}_{new_index}",
+                        test_selection_type=execution.test_selection_type,
+                        test_suite=execution.test_suite,
+                        test_case_execution_order=execution.test_case_execution_order,
+                        device_selection=execution.device_selection,
+                        device_group=execution.device_group,
+                        notification_emails=execution.notification_emails,
+                        parent_execution=root,
+                        re_execution_index=new_index,
+                        created_by=request.user,
+                        is_executed=True,
+                    )
+
+                    if execution.test_selection_type == 0:
+                        new_execution.individual_test_cases.set(
+                            execution.individual_test_cases.all()
+                        )
+
+                    for dev in TestSuiteExecutionDevice.objects.filter(
+                        test_suite_execution=execution
+                    ):
+                        if not dev.device.is_deleted:
+                            TestSuiteExecutionDevice.objects.create(
+                                test_suite_execution=new_execution,
+                                device=dev.device,
+                                connection_protocol=dev.connection_protocol,
+                                status="pending"
+                            )
+
+                    for artifact in ExecutionArtifact.objects.filter(execution=execution):
+                        ExecutionArtifact.objects.create(
+                            execution=new_execution,
+                            device=artifact.device,
+                            testcase=artifact.testcase,
+                            config_file=artifact.config_file,
+                            is_pushed=False
+                        )
+
+                    new_execution.device_count = TestSuiteExecutionDevice.objects.filter(
+                        test_suite_execution=new_execution
+                    ).count()
+
+                    new_execution.testcase_count = (
+                        new_execution.test_suite.test_case_count
+                        if new_execution.test_selection_type == 1
+                        else new_execution.individual_test_cases.count()
+                    )
+
+                    new_execution.save(
+                        update_fields=["device_count", "testcase_count"]
+                    )
+
+                    transaction.on_commit(
+                        lambda eid=str(new_execution.id): execute_test_suite_task.delay(eid)
+                    )
+
+                    reexecuted_count += 1
+
+            except Exception as e:
+                failed_count += 1
+                logger.error(f"Execution failed for {execution.id}: {e}", exc_info=True)
+                self.message_user(
+                    request,
+                    f"Failed to process {execution}: {str(e)}",
+                    messages.ERROR
+                )
+
+        # -----------------------------------------
+        # Final admin feedback
+        # -----------------------------------------
+        if executed_count:
+            self.message_user(
+                request,
+                f"{executed_count} execution(s) started",
+                messages.SUCCESS
+            )
+
+        if reexecuted_count:
+            self.message_user(
+                request,
+                f"{reexecuted_count} execution(s) re-executed",
+                messages.SUCCESS
+            )
+
+        if skipped_count:
+            self.message_user(
+                request,
+                f"{skipped_count} execution(s) skipped (already running / invalid)",
+                messages.WARNING
+            )
+
+        if failed_count:
+            self.message_user(
+                request,
+                f"{failed_count} execution(s) failed",
+                messages.ERROR
+            )
 
 
-    def _get_version_object(self, version_id):
-        """
-        Utility to fetch the Version object for the given version_id.
-        This avoids duplicating queryset logic from reversion's internal code.
-        """
-        from reversion.models import Version
-        try:
-            return Version.objects.get(pk=version_id)
-        except Version.DoesNotExist:
-            return None
-  
+        def _get_version_object(self, version_id):
+            """
+            Utility to fetch the Version object for the given version_id.
+            This avoids duplicating queryset logic from reversion's internal code.
+            """
+            from reversion.models import Version
+            try:
+                return Version.objects.get(pk=version_id)
+            except Version.DoesNotExist:
+                return None
+    
 
 
 
@@ -3950,14 +3977,12 @@ class TestDeviceGroupAdmin(BaseVersionAdmin):
         "name",
         "organization",
         "device_count",
-        # "active_device_count",
         "created",
         "modified",
     ]
     
     list_filter = [
         DeviceGroupOrganizationFilter,
-        # DeviceGroupActiveFilter,
     ]
     
     list_select_related = ["organization"]
@@ -4039,11 +4064,6 @@ class TestDeviceGroupAdmin(BaseVersionAdmin):
         return count
     active_device_count.short_description = _("Active Devices")
     
-    # def get_queryset(self, request):
-    #     """Filter queryset based on user permissions"""
-    #     qs = super().get_queryset(request)
-    #     # MultitenantOrgFilter will handle organization filtering
-    #     return qs
     
     def change_view(self, request, object_id, form_url='', extra_context=None):
         """Override change view to add devices to context"""
@@ -4111,7 +4131,6 @@ class TestDeviceGroupAdmin(BaseVersionAdmin):
                             )
                             success_count += 1
                         except Device.DoesNotExist:
-                            # error_count += 1
                             logger.error(f"Device not found or wrong org: {device_id}")
                         except ValidationError as e:
                             error_count += 1
@@ -4120,12 +4139,6 @@ class TestDeviceGroupAdmin(BaseVersionAdmin):
                             error_count += 1
                             logger.error(f"Error adding device: {e}")
                 
-                # Show appropriate message
-                # if success_count > 0:
-                    # messages.success(
-                    #     request,
-                    #     f"Device group saved with {success_count} device(s)."
-                    # )
                 
                 if error_count > 0:
                     messages.warning(
@@ -4146,15 +4159,6 @@ class TestDeviceGroupAdmin(BaseVersionAdmin):
         # Relationships will be cascade deleted automatically
         count = queryset.count()
         queryset.delete()
-        # self.message_user(
-        #     request,
-        #     ngettext(
-        #         "Successfully deleted %d device group.",
-        #         "Successfully deleted %d device groups.",
-        #         count
-        #     ) % count,
-        #     messages.SUCCESS
-        # )
     
     def changelist_view(self, request, extra_context=None):
         """Override to add custom title"""
@@ -4217,7 +4221,6 @@ class TestDeviceGroupAdmin(BaseVersionAdmin):
 
     def recover_view(self, request, version_id, extra_context=None):
         extra_context = extra_context or {}
-        # extra_context["categories"] = list(TestCategory.objects.values("id", "name"))
         version = self._get_version_object(version_id)
 
         if version:
@@ -4230,7 +4233,7 @@ class TestDeviceGroupAdmin(BaseVersionAdmin):
 
             recovered_device_ids = [str(v._object_version.object.device_id) for v in related_versions]
 
-            # 🔹 Re-use logic from get_available_devices
+            # Re-use logic from get_available_devices
             devices_query = Device.objects.filter(id__in=recovered_device_ids).select_related("organization")
             devices_data = []
             for device in devices_query:
@@ -4307,9 +4310,7 @@ if not reversion.is_registered(TestCase):
 # Register models with reversion for history tracking
 if not reversion.is_registered(TestSuite):
     reversion.register(TestSuite)
-    
-# if not reversion.is_registered(TestSuiteCase):
-#     reversion.register(TestSuiteCase)    
+
 
 if not reversion.is_registered(TestSuiteExecution):
     reversion.register(TestSuiteExecution)

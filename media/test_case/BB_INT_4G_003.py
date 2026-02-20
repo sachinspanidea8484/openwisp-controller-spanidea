@@ -1,53 +1,57 @@
+# START_DESCRIPTION 
+#1. Initialize logging .
+#2. Check the DUT connection and SIM status
+#3. Check Network Registration status.
+#4. Check PCI/Cell Lock status.
+#5. Selecting the appropriate EARFCN, physical cell id. 
+#6. Lock the selected EARFCN and physical cell id.
+#7. Verify that the DUT attached to the specified cell.
+
+# END_DESCRIPTION
+
+#!/usr/bin/env python3
+"""
+4G PCI LOCK  TEST (BB-INT-4G-003)
+Dynamic target band input via command-line parameter
+python3 BB_INT_4G_003.py CONFIGURATION='{"cellular_interface": "Modem1", "error_threshold_percent":"10"}'
+"""
+
+
 import re
 import sys
 import time
-import subprocess
+import json
+import argparse
 from datetime import datetime
+from common_helper import (log, run_local_command, parse_config, get_modem_status, ensure_modem_connected, validate_ifconfig_errors, EXIT_SUCCESS,EXIT_FAILED)
 
-# === CONFIGURATION ===
-BB_AT_PORT = "/dev/ttyUSB3"
-BB_QMI_DEVICE = "/dev/cdc-wdm0"
-LOG_FILE = "BB_INT_4G_003_LOCK.log"
 
-# === EXIT CODES ===
+
+#CONSTANTS
+MAX_RETRIES = 3
 EXIT_SUCCESS = 0
 EXIT_FAILED = 1
-EXIT_PRECONDITION_FAILED = 2
-EXIT_CMDS_NON_RESPONSIVE = 3
 
-# === GLOBAL ===
-MAX_RETRIES = 3
 
-# === LOGGING ===
-def timestamp():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-def log(message):
-    line = f"[+] {timestamp()} - {message}"
-    print(line)
-    with open(LOG_FILE, "a") as f:
-        f.write(line + "\n")
-
-def run_cmd(command):
-    log(f"Executing command: {command}")
-    try:
-        result = subprocess.run(
-            command, shell=True, text=True, capture_output=True, check=False
-        )
-        output = result.stdout.strip()
-        error = result.stderr.strip()
-        if output:
-            log(f"Output: {output}")
-        if error:
-            log(f"Error: {error}")
-        return output, error
-    except Exception as e:
-        log(f"Command execution failed: {e}")
-        return "", str(e)
-
-# === AT Command Helper ===
+# === AT COMMAND HELPER FUNCTIONS  ===
 def at_cmd(cmd):
-    return run_cmd(f"echo -e '{cmd}\\r' | socat - {BB_AT_PORT},raw,echo=0,crnl")
+    full_cmd = f'echo -e "{cmd}\\r" | socat - {BB_AT_PORT},raw,echo=0,crnl'
+    stdout, stderr, rc = run_local_command(full_cmd, allow_fail=True)
+
+    if stdout:
+            log("OUT: %s", stdout)
+
+    if stderr:
+            log("ERR: %s",stderr, level="ERROR")
+
+    if rc != 0:
+        log("AT command failed (RC=%d): %s", rc, cmd, level="ERROR")
+
+    if stdout and "ERROR" in stdout:
+        log("Modem responded with ERROR for command: %s", cmd, level="ERROR")
+
+    return stdout, stderr
+
 
 # === Parsers ===
 def parse_lteds(output):
@@ -91,149 +95,208 @@ def parse_cgatt(output):
         return False
     return None
 
-# === Helpers ===
-def ensure_modem_connected():
-    log("Checking modem connection status...")
-    for attempt in range(1, MAX_RETRIES + 1):
-        status_out, _ = run_cmd(f"uqmi -d {BB_QMI_DEVICE} --get-data-status")
-        status_out = status_out.strip().strip('"')  # clean quotes/spaces
+# === MAIN LOGIC ===
+if __name__ == "__main__":
 
-        if status_out.lower() == "connected":
-            log("Modem is connected.")
-            return True
+    parser = argparse.ArgumentParser(description='4G PCI LOCK TEST (BB-INT-4G-003)')
+    parser.add_argument('config', help='Configuration string')
+    args = parser.parse_args()
 
-        log(f"Attempt {attempt}/{MAX_RETRIES}: Modem disconnected ({status_out}), retrying...")
-        run_cmd("ifup Modem1 && ifup Modem2")
-        time.sleep(30)
+    config = parse_config(args.config)
 
-    # After retries, still disconnected
-    log("Modem failed to connect after max retries.")
-    return False
+    CELLULAR_IFACE = config.get('cellular_interface', 'Modem1')
+    THRESHOLD = float(config.get('error_threshold_percent', 10))
     
+    if CELLULAR_IFACE == "Modem1":
+        BB_AT_PORT = "/dev/ttyUSB3"
+    elif CELLULAR_IFACE == "Modem2":
+        BB_AT_PORT = "/dev/ttyUSB7"
+    else:
+        BB_AT_PORT = None
 
-# === Main Script ===
-def main():
-    log("=== Starting 4G PCI LOCK Test BB-INT-4G-003 ===")
+     
 
+    log("Starting 4G PCI LOCK Test BB-INT-4G-003...")
+    
     try:
-        # Step 1: Check SIM
-        log("=== Checking SIM status ===")
+        info = get_modem_status(CELLULAR_IFACE)
+
+        if not info:
+            log("TEST FAILED - Failed to get modem status", level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+        QMI_DEVICE = info["qmi_device"]
+        DATA_INTERFACE = info["data_interface"]
+        NETWORK_TYPE = info["network_type"]
+        log("Modem Info - QMI Device: %s | Data Interface: %s | Network Type: %s",QMI_DEVICE, DATA_INTERFACE, NETWORK_TYPE)
+
+        
+        # Step 1: Ensure modem is connected
+        log("=== Step 1: Checking Modem Connection Status ===")
+        if not ensure_modem_connected(CELLULAR_IFACE, QMI_DEVICE):
+            log("TEST FAILED: Modem failed to connect.", level="ERROR")
+            sys.exit(EXIT_FAILED)
+        log("Modem connection: OK")
+      
+
+        # Step 2: Check SIM
+        log("=== Step 2: Checking SIM Status ===")
         sim_out, _ = at_cmd("AT+CPIN?")
         sim_status = parse_cpin(sim_out)
+
         if sim_status == "NOT_INSERTED":
-            log("TEST FAILED!!! :- SIM not inserted. Aborting.")
-            sys.exit(EXIT_PRECONDITION_FAILED)
+            log("TEST FAILED: SIM not inserted.", level="ERROR")
+            sys.exit(EXIT_FAILED)
         elif sim_status == "PIN_REQUIRED":
-            log("TEST FAILED!!! :- SIM requires PIN. Aborting.")
-            sys.exit(EXIT_PRECONDITION_FAILED)
+            log("TEST FAILED: SIM requires PIN.", level="ERROR")
+            sys.exit(EXIT_FAILED)
         elif sim_status == "PUK_REQUIRED":
-            log("TEST FAILED!!! :- SIM requires PUK. Aborting.")
-            sys.exit(EXIT_PRECONDITION_FAILED)
+            log("TEST FAILED: SIM requires PUK.", level="ERROR")
+            sys.exit(EXIT_FAILED)
         elif sim_status == "READY":
-            log("SIM is ready.")
+            log("SIM status: READY")
         else:
-            log(f"TEST FAILED!!! :- Unknown SIM state: {sim_out}")
-            sys.exit(EXIT_PRECONDITION_FAILED)
+            log("TEST FAILED: Unknown SIM state. Response: %s", sim_out, level="ERROR")
+            sys.exit(EXIT_FAILED)
 
-        # Step 2: Ensure modem is connected
-        log("=== Checking modem connection status ===")
-        if ensure_modem_connected():
-            log("Modem connection established successfully.")
-        else:
-            log("TEST FAILED!!!:- Modem failed to connect after max retries")
-            sys.exit(EXIT_PRECONDITION_FAILED)
 
-        # Step 3: Packet domain attach (retry loop)
-        log("=== Checking Packet domain attach Info ===")
+        # Step 3: Packet Domain Attach
+        log("=== Step 3: Checking Packet Domain Attach Status ===")
         for attempt in range(MAX_RETRIES):
             cgatt_out, _ = at_cmd("AT+CGATT?")
             attached = parse_cgatt(cgatt_out)
+
             if attached:
-                log("Attached to packet domain.")
+                log("Packet domain attach: SUCCESS")
                 break
             else:
-                log(f"Not attached to packet domain (attempt {attempt+1}), retrying...")
+                log("Packet domain not attached (attempt %d/%d). Retrying...",
+                    attempt + 1, MAX_RETRIES)
                 time.sleep(5)
         else:
-            log("TEST FAILED!!! :- Failed to attach to packet domain after retries.")
-            sys.exit(EXIT_PRECONDITION_FAILED)
+            log("TEST FAILED: Packet domain attach failed after %d retries.",
+                MAX_RETRIES, level="ERROR")
+            sys.exit(EXIT_FAILED)
 
-        # Step 4: Check 4G Registration
-        log("=== Checking Registration Status ===")
+
+        # Step 4: 4G Registration
+        log("=== Step 4: Checking 4G Registration Status ===")
         nw_status_out, _ = at_cmd("AT+CEREG?")
         reg_status = parse_cereg(nw_status_out)
+
         if reg_status in [1, 5]:
-            log(f"Registered to 4G network ({'Home' if reg_status == 1 else 'Roaming'})")
+            reg_type = "Home" if reg_status == 1 else "Roaming"
+            log("4G registration: SUCCESS (%s network)", reg_type)
         else:
-            log(f"TEST FAILED!!! :- Not registered to 4G network. CEREG status: {reg_status}")
-            sys.exit(EXIT_PRECONDITION_FAILED)
+            log("TEST FAILED: Not registered to 4G network. CEREG status=%s",
+                reg_status, level="ERROR")
+            sys.exit(EXIT_FAILED)
 
-        # Step 5: PDP context
-        log("=== Checking PDP context ===")
+
+        # Step 5: PDP Context
+        log("=== Step 5: Checking PDP Context Information ===")
         pdp_out, _ = at_cmd("AT+CGCONTRDP")
-        log("PDP Context Info:")
-        log(pdp_out or "No PDP context configured.")
 
-        # Step 6: Check PCI Lock state
-        log("=== Checking PCI Lock state ===")
+        if not pdp_out or "ERROR" in pdp_out:
+            log("TEST FAILED: No active PDP context detected.", level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+
+        # Step 6: Check PCI Lock State
+        log("=== Step 6: Checking PCI Lock State ===")
         bcchlock_out, _ = at_cmd("AT#BCCHLOCK?")
         bcch_status = parse_bcchlock(bcchlock_out)
-        if bcch_status:
-            if bcch_status["lock_enabled"]:
-                log(f"TEST FAILED!!! :- PCI Lock ENABLED: EARFCN={bcch_status['earfcn']}, PCI={bcch_status['pci']} (0x{bcch_status['pci']:X})")
-                sys.exit(EXIT_PRECONDITION_FAILED)
-            else:
-                log("PCI Lock DISABLED.")
-        else:
-            log("TEST FAILED!!! :- Could not parse BCCHLOCK response.")
-            sys.exit(EXIT_PRECONDITION_FAILED)
 
-        # Step 7: Get current LTE serving cell
-        log("=== Checking current LTE serving cell ===")
+        if not bcch_status:
+            log("TEST FAILED: Unable to parse BCCHLOCK response.", level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+        if bcch_status["lock_enabled"]:
+            log("TEST FAILED: PCI Lock already ENABLED (EARFCN=%d, PCI=%d / 0x%X)",
+                bcch_status["earfcn"],
+                bcch_status["pci"],
+                bcch_status["pci"],
+                level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+        log("PCI Lock state: DISABLED")
+
+        # Step 7: Get Current LTE Serving Cell
+        log("=== Step 7: Retrieving Current LTE Serving Cell ===")
         lteds_out, _ = at_cmd("AT#LTEDS")
         current = parse_lteds(lteds_out)
-        if not current:
-            log("TEST FAILED!!! :- Failed to parse LTEDS info.")
-            sys.exit(EXIT_CMDS_NON_RESPONSIVE)
 
-        log(f"Current LTE: EARFCN={current['earfcn']}, CELLID={current['cellid']} "
-            f"(0x{current['cellid']:X}), PCI={current['pci']} (0x{current['pci']:X})")
+        if not current:
+            log("TEST FAILED: Unable to parse LTEDS response.", level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+        log("Current LTE Cell -> EARFCN=%d | CELLID=%d (0x%X) | PCI=%d (0x%X)",
+            current["earfcn"],
+            current["cellid"], current["cellid"],
+            current["pci"], current["pci"])
+
 
         # Step 8: Apply PCI Lock
-        log("=== Applying PCI Lock ===")
+        log("=== Step 8: Applying PCI Lock ===")
         bcch_cmd = f"AT#BCCHLOCK=1024,0,65535,{current['earfcn']},{current['pci']:X}"
         at_cmd(bcch_cmd)
+        time.sleep(5)  # Allow network stabilization
 
-        # Step 9: Verify lock settings
-        log("=== Verifying Lock settings ===")
+
+        # Step 9: Verify Lock Settings
+        log("=== Step 9: Verifying PCI Lock Settings ===")
         bcchlock_verify_out, _ = at_cmd("AT#BCCHLOCK?")
         bcch_status = parse_bcchlock(bcchlock_verify_out)
-        if (bcch_status and bcch_status["lock_enabled"] and
+
+        if (bcch_status and
+            bcch_status["lock_enabled"] and
             bcch_status["earfcn"] == current["earfcn"] and
             bcch_status["pci"] == current["pci"]):
-            log(f"PCI Lock successfully set: EARFCN={bcch_status['earfcn']}, "
-                f"PCI={bcch_status['pci']} (0x{bcch_status['pci']:X})")
+
+            log("PCI Lock successfully configured (EARFCN=%d, PCI=%d / 0x%X)",
+                bcch_status["earfcn"],
+                bcch_status["pci"],
+                bcch_status["pci"])
         else:
-            log("TEST FAILED!!! :- PCI Lock settings do not match after setting.")
+            log("TEST FAILED: PCI Lock verification mismatch.", level="ERROR")
             sys.exit(EXIT_FAILED)
 
-        # Step 10: Final LTE serving cell check
-        log("=== Checking final serving cell info ===")
+
+        # Step 10: Final Serving Cell Verification
+        log("=== Step 10: Verifying Network Serving Cell After Lock ===")
+
         lteds_post_out, _ = at_cmd("AT#LTEDS")
         locked = parse_lteds(lteds_post_out)
-        if locked and locked["earfcn"] == current["earfcn"] and locked["pci"] == current["pci"]:
-            log(f"Lock Verified on network: EARFCN={locked['earfcn']}, "
-                f"PCI={locked['pci']} (0x{locked['pci']:X})")
-            log("TEST PASSED !!!!")
-            sys.exit(EXIT_SUCCESS)
-        else:
-            log("TEST FAILED!!! :- Network serving cell does not match locked EARFCN/PCI.")
+
+        # Step 10A: Validate serving cell match
+        if not locked:
+            log("TEST FAILED: Unable to parse LTEDS output.", level="ERROR")
             sys.exit(EXIT_FAILED)
 
+        if (locked["earfcn"] != current["earfcn"] or
+            locked["pci"] != current["pci"]):
+
+            log("TEST FAILED: Network serving cell does not match locked EARFCN/PCI.",
+                level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+        log("Network serving cell matches locked EARFCN/PCI.")
+
+        # Step 10B: Validate interface error threshold
+        log("=== Step 11: Validating Interface Error Counters ===")
+
+        if not validate_ifconfig_errors(DATA_INTERFACE, THRESHOLD):
+            log("TEST FAILED: Interface error threshold exceeded.", level="ERROR")
+            sys.exit(EXIT_FAILED)
+
+        log("Interface error validation passed.")
+
+        # Final Success
+        log("=== TEST PASSED ===")
+        sys.exit(EXIT_SUCCESS)
+
+
+
     except Exception as e:
-        log(f"TEST FAILED !!!!! - Exception: {e}")
+        log("TEST FAILED - Unhandled exception: %s", e, level="ERROR")
         sys.exit(EXIT_FAILED)
-
-if __name__ == "__main__":
-    main()
-

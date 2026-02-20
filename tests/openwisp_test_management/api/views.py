@@ -328,7 +328,39 @@ class TestExecutionListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     GET  → List all test executions (with filters, search, pagination)
     - Superusers see all test executions
     - Regular users see only test executions they created
+
     POST → Create new test execution
+
+        Example:
+        # For Individual test cases
+        {
+            "name": "<Execution Name>",
+            "test_selection_type": "individual",
+            "individual_test_cases": [
+                "<uuid1>", "<uuid2>"
+            ],
+            "devices": [
+                {
+                "device_id": "<device-uuid>",
+                "connection_protocol": "MQTT"
+                }
+            ],
+            "notification_emails": ["email1@example.com", "email2@example.com"]
+        }
+
+        # For Execution of a Test Group
+        {
+            "name": "<Execution Name>",
+            "test_selection_type": "group",            
+            "test_suite": "<test group uuid>",
+            "devices": [
+                {
+                "device_id": "<device-uuid>",
+                "connection_protocol": "SSH"
+                }
+            ],
+            "notification_emails": ["email1@example.com", "email2@example.com"]
+        }
     """
     parser_classes = [JSONParser]
 
@@ -377,6 +409,13 @@ class TestExecutionListView(ProtectedAPIMixin, generics.ListCreateAPIView):
                     type=openapi.TYPE_ARRAY,
                     items=device_schema
                 ),
+                "notification_emails": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Items(
+                        type=openapi.TYPE_STRING,
+                        description="Email ID for notification"
+                    )
+                ),
             },
             required=["name", "devices", "test_selection_type"],
         )
@@ -413,8 +452,8 @@ class TestExecutionListView(ProtectedAPIMixin, generics.ListCreateAPIView):
         filters.SearchFilter,    # Enable ?search=keyword
     ]
     filterset_class = TestSuiteExecutionFilter
-    search_fields = ["test_suite__name"]
-    ordering_fields = ["created", "test_suite__name"]
+    search_fields = ["name"]
+    ordering_fields = ["created", "name"]
     ordering = ["-created"]  # Default: newest first
 
     def get_serializer_class(self):
@@ -488,11 +527,64 @@ class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyA
                     type=openapi.TYPE_ARRAY,
                     items=device_schema
                 ),
+                "notification_emails": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Items(
+                        type=openapi.TYPE_STRING,
+                        description="Email ID for notification"
+                    )
+                ),
             },
             required=["name", "devices", "test_selection_type"],
         )
     )
     def put(self, request, *args, **kwargs):
+        """
+        API Endpoint for update a test execution (full update)
+
+        PUT /api/v1/test-management/execution/<uuid:pk>/
+        - Prevent updation of executed test executions        
+        - Example:
+            # To update execution with Individual test cases
+            {
+                "name": "<Execution Name>",
+                "test_selection_type": "individual",
+                "individual_test_cases": [
+                    "<uuid1>", "<uuid2>"
+                ],
+                "devices": [
+                    {
+                    "device_id": "<device-uuid>",
+                    "connection_protocol": "MQTT"
+                    }
+                ],
+                "notification_emails": ["email1@example.com", "email2@example.com"]
+            }
+
+            # To update Execution with a Test Group
+            {
+                "name": "<Execution Name>",
+                "test_selection_type": "group",            
+                "test_suite": "<test group uuid>",
+                "devices": [
+                    {
+                    "device_id": "<device-uuid>",
+                    "connection_protocol": "SSH"
+                    }
+                ],
+                "notification_emails": ["email1@example.com", "email2@example.com"]
+            }
+        """
+
+        instance = self.get_object()
+        if instance.is_executed:
+            from rest_framework.exceptions import ValidationError
+            from django.utils.translation import gettext_lazy as _
+
+            return Response(
+                {"detail": "Executed test execution cannot be modified."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         return super().put(request, *args, **kwargs)
 
     @swagger_auto_schema(
@@ -523,11 +615,64 @@ class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyA
                     type=openapi.TYPE_ARRAY,
                     items=device_schema
                 ),
+                "notification_emails": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Items(
+                        type=openapi.TYPE_STRING,
+                        description="Email ID for notification"
+                    )
+                ),
             },
             required=["name", "devices", "test_selection_type"],
         )
     )
     def patch(self, request, *args, **kwargs):
+        """
+        API Endpoint for partially update a test execution
+
+        PATCH /api/v1/test-management/execution/<uuid:pk>/
+        - Prevent updation of executed test executions        
+        - Example:
+            # To update execution with Individual test cases
+            {
+                "name": "<Execution Name>",
+                "test_selection_type": "individual",
+                "individual_test_cases": [
+                    "<uuid1>", "<uuid2>"
+                ],
+                "devices": [
+                    {
+                    "device_id": "<device-uuid>",
+                    "connection_protocol": "MQTT"
+                    }
+                ],
+                "notification_emails": ["email1@example.com", "email2@example.com"]
+            }
+
+            # To update Execution with a Test Group
+            {
+                "name": "<Execution Name>",
+                "test_selection_type": "group",            
+                "test_suite": "<test group uuid>",
+                "devices": [
+                    {
+                    "device_id": "<device-uuid>",
+                    "connection_protocol": "SSH"
+                    }
+                ],
+                "notification_emails": ["email1@example.com", "email2@example.com"]
+            }
+        """
+        
+        instance = self.get_object()
+        if instance.is_executed:
+            from rest_framework.exceptions import ValidationError
+            from django.utils.translation import gettext_lazy as _
+
+            return Response(
+                {"detail": "Executed test execution cannot be modified."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         return super().patch(request, *args, **kwargs)
 
     def get_queryset(self):
@@ -564,47 +709,6 @@ class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyA
         
         return super().perform_destroy(instance)
 
-class TestExecutionStartViewOld(ProtectedExternalAPIMixin, APIView):
-    """
-    API endpoint for starting a test execution
-    
-    POST /api/v1/test-management/execution/<uuid:pk>/start-execution/
-    - Start a test execution
-    """
-
-    def post(self, request, execution_id):
-        from ..tasks import execute_test_suite as execute_test_suite_task
-        execution = get_object_or_404(TestExecution, id=execution_id)
-
-        # 🔒 Safety checks
-        if execution.is_executed:
-            return Response(
-                {"detail": "Test Execution is already executed."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Optional: permission check
-        if execution.created_by != request.user:
-            return Response(
-                {"detail": "Not allowed to start this execution."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Update status
-        execution.is_executed = True
-        execution.save(update_fields=['is_executed'])
-
-        # 🚀 Trigger async execution
-        execute_test_suite_task.delay(str(execution.id))
-
-        return Response(
-            {
-                "execution_id": execution.id,
-                "status": execution.status,
-                "message": "Execution started successfully"
-            },
-            status=status.HTTP_202_ACCEPTED
-        )
 
 class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
     """
@@ -664,7 +768,7 @@ class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
             for r in execution.get_required_artifacts()
         )
 
-        # 3️⃣ Parse uploaded artifacts
+        # Parse uploaded artifacts
         uploaded = {}
         invalid_keys = []
 
@@ -847,7 +951,7 @@ class TestExecutionReExecuteSelectedView(ProtectedExternalAPIMixin, APIView):
             device_tests_info = serializer.validated_data["device_tests_info"]
 
             with transaction.atomic():
-                # 🔁 Create new test execution
+                # Create new test execution
                 new_execution = create_test_execution_clone_for_selected_tests(execution, device_tests_info, request)
                 new_execution.is_executed= True
                 new_execution.save()

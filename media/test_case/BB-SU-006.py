@@ -1,93 +1,105 @@
 #!/usr/bin/env python3
-import os
 import sys
-import json
 import argparse
-import subprocess
-from datetime import datetime
+from common_helper import log, run_local_command, parse_configuration, EXIT_SUCCESS, EXIT_FAILED
 
-def log(message):
-    timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-    print(f"{timestamp} {message}")
+# Known cellular modem vendor keywords (used to identify USB modems)
+MODEM_KEYWORDS = ["telit", "quectel", "fibocom", "sierra", "huawei", "simcom"]
 
-def parse_configuration(config_str):
-    if config_str.startswith("CONFIGURATION="):
-        config_str = config_str[len("CONFIGURATION="):]
-    try:
-        return json.loads(config_str)
-    except json.JSONDecodeError as e:
-        print(f"Error parsing CONFIGURATION JSON: {e}", file=sys.stderr)
-        sys.exit(1)
 
 def get_installed_modems():
-    modems_found = []
-    try:
-        output = subprocess.check_output("lsusb", shell=True, text=True)
-        for line in output.splitlines():
-            if any(k in line.lower() for k in ["telit","quectel","fibocom","sierra","huawei","simcom"]):
-                model = line.split(":")[-1].strip()
-                modems_found.append(model)
-    except:
-        pass
-    return modems_found
+    """
+    Detect connected USB cellular modems using 'lsusb'.
+    Returns a list of matching modem description lines.
+    """
+    stdout, _, rc = run_local_command("lsusb", allow_fail=True)
+
+    # If command failed or no output → no modems detected
+    if rc != 0 or not stdout:
+        return []
+
+    # Return only lines containing known modem vendor names
+    return [
+        line.strip()
+        for line in stdout.splitlines()
+        if any(vendor in line.lower() for vendor in MODEM_KEYWORDS)
+    ]
+
 
 def get_wifi_interfaces():
-    wifi_list = []
-    try:
-        output = subprocess.check_output("iwinfo | grep Hardware", shell=True, text=True)
-        for line in output.splitlines():
-            iface = line.split()[0].strip()
-            wifi_list.append(iface)
-    except:
-        pass
-    return wifi_list
+    """
+    Detect available Wi-Fi interfaces using 'iwinfo'.
+    Returns a unique list of interface names.
+    """
+    stdout, _, rc = run_local_command("iw phy | grep "wiphy index" | wc -l", allow_fail=True)   #need to report radio count
+
+    # If Wi-Fi not available or command failed
+    if rc != 0 or not stdout:
+        return []
+
+    # Extract first column (interface name) and remove duplicates
+    return list({
+        line.split()[0]
+        for line in stdout.splitlines()
+        if line.split()
+    })
+
 
 def main():
-    parser = argparse.ArgumentParser(description="BB-SU-006 Modem & Wi-Fi Interface Verification Test")
+
+    # ---------------- CLI Parsing ----------------
+    parser = argparse.ArgumentParser()
     parser.add_argument("config", help="CONFIGURATION='{\"expected_modems\":0,\"expected_wifi\":1}'")
     args = parser.parse_args()
 
-    config = parse_configuration(args.config)
+    expected = parse_configuration(args.config)
 
-    EXPECTED_MODEMS = config.get("expected_modems")
-    EXPECTED_WIFI = config.get("expected_wifi")
+    exp_modems = expected.get("expected_modems")
+    exp_wifi = expected.get("expected_wifi")
 
-    if EXPECTED_MODEMS is None or EXPECTED_WIFI is None:
-        log("[FAIL] Missing expected_modems or expected_wifi in CONFIGURATION JSON.")
-        sys.exit(1)
+    # Validate required input fields
+    if exp_modems is None or exp_wifi is None:
+        log("Missing expected_modems or expected_wifi in CONFIGURATION", level="FAIL")
+        sys.exit(EXIT_FAILED)
 
-    log("[STEP 1] Starting Modem and Wi-Fi Interface Verification Test")
+    log("[STEP 1] Starting Modem & Wi-Fi Verification Test")
 
-    modems_found = get_installed_modems()
-    wifi_found = get_wifi_interfaces()
+    # ---------------- Detection Phase ----------------
+    modems = get_installed_modems()
+    wifi = get_wifi_interfaces()
 
-    actual_settings = {
-        "expected_modems": len(modems_found),
-        "expected_wifi": len(wifi_found)
-    }
+    log("Detected %s modem(s)", len(modems))
+    log("Detected %s Wi-Fi interface(s)", len(wifi))
 
-    log(f"[INFO] Detected Modems ({len(modems_found)}): {modems_found or 'None'}")
-    log(f"[INFO] Detected Wi-Fi Interfaces ({len(wifi_found)}): {wifi_found or 'None'}")
-
-    # === EXACT SAME VALIDATION BEHAVIOR AS BB-SU-004 ===
+    # ---------------- Validation Phase ----------------
     test_passed = True
 
-    for key, expected_value in config.items():
-        actual_value = actual_settings.get(key)
-
-        if actual_value == expected_value:
-            log(f"[PASS] Config '{key}' matches expected value '{expected_value}'")
-        else:
-            log(f"[FAIL] Config '{key}' expected '{expected_value}' but found '{actual_value}'")
-            test_passed = False
-
-    if test_passed:
-        log("[PASS] All expected hardware counts verified successfully.")
-        log("[PASS] Test Case PASSED.")
+    # Check modem count
+    if len(modems) == exp_modems:
+        log("Modem count matches expected '%s'", exp_modems, level="PASS")
     else:
-        log("[FAIL] Test Case FAILED.")
-        sys.exit(1)
+        log("Modem count expected '%s' but found '%s'", exp_modems, len(modems), level="FAIL")
+        test_passed = False
+
+    # Check Wi-Fi interface count
+    if len(wifi) == exp_wifi:
+        log("Wi-Fi count matches expected '%s'", exp_wifi, level="PASS")
+    else:
+        log("Wi-Fi count expected '%s' but found '%s'", exp_wifi, len(wifi), level="FAIL")
+        test_passed = False
+
+    # ---------------- Final Result ----------------
+    if test_passed:
+        log("Hardware verification successful", level="PASS")
+        log("Test Case PASSED", level="PASS")
+        sys.exit(EXIT_SUCCESS)
+    else:
+        log("Hardware verification failed", level="FAIL")
+        log("Test Case FAILED", level="FAIL")
+        sys.exit(EXIT_FAILED)
+
 
 if __name__ == "__main__":
     main()
 
+#python3 BB-SU-006.py CONFIGURATION='{ "expected_modems": 2, "expected_wifi": 1 }'
