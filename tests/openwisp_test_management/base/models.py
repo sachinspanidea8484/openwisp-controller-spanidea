@@ -934,6 +934,7 @@ class AbstractTestSuiteExecutionDevices(TimeStampedEditableModel):
         return f"{self.test_suite_execution} - {self.device.name}"
     
 
+
 class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
     """
     Abstract model for Test Suite Execution Devices

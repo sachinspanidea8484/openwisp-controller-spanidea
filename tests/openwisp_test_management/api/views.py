@@ -808,6 +808,13 @@ class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
             (str(r["device_id"]), str(r["testcase_id"]))
             for r in execution.get_required_artifacts()
         )
+                
+        already_uploaded = {
+            (str(a.device_id), str(a.testcase_id))
+            for a in ExecutionArtifact.objects.filter(
+                execution=execution
+            ).exclude(config_file__isnull= False).exclude(config_file="").only("device_id", "testcase_id")
+        }
 
         # 3️⃣ Parse uploaded artifacts
         uploaded = {}
@@ -840,7 +847,7 @@ class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
             )
 
         # Validate missing artifacts
-        missing = required - uploaded.keys()
+        missing = required - uploaded.keys() - already_uploaded
         if missing:
             return Response(
                 {
