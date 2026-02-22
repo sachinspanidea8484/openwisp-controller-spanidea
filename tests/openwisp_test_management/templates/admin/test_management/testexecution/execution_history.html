@@ -1114,7 +1114,7 @@ function displayExecutionData(data) {
                     rows += `
                         <tr>
                             ${!device.is_deleted && show_re_execution ? 
-                            `<td><input type="checkbox" class="execution-checkbox" data-device-id="${device.device_id}" data-test-id="${ test.test_case_id }"></td>`
+                            `<td><input type="checkbox" class="execution-checkbox" data-device-id="${device.device_id}" data-test-id="${ test.test_case_uuid }"></td>`
                         :""}
                             <td>${test.test_case_name || 'N/A'}</td>
                             <td><span class="test-id-badge">${test.test_case_id || 'N/A'}</span></td>

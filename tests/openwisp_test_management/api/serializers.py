@@ -16,6 +16,7 @@ from ..swapper import load_model
 from django.core.exceptions import ValidationError
 from django.db import models
 from uuid import UUID
+import json
 
 from openwisp_users.api.mixins import FilterSerializerByOrgManaged
 
@@ -1312,6 +1313,8 @@ class TestSuiteExecutionCreateSerializer(serializers.Serializer):
         execution = TestSuiteExecution.objects.create(**validated_data)
         if validated_data["test_selection_type"] == 0 and test_cases_data:
             execution.individual_test_cases.set(test_cases_data)
+            test_cases_id = [str(tc.id) for tc in test_cases_data]
+            execution.test_case_execution_order = test_cases_id
             execution.testcase_count = len(test_cases_data)
             execution.save()
         
@@ -1446,6 +1449,43 @@ class ReExecuteSelectedTestsSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "No tests selected for re-execution."
             )
+        execution = self.context.get("execution")
+        device_executions = TestSuiteExecutionDevice.objects.filter(
+            test_suite_execution=execution
+        ).select_related('device')
+        errors = {}
+        org_devices = [str(device_execution.device.id)
+                       for device_execution in device_executions]
+
+        for device_id, test_case_ids in value.items():
+            device = Device.objects.get(id=device_id)
+            if not device:
+                raise serializers.ValidationError(
+                    "Device not found for given UUID: {device_id}"
+                )
+            if device_id not in org_devices:
+                errors[device_id] = "Device not found in this execution."
+                continue
+            invalid_tests = []
+            if execution.test_selection_type == 0:
+                invalid_tests = [
+                    str(tc_id)
+                    for tc_id in test_case_ids
+                    if not execution.individual_test_cases.filter(id=tc_id).exists()
+                ]
+            if execution.test_selection_type == 1:
+                invalid_tests = [
+                    str(tc_id)
+                    for tc_id in test_case_ids
+                    if not execution.test_suite.test_cases.filter(id=tc_id).exists()
+                ]
+            if invalid_tests:
+                errors[device_id] = (
+                    f"Invalid test case(s): {', '.join(invalid_tests)}"
+                )
+
+        if errors:
+            raise serializers.ValidationError(errors)
         return value
 
 class TestSuiteExecutionSerializerOld(ValidatedModelSerializer):
