@@ -494,7 +494,7 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
         
         logger.info(f"Retrieved {total_test_cases} test cases for execution")
         print(f"[TASK] execute_selected_tests_on_device - Retrieved {total_test_cases} test cases")
-        
+
         all_test_execution_ids = []
         device_config = DeviceConfig.objects.filter(device=device).first()
 
@@ -525,12 +525,12 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
         if test_suite_execution.test_selection_type == 1:
             selected_test_cases = [
                 tc.test_case for tc in test_cases
-                if tc.test_case.test_case_id in selected_ids
+                if str(tc.test_case.id) in selected_ids
             ]
         else:
             selected_test_cases = [
                 tc for tc in test_cases
-                if tc.test_case_id in selected_ids
+                if str(tc.id) in selected_ids
             ]
 
         # Create execution records for ALL selected test cases
