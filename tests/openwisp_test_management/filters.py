@@ -65,9 +65,9 @@ class TestCaseTypeFilter(admin.SimpleListFilter):
         return queryset
 
 class TestSuiteCategoryFilter(admin.SimpleListFilter):
-    """Filter test groups by category"""  # Changed comment
+    """Filter test groups by category"""  
     parameter_name = "category"
-    title = _("Category")  # You can change this if needed
+    title = _("Category")  
     
     def lookups(self, request, model_admin):
         categories = TestCategory.objects.all().order_by('name')
@@ -114,8 +114,6 @@ class TestSuiteActiveFilter(admin.SimpleListFilter):
         return queryset
     
 
-
-# Add this new filter class at the top with other filters
 class TestExecutionStatusFilter(admin.SimpleListFilter):
     title = _('execution status')
     parameter_name = 'status'
@@ -138,18 +136,6 @@ class TestExecutionStatusFilter(admin.SimpleListFilter):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-# Add these new filter classes:
 class DeviceGroupOrganizationFilter(MultitenantOrgFilter):
     """Filter device groups by organization"""
     parameter_name = "organization"

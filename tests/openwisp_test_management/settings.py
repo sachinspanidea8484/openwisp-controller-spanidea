@@ -24,9 +24,6 @@ EMAIL_HOST_USER = getattr(
 )
 
 
-
-
-
 TEST_MANAGEMENT_API_ENABLED = getattr(
     settings, "OPENWISP_TEST_MANAGEMENT_API_ENABLED", True
 )

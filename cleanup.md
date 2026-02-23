@@ -1,29 +1,29 @@
 ├── admin.py                                    # Simpy
 ├── api
-│   ├── executor_views.py
-│   ├── filters.py
+│   ├── executor_views.py                        # partially done file too big
+│   ├── filters.py                               # ashutosh
 │   ├── __init__.py
 │   ├── serializers.py                           # Simpy
-│   ├── urls.py
+│   ├── urls.py                                  # AShutosh
 │   ├── urls_v1.py
 │   ├── utilities.py                             # Simpy
 │   └── views.py                                 # Simpy
 ├── apps.py                                      # Simpy
 ├── base
 │   ├── __init__.py
-│   └── models.py
-├── exceptions.py
-├── filters.py
+│   └── models.py                               #ashutosh
+├── exceptions.py                               #ashutosh
+├── filters.py                                  #ashutosh
 ├── forms.py                                     # Simpy
-├── handlers.py
+├── handlers.py                                 #ashutosh
 ├── __init__.py
 ├── migrations
 │   └── __init__.py
-├── models.py
+├── models.py                                   #ashutosh
 ├── private_storage
-│   └── storage.py
-├── settings.py
-├── signals.py
+│   └── storage.py                              #ashutosh
+├── settings.py                                 #ashutosh
+├── signals.py                                  #ashutosh
 ├── static
 │   ├── guidelines
 │   │   ├── test_script_guidelines.docx
@@ -49,7 +49,7 @@
 │           ├── test_suite_dynamic.js
 │           ├── test_suite_execution_form.js
 │           └── test_suite_form.js
-├── swapper.py
+├── swapper.py                                                  #ashutosh
 ├── tasks.py
 ├── tasks_without_ssh.py
 ├── templates
@@ -77,5 +77,5 @@
 │   │   └── execution_report_email_v1.html
 │   └── reversion
 │       └── recover_form.html
-├── urls.py
+├── urls.py                                      #ashutosh
 └── utils.py                                     # Simpy

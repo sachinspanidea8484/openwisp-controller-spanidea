@@ -12,8 +12,6 @@ from openwisp_controller.connection.connectors.ssh import Ssh
 from rest_framework.decorators import api_view ,authentication_classes, permission_classes
 from rest_framework.views import APIView
 from django.utils import timezone
-from datetime import timedelta
-from datetime import timezone as dt_timezone 
 import logging
 logger = logging.getLogger(__name__)
 
@@ -22,10 +20,8 @@ from rest_framework.decorators import permission_classes
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 
-from django.http.response import HttpResponse, HttpResponseNotFound
+from django.http.response import HttpResponse
 
-
-from rest_framework.decorators import action
 from rest_framework.response import Response
 from .filters import TestSuiteFilter
 
@@ -35,13 +31,11 @@ from .filters import TestSuiteFilter
 from ..base.models import TestExecutionStatus
 
 from openwisp_controller.config.models import Device 
-from openwisp_controller.connection.models import Credentials
 
 from openwisp_controller.connection.models import DeviceConnection 
 from .serializers import (
     TestSuiteExecutionListSerializer,
     TestSuiteExecutionSerializer,
-    ExecutionDetailsRequestSerializer,
     DeviceTestDataRequestSerializer,
     TestCaseExecutionResultSerializer,
     TestSuiteExecutionDeleteSerializer,
@@ -52,7 +46,6 @@ from .serializers import (
     RobotTestResultSerializer,
     RobotTestRunningResultSerializer,
     DeviceTestResultSerializer,
-    OrganisationDevicesSerializer,
     TestDeviceGroupSerializer
 )
 
@@ -71,7 +64,6 @@ from .serializers import (
 )
 
 from ..base.models import TestExecutionStatus
-from django.db.models import Prefetch
 from django.utils.dateparse import parse_datetime
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -350,16 +342,6 @@ def available_devices(request):
     
     return Response(data)
 
-
-
-
-
-
-
-
-
-
-# Add this new view function
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def add_all_test_data(request):
@@ -411,21 +393,21 @@ def add_all_test_data(request):
             )
 
             test_case_4 = TestCase.objects.create(
-    name="Test Case 4",
-    test_case_id="TestCase_004",
-    category=category,
-    description="Failover test to validate automatic recovery mechanisms",
-    is_active=True,
-    test_type=1  # Device Agent
+                name="Test Case 4",
+                test_case_id="TestCase_004",
+                category=category,
+                description="Failover test to validate automatic recovery mechanisms",
+                is_active=True,
+                test_type=1  # Device Agent
             )
 
             test_case_5 = TestCase.objects.create(
-    name="Test Case 5",
-    test_case_id="TestCase_005",
-    category=category,
-    description="Security test to evaluate firewall and intrusion prevention functionality",
-    is_active=True,
-    test_type=1  # Device Agent
+                name="Test Case 5",
+                test_case_id="TestCase_005",
+                category=category,
+                description="Security test to evaluate firewall and intrusion prevention functionality",
+                is_active=True,
+                test_type=1  # Device Agent
             )
             
             
@@ -4769,7 +4751,7 @@ def retry_test_execution(request, execution_id):
 
 @api_view(['POST'])
 @authentication_classes([CsrfExemptSessionAuthentication])
-@permission_classes([IsAuthenticated])  # Disable CSRF requirement
+@permission_classes([IsAuthenticated])  
 def abort_test_execution(request, execution_id):
     """
     Retry a single test execution
@@ -4981,7 +4963,7 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
            
         
         
-        # Step 6: Define the save path (FIXED: using allure_report without 's')
+        # Step 6: Define the save path 
         save_path = f"allure_report/{filename}"  # Changed from allure_reports to allure_report
         print(f"Save path: {save_path}")
         
@@ -5011,7 +4993,7 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
             context={'request': request}
         )
 
-        # NEW: Step 10 - Check if ALL devices have completed reports
+        # Step 10 - Check if ALL devices have completed reports
         check_and_complete_execution(test_group_execution_id)
         
         print(f"Report uploaded successfully!")
@@ -5041,8 +5023,6 @@ def upload_allure_report(request, test_group_execution_id, dev_id):
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-
-
 
 @swagger_auto_schema(
     method='get',
@@ -5115,8 +5095,6 @@ def get_organization_devices(request):
         return Response({
             'error': f'An error occurred while fetching devices: {str(e)}'
         }, status=500)
-
-
 
 
 @api_view(['GET'])
@@ -5252,9 +5230,6 @@ class TestDeviceGroupViewSet(viewsets.ModelViewSet):
 # @csrf_exempt
 def ConfigurationPushOnDeviceOld(request):
     try:
-        print("[Error] : erorr uploading file on device request>>>>>>>>>>>>",)
-
-
         device_id = request.POST.get("device_id")
         file= request.FILES.get("file")
         if not device_id or not file:
@@ -5269,26 +5244,11 @@ def ConfigurationPushOnDeviceOld(request):
         ssh_conn.connect()
 
         ssh_conn.upload(file, f"/tmp/{file.name}")
-
-
-        print("success uploading file on device >>>>>>>>>>")
-
         return Response({"success": "uploaded "},status=200)
 
     except Exception as e:
         print("[Error] : erorr uploading file on device",e)
         return Response({"error": "uploaded "},status=400)
-
-
-
-
-
-
-
-
-
-
-
 
 
 @api_view(["GET"])
@@ -5316,8 +5276,6 @@ def check_test_case_id_unique(request):
     return Response({
         "exists": qs.exists()
     }, status=status.HTTP_200_OK)
-
-
 
 
 def create_test_execution_clone(execution, request):
@@ -5478,13 +5436,6 @@ def re_execute_selected_view(request, execution_id):
         return Response({"Error": f"{str(e)}"}, status=500)
 
 
-
-
-
-
-
-
-
 def check_and_complete_execution(test_group_execution_id):
     """
     Check if all devices in the test execution have completed their reports.
@@ -5542,11 +5493,6 @@ def check_and_complete_execution(test_group_execution_id):
         import traceback
         traceback.print_exc()
         logger.error(f"Error checking execution completion: {str(e)}")
-
-
-
-
-
 
 
 

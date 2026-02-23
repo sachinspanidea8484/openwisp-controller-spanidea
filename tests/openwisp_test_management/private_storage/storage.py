@@ -17,8 +17,6 @@ zip_storage = PrivateFileSystemStorage(
 )
 
 
-
-
 class OverwriteStorage(FileSystemStorage):
     def get_available_name(self, name, max_length=None):
         if self.exists(name):
