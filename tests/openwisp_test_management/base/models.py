@@ -109,13 +109,12 @@ overwrite_storage= storage.OverwriteStorage()
 
 def rename_script(instance, filename):
     ext= filename.split('.')[1]
-
     new_name= f"{instance.test_case_id}.{ext}"
-
-    if ext == 'py' :
-        return os.path.join("test_case", new_name)
-    elif ext== 'robot':
+    if instance.test_type==1:
         return os.path.join("test_case_robot", new_name)
+    else:
+        return os.path.join("test_case", new_name)
+  
     
 class AbstractTestCase(TimeStampedEditableModel):
     """

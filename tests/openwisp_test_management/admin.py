@@ -262,8 +262,10 @@ def validate_robot_import(file_path):
         field="robot_script"
     )
 
-def _get_system_script_path(test_case_id, script_type):
-    if script_type == "robot":
+def _get_system_script_path(test_case_id, script_type, test_type):
+    if test_type=="Robot Framework" and script_type=="python":
+        return os.path.join(settings.MEDIA_ROOT, "test_case_robot", f"{test_case_id}.py")
+    elif script_type == "robot":
         return os.path.join(settings.MEDIA_ROOT, "test_case_robot", f"{test_case_id}.robot")
     return os.path.join(settings.MEDIA_ROOT, "test_case", f"{test_case_id}.py")
 
@@ -274,6 +276,7 @@ def store_script(
     script_type,  # "robot" | "python"
     extract_description=False,
     system_generated=False,
+    test_type,
 ):
     """
     Stores script in a deterministic location with deterministic filename.
@@ -284,8 +287,8 @@ def store_script(
     - Relative MEDIA paths
     """
     if system_generated:
-        system_path = _get_system_script_path(test_case_id, script_type)
-
+        system_path = _get_system_script_path(test_case_id, script_type, test_type)
+        
         if not os.path.exists(system_path):
             raise ScriptValidationError(
                 f"System {script_type} script not found at '{system_path}'",
@@ -317,6 +320,9 @@ def store_script(
     if script_type == "robot":
         subdir = "test_case_robot"
         ext = ".robot"
+    elif script_type == "python" and test_type=="Robot Framework":
+        subdir = "test_case_robot"
+        ext = ".py"
     else:
         subdir = "test_case"
         ext = ".py"
@@ -324,7 +330,6 @@ def store_script(
     filename = f"{test_case_id}{ext}"
     relative_path = os.path.join(subdir, filename)
     dest_path = os.path.join(settings.MEDIA_ROOT, relative_path)
-
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
     source = str(source).strip()
@@ -466,7 +471,6 @@ class TestCasesResource(resources.ModelResource):
         ).rstrip("/")
 
         media_url = str(settings.MEDIA_URL).rstrip("/")
-
         return f"{site_url}{media_url}/{value}"
 
     def dehydrate_robot_script(self, obj):
@@ -515,6 +519,7 @@ class TestCasesResource(resources.ModelResource):
                 test_case_id=test_case_id,
                 script_type="robot",
                 system_generated= system_generated,
+                test_type= test_type_from_file,
             )
             if not row["robot_script"]:
                 raise ScriptValidationError("Robot script is missing", field="robot_script")
@@ -524,6 +529,7 @@ class TestCasesResource(resources.ModelResource):
             script_type="python",
             extract_description=True,
             system_generated= system_generated,
+            test_type= test_type_from_file,
         )
         if not python_path:
                 raise ScriptValidationError("python script is missing", field="python_script")
@@ -1208,8 +1214,8 @@ class TestCaseAdminForm(forms.ModelForm):
         except Exception as e:
             return False, f"Error validating Python file: {str(e)}" ,"python_ast"
 
-    def get_system_python_script(self, test_case_id):
-        rel_path= f"test_case/{test_case_id}.py"
+    def get_system_python_script(self, test_case_id, test_type):
+        rel_path=  f"test_case_robot/{test_case_id}.py" if test_type== TestTypeChoices.ROBOT_FRAMEWORK else f"test_case/{test_case_id}.py"
         abs_path= os.path.join(settings.MEDIA_ROOT, rel_path)
         if not os.path.exists(abs_path):
             raise forms.ValidationError(
@@ -1250,7 +1256,7 @@ class TestCaseAdminForm(forms.ModelForm):
                         f"Python validation failed:\n{error_msg}"
                     )
         elif is_superuser and test_case_id and is_system_test_case:
-            cleaned_data["python_script"]= self.get_system_python_script(test_case_id)
+            cleaned_data["python_script"]= self.get_system_python_script(test_case_id, test_type)
         else:
             self.add_error("python_script", "Python Script is Required.")
         

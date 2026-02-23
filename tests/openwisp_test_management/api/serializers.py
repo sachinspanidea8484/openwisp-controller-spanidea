@@ -896,7 +896,7 @@ class TestCaseSerializer(ValidatedModelSerializer):
                 and is_system_test_case
                 and test_case_id
             ):
-                rel_path= f"test_case/{test_case_id}.py"
+                rel_path= f"test_case_robot/{test_case_id}.py" if test_type== TestTypeChoices.ROBOT_FRAMEWORK else f"test_case/{test_case_id}.py"
                 abs_path= os.path.join(settings.MEDIA_ROOT, rel_path)
                 if not os.path.exists(abs_path):
                     raise serializers.ValidationError({

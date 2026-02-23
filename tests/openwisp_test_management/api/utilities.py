@@ -166,8 +166,10 @@ def validate_robot_import(file_path):
     )
 
 
-def _get_system_script_path(test_case_id, script_type):
-    if script_type == "robot":
+def _get_system_script_path(test_case_id, script_type, test_type):
+    if test_type=="Robot Framework" and script_type=="python":
+        return os.path.join(settings.MEDIA_ROOT, "test_case_robot", f"{test_case_id}.py")
+    elif script_type == "robot":
         return os.path.join(settings.MEDIA_ROOT, "test_case_robot", f"{test_case_id}.robot")
     return os.path.join(settings.MEDIA_ROOT, "test_case", f"{test_case_id}.py")
 
@@ -179,6 +181,7 @@ def store_script(
     script_type,  # "robot" | "python"
     extract_description=False,
     system_generated=False,
+    test_type,
 ):
     """
     Stores script in a deterministic location with deterministic filename.
@@ -189,7 +192,7 @@ def store_script(
     - Relative MEDIA paths
     """
     if system_generated:
-        system_path = _get_system_script_path(test_case_id, script_type)
+        system_path = _get_system_script_path(test_case_id, script_type, test_type)
 
         if not os.path.exists(system_path):
             raise ValidationError(
@@ -222,6 +225,9 @@ def store_script(
     if script_type == "robot":
         subdir = "test_case_robot"
         ext = ".robot"
+    elif script_type == "python" and test_type=="Robot Framework":
+        subdir = "test_case_robot"
+        ext = ".py"
     else:
         subdir = "test_case"
         ext = ".py"
@@ -494,6 +500,7 @@ class TestCasesResource(resources.ModelResource):
                 test_case_id=test_case_id,
                 script_type="robot",
                 system_generated= system_generated,
+                test_type= test_type_from_file,
             )
 
         python_path, extracted_description = store_script(
@@ -502,6 +509,7 @@ class TestCasesResource(resources.ModelResource):
             script_type="python",
             extract_description=True,
             system_generated= system_generated,
+            test_type= test_type_from_file,
         )
 
         row["python_script"] = python_path
