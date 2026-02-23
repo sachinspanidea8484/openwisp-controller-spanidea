@@ -1034,6 +1034,11 @@ class TestExecutionAbortView(ProtectedExternalAPIMixin, APIView):
                 {"detail": "Not allowed to abort this execution."},
                 status=status.HTTP_403_FORBIDDEN
             )
+        if execution.status != 1 and execution.status != 2:
+            return Response(
+                {"detail": "This execution is not in progress."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             # Get all execution devices
