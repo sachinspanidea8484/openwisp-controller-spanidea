@@ -1887,7 +1887,7 @@ class TestCasesExportable(ImportExportMixin, TestCaseAdmin):
     def export_all_scripts(self, request):
         queryset = self.get_queryset(request)
 
-        zip_buffer = build_all_testcases_zip(queryset, False)
+        zip_buffer = build_all_testcases_zip(queryset, True)
 
         response = HttpResponse(
             zip_buffer,
