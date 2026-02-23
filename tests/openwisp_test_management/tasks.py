@@ -1183,9 +1183,9 @@ def timeout_stuck_tests():
     New requirement:
     - Find all pending Device Agent test executions
     - For each device:
-      → Check if pingable
-      → Check if HTTP server reachable
-      → If not reachable, mark execution as FAILED
+      - Check if pingable
+      - Check if HTTP server reachable
+      - If not reachable, mark execution as FAILED
     """
     logger.info("Starting check for pending Device Agent tests")
     print(f"[TASK] timeout_stuck_tests - Checking for pending Device Agent tests")
@@ -1635,7 +1635,7 @@ def check_device_execution_completion(device_execution_id, retry_count=0):
             # Process based on status
             if test_exec.status == TestExecutionStatus.SUCCESS:
                 passed_tests += 1
-                output_lines.append(f"✓ {test_exec.test_case.name}: PASSED{duration}")
+                output_lines.append(f"{test_exec.test_case.name}: PASSED{duration}")
                 
                 logger.debug(f"Test PASSED: {test_exec.test_case.name}")
                 print(f"[DEBUG] check_device_execution_completion - PASSED: {test_exec.test_case.name}")
@@ -1649,7 +1649,7 @@ def check_device_execution_completion(device_execution_id, retry_count=0):
                     
             else:
                 failed_tests += 1
-                output_lines.append(f"✗ {test_exec.test_case.name}: FAILED{duration}")
+                output_lines.append(f"{test_exec.test_case.name}: FAILED{duration}")
                 
                 logger.debug(f"Test FAILED: {test_exec.test_case.name}")
                 print(f"[DEBUG] check_device_execution_completion - FAILED: {test_exec.test_case.name}")

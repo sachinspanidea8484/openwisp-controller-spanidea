@@ -10,7 +10,7 @@ It allows you to:
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 
 ├── docker-compose.yml          # Docker Compose configuration
@@ -33,7 +33,7 @@ It allows you to:
 
 ---
 
-## 🔧 Prerequisites
+## Prerequisites
 
 Make sure these are installed on your system:
 meanwhile you install docker  (v28+ recommended) and docker compose on both server.
@@ -50,7 +50,7 @@ docker compose version
 
 ---
 
-## ⚙️ Setup & Installation
+## Setup & Installation
 
 1. **Go to project directory**   
    cd openwisp-controller
@@ -67,8 +67,8 @@ docker compose version
    - **Nginx** (reverse proxy)
 
 3. **Access the application**
-   - Web UI → [http://127.0.0.1](http://127.0.0.1)  # Use Your Intance IP
-   - Admin Panel → [http://127.0.0.1/admin](http://127.0.0.1/admin)   # Use Your Intance IP
+   - Web UI : [http://127.0.0.1](http://127.0.0.1)  # Use Your Intance IP
+   - Admin Panel : [http://127.0.0.1/admin](http://127.0.0.1/admin)   # Use Your Intance IP
 
 4. **Default Login**
    
@@ -76,26 +76,26 @@ docker compose version
    Email: admin@example.com
    Password: admin
    
-   ⚠️ Please **change this password** after first login!
+   Please **change this password** after first login!
 
 6. **Change Test Management Settings**
      EXECUTOR_SERVER_IP    (Use Cloud IP || Domain)
      OPENWISP_SERVER_IP (Use Cloud IP || Domain)
 
 
-## 📊 Logs & Monitoring
-- **App Logs** → `./logs/`  
-- **Nginx Logs** → `./logs/nginx/`  
+## Logs & Monitoring
+- **App Logs** : `./logs/`  
+- **Nginx Logs** : `./logs/nginx/`  
 - **Container Logs**:
   
   docker compose logs -f
   
 
-- **Metrics (InfluxDB)** → available at port `8086`  
+- **Metrics (InfluxDB)** : available at port `8086`  
 
 ---
 
-## 🔧 Useful Docker Commands
+## Useful Docker Commands
 
 - Check running containers:  
   
@@ -122,7 +122,7 @@ docker compose version
   docker compose down -v --remove-orphans
   
 
-## 📚 More Resources
+## More Resources
 
 - [OpenWISP Documentation](https://openwisp.org/docs/)  
 - [Django Docs](https://docs.djangoproject.com/)  

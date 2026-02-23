@@ -240,15 +240,15 @@ class TestCategoryListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
     API endpoint for listing and creating test categories
     
-    GET  → List all categories (with filters, search, pagination)
-    POST → Create new category
+    GET  : List all categories (with filters, search, pagination)
+    POST : Create new category
     """
     # Basic configuration
     # SQL: SELECT * FROM test_category
     queryset = TestCategory.objects.all()
 
-    # Model instance → JSON (for response)
-    # JSON → Model instance (for creation)
+    # Model instance : JSON (for response)
+    # JSON : Model instance (for creation)
     serializer_class = TestCategorySerializer
 
     # Instead of returning 1000 categories
@@ -325,11 +325,11 @@ class TestExecutionListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
     API endpoint for listing and creating test executions
     
-    GET  → List all test executions (with filters, search, pagination)
+    GET  : List all test executions (with filters, search, pagination)
     - Superusers see all test executions
     - Regular users see only test executions they created
 
-    POST → Create new test execution
+    POST : Create new test execution
 
         Example:
         # For Individual test cases
@@ -437,8 +437,8 @@ class TestExecutionListView(ProtectedAPIMixin, generics.ListCreateAPIView):
 
         return qs
 
-    # Model instance → JSON (for response)
-    # JSON → Model instance (for creation)
+    # Model instance : JSON (for response)
+    # JSON : Model instance (for creation)
     serializer_class = TestSuiteExecutionSerializer
 
     # Instead of returning 1000 test executions
@@ -1581,8 +1581,8 @@ class TestCaseListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
     API endpoint for listing and creating test cases
 
-    GET  → List test cases
-    POST → Create test case
+    GET  : List test cases
+    POST : Create test case
     """
     serializer_class = TestCaseSerializer
     pagination_class = ListViewPagination
@@ -1615,10 +1615,10 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
     """
     API endpoint for retrieving, updating, and deleting a test case
 
-    GET    → Retrieve test case details
-    PUT    → Update test case
-    PATCH  → Partial update
-    DELETE → Delete test case (only if deletable)
+    GET    : Retrieve test case details
+    PUT    : Update test case
+    PATCH  : Partial update
+    DELETE : Delete test case (only if deletable)
     """
     lookup_field = "pk"
     parser_classes = (MultiPartParser, FormParser)
@@ -1806,8 +1806,8 @@ class TestCaseImportApiView(ProtectedAPIMixin, generics.CreateAPIView):
 # ============================================================================
 class TestSuiteListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
-    GET  → list test groups 
-    POST → create test group
+    GET  : list test groups 
+    POST : create test group
     """
     serializer_class = TestSuiteSerializer
     pagination_class = ListViewPagination
@@ -1825,8 +1825,8 @@ class TestSuiteListView(ProtectedAPIMixin, generics.ListCreateAPIView):
 
 class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
     """
-    GET    → detail with test_cases_detail 
-    PUT/PATCH → update accepts test_case_ids[]
+    GET    : detail with test_cases_detail 
+    PUT/PATCH : update accepts test_case_ids[]
     Delete test case (only if deletable)
     """
     queryset = TestSuite.objects.all()
@@ -1852,7 +1852,7 @@ class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVi
 class TestCasesByCategoryView(ProtectedAPIMixin, generics.ListAPIView):
     """
     GET /test-management/test-cases-by-category/?category_ids=<uuid>,<uuid>
-    - If no category_ids provided → returns all test cases
+    - If no category_ids provided : returns all test cases
     """
     serializer_class = TestCaseMinimalSerializer
 

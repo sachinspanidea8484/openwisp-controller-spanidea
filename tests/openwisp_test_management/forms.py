@@ -11,7 +11,7 @@ class ExecutionArtifactForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # ✅ override model requirement
+        # override model requirement
         self.fields["config_file"].required = False
 ExecutionArtifactFormSet = inlineformset_factory(
     TestSuiteExecution,

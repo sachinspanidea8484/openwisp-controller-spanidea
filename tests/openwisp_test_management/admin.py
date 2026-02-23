@@ -106,11 +106,11 @@ class ChoicesWidget(Widget):
         self.reverse_choices = {v: k for k, v in self.choices.items()}
 
     def render(self, value, obj=None, **kwargs):
-        """Convert integer → readable text for export"""
+        """Convert integer to readable text for export"""
         return self.choices.get(value, "")
 
     def clean(self, value, row=None, **kwargs):
-        """Convert readable text → integer for import"""
+        """Convert readable text to integer for import"""
         return self.reverse_choices.get(value, None)
 
 def extract_description_from_python(content: bytes) -> str | None:
@@ -320,7 +320,7 @@ def store_script(
     content = None
 
     # --------------------------------------------------
-    # 1️External URL → download
+    #  1 External URL : download
     # --------------------------------------------------
     if source.startswith("http"):
         parsed = urlparse(source)
@@ -347,7 +347,7 @@ def store_script(
                     f"Failed to download script ({e})"
                 )
     # --------------------------------------------------
-    # 2️ Relative path → read content
+    # 2 Relative path : read content
     # --------------------------------------------------
     else:
         src_full = os.path.join(settings.MEDIA_ROOT, source.lstrip("/"))
@@ -375,7 +375,7 @@ def store_script(
         extracted_description = extract_description_from_python(content)
    
     # --------------------------------------------------
-    # 3️ALWAYS rewrite destination 
+    # 3 ALWAYS rewrite destination 
     # --------------------------------------------------
     with open(dest_path, "wb") as f:
         f.write(content)
@@ -422,7 +422,6 @@ class TestCasesResource(resources.ModelResource):
             "robot_script",
             "python_script",
             "is_system_test_case"
-            # "file"
         )
         export_order = (
             "id",
@@ -1395,7 +1394,6 @@ class TestCaseAdmin(BaseVersionAdmin):
         "params",  # ADD THIS - NEW FIELD
         "json_file",
         "description",
-        # "file",
         "is_active",
         "is_configuration_push_required"
     ]
@@ -1614,39 +1612,7 @@ class TestCaseAdmin(BaseVersionAdmin):
                 form.base_fields[field_name].widget = ForceDownloadFileWidget(
                     attrs={"accept": accept}
                 )
-        # **NEW: Add warning messages for EDIT mode**
-        # if obj:  # Edit mode
-        #  if "python_script" in form.base_fields:
-        #      current_file = obj.python_script.name.split('/')[-1] if obj.python_script else "None"
-        #      form.base_fields["python_script"].help_text = format_html(
-        #           '<span style="color: #856404; background: #fff3cd; padding: 5px 10px; '
-        #           'border-radius: 4px; display: inline-block; margin-top: 5px;">'
-        #           '⚠️ <strong>Warning:</strong> Uploading a new file will permanently replace: <code>{}</code>'
-        #           '</span><br>{}',
-        #           current_file,
-        #           _("Upload Python script (.py file)")
-        #      )
-         
-        #  if "robot_script" in form.base_fields:
-        #      current_file = obj.robot_script.name.split('/')[-1] if obj.robot_script else "None"
-        #      form.base_fields["robot_script"].help_text = format_html(
-        #           '<span style="color: #856404; background: #fff3cd; padding: 5px 10px; '
-        #           'border-radius: 4px; display: inline-block; margin-top: 5px;">'
-        #           '⚠️ <strong>Warning:</strong> Uploading a new file will permanently replace: <code>{}</code><br>'
-        #           'The [Tags] will be automatically updated to match Test Case ID'
-        #           '</span><br>{}',
-        #           current_file,
-        #           _("Upload Robot script (.robot file)")
-        #      )
-         
-        #  if "test_case_id" in form.base_fields:
-        #      form.base_fields["test_case_id"].help_text = format_html(
-        #           '<span style="color: #856404; background: #fff3cd; padding: 5px 10px; '
-        #           'border-radius: 4px; display: inline-block; margin-top: 5px;">'
-        #           '⚠️ <strong>Warning:</strong> Changing this will update [Tags] in robot file'
-        #           '</span><br>{}',
-        #           _("Only letters, numbers, _, -, ., :, / are allowed.")
-        #      )    
+
         return form
 
 
@@ -3701,7 +3667,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     overdue_schedule.update(status=ScheduledExecution.Status.CANCELLED)
 
                 # -----------------------------------------
-                # 3. If NOT executed → Execute
+                # 3. If NOT executed : Execute
                 # -----------------------------------------
                 if not execution.is_executed:
 
@@ -3747,7 +3713,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     continue
 
                 # -----------------------------------------
-                # 4. If already executed → Re-execute
+                # 4. If already executed : Re-execute
                 # -----------------------------------------
                 with transaction.atomic():
                     root = execution.parent_execution or execution

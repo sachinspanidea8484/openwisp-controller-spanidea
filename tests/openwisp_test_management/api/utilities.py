@@ -21,11 +21,11 @@ class ChoicesWidget(Widget):
         self.reverse_choices = {v: k for k, v in self.choices.items()}
 
     def render(self, value, obj=None, **kwargs):
-        """Convert integer → readable text for export"""
+        """Convert integer to readable text for export"""
         return self.choices.get(value, "")
 
     def clean(self, value, row=None, **kwargs):
-        """Convert readable text → integer for import"""
+        """Convert readable text to integer for import"""
         return self.reverse_choices.get(value, None)
 
 
@@ -238,7 +238,7 @@ def store_script(
     content = None
 
     # --------------------------------------------------
-    # 1️External URL → download
+    #  1 External URL : download
     # --------------------------------------------------
     if source.startswith("http"):
         parsed = urlparse(source)
@@ -265,7 +265,7 @@ def store_script(
                     f"Failed to download script ({e})"
                 )
     # --------------------------------------------------
-    # 2️ Relative path → read content
+    # 2 Relative path : read content
     # --------------------------------------------------
     else:
         src_full = os.path.join(settings.MEDIA_ROOT, source.lstrip("/"))
@@ -293,7 +293,7 @@ def store_script(
         extracted_description = extract_description_from_python(content)
    
     # --------------------------------------------------
-    # 3️ALWAYS rewrite destination 
+    # 3 ALWAYS rewrite destination 
     # --------------------------------------------------
     with open(dest_path, "wb") as f:
         f.write(content)
@@ -411,7 +411,6 @@ class TestCasesResource(resources.ModelResource):
             "robot_script",
             "python_script",
             "is_system_test_case"
-            # "file"
         )
         export_order = (
             "id",
@@ -422,7 +421,6 @@ class TestCasesResource(resources.ModelResource):
             "is_active",
             "test_type",
             "params",
-            # "file"
             "is_configuration_push_required",
             "robot_script",
             "python_script",

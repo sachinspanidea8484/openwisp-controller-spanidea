@@ -916,9 +916,9 @@ class AddDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
     4. TestSuiteExecution with TestSuiteExecutionDevice
     """
     serializer_class = DeviceTestDataRequestSerializer
-    queryset = TestSuiteExecution.objects.none()  # ← ADD THIS DUMMY QUERYSET
+    queryset = TestSuiteExecution.objects.none()  # ADD THIS DUMMY QUERYSET
     
-    def create(self, request, *args, **kwargs):  # ← CHANGE post TO create
+    def create(self, request, *args, **kwargs):  # CHANGE post TO create
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -1059,9 +1059,9 @@ class AddFireWallGDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
     4. TestSuiteExecution with TestSuiteExecutionDevice
     """
     serializer_class = DeviceTestDataRequestSerializer
-    queryset = TestSuiteExecution.objects.none()  # ← ADD THIS DUMMY QUERYSET
+    queryset = TestSuiteExecution.objects.none()  # ADD THIS DUMMY QUERYSET
     
-    def create(self, request, *args, **kwargs):  # ← CHANGE post TO create
+    def create(self, request, *args, **kwargs):  # CHANGE post TO create
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -1181,9 +1181,9 @@ class AddWifiGDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
     4. TestSuiteExecution with TestSuiteExecutionDevice
     """
     serializer_class = DeviceTestDataRequestSerializer
-    queryset = TestSuiteExecution.objects.none()  # ← ADD THIS DUMMY QUERYSET
+    queryset = TestSuiteExecution.objects.none()  # ADD THIS DUMMY QUERYSET
     
-    def create(self, request, *args, **kwargs):  # ← CHANGE post TO create
+    def create(self, request, *args, **kwargs):  # CHANGE post TO create
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -1308,9 +1308,9 @@ class AddFiveGDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
     4. TestSuiteExecution with TestSuiteExecutionDevice
     """
     serializer_class = DeviceTestDataRequestSerializer
-    queryset = TestSuiteExecution.objects.none()  # ← ADD THIS DUMMY QUERYSET
+    queryset = TestSuiteExecution.objects.none()  # ADD THIS DUMMY QUERYSET
     
-    def create(self, request, *args, **kwargs):  # ← CHANGE post TO create
+    def create(self, request, *args, **kwargs):  # CHANGE post TO create
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -1428,9 +1428,9 @@ class AddLoggingDeviceTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
     4. TestSuiteExecution with TestSuiteExecutionDevice
     """
     serializer_class = DeviceTestDataRequestSerializer
-    queryset = TestSuiteExecution.objects.none()  # ← ADD THIS DUMMY QUERYSET
+    queryset = TestSuiteExecution.objects.none()  # ADD THIS DUMMY QUERYSET
     
-    def create(self, request, *args, **kwargs):  # ← CHANGE post TO create
+    def create(self, request, *args, **kwargs):  # CHANGE post TO create
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -1548,9 +1548,9 @@ class AddRobotTestDataView(ProtectedAPIMixin, generics.CreateAPIView):
     4. TestSuiteExecution with TestSuiteExecutionDevice
     """
     serializer_class = DeviceTestDataRequestSerializer
-    queryset = TestSuiteExecution.objects.none()  # ← ADD THIS DUMMY QUERYSET
+    queryset = TestSuiteExecution.objects.none()  # ADD THIS DUMMY QUERYSET
     
-    def create(self, request, *args, **kwargs):  # ← CHANGE post TO create
+    def create(self, request, *args, **kwargs):  # CHANGE post TO create
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
