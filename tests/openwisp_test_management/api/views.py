@@ -767,6 +767,13 @@ class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
             (str(r["device_id"]), str(r["testcase_id"]))
             for r in execution.get_required_artifacts()
         )
+                
+        already_uploaded = {
+            (str(a.device_id), str(a.testcase_id))
+            for a in ExecutionArtifact.objects.filter(
+                execution=execution
+            ).exclude(config_file__isnull= False).exclude(config_file="").only("device_id", "testcase_id")
+        }
 
         # Parse uploaded artifacts
         uploaded = {}
@@ -799,7 +806,7 @@ class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
             )
 
         # Validate missing artifacts
-        missing = required - uploaded.keys()
+        missing = required - uploaded.keys() - already_uploaded
         if missing:
             return Response(
                 {
@@ -985,6 +992,11 @@ class TestExecutionAbortView(ProtectedExternalAPIMixin, APIView):
             return Response(
                 {"detail": "Not allowed to abort this execution."},
                 status=status.HTTP_403_FORBIDDEN
+            )
+        if execution.status != 1 and execution.status != 2:
+            return Response(
+                {"detail": "This execution is not in progress."},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         try:

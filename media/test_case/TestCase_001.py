@@ -1,121 +1,146 @@
+import sys, os, subprocess,datetime
 import time
-import threading
-from robot.libraries.BuiltIn import BuiltIn
-from robot.api.deco import keyword
 
-# ---------------- LOGGING ---------------- #
-@keyword
-def log_message_to_custom_file(msg):
-    """Logs message to Robot log and console."""
-    BuiltIn().log(msg)
-    BuiltIn().log_to_console(msg)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Common')))
 
-# ---------------- WLAN DETECTION ---------------- #
-@keyword
-def get_wlan0_interface_and_ip(alias):
-    """Detects WLAN interface and its IP on the given device alias."""
-    ssh_lib = BuiltIn().get_library_instance("SSHLibrary")
-    ssh_lib.switch_connection(alias)
-    cmd = "ip -4 -o addr show | grep -E 'wl|wlan' | awk '{print $2, $4}' | cut -d/ -f1 | head -n1"
-    result = ssh_lib.execute_command(cmd).strip()
-    if not result:
-        log_message_to_custom_file(f"❌ No WLAN interface found on {alias}")
-        return '', ''
-    iface, ip = result.split()
-    log_message_to_custom_file(f"✅ Found interface {iface} with IP {ip} on {alias}")
-    return iface, ip
 
-# ---------------- PING ---------------- #
-@keyword
-def run_ping(alias, target_ip, count=4):
-    """Runs ping from alias to target IP and logs output."""
-    ssh_lib = BuiltIn().get_library_instance("SSHLibrary")
-    ssh_lib.switch_connection(alias)
-    cmd = f"ping -c {count} {target_ip}"
-    result = ssh_lib.execute_command(cmd)
-    log_message_to_custom_file(f"Ping from {alias} to {target_ip}:\n{result}")
-    return result
 
-# ---------------- IPERF ---------------- #
-@keyword
-def run_iperf_server(alias):
-    """Starts iperf3 server in background and logs server PID."""
-    ssh_lib = BuiltIn().get_library_instance("SSHLibrary")
-    ssh_lib.switch_connection(alias)
-    cmd = "nohup iperf3 -s -1 > /tmp/iperf3_server.log 2>&1 & echo $!"
-    pid = ssh_lib.execute_command(cmd).strip()
-    log_message_to_custom_file(f"Started iperf3 server on {alias} with PID {pid}")
-    return pid
 
-@keyword
-def run_iperf_client(client_alias, server_ip, bind_ip, duration, bandwidth):
-    """Runs iperf3 client from client_alias to server_ip and logs output."""
-    ssh_lib = BuiltIn().get_library_instance("SSHLibrary")
-    ssh_lib.switch_connection(client_alias)
-    cmd = f"iperf3 -c {server_ip} -B {bind_ip} -t {duration} -b {bandwidth}"
-    log_message_to_custom_file(f"Starting iperf3 client on {client_alias}:\n{cmd}")
-    result = ssh_lib.execute_command(cmd)
-    log_message_to_custom_file(f"Iperf3 client output on {client_alias}:\n{result}")
-    return result
 
-@keyword
-def fetch_iperf_server_log(alias):
-    """Fetches the iperf3 server output log and logs it to Robot log."""
-    ssh_lib = BuiltIn().get_library_instance("SSHLibrary")
-    ssh_lib.switch_connection(alias)
-    log_content = ssh_lib.execute_command("cat /tmp/iperf3_server.log")
-    log_message_to_custom_file(f"Iperf3 server log from {alias}:\n{log_content}")
-    return log_content
+class CommandError(Exception):
+    pass
+def run(cmd, check=True, verbose=True, use_os=False):
+    if verbose:
+        print(f"$ {cmd}")
+    if use_os:
+        return os.system(cmd)
+    result = subprocess.run(cmd, shell=True, text=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if verbose:
+        if result.stdout.strip():
+            print(result.stdout.strip())
+        if result.stderr.strip():
+            print(result.stderr.strip())
+    if check and result.returncode != 0:
+        raise CommandError(f"Command failed:\n{result.stderr.strip()}")
+    return result.stdout.strip(), result.stderr.strip()
 
-# ---------------- WIFI CONFIG ---------------- #
-@keyword
-def configure_wifi(pc_list):
-    """Dummy WiFi configuration placeholder."""
-    for pc in pc_list:
-        log_message_to_custom_file(f"🔎 Configuring WiFi on {pc}")
-    return pc_list
 
-# ---------------- Monitoring ---------------- #
-# ---------------- RESOURCE MONITORING ---------------- #
-def monitor_resources_thread(alias, duration):
-    """Monitor CPU, memory, and interrupts on the BB device."""
-    ssh_lib = BuiltIn().get_library_instance("SSHLibrary")
-    ssh_lib.switch_connection(alias)
 
-    log_message_to_custom_file(f"📊 Starting resource monitoring on {alias} for {duration}s")
 
-    # Before test
-    log_message_to_custom_file("📊 BB Stats BEFORE")
-    cpu = ssh_lib.execute_command("cat /proc/stat | head -n5")
-    mem = ssh_lib.execute_command("cat /proc/meminfo | head -n3")
-    irq = ssh_lib.execute_command("head -n5 /proc/interrupts")
-    log_message_to_custom_file(f"[{alias} BEFORE] CPU: {cpu.strip()} | MEM: {mem.strip()} | IRQ: {irq.strip()}")
 
-    # During test
-    log_message_to_custom_file("📊 BB Stats DURING")
-    start_time = time.time()
-    while time.time() - start_time < duration:
-        cpu = ssh_lib.execute_command("cat /proc/stat | head -n5")
-        mem = ssh_lib.execute_command("cat /proc/meminfo | head -n3")
-        irq = ssh_lib.execute_command("head -n5 /proc/interrupts")
-        log_message_to_custom_file(f"[{alias} DURING] CPU: {cpu.strip()} | MEM: {mem.strip()} | IRQ: {irq.strip()}")
-        time.sleep(1)
 
-    # After test
-    log_message_to_custom_file("📊 BB Stats AFTER")
-    cpu = ssh_lib.execute_command("cat /proc/stat | head -n5")
-    mem = ssh_lib.execute_command("cat /proc/meminfo | head -n3")
-    irq = ssh_lib.execute_command("head -n5 /proc/interrupts")
-    log_message_to_custom_file(f"[{alias} AFTER] CPU: {cpu.strip()} | MEM: {mem.strip()} | IRQ: {irq.strip()}")
 
-@keyword
-def start_monitoring_in_thread(alias, duration):
-    """Starts resource monitoring in a separate thread and returns the thread object."""
-    thread = threading.Thread(target=monitor_resources_thread, args=(alias, duration))
-    thread.start()
-    return thread
 
-@keyword
-def wait_for_thread_to_finish(thread):
-    """Joins the monitoring thread."""
-    thread.join()
+def run(cmd, check=True, verbose=True, use_os=False):
+    if verbose:
+        print(f"$ {cmd}")
+    if use_os:
+        return os.system(cmd)
+    result = subprocess.run(cmd, shell=True, text=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if verbose:
+        if result.stdout.strip():
+            print(result.stdout.strip())
+        if result.stderr.strip():
+            print(result.stderr.strip())
+    if check and result.returncode != 0:
+        raise CommandError(f"Command failed:\n{result.stderr.strip()}")
+    return result.stdout.strip(), result.stderr.strip()
+
+
+
+
+
+
+
+
+
+
+
+
+
+def verify_logread():
+    run("/etc/init.d/log restart")
+    out, err = run("logread | head -n 5")
+    assert "log" in out.lower() or out != "", "System logs not found!"
+    print("[✓] System logs found.")
+
+def generate_user_logs():
+    levels = [
+        ("user.debug", "Test debug message"),
+        ("user.info", "Test info message"),
+        ("user.warning", "Test warning message"),
+        ("user.err", "Test error message"),
+    ]
+    for level, msg in levels:
+        run(f'logger -p {level} "{msg}"')
+    out, _ = run("logread | tail -n 10")
+    assert "Test" in out, "Log messages not captured!"
+    print("[✓] User-level logs captured.")
+
+def check_dmesg():
+    out, err = run("dmesg | head -n 5")
+    assert out != "", "dmesg output missing"
+    print("[✓] Kernel logs available.")
+
+def generate_system_log():
+    run('logger "Test system log from user"')
+    out, _ = run('logread | grep "Test system log"')
+    assert "Test system log" in out, "System log not found!"
+    print("[✓] System log message verified.")
+
+def generate_kernel_log():
+    run('echo "klog test" > /dev/kmsg')
+    out, _ = run('dmesg | tail -n 5')
+    assert "klog test" in out, "Kernel log not found!"
+    print("[✓] Kernel log message verified.")
+
+def check_logd():
+    out, _ = run("ps | grep [l]ogd")
+    assert "logd" in out, "logd not running"
+    print("[✓] logd process is running.")
+
+def induce_kernel_event():
+    run("ifconfig eth0 mtu 1", False)
+    out, _ = run("dmesg | tail -n 5")
+    assert "eth0" in out, "mtu change error not logged in dmesg"
+    print("[âœ“] mtu change error logged in dmesg")
+
+def main():
+
+    try:
+        verify_logread()
+        print("[✓] Step 1 passed: logread check")
+        
+        generate_user_logs()
+        print("[✓] Step 2 passed: user logs generation")
+        
+        check_dmesg()
+        print("[✓] Step 3 passed: kernel log read check")
+        
+        generate_system_log()
+        print("[✓] Step 4 passed: system log verification")
+        
+        generate_kernel_log()
+        print("[✓] Step 5 passed: kernel log generation")
+        
+        check_logd()
+        print("[✓] Step 6 passed: logd process verification")
+        
+        induce_kernel_event()
+        print("[✓] Step 7 passed: kernel interface event")
+
+    except AssertionError as ae:
+        print(f"[✗] Assertion failed: {ae}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"[✗] Unexpected error: {e}")
+        sys.exit(2)
+
+    print("\nAll logging tests passed successfully.")
+
+
+if __name__ == "__main__":
+    main()
+

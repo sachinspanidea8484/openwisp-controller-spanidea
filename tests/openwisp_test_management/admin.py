@@ -175,7 +175,8 @@ def _update_robot_content(content: bytes, test_case_id: str) -> bytes:
     # ----------------------------
     # STEP 2: Update Library path (FIRST only)
     # ----------------------------
-    library_pattern = r'(Library\s+\.\./\.\./resources/keywords/)([A-Za-z0-9_\-]+)(\.py)'
+    # library_pattern = r'(Library\s+\.\./\.\./resources/keywords/)([A-Za-z0-9_\-]+)(\.py)' v1
+    library_pattern = r'(Library\s+(?:\.\./)+resources/keywords/)([A-Za-z0-9_\-]+)(\.py)'
     match = re.search(library_pattern, text)
 
     if match:
@@ -909,7 +910,8 @@ class TestCaseAdminForm(forms.ModelForm):
                 )
             
             # STEP 2: Update Library path (FIRST occurrence only)
-            library_pattern = r'(Library\s+\.\./\.\./resources/keywords/)([a-zA-Z0-9_\-]+)(\.py)'
+            # library_pattern = r'(Library\s+\.\./\.\./resources/keywords/)([A-Za-z0-9_\-]+)(\.py)' v1
+            library_pattern = r'(Library\s+(?:\.\./)+resources/keywords/)([A-Za-z0-9_\-]+)(\.py)'
             matches = list(re.finditer(library_pattern, content))
             
             if matches:
@@ -2659,6 +2661,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         wants_schedule = "_schedule_execution" in request.POST
 
         if wants_execute:
+            self.message_user(
+                request,
+                f"Execution saved successfully. Please upload the required files to start execution.",
+                messages.SUCCESS
+            )
             return HttpResponseRedirect(
             reverse("admin:execution_config_push", args=[obj.pk]) + "?execute=1"
             )
@@ -2666,10 +2673,20 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             schedule_datetime = request.POST.get("schedule_datetime")
             if schedule_datetime:
                 request.session["execution_schedule_time"]= schedule_datetime
+                self.message_user(
+                    request,
+                    f"Execution saved successfully. Please upload the required files to schedule execution.",
+                    messages.SUCCESS
+                )
                 return HttpResponseRedirect(
                     reverse("admin:execution_config_push", args=[obj.pk]) + "?schedule=1"
                     )
-        
+            
+        self.message_user(
+                    request,
+                    f"Execution saved successfully. Please upload the required files.",
+                    messages.SUCCESS
+                )
         return HttpResponseRedirect(
                 reverse("admin:execution_config_push", args=[obj.pk])
             )
@@ -2680,6 +2697,11 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         wants_schedule = "_schedule_execution" in request.POST
 
         if wants_execute:
+            self.message_user(
+                request,
+                f"Execution saved successfully. Please upload the required files to start execution.",
+                messages.SUCCESS
+            )
             return HttpResponseRedirect(
                 reverse("admin:execution_config_push", args=[obj.pk]) + "?execute=1"
             )
@@ -2687,9 +2709,19 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             schedule_datetime = request.POST.get("schedule_datetime")
             if schedule_datetime:
                 request.session["execution_schedule_time"]= schedule_datetime
+                self.message_user(
+                    request,
+                    f"Execution saved successfully. Please upload the required files to schedule execution.",
+                    messages.SUCCESS
+                )
                 return HttpResponseRedirect(
                     reverse("admin:execution_config_push", args=[obj.pk]) + "?schedule=1"
                 )
+        self.message_user(
+                request,
+                f"Execution saved successfully. Please upload the required files.",
+                messages.SUCCESS
+            )
         return HttpResponseRedirect(
                 reverse("admin:execution_config_push", args=[obj.pk])
             )
