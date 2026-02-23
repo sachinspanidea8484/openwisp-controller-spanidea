@@ -241,8 +241,23 @@ class TestSuiteSerializer(ValidatedModelSerializer):
 
     # ── pop test_case_ids before ValidatedModelSerializer hits _meta.get_field ──
     def validate(self, attrs):
-        self._test_case_ids = attrs.pop("test_case_ids", [])
-        return super().validate(attrs)
+     self._test_case_ids = attrs.pop("test_case_ids", None)
+
+     # Require on create
+     if not self.instance and not self._test_case_ids:
+          raise serializers.ValidationError({
+               "test_case_ids": _("At least one test case is required when creating a test group.")
+          })
+
+     # Require on update only if explicitly sent as empty
+     if self.instance and self._test_case_ids is not None and len(self._test_case_ids) == 0:
+          raise serializers.ValidationError({
+               "test_case_ids": _("At least one test case is required when updating a test group.")
+          })
+
+     return super().validate(attrs)
+
+
 
     # ── CREATE ──
     def create(self, validated_data):
@@ -254,11 +269,10 @@ class TestSuiteSerializer(ValidatedModelSerializer):
 
     # ── UPDATE (PUT / PATCH) ──
     def update(self, instance, validated_data):
-        instance = super().update(instance, validated_data)
-        # Only re-sync if test_case_ids was explicitly sent
-        if self._test_case_ids is not None:
-            self._sync_test_cases(instance, self._test_case_ids)
-        return instance
+     instance = super().update(instance, validated_data)
+     if self._test_case_ids is not None:
+          self._sync_test_cases(instance, self._test_case_ids)
+     return instance
 
     # ── helper: create TestSuiteCase rows ──
     @staticmethod
@@ -513,66 +527,73 @@ class TestDeviceGroupDetailSerializer(FilterSerializerByOrgManaged, ValidatedMod
             many=True,
             context=self.context
         ).data
+    
+    def validate_name(self, value):
+     if len(value) < 3:
+          raise serializers.ValidationError(
+               _("Group name must be between 3 and 100 characters")
+          )
+     return value
 
     def validate_device_ids(self, value):
-        """
-        Validate that all device IDs exist and belong to the group's organization
-        """
-        if not value:
-            return value
+     """Validate that all device IDs exist and belong to the group's organization"""
+     # Don't validate empty here — handled in validate()
+     if not value:
+          return value
 
-        user = self.context["request"].user
-        organization = self.instance.organization if self.instance else None
+     user = self.context["request"].user
+     organization = self.instance.organization if self.instance else None
 
-        if not organization and "organization" in self.initial_data:
-            org_id = self.initial_data["organization"]
-            organization = Organization.objects.get(id=org_id)
+     if not organization and "organization" in self.initial_data:
+          org_id = self.initial_data["organization"]
+          try:
+               organization = Organization.objects.get(id=org_id)
+          except Organization.DoesNotExist:
+               raise serializers.ValidationError(_("Organization not found"))
 
-        if not organization:
-            raise serializers.ValidationError(
-                _("Organization must be specified when adding devices")
-            )
+     if not organization:
+          raise serializers.ValidationError(
+               _("Organization must be specified when adding devices")
+          )
 
-        # Validate all IDs exist
-        existing_devices = set(
-            Device.objects.filter(
-                id__in=value,
-                is_deleted=False
-            ).values_list("id", flat=True)
-        )
-        
-        missing = set(value) - existing_devices
-        if missing:
-            raise serializers.ValidationError({
-                "device_ids": _("Device(s) not found: {}").format(missing)
-            })
+     # Validate all IDs exist
+     existing_devices = set(
+          Device.objects.filter(
+               id__in=value,
+               is_deleted=False
+          ).values_list("id", flat=True)
+     )
+     missing = set(value) - existing_devices
+     if missing:
+          raise serializers.ValidationError(  # plain string, not nested dict
+               _("Device(s) not found: {}").format(missing)
+          )
 
-        # Validate all devices belong to the same organization
-        devices = Device.objects.filter(id__in=value)
-        org_mismatch = devices.exclude(organization=organization).values_list("name", flat=True)
-        
-        if org_mismatch:
-            raise serializers.ValidationError({
-                "device_ids": _(
-                    "The following device(s) do not belong to the selected organization: {}"
-                ).format(", ".join(org_mismatch))
-            })
+     # Validate all devices belong to the same organization
+     devices = Device.objects.filter(id__in=value)
+     org_mismatch = list(devices.exclude(organization=organization).values_list("name", flat=True))
+     if org_mismatch:
+          raise serializers.ValidationError(  # plain string
+               _("The following device(s) do not belong to the selected organization: {}").format(
+                    ", ".join(org_mismatch)
+               )
+          )
 
-        # Superusers can add any device from the org
-        # Non-superusers: devices must be from organizations they manage
-        if not user.is_superuser:
-            unmanaged_orgs = devices.exclude(
-                organization_id__in=user.organizations_managed
-            ).values_list("name", flat=True)
-            
-            if unmanaged_orgs:
-                raise serializers.ValidationError({
-                    "device_ids": _(
-                        "You don't have permission to add these device(s): {}"
-                    ).format(", ".join(unmanaged_orgs))
-                })
+     # Non-superusers: devices must be from organizations they manage
+     if not user.is_superuser:
+          unmanaged = list(devices.exclude(
+               organization_id__in=user.organizations_managed
+          ).values_list("name", flat=True))
+          if unmanaged:
+               raise serializers.ValidationError(  # plain string
+                    _("You don't have permission to add these device(s): {}").format(
+                         ", ".join(unmanaged)
+                    )
+               )
 
-        return value
+     return value
+
+
 
     def validate_organization(self, value):
         """
@@ -594,33 +615,35 @@ class TestDeviceGroupDetailSerializer(FilterSerializerByOrgManaged, ValidatedMod
         return value
 
     def validate(self, attrs):
-        """
-        Validate device_ids array
-        Pop it before model validation (like TestSuite)
-        """
-        self._device_ids = attrs.pop("device_ids", [])
-        return super().validate(attrs)
+     self._device_ids = attrs.pop("device_ids", None)  # None = not sent, [] = sent empty
+
+     # Require on create
+     if not self.instance and not self._device_ids:
+          raise serializers.ValidationError({
+               "device_ids": _("At least one device is required when creating a device group.")
+          })
+
+     # Require on update only if explicitly sent as empty
+     if self.instance and self._device_ids is not None and len(self._device_ids) == 0:
+          raise serializers.ValidationError({
+               "device_ids": _("At least one device is required when updating a device group.")
+          })
+
+     return super().validate(attrs)
+
+
 
     def create(self, validated_data):
-        """
-        Create group and add devices
-        """
-        instance = super().create(validated_data)
-        self._sync_devices(instance, self._device_ids)
-        return instance
+     instance = super().create(validated_data)
+     TestDeviceGroupDetailSerializer._sync_devices(instance, self._device_ids)
+     return instance
 
     def update(self, instance, validated_data):
-        """
-        Update group and optionally update devices
-        Only re-sync if device_ids was explicitly sent
-        """
-        instance = super().update(instance, validated_data)
-        
-        # Only re-sync if device_ids was in the request
-        if self._device_ids is not None:
-            self._sync_devices(instance, self._device_ids)
-        
-        return instance
+     instance = super().update(instance, validated_data)
+     # Only sync if device_ids was explicitly provided in request
+     if self._device_ids is not None:
+          self._sync_devices(instance, self._device_ids)
+     return instance
 
     @staticmethod
     def _sync_devices(group, device_ids):
@@ -694,7 +717,10 @@ class TestDeviceGroupCreateSerializer(FilterSerializerByOrgManaged, ValidatedMod
                 _("Organization must be specified")
             )
 
-        organization = Organization.objects.get(id=org_id)
+        try:
+         organization = Organization.objects.get(id=org_id)
+        except Organization.DoesNotExist:
+         raise serializers.ValidationError(_("Organization not found"))
 
         # Check devices exist
         existing = set(
@@ -726,6 +752,17 @@ class TestDeviceGroupCreateSerializer(FilterSerializerByOrgManaged, ValidatedMod
 
         return value
 
+
+    def validate_organization(self, value):
+     user = self.context["request"].user
+     if user.is_superuser:
+          return value
+     if str(value.id) not in user.organizations_managed:
+          raise serializers.ValidationError(
+               _("You don't have permission to manage this organization")
+          )
+     return value
+    
     def validate_organization(self, value):
         """Validate user has access to organization"""
         user = self.context["request"].user
