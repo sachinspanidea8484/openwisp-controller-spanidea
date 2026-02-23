@@ -997,7 +997,7 @@ class TestExecutionReExecuteSelectedView(ProtectedExternalAPIMixin, APIView):
                     {"detail": f"Not allowed to start this execution. As its created by: {execution.created_by}"},
                     status=status.HTTP_403_FORBIDDEN
                 )
-            serializer = ReExecuteSelectedTestsSerializer(data=request.data)
+            serializer = ReExecuteSelectedTestsSerializer(data=request.data, context={"execution": execution})
             serializer.is_valid(raise_exception=True)
             device_tests_info = serializer.validated_data["device_tests_info"]
 
@@ -1036,6 +1036,11 @@ class TestExecutionAbortView(ProtectedExternalAPIMixin, APIView):
             return Response(
                 {"detail": "Not allowed to abort this execution."},
                 status=status.HTTP_403_FORBIDDEN
+            )
+        if execution.status != 1 and execution.status != 2:
+            return Response(
+                {"detail": "This execution is not in progress."},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
@@ -1259,6 +1264,7 @@ class TestExecutionHistoryView(ProtectedExternalAPIMixin, APIView):
                         'id': str(test_exec.pk),
                         'test_case_name': test_exec.test_case.name,
                         'test_case_id': test_exec.test_case.test_case_id,
+                        'test_case_uuid': str(test_exec.test_case.id),
                         'test_type': test_exec.test_case.get_test_type_display(),
                         'status': test_exec.status,
                         'status_display': test_exec.get_status_display(),
