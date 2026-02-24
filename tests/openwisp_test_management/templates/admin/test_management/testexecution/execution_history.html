@@ -33,7 +33,7 @@
         letter-spacing: 0.5px;
     }
 
-    /* Summary Card - OpenWISP Style */
+    /* Summary Card  */
     .summary-content {
         padding: 10px 20px 0px;
     }
@@ -129,7 +129,7 @@
         border: 1px solid #f5c6cb;
     }
 
-    /* Device Cards - OpenWISP Style */
+    /* Device Cards  */
     .device-card {
         border: 1px solid #e3e3e3;
         border-radius: 4px;
@@ -169,7 +169,7 @@
         color: #333;
     }
 
-    /* Progress Bar - OpenWISP Style */
+    /* Progress Bar  */
     .progress-container {
         display: flex;
         align-items: center;
@@ -204,7 +204,7 @@
         white-space: nowrap;
     }
 
-    /* Test Results Table - OpenWISP Style */
+    /* Test Results Table  */
     .results-table {
         width: 100%;
         border-collapse: collapse;
@@ -249,7 +249,7 @@
         color: #666;
     }
 
-    /* Action Buttons - OpenWISP Style */
+    /* Action Buttons  */
     .action-buttons {
         display: flex;
         gap: 8px;
@@ -308,7 +308,7 @@
         height: 14px;
     }
 
-    /* Error Message - OpenWISP Style */
+    /* Error Message  */
     .error-section {
         background: #f2dede;
         border-top: 1px solid #ebccd1;
@@ -325,7 +325,7 @@
         margin-right: 20px;
     }
 
-    /* Loading State - OpenWISP Style */
+    /* Loading State  */
     .loading-container {
         text-align: center;
         padding: 60px 20px;
@@ -695,15 +695,6 @@
         <!-- Populated by JavaScript -->
     </div>
 </div>
-
-
-        <!-- Device Executions Module -->
-        <!-- <div class="module">
-            <h2>{% trans 'Device Execution Details' %}</h2> -->
-            <!-- <div id="device-executions" style="padding: 12px;"> -->
-                <!-- Populated by JavaScript -->
-            <!-- </div> -->
-        <!-- </div> -->
     </div>
 </div>
 
@@ -919,7 +910,7 @@ function handleHideClick(header,table_id){
     if (!table) return;
 
     if (table.style.display === "none") {
-        table.style.display = "table"; // or "block"
+        table.style.display = "table"; 
         header.classList.add("open");
     } else {
         table.style.display = "none";
@@ -945,9 +936,6 @@ function formatDateTime(dateValue) {
 
 
 function displayExecutionData(data) {
-    // Update page title
-    
-    // Update summary
     execution_status=data.status;
     let total_execution_time = 0;
 
@@ -1103,14 +1091,6 @@ function displayExecutionData(data) {
                             </button>
                         `;
                     }
-                    // if (test.can_retry) {
-                    //     actions += `
-                    //         <button class="btn-action warning" onclick="retryTest('${test.id}')">
-                    //             <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20"> <path d="M10 3v2a5 5 0 0 0-3.54 8.54l-1.41 1.41A7 7 0 0 1 10 3zm4.95 2.05A7 7 0 0 1 10 17v-2a5 5 0 0 0 3.54-8.54l1.41-1.41zM10 20l-4-4 4-4v8zm0-12V0l4 4-4 4z"/> </svg>
-                    //             Retry
-                    //         </button>
-                    //     `;
-                    // }
                     rows += `
                         <tr>
                             ${!device.is_deleted && show_re_execution ? 
@@ -1145,76 +1125,6 @@ function displayExecutionData(data) {
                 `;
             };
 
-            // Robot Framework section
-            // let robotSection = '';
-            // if (robotTests.length) {
-            //     robotSection = `
-            //         <div class="test-section">
-            //             <div class="section-header open" onclick="handleHideClick(this,'robot-test-case-table-${device.device_execution_id}')">
-            //                 <div class="header-left">
-            //                     <svg class="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" 
-            //                         viewBox="0 0 24 24" stroke="currentColor">
-            //                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-            //                             d="M9 5l7 7-7 7" />
-            //                     </svg>
-            //                     <h3>Robot Framework Tests</h3>
-            //                 </div>
-
-                           
-            //             </div>
-            //             <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">
-            //                 <colgroup>
-            //                     <col style="width: 20%">
-            //                     <col style="width: 10%">
-            //                     <col style="width: 15%">
-            //                     <col style="width: 15%">
-            //                     <col style="width: 10%">
-            //                     <col style="width: 30%">
-            //                 </colgroup>
-            //                 ${buildTable(robotTests).replace('<table class="results-table">', '').replace('</table>', '')}
-            //             </table>
-            //         </div>
-            //     `;
-            // }
-             
-
-
-            // // Device Agent section
-            // let agentSection = '';
-            // let show_nb_testcase_report= agentTests.filter((test)=> test.status !== "success" && test.status !== "failed").length === 0;
-            // if (agentTests.length) {
-            //     agentSection = `
-            //        <div class="test-section">
-            //             <div class="section-header open" onclick="handleHideClick(this,'agent-test-case-table-${device.device_execution_id}')">
-            //                 <div class="header-left">
-            //                     <svg class="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" 
-            //                         viewBox="0 0 24 24" stroke="currentColor">
-            //                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-            //                             d="M9 5l7 7-7 7" />
-            //                     </svg>
-            //                     <h3>Device Tests</h3>
-            //                 </div>
-                           
-            //             </div>
-            //             <table class="results-table aligned-table agent-test-case-table-${device.device_execution_id}">
-            //                 <colgroup>
-            //                     <col style="width: 20%">
-            //                     <col style="width: 10%">
-            //                     <col style="width: 15%">
-            //                     <col style="width: 15%">
-            //                     <col style="width: 10%">
-            //                     <col style="width: 30%">
-            //                 </colgroup>
-            //                 ${buildTable(agentTests).replace('<table class="results-table">', '').replace('</table>', '')}
-            //             </table>
-            //         </div>
-            //     `;
-            // }
-           
-
-            // if(robotSection==='' && agentSection===''){
-            //     agentSection = '<div class="empty-state">No test results available for this device.</div>';
-            // }
             const colgroup = device.is_deleted || !show_re_execution
                 ? `
                     <colgroup>
@@ -1239,7 +1149,7 @@ function displayExecutionData(data) {
                 `;
             let testcaseSection=''
             if(device?.test_cases?.length){
-                // device.test_cases.sort((a,b)=> a?.test_case_name.localeCompare(b?.test_case_name))
+               
                 testcaseSection=`
                 <div class="test-section">
                     <table class="results-table aligned-table robot-test-case-table-${device.device_execution_id}">
@@ -1402,10 +1312,10 @@ function abortAllTests() {
     fetch(`/api/v1/test-management/execution/${executionId}/abort-execution/`, {
         method: 'POST',
         headers: {
-            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'X-CSRFToken': csrftoken,  
             'Content-Type': 'application/json'
         },
-        credentials: 'same-origin',  // Important for CSRF
+        credentials: 'same-origin',  
         body: JSON.stringify({})
     })
     .then(response => {
@@ -1447,10 +1357,10 @@ function abortTest(executionId) {
     fetch(`/api/v1/test-management/test-case-execution/${executionId}/abort/`, {
         method: 'POST',
         headers: {
-            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'X-CSRFToken': csrftoken,  
             'Content-Type': 'application/json'
         },
-        credentials: 'same-origin',  // Important for CSRF
+        credentials: 'same-origin',  
         body: JSON.stringify({})
     })
     .then(response => {
@@ -1477,8 +1387,6 @@ function abortTest(executionId) {
     });
 }
 
-// Simplified retry function without CSRF token
-// Update the retryTest function
 function retryTest(executionId) {
     if (!confirm('Are you sure you want to retry this test?')) {
         return;
@@ -1493,10 +1401,10 @@ function retryTest(executionId) {
     fetch(`/api/v1/test-management/test-case-execution/${executionId}/retry/`, {
         method: 'POST',
         headers: {
-            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'X-CSRFToken': csrftoken, 
             'Content-Type': 'application/json'
         },
-        credentials: 'same-origin',  // Important for CSRF
+        credentials: 'same-origin', 
         body: JSON.stringify({})
     })
     .then(response => {
@@ -1523,7 +1431,7 @@ function retryTest(executionId) {
     });
 }
 
-// Update the retryDeviceTests function similarly
+
 function retryDeviceTests(deviceExecutionId) {
     if (!confirm('Are you sure you want to retry all failed tests for this device?')) {
         return;
@@ -1537,10 +1445,10 @@ function retryDeviceTests(deviceExecutionId) {
     fetch(`/api/v1/test-management/device-execution/${deviceExecutionId}/retry-all/`, {
         method: 'POST',
         headers: {
-            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'X-CSRFToken': csrftoken,
             'Content-Type': 'application/json'
         },
-        credentials: 'same-origin',  // Important for CSRF
+        credentials: 'same-origin',  
         body: JSON.stringify({})
     })
     .then(response => {

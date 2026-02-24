@@ -52,8 +52,6 @@
       gap: 6px;
       min-height: 38px;
       padding: 6px;
-      /* border: 1px solid #ccc; */
-      /* border-radius: 4px; */
       background: #fff;
       margin-bottom: 6px;
     }
@@ -216,7 +214,7 @@
     }
   });
 
-  // ✅ Load existing emails
+  //Load existing emails
   const existing = hiddenField.value.split(",").map(e => e.trim()).filter(Boolean);
   existing.forEach(addChip);
 })();

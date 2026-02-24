@@ -344,12 +344,6 @@ document.addEventListener('DOMContentLoaded', function() {
         datetimeInput.value = '';
     }
 
-    // Clear error on input change
-    // datetimeInput.addEventListener('input', function() {
-    //     if (this.value) {
-    //         hideError();
-    //     }
-    // });
 
     // Close modal function
     function closeModal() {
@@ -413,8 +407,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        console.log("Form found:", form);
-
         // Store the original action
         const originalAction = form.action;
 
@@ -436,7 +428,6 @@ document.addEventListener('DOMContentLoaded', function() {
             form.action = originalAction;
         }
 
-        console.log("Submitting form with scheduled datetime:", datetime);
         syncFilteredSelects();
         closeModal();
         form.submit();
