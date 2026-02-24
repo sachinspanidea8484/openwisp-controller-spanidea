@@ -3839,9 +3839,9 @@ def get_categories_test_cases(request):
 
         if category_ids:
             test_cases = test_cases.filter(category_id__in=valid_category_ids)
-
+        from django.db.models import Q
         if not request.user.is_superuser:
-            test_cases = test_cases.filter(created_by=request.user)
+            test_cases = test_cases.filter(Q(created_by=request.user) | Q(is_system_test_case=True) )
 
         test_cases = test_cases.select_related('category').order_by('name')
         

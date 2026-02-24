@@ -35,7 +35,7 @@ from django.db.models import Prefetch
 from reversion.models import Version
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
-
+from django.db.models import Q
 import os
 import requests
 from urllib.parse import urlparse
@@ -816,7 +816,8 @@ allowed_test_case_id = RegexValidator(
 class TestCaseAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['description'].widget.attrs.update({'rows': 15, 'cols': 5})
+        if 'description' in self.fields:
+            self.fields['description'].widget.attrs.update({'rows': 15, 'cols': 5})
 
     test_case_id = forms.CharField(
         validators=[
@@ -1470,11 +1471,11 @@ class TestCaseAdmin(BaseVersionAdmin):
             return qs
 
         # Normal users see only their own test cases
-        return qs.filter(created_by=request.user)
+        return qs.filter( Q(created_by=request.user) | Q(is_system_test_case=True)) 
     
     def has_view_permission(self, request, obj=None):
         if obj and not request.user.is_superuser:
-            return obj.created_by == request.user
+            return obj.created_by == request.user or obj.is_system_test_case
         return super().has_view_permission(request, obj)
 
     def has_change_permission(self, request, obj=None):
@@ -1590,12 +1591,9 @@ class TestCaseAdmin(BaseVersionAdmin):
         return super().recover_view(request, version_id, extra_context=extra_context)
 
     def has_delete_permission(self, request, obj=None):
-        """Check if user can delete test cases"""
-        if not super().has_delete_permission(request, obj):
-            return False
-        if obj and not obj.is_deletable:
-            return False
-        return True
+        if obj and not request.user.is_superuser:
+            return obj.created_by == request.user and obj.is_deletable
+        return super().has_delete_permission(request, obj)
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
         form.request= request
@@ -2789,7 +2787,7 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
             # Restrict for non‑superusers
             if not request.user.is_superuser:
-                qs = qs.filter(created_by=request.user)
+                qs = qs.filter(Q(created_by=request.user) | Q(is_system_test_case=True))
 
             widget = TestCaseFilteredWidget(
                 verbose_name="Test Cases",
