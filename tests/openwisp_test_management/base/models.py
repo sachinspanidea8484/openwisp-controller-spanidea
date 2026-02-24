@@ -224,17 +224,16 @@ class AbstractTestCase(TimeStampedEditableModel):
 
         # Validate JSON params if provided
         if self.params and self.params != {}:
-         
-        try:
-            if not isinstance(self.params, dict):
+            try:
+                if not isinstance(self.params, dict):
+                    raise ValidationError({
+                        "params": _("Parameters must be a valid JSON object (key-value pairs).")
+                    })
+                
+            except (TypeError, ValueError) as e:
                 raise ValidationError({
-                    "params": _("Parameters must be a valid JSON object (key-value pairs).")
+                    "params": _("Parameters must be valid JSON format")
                 })
-            
-        except (TypeError, ValueError) as e:
-            raise ValidationError({
-                "params": _("Parameters must be valid JSON format")
-            })
          
         # Check for duplicate test_case_id
         qs = self.__class__.objects.filter(
