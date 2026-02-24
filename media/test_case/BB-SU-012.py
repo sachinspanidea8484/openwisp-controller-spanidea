@@ -1,3 +1,11 @@
+# START_DESCRIPTION
+# 1. Verify modified configuration archive exists.
+# 2. Apply new configuration to system.
+# 3. Verify configuration files updated successfully.
+# 4. Trigger system reboot to apply changes.
+# 5. If configuration applied without error, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
 import sys, os
 from common_helper import (
@@ -9,7 +17,7 @@ from common_helper import (
 )
 
 EXTRACT_DIR = "/"
-DEFAULT_MODIFIED_FILE = "/tmp/modified.gz"   
+DEFAULT_MODIFIED_FILE = "/tmp/modified.tar.gz"   
 
 
 def verify_file_exists(path):

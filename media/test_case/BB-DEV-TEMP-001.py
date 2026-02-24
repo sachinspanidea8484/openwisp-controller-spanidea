@@ -1,3 +1,12 @@
+# START_DESCRIPTION
+# 1. Execute environmental sensor monitoring script.
+# 2. Extract Temperature and Humidity values.
+# 3. Validate temperature within acceptable range.
+# 4. Collect multiple samples with delay.
+# 5. Verify readings are not identical across samples.
+# 6. If valid readings observed, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
 import sys, time, re
 from common_helper import log, run_local_command, verify_file_exists, EXIT_SUCCESS, EXIT_FAILED

@@ -1,3 +1,13 @@
+# START_DESCRIPTION
+# 1. Execute sensor monitoring script for input power.
+# 2. Extract voltage and current readings.
+# 3. Validate voltage within expected tolerance range.
+# 4. Validate current within safe operating limits.
+# 5. Repeat readings multiple times.
+# 6. Verify readings are dynamic and not static.
+# 7. If valid readings observed, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
 import sys
 from common_helper import log, run_local_command, EXIT_SUCCESS, EXIT_FAILED, extract_target_block, parse_sensor_output

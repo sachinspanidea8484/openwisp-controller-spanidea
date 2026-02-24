@@ -1,3 +1,11 @@
+# START_DESCRIPTION
+# 1. Execute hardware reset command.
+# 2. Trigger reboot detection for automation framework.
+# 3. Verify reset command executed successfully.
+# 4. Confirm system restarts properly.
+# 5. If reset behavior is correct, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
 import sys
 from common_helper import (

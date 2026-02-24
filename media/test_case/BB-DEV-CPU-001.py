@@ -1,3 +1,12 @@
+# START_DESCRIPTION
+# 1. Execute sensor monitoring script for CPU temperature sensor.
+# 2. Extract Local and Remote temperature values.
+# 3. Validate temperature within defined operating range.
+# 4. Repeat readings multiple times.
+# 5. Ensure temperature values are not static.
+# 6. If readings valid and dynamic, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
 import sys, time, re
 from common_helper import log, run_local_command, verify_file_exists, EXIT_SUCCESS, EXIT_FAILED

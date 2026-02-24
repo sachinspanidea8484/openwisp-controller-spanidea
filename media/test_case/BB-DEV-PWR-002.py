@@ -1,3 +1,13 @@
+# START_DESCRIPTION
+# 1. Execute sensor monitoring script for CPU input power.
+# 2. Extract voltage and current values from sensor output.
+# 3. Validate voltage within defined limits.
+# 4. Validate current within defined limits.
+# 5. Repeat readings multiple times.
+# 6. Ensure sensor values change slightly across samples.
+# 7. If all validations pass, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
 import sys
 import os

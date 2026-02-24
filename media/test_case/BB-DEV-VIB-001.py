@@ -1,3 +1,12 @@
+# START_DESCRIPTION
+# 1. Execute IMU/vibration sensor script or fallback method.
+# 2. Collect Gyroscope and Accelerometer data.
+# 3. Parse raw sensor output into structured values.
+# 4. Repeat sensor readings multiple times.
+# 5. Verify readings show variation across iterations.
+# 6. If variation detected, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
 import sys, os, time
 from common_helper import log, run_local_command, EXIT_SUCCESS, EXIT_FAILED
