@@ -2118,6 +2118,7 @@ class TestSuiteAdmin(BaseVersionAdmin):
         extra_context = extra_context or {}
         extra_context["categories"] = list(TestCategory.objects.values("id", "name"))
         extra_context["is_recover_view"]= True
+        extra_context["show_test_case_selection"]= True
         version = self._get_version_object(version_id)
         obj = version._object_version.object
 
@@ -3857,17 +3858,17 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             )
 
 
-        def _get_version_object(self, version_id):
-            """
-            Utility to fetch the Version object for the given version_id.
-            This avoids duplicating queryset logic from reversion's internal code.
-            """
-            from reversion.models import Version
-            try:
-                return Version.objects.get(pk=version_id)
-            except Version.DoesNotExist:
-                return None
-    
+    def _get_version_object(self, version_id):
+        """
+        Utility to fetch the Version object for the given version_id.
+        This avoids duplicating queryset logic from reversion's internal code.
+        """
+        from reversion.models import Version
+        try:
+            return Version.objects.get(pk=version_id)
+        except Version.DoesNotExist:
+            return None
+
 
 
 
