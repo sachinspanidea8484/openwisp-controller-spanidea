@@ -9,6 +9,9 @@ from rest_framework.views import APIView
 from django.utils import timezone
 from django.http import HttpResponse
 from rest_framework.generics import GenericAPIView
+from django.utils.translation import gettext_lazy as _
+from django.core.exceptions import ValidationError as DjangoValidationError
+
 
 from .utilities import is_valid_uuid, schedule_execution, validate_schedule_time
 from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
@@ -1848,6 +1851,14 @@ class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVi
             return TestSuiteDetailSerializer
         return TestSuiteSerializer
 
+    def perform_update(self, serializer):
+        try:
+            serializer.save()
+        except DjangoValidationError as e:
+            raise ValidationError(
+                e.message_dict if hasattr(e, 'message_dict') else e.messages
+            )
+
     def perform_destroy(self, instance):
         if not instance.is_deletable:
             raise ValidationError({
@@ -1856,7 +1867,6 @@ class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVi
                 )
             })
         super().perform_destroy(instance)
-
 
 # ============================================================================
 # TEST CASES BY CATEGORY (supports multiple category IDs)
@@ -1952,13 +1962,21 @@ class TestDeviceGroupDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestro
         - DELETE: doesn't use serializer
         """
         return TestDeviceGroupDetailSerializer
+    
+    def perform_update(self, serializer):
+     try:
+          serializer.save()
+     except DjangoValidationError as e:
+          raise ValidationError(
+               e.message_dict if hasattr(e, 'message_dict') else e.messages
+          )
 
     def perform_destroy(self, instance):
-        """
-        Hook before deletion
-        Can add checks here if needed (e.g., prevent deletion if in use)
-        """
-        super().perform_destroy(instance)
+     if not instance.is_deletable:
+          raise ValidationError({
+               "detail": f"Cannot delete device group '{instance.name}' because it is part of an execution."
+          })
+     super().perform_destroy(instance)
 
 
 # ============================================================================

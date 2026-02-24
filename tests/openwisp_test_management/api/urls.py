@@ -228,6 +228,11 @@ urlpatterns = [
         executor_views.get_test_suite_details,
         name="api_test_suite_details",
     ),
+    path(
+        "device-groups/<uuid:group_id>/devices/<uuid:execution_id>",
+        executor_views.get_device_group_devices,
+        name="api_device_group_devices",
+    ),
 
     # Un Use APIS  
     # path(

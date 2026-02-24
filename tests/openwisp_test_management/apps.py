@@ -103,6 +103,6 @@ class TestManagementConfig(ApiAppConfig):
                 # ADD ONLY THIS LINE
                 "target_url": "/admin/test_management/testsuiteexecution/{target.pk}/history/",
             },
-            models=[load_model("test_management", "TestSuiteExecution")],
+        models=[load_model("test_management", "TestSuiteExecution")],
         )
 del ApiAppConfig

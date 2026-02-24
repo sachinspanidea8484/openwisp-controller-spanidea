@@ -125,16 +125,6 @@ class Ping(BaseCheck):
     
     def store(self, result):
      """Stores result in the DB and triggers external notifications if status changed."""
-     
-     # Debug logging
-    #  logger.warning("=" * 70)
-    #  logger.warning("📊 PING CHECK STORE METHOD CALLED")
-    #  logger.warning(f"   Device: {self.related_object.name}")
-    #  logger.warning(f"   Device ID: {self.related_object.id}")
-    #  logger.warning(f"   Result: {result}")
-    #  logger.warning("=" * 70)
-     
-     # Get the metric BEFORE writing new data
      metric = self._get_metric()
      
      # Get previous status from metric
@@ -144,45 +134,29 @@ class Ping(BaseCheck):
      
      # Get current status
      current_reachable = result.get('reachable')
-     
-    #  logger.warning(f"🔍 STATUS COMPARISON: {self.related_object.name}")
-    #  logger.warning(f"   Previous reachable: {previous_reachable}")
-    #  logger.warning(f"   Current reachable: {current_reachable}")
+
      
      # Detect status change
      status_changed = False
      if previous_reachable is not None and previous_reachable != current_reachable:
           status_changed = True
-        #   logger.warning("🚨 STATUS CHANGED!")
-     
-     # Write to database (this updates is_healthy)
+
      copied = result.copy()
      reachable = copied.pop('reachable')
      metric.write(reachable, extra_values=copied)
      
-     # Trigger external API on status change
      if status_changed:
           device = self.related_object
           is_online = current_reachable == 1
           
-        #   logger.warning("=" * 70)
           if is_online:
-               logger.warning(f"✅ DEVICE CAME ONLINE: {device.name}")
+               logger.warning(f"DEVICE CAME ONLINE: {device.name}")
           else:
-               logger.warning(f"❌ DEVICE WENT OFFLINE: {device.name}")
-        #   logger.warning(f"   Device ID: {device.id}")
-        #   logger.warning(f"   MAC Address: {device.mac_address}")
-        #   logger.warning(f"   Management IP: {device.management_ip}")
-        #   logger.warning(f"   Organization: {device.organization.name}")
-        #   logger.warning("=" * 70)
-          
-          # Call your external API
+               logger.warning(f"DEVICE WENT OFFLINE: {device.name}")
           self._notify_external_system(device, is_online)
      else:
-          logger.warning("ℹ️  No status change detected, skipping notification")
+          logger.warning("ℹNo status change detected, skipping notification")
      
-     logger.warning("✅ PING CHECK STORE COMPLETED")
-    #  logger.warning("=" * 70)
 
     def store_v1(self, result):
         """Stores result in the DB."""
@@ -251,28 +225,12 @@ class Ping(BaseCheck):
      logger.warning("=" * 70)
      
      try:
-          # YOUR EXTERNAL API CONFIGURATION
-          
           executor_api_url = f"{app_settings.EXECUTOR_SERVER_IP}/api/v1/device-status/"
-
-          
           payload = {
                'device_id': str(device.id),
-            #    'device_name': device.name,
-            #    'mac_address': device.mac_address,
-            #    'management_ip': device.management_ip or '',
                'device_reachable': is_online
-            #    'timestamp': timezone.now().isoformat(),
-            #    'organization': device.organization.name,
-            #    'organization_id': str(device.organization.id),
-          }
-          
-          logger.warning(f"📤 Sending payload to {executor_api_url}:")
-          logger.warning(f"   {payload}")
 
-        #   return phase ii ms1 
-          
-          # UNCOMMENT THIS WHEN YOU HAVE REAL API
+          }
           response = requests.post(
                executor_api_url,
                json=payload,
@@ -280,15 +238,10 @@ class Ping(BaseCheck):
                headers={'Content-Type': 'application/json'}
           )
           
-          logger.warning(f"✅ API Response:")
-          logger.warning(f"   Status Code: {response.status_code}")
-          logger.warning(f"   Response: {response.text}")
-          
-          # FOR NOW: Just log what would be sent
-          logger.warning("✅ External API call would be made here (currently disabled)")
-          logger.warning("   Uncomment the requests.post() code above to enable")
-          
+          logger.warning(f"API Response:")
+          logger.warning(f"Status Code: {response.status_code}")
+          logger.warning(f"Response: {response.text}")
      except Exception as e:
-          logger.error(f"❌ Error calling external API: {e}")
+          logger.error(f"Error calling external API: {e}")
      
      logger.warning("=" * 70)        

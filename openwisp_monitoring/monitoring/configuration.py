@@ -773,7 +773,7 @@ DEFAULT_METRICS = {
     'label': _('Network Connections'),
     'name': 'Network Connections',
     'key': 'connections',
-    'field_name': 'connections',  # ✅ FIXED: Changed from 'total_connections'
+    'field_name': 'connections',  
     'related_fields': ['tcp_ipv4', 'udp_ipv4', 'tcp_ipv6', 'udp_ipv6'],
     'charts': {
         'connections': {

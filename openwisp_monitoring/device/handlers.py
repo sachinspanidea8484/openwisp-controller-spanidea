@@ -31,49 +31,5 @@ def handle_ping_status_change(sender, metric, alert_settings, target,
     try:
         monitoring = device.monitoring
     except DeviceMonitoring.DoesNotExist:
-        logger.warning(f"No monitoring object for device {device.id}")
         return
-    
-    # ============================================
-    # ADD YOUR CUSTOM LOGIC HERE
-    # ============================================
-    
-    if metric.is_healthy_tolerant:
-        # Device is REACHABLE / ONLINE
-        logger.info("=" * 70)
-        logger.info(f"✅ DEVICE ONLINE: {device.name}")
-        logger.info(f"   Device ID: {device.id}")
-        logger.info(f"   Status: {monitoring.status}")
-        logger.info(f"   First time: {first_time}")
-        logger.info("=" * 70)
-        
-        # YOUR CUSTOM LOGIC FOR ONLINE DEVICE
-        # Examples:
-        # - Send custom notification
-        # - Update external system
-        # - Trigger automation
-        # - Log to external service
-        # - Update custom database table
-        
-    else:
-        # Device is UNREACHABLE / OFFLINE
-        logger.info("=" * 70)
-        logger.info(f"❌ DEVICE OFFLINE: {device.name}")
-        logger.info(f"   Device ID: {device.id}")
-        logger.info(f"   Status: {monitoring.status}")
-        logger.info(f"   First time: {first_time}")
-        logger.info("=" * 70)
-        
-        # YOUR CUSTOM LOGIC FOR OFFLINE DEVICE
-        # Examples:
-        # - Send alert to external system
-        # - Create ticket in ticketing system
-        # - Trigger failover
-        # - Log to external service
-        # - Update custom database table
-    
-    # Additional info available:
-    # - metric.key: 'ping'
-    # - metric.field_name: 'reachable'
-    # - alert_settings: The AlertSettings object
-    # - tolerance_crossed: True if tolerance was crossed
+  

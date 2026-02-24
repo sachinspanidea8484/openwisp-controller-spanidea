@@ -14,15 +14,14 @@ logger = logging.getLogger(__name__)
 from ..private_storage import storage
 overwrite_storage= storage.OverwriteStorage()
 
+
 def rename_script(instance, filename):
     ext= filename.split('.')[1]
-
     new_name= f"{instance.test_case_id}.{ext}"
-
-    if ext == 'py' :
-        return os.path.join("test_case", new_name)
-    elif ext== 'robot':
+    if instance.test_type==1:
         return os.path.join("test_case_robot", new_name)
+    else:
+        return os.path.join("test_case", new_name)
   
 
 def get_build_directory(instance, filename):
@@ -109,7 +108,7 @@ class AbstractTestCategory(TimeStampedEditableModel):
         # Categories with test cases or test suites cannot be deleted
         return self.test_case_count == 0 
     
-  
+
 class AbstractTestCase(TimeStampedEditableModel):
     """
     Abstract model for Test Cases
@@ -225,17 +224,17 @@ class AbstractTestCase(TimeStampedEditableModel):
 
         # Validate JSON params if provided
         if self.params and self.params != {}:
-            try:
-                if not isinstance(self.params, dict):
-                    raise ValidationError({
-                        "params": _("Parameters must be a valid JSON object (key-value pairs).")
-                    })
-                else:
-                    pass
-            except (TypeError, ValueError) as e:
+         
+        try:
+            if not isinstance(self.params, dict):
                 raise ValidationError({
-                    "params": _("Parameters must be valid JSON format")
+                    "params": _("Parameters must be a valid JSON object (key-value pairs).")
                 })
+            
+        except (TypeError, ValueError) as e:
+            raise ValidationError({
+                "params": _("Parameters must be valid JSON format")
+            })
          
         # Check for duplicate test_case_id
         qs = self.__class__.objects.filter(
@@ -368,9 +367,10 @@ class AbstractTestSuite(TimeStampedEditableModel):
 
     @property
     def execution_count(self):
-        """Return count of times this group has been executed"""
-        # This will be implemented when MassExecution model is added
-        return 0
+     """Return count of times this group has been executed"""
+     from ..swapper import load_model
+     TestSuiteExecution = load_model("TestSuiteExecution")
+     return TestSuiteExecution.objects.filter(test_suite=self).count()
 
     @property
     def is_deletable(self):
@@ -1174,9 +1174,9 @@ class AbstractTestDeviceGroup(OrgMixin, TimeStampedEditableModel):
         
         # Validate name length
         if self.name and (len(self.name) < 3 or len(self.name) > 100):
-            raise ValidationError({
-                "name": _("Group name must be between 3 and 100 characters")
-            })
+         raise ValidationError({
+                  "name": _("Group name must be between 3 and 100 characters")
+         })
         
         # Validate description length
         if self.description and len(self.description) > 500:
@@ -1264,6 +1264,13 @@ class AbstractTestDeviceGroupDevice(TimeStampedEditableModel):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+    @property
+    def is_deletable(self):
+       """Check if device group can be deleted - not deletable if part of any execution"""
+       from ..swapper import load_model
+       TestSuiteExecution = load_model("TestSuiteExecution")
+       return not TestSuiteExecution.objects.filter(device_group=self).exists()
 
 
 class AbstractExecutionArtifact(models.Model):

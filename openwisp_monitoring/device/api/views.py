@@ -146,9 +146,6 @@ class DeviceMetricView(
         cls._get_charts.invalidate(None, None, pk)
 
     def get(self, request, pk):
-        # ensure valid UUID
-        # logger.info("========================== GET API" * 70)
-        
         try:
             pk = str(uuid.UUID(pk))
         except ValueError:
@@ -158,34 +155,6 @@ class DeviceMetricView(
         if not request.query_params.get('csv'):
             charts_data = dict(response.data)
             device_metrics_data = MonitoringDeviceDetailSerializer(self.instance).data
-   
-
-
-            # logger.info(f"🔹 device_metrics_data: {device_metrics_data}")
-            # logger.info(f"🔹 charts_data: {charts_data}")
-
-            # ---- Temporary manual Network Connections chart ----
-#             charts_data.setdefault("charts", []).append({
-#     "title": "Network Connections",
-#     "type": "stackedbar+lines",
-#     "traces": [
-#         ["total", [2802, 2802]],
-#         ["tcp_ipv4", [1200, 1200]],
-#         ["udp_ipv4", [190, 190]],
-#         ["tcp_ipv6", [112, 112]],
-#         ["udp_ipv6", [1300, 1300]]
-#     ],
-#     "summary": {
-#         "total": 2802,
-#         "tcp_ipv4": 1200,
-#         "udp_ipv4": 190,
-#         "tcp_ipv6": 112,
-#         "udp_ipv6": 1300
-#     }
-# })
-# -----------------------------------------------------
-
-
             return Response(
                 {**device_metrics_data, **charts_data}, status=status.HTTP_200_OK
             )
