@@ -39,16 +39,16 @@
 │       │   ├── test_suite_execution_form.css   #ashutosh
 │       │   └── test_suite_form.css             #ashutosh
 │       └── js
-│           ├── device_group_form.js
-│           ├── json_file_handler.js
-│           ├── selection_toggle.js
-│           ├── testcase_id_check.js
-│           ├── testcase_toggle_scripts-ashutosh.js
-│           ├── testcase_toggle_scripts.js
-│           ├── test-suite-admin.js
-│           ├── test_suite_dynamic.js
-│           ├── test_suite_execution_form.js
-│           └── test_suite_form.js
+│           ├── device_group_form.js                            #ashutosh
+│           ├── json_file_handler.js                            #ashutosh
+│           ├── selection_toggle.js                             #ashutosh
+│           ├── testcase_id_check.js                            #ashutosh
+│           ├── testcase_toggle_scripts-ashutosh.js             #ashutosh
+│           ├── testcase_toggle_scripts.js                      #ashutosh
+│           ├── test-suite-admin.js                             #ashutosh
+│           ├── test_suite_dynamic.js                           #ashutosh
+│           ├── test_suite_execution_form.js                    #ashutosh
+│           └── test_suite_form.js                              #ashutosh
 ├── swapper.py                                                  #ashutosh
 ├── tasks.py
 ├── tasks_without_ssh.py
@@ -73,8 +73,8 @@
 │   │           ├── change_form.html                            #ashutosh
 │   │           └── execute_later.html                          #ashutosh
 │   ├── email
-│   │   ├── execution_report_email.html
-│   │   └── execution_report_email_v1.html
+│   │   ├── execution_report_email.html                         #ashutosh
+│   │   └── execution_report_email_v1.html                      #ashutosh
 │   └── reversion
 │       └── recover_form.html
 ├── urls.py                                      #ashutosh

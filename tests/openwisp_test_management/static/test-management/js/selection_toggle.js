@@ -122,7 +122,7 @@
 
     const observer = new MutationObserver(function () {
       const $selected = $('select[multiple][id$="_to"]');
-      // console.log("sdfffffff",$selected)
+  
       if (!$selected.length) return;
 
       const options = {};
@@ -132,8 +132,6 @@
 
       $selected.empty();
       orderedIds.forEach((id) => options[id] && $selected.append(options[id]));
-
-      // console.log("afterrrrrrrrr", $selected)
 
       observer.disconnect();
     });
