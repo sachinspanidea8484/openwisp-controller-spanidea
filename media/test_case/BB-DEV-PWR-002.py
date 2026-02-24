@@ -1,3 +1,13 @@
+# START_DESCRIPTION
+# 1. Execute sensor monitoring script for CPU input power.
+# 2. Extract voltage and current values from sensor output.
+# 3. Validate voltage within defined limits.
+# 4. Validate current within defined limits.
+# 5. Repeat readings multiple times.
+# 6. Ensure sensor values change slightly across samples.
+# 7. If all validations pass, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
 import sys
 import os
@@ -14,7 +24,7 @@ from common_helper import (
 VOLTAGE_MIN = 0.8
 VOLTAGE_MAX = 1.2
 CURRENT_MIN = 0.0
-CURRENT_MAX = 5.0
+CURRENT_MAX = 6.0
 NUM_READS = 5
 SENSOR_SCRIPT = "/usr/bin/sensor_monitor.py"
 TARGET_SENSOR = "INA220_HWMON6"

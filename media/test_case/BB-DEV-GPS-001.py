@@ -1,3 +1,12 @@
+# START_DESCRIPTION
+# 1. Verify GPS monitoring script availability.
+# 2. Execute GNSS/GPS script and collect multiple readings.
+# 3. Extract latitude and longitude values.
+# 4. Ensure sufficient valid GPS readings are received.
+# 5. Verify GPS values are not identical across samples.
+# 6. If valid and dynamic readings detected, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
 import sys, os, time, select, subprocess
 from common_helper import log, EXIT_SUCCESS, EXIT_FAILED

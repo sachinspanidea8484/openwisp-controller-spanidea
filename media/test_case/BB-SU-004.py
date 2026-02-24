@@ -1,3 +1,12 @@
+# START_DESCRIPTION
+# 1. Retrieve system hostname from configuration.
+# 2. Retrieve network mode/protocol configuration.
+# 3. Verify Wi-Fi enable/disable status.
+# 4. Verify default admin user settings.
+# 5. Compare actual values with expected configuration.
+# 6. If all values match, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
 import sys
 import argparse
@@ -11,7 +20,7 @@ from common_helper import (
 )
 
 def get_uci_value(command, key_suffix):
-    stdout, _, rc = `run_local_command(command, allow_fail=True) #stdout → command output, rc → return code, _ → ignores stder
+    stdout, _, rc = run_local_command(command, allow_fail=True) #stdout → command output, rc → return code, _ → ignores stder
     if rc != 0 or not stdout:
         return None
 
@@ -117,5 +126,4 @@ if __name__ == "__main__":
 
 # python3 BB-SU-004.py CONFIGURATION='{"admin_user": "root","hostname": "Nokia","network_mode": "gre","wifi_enabled": "no"}'
 
-#need to print expected values, if given value is not
 

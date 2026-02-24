@@ -1,3 +1,11 @@
+# START_DESCRIPTION
+# 1. Retrieve installed software version from system files.
+# 2. Extract VERSION or VERSION_ID field.
+# 3. Compare current software version with expected version.
+# 4. Verify image integrity by exact version match.
+# 5. If version matches expected image, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
 import os
 import sys

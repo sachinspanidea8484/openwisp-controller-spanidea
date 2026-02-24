@@ -1,3 +1,12 @@
+# START_DESCRIPTION
+# 1. Retrieve watchdog status from system.
+# 2. Configure watchdog timeout value.
+# 3. Disable watchdog and confirm no reboot occurs.
+# 4. Enable watchdog and stop feeding it.
+# 5. Verify system reboot is triggered after timeout.
+# 6. If reboot behavior matches expectation, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
 import sys, time
 from common_helper import (
