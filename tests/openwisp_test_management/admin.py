@@ -441,7 +441,7 @@ class TestCasesResource(resources.ModelResource):
             "is_configuration_push_required",
             "robot_script",
             "python_script",
-            "is_system_test_case"
+            # "is_system_test_case"
             # "file"
         )
         export_order = (
@@ -457,7 +457,7 @@ class TestCasesResource(resources.ModelResource):
             "is_configuration_push_required",
             "robot_script",
             "python_script",
-            "is_system_test_case",
+            # "is_system_test_case",
         )
     
    
@@ -1438,7 +1438,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         "name",
         "test_case_id",
         "test_type",  # ADD THIS
-        "is_system_test_case",
+        # "is_system_test_case",
         "robot_script",
         "python_script",
         "params",  # ADD THIS - NEW FIELD
@@ -1529,8 +1529,8 @@ class TestCaseAdmin(BaseVersionAdmin):
             "test_case_id",
             "test_type",
         ]
-        if request.user.is_superuser:
-            base_fields.append("is_system_test_case")
+        # if request.user.is_superuser:
+        #     base_fields.append("is_system_test_case")
         fieldsets = [
             (
                 None,

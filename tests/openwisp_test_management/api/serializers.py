@@ -851,7 +851,6 @@ class TestCaseSerializer(ValidatedModelSerializer):
             "is_active",
             "is_configuration_push_required",
             "script_push_status",
-            "is_system_test_case",
             "created", 
             "modified",
             "created_by",
