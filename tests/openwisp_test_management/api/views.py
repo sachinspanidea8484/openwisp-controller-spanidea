@@ -1695,6 +1695,12 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
         """
         Match admin delete behavior
         """
+        if not self.request.user.is_superuser and instance.is_system_test_case:
+            raise ValidationError({
+                "detail": (
+                    "User doesn't have permission to delete this test case."
+                )
+            })
         if not instance.is_deletable:
             raise ValidationError({
                 "detail": (
@@ -1705,6 +1711,16 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
 
         instance.delete()
 
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        user = self.request.user
+
+        if not user.is_superuser and instance.is_system_test_case:
+            raise ValidationError({
+                "detail": "User doesn't have permission to edit this system test case."
+            })
+
+        serializer.save()
 
 class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
     """

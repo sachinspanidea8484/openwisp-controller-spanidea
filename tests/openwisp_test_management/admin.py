@@ -1735,7 +1735,14 @@ class TestCaseAdmin(BaseVersionAdmin):
 
         # Check for undeletable test cases
         undeletable = [obj for obj in queryset if not obj.is_deletable]
-
+        restricted_test_case= [obj for obj in queryset if obj.is_system_test_case and not request.user.is_superuser ]
+        if restricted_test_case:
+            msg = _("User doesn't have permission to delete test case(s): %s") % (
+                ", ".join([str(obj) for obj in restricted_test_case])
+            )
+            self.message_user(request, msg, messages.ERROR)
+            return
+        
         if undeletable:
             msg = _("Cannot delete test cases that are in use: %s") % (
                 ", ".join([str(obj) for obj in undeletable])
