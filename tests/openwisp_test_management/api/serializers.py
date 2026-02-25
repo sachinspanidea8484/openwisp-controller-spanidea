@@ -851,7 +851,6 @@ class TestCaseSerializer(ValidatedModelSerializer):
             "is_active",
             "is_configuration_push_required",
             "script_push_status",
-            "is_system_test_case",
             "created", 
             "modified",
             "created_by",
@@ -1454,7 +1453,7 @@ class TestSuiteExecutionCreateSerializer(serializers.Serializer):
             "test_selection_type",
             getattr(self.instance, "test_selection_type", None)
         )
-        test_suite = attrs.get("test_group")
+        test_suite = attrs.get("test_suite")
         individual_cases = attrs.get("individual_test_cases")
 
         if test_selection_type  in [1, "1", "group"] and not test_suite:

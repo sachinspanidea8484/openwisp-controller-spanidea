@@ -421,7 +421,6 @@ class TestCasesResource(resources.ModelResource):
             "is_configuration_push_required",
             "robot_script",
             "python_script",
-            "is_system_test_case"
             # "file"
         )
         export_order = (
@@ -437,7 +436,6 @@ class TestCasesResource(resources.ModelResource):
             "is_configuration_push_required",
             "robot_script",
             "python_script",
-            "is_system_test_case"
         )
     
    

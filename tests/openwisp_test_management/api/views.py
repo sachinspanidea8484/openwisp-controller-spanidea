@@ -11,7 +11,7 @@ from django.http import HttpResponse
 from rest_framework.generics import GenericAPIView
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError as DjangoValidationError
-
+from django.db.models import Q
 
 from .utilities import is_valid_uuid, schedule_execution, validate_schedule_time
 from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
@@ -1660,8 +1660,8 @@ class TestCaseListView(ProtectedAPIMixin, generics.ListCreateAPIView):
         if self.request.user.is_superuser:
             return qs
 
-        # Normal users see only their own test cases
-        return qs.filter(created_by=self.request.user)
+        # Normal users see only their own test cases or system test case
+        return qs.filter( Q(created_by=self.request.user) | Q(is_system_test_case=True) )
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -1684,7 +1684,7 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
         if self.request.user.is_superuser:
             return qs
 
-        return qs.filter(created_by=self.request.user)
+        return qs.filter(Q(created_by=self.request.user) | Q(is_system_test_case=True) )
 
     def get_serializer_class(self):
         if self.request.method == "GET":
@@ -1695,6 +1695,12 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
         """
         Match admin delete behavior
         """
+        if not self.request.user.is_superuser and instance.is_system_test_case:
+            raise ValidationError({
+                "detail": (
+                    "User doesn't have permission to delete this test case."
+                )
+            })
         if not instance.is_deletable:
             raise ValidationError({
                 "detail": (
@@ -1705,6 +1711,16 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
 
         instance.delete()
 
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        user = self.request.user
+
+        if not user.is_superuser and instance.is_system_test_case:
+            raise ValidationError({
+                "detail": "User doesn't have permission to edit this system test case."
+            })
+
+        serializer.save()
 
 class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
     """
@@ -1724,7 +1740,7 @@ class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
         if self.request.user.is_superuser:
             return qs
 
-        return qs.filter(created_by=self.request.user)
+        return qs.filter(Q(created_by=self.request.user) | Q(is_system_test_case=True))
     
     def get(self, request, *args, **kwargs):
        
@@ -1760,7 +1776,7 @@ class TestCaseExportApiView(ProtectedAPIMixin, APIView):
         user = self.request.user
         if user.is_superuser:
             return TestCase.objects.all()
-        return TestCase.objects.filter(created_by= user)
+        return TestCase.objects.filter(Q(created_by=user) | Q(is_system_test_case=True))
     
   
     def get(self, request, export_format):
