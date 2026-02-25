@@ -142,7 +142,7 @@ This will build the application image, run database migrations via the entrypoin
 ```
 Username: admin
 Email:    admin@example.com
-Password: admin
+Password: nokia001
 ```
 
 

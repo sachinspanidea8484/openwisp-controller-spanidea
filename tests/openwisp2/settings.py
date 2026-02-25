@@ -13,8 +13,8 @@ from import_export.formats.base_formats import XLSX,CSV
 EXECUTOR_SERVER_IP: str = os.getenv('EXECUTOR_SERVER_IP', "http://172.17.0.1:8080")
 OPENWISP_SERVER_IP: str = os.getenv('OPENWISP_SERVER_IP', "http://172.17.0.1:8000")
 OPENWISP_CONTROLLER_API_HOST: str = os.getenv('OPENWISP_SERVER_IP', "http://172.17.0.1:8000")
+SHOW_RE_EXECUTION : bool = True
 
-SHOW_RE_EXECUTION : bool = os.getenv('SHOW_RE_EXECUTION', "true").lower() == "true"
 
 
 

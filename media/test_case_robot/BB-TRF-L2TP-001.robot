@@ -1,5 +1,5 @@
 *** Settings ***
-Library           ../../../resources/keywords/BB-TRF-VXL-001.py
+Library           ../../../resources/keywords/BB-TRF-L2TP-001.py
 Library           ../../../resources/keywords/execution/connection_manager.py
 Library           OperatingSystem
 Library           JSONLibrary
@@ -22,18 +22,19 @@ ${EXECUTION_ID}         ${EMPTY}
 
 
 *** Test Cases ***
-BB-TRF-VXL-001 VxLAN Tunnel End-to-End Test
-    [Tags]    BB-TRF-VXL-001
+BB-TRF-L2TP-001 L2TP Tunnel End-to-End Test
+    [Tags]    BB-TRF-L2TP-001
 
-   # Load Device Info
-    Log Message To Custom File    ==== Starting VXLAN Tunnel Test ====
-
-    Run VXLAN Setup
-    Run VXLAN Setup on PC
-    Run VXLAN Verification 
-    Run VXLAN Teardown
+    Load Device Info
+    Log Message To Custom File   ==== Starting L2TP Tunnel Test ====
   
-    Log Message To Custom File    ==== VXLAN Tunnel End-to-End Test Successful ====
+    Run L2TP Setup On DUT
+    Run L2TP Setup On RPI
+    Run L2TP Verification On DUT
+    # Run L2TP Verification On RPI
+    Run L2TP Teardown
+   
+    Log Message To Custom File    L2TP Tunnel End-to-End Test Successful
 
 
 *** Keywords ***
@@ -59,7 +60,8 @@ Initialize Test Environment
 # ===============SUITE TEARDOWN==================
 Cleanup Test Environment
     Log To Console    ==== Closing Device Connections ====
-    CLOSE ALL DEVICE CONNECTIONS
+    CLOSE ALL DEVICE CONNECTIONS   
+
 
 # ================LOAD CONFIG====================
 Load Device Info
@@ -90,8 +92,12 @@ Load Device Info
     ${pc_dev_id}=    Set Variable    ${PC.get("device_id", "2001")}
     ${pc_exec_id}=   Set Variable    ${PC.get("execution_id", "1")}
     ${pc_protocol}=  Set Variable    ${PC.get("connection_protocol", "SSH")}
-   
-    
+
+    # L2TP Parameter
+    ${BB_L2TP}=     Set Variable    ${test_config["BB_L2TP"]}
+    ${RPI_L2TP}=     Set Variable    ${test_config["RPI_L2TP"]}
+
+ 
     # DEVICE LIST (KEY CHANGE)
     ${dut_device}=    Create Dictionary
     ...    name=DUT
@@ -115,11 +121,6 @@ Load Device Info
     @{DEVICE_LIST}=    Create List    ${dut_device}    ${pc_device}   
     ${DEVICE_COUNT}=    Get Length    ${DEVICE_LIST}
 
-    # VXLAN PARAMETER
-    ${DUT_VXLAN}=      Set Variable    ${test_config["DUT_VXLAN"]}
-    ${PC_VXLAN}=       Set Variable    ${test_config["PC_VXLAN"]}
-
-
     # Export to Suite
     Set Suite Variable    ${DEVICE_LIST}
     Set Suite Variable    ${dut_ip}
@@ -133,8 +134,8 @@ Load Device Info
     Set Suite Variable    ${pc_user}
     Set Suite Variable    ${pc_pass}
     Set Suite Variable    ${pc_name}
-    Set Suite Variable    ${DUT_VXLAN}
-    Set Suite Variable    ${PC_VXLAN}
+    Set Suite Variable    ${BB_L2TP}
+    Set Suite Variable    ${RPI_L2TP}
 
     Log To Console    ------------------------------------------------------------
     Log To Console    Configuration Loaded:
@@ -147,51 +148,69 @@ Load Device Info
 
 
 # ==========================================================
-# WRAPPER KEYWORDS FOR VXLAN (SSH or MQTT)
+# WRAPPER KEYWORDS FOR L2TP (SSH or MQTT)
 # ==========================================================
-Run VXLAN Setup
-    Log To Console    ==== Running VxLAN Setup on ${dut_ip} ====
-    SET UP VXLAN TUNNEL ON DUT
+Run L2TP Setup On DUT
+    Log To Console    ==== Running L2TP Setup on ${dut_ip} ====
+
+    SET UP L2TP TUNNEL ON DUT
     ...    DUT
-    ...    ${DUT_VXLAN["tunnel_name"]}
-    ...    ${DUT_VXLAN["tunnel_id"]}
-    ...    ${DUT_VXLAN["underlay_iface"]}
-    ...    ${DUT_VXLAN["remote_ip"]}
-    ...    ${DUT_VXLAN["overlay_ip"]}  
-    ...    ${DUT_VXLAN["dstport"]} 
+    ...    ${BB_L2TP["local_ip"]}    ${BB_L2TP["remote_ip"]}    ${BB_L2TP["tunnel_id"]}    ${BB_L2TP["session_id"]}
+    ...    ${BB_L2TP["peer_tunnel_id"]}   ${BB_L2TP["peer_session_id"]}     ${BB_L2TP["overlay_ip"]}    ${BB_L2TP["udp_port"]}    
+       
 
-Run VXLAN Setup on PC
-    Log To Console    ==== Running VXLAN Setup on ${pc_ip} ====
+Run L2TP Setup On RPI
+    Log To Console    ==== Running L2TP Setup on ${pc_ip}  ====
 
-    SET UP VXLAN TUNNEL ON PC
-    ...    ${pc_name}
-    ...    ${pc_pass}
-    ...    ${PC_VXLAN["tunnel_name"]}
-    ...    ${PC_VXLAN["tunnel_id"]}
-    ...    ${PC_VXLAN["underlay_iface"]}
-    ...    ${PC_VXLAN["remote_ip"]}
-    ...    ${PC_VXLAN["overlay_ip"]}  
-    ...    ${PC_VXLAN["dstport"]} 
+    SET UP L2TP TUNNEL ON RPI
+    ...    ${pc_name}    ${pc_pass}     
+    ...    ${RPI_L2TP["local_ip"]}    ${RPI_L2TP["remote_ip"]}    ${RPI_L2TP["tunnel_id"]}    ${RPI_L2TP["session_id"]}    
+    ...    ${RPI_L2TP["peer_tunnel_id"]}   ${RPI_L2TP["peer_session_id"]}     ${RPI_L2TP["overlay_ip"]}    ${RPI_L2TP["udp_port"]} 
 
-Run VXLAN Verification 
-    [Documentation]    Verify VXLAN tunnels 
-    Log To Console    ==== Running VXLAN Verification ====
-    Log To Console    --- Verifying VXLAN tunnel ${DUT_VXLAN["tunnel_name"]} on  (${dut_ip}) ---
+     
+
+Run L2TP Verification On DUT
+    [Documentation]    Verify L2TP tunnels on DUT
+    Log To Console    ==== Running L2TP Verification on ${dut_ip} ====
+
+    VERIFY L2TP TUNNEL
+    ...    ${CONNECTION_PROTOCOL}    DUT    ${dut_pass}
+    ...    ${pc_name}   
+    ...    ${BB_L2TP["underlay_iface"]}    ${BB_L2TP["local_ip"]}    ${BB_L2TP["remote_ip"]} 
+    ...    ${BB_L2TP["overlay_ip"]}    ${RPI_L2TP["overlay_ip"]}    ${BB_L2TP["udp_port"]}
 
 
-    VERIFY VXLAN TUNNEL
-    ...    ${CONNECTION_PROTOCOL}    DUT    ${dut_pass}  ${pc_name}   
-    ...    ${DUT_VXLAN["underlay_iface"]}    ${DUT_VXLAN["local_ip"]}    ${DUT_VXLAN["remote_ip"]}    
-    ...    ${DUT_VXLAN["overlay_ip"]}    ${PC_VXLAN["overlay_ip"]}    ${DUT_VXLAN["tunnel_id"]}
 
-    
-Run VXLAN Teardown
-    [Documentation]    Start teardown VXLAN tunnels
-    Log To Console    ==== VXLAN tunnel teardown ====
-    Log Message To Custom File    --- Teardown VXLAN tunnels on (${dut_ip}) and (${pc_ip}) ---
+Run L2TP Verification On RPI
+    [Documentation]    Verify L2TP tunnels on RPI
+    Log To Console    ==== Running L2TP Verification on RPI ====
 
-    TEARDOWN VXLAN TUNNEL
-    ...    DUT    ${dut_pass}    ${DUT_VXLAN["tunnel_name"]}
+    VERIFY L2TP TUNNEL 
+    ...    ${CONNECTION_PROTOCOL}    ${pc_name}    ${pc_pass}
+    ...    DUT
+    ...    ${RPI_L2TP["underlay_iface"]}    ${RPI_L2TP["local_ip"]}    ${RPI_L2TP["remote_ip"]}    
+    ...    ${RPI_L2TP["overlay_ip"]}    ${BB_L2TP["overlay_ip"]}    ${RPI_L2TP["udp_port"]}
+  
 
-    TEARDOWN VXLAN TUNNEL
-    ...    ${pc_name}    ${pc_pass}    ${PC_VXLAN["tunnel_name"]}    
+Run L2TP Teardown
+    [Documentation]    Start teardown L2TP tunnels
+    Log Message To Custom File    --- Teardown L2TP tunnels on (${dut_ip}) and (${pc_ip}) ---
+
+    TEARDOWN L2TP TUNNEL
+    ...    DUT    
+    ...    ${dut_pass}    
+    ...    ${BB_L2TP["tunnel_id"]}    
+    ...    ${BB_L2TP["session_id"]}
+
+    TEARDOWN L2TP TUNNEL
+    ...    ${pc_name}    
+    ...    ${pc_pass}    
+    ...    ${RPI_L2TP["tunnel_id"]}    
+    ...    ${RPI_L2TP["session_id"]}
+
+
+
+
+
+
+

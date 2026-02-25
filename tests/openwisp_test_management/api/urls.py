@@ -268,6 +268,11 @@ urlpatterns = [
     #     views.test_execution_available_devices,
     #     name="api_test_execution_available_devices",
     # ),
+    path(
+    "cleanup/",
+    executor_views.cleanup_test_management_data,
+    name="api_cleanup_test_management_data",
+),
         ]),
     ),
 ]

@@ -1,5 +1,5 @@
 *** Settings ***
-Library           ../../../resources/keywords/BB-FF-001.py
+Library           ../../../resources/keywords/BB-SEC-DOS-001.py
 Library           ../../../resources/keywords/execution/connection_manager.py
 Library           OperatingSystem
 Library           JSONLibrary
@@ -15,25 +15,33 @@ Suite Teardown    Cleanup Test Environment
 *** Variables ***
 ${DEVICE_JSON}          ${EMPTY}
 ${TEST_JSON}            ${EMPTY}
-${LOG_FOLDER}           ${CURDIR}/../../../logs
 ${CONNECTION_PROTOCOL}  SSH
 ${DEVICE_ID}            ${EMPTY}
 ${EXECUTION_ID}         ${EMPTY}
 
 
 *** Test Cases ***
-BB-FF-001 Firewall Rule Ping Behavior Test
-    [Documentation]    Verify firewall blocks/allows ICMP echo-request from LAN
-    [Tags]    BB-FF-001
-    Log Message To Custom File    ==== Starting Firewall Ping Rule Test ====
-    RUN Delete Existing Ping Rules
-    RUN Add Block Ping Rule And Verify
-    RUN Delete Block Rule And Add Allow Rule
-    RUN Verify Ping Is Allowed
-    Log Message To Custom File    ==== Firewall Ping Rule Test Completed Successfully ====
+BB-SEC-DOS-001 Verify Device Login Flood Protection
+    [Documentation]    Validate device blocks repeated failed login attempts and later allows access
+    [Tags]    BB-SEC-DOS-001
+
+    Log Message To Custom File    ===== TEST START: DOS PROTECTION =====
+
+    ${result}=    Perform Dos Test
+    ...    ${pc_name}
+    ...    DUT
+    ...    ${dut_ip}
+    ...    ${dut_user}
+    ...    ${dut_pass}
+  
+    Log Message To Custom File    Final Status: ${result['status']}
+    Should Be Equal    ${result['status']}    UNBLOCKED
+
+    Log Message To Custom File    ===== TEST END: DOS PROTECTION PASSED =====
 
 
 *** Keywords ***
+
 Initialize Test Environment
     Initialize Custom Log File
     Load Device Info
@@ -65,6 +73,7 @@ Load Device Info
     ${device_config}=    Evaluate    json.loads(r'''${DEVICE_JSON}''')    json
     ${test_config}=      Evaluate    json.loads(r'''${TEST_JSON}''')      json
 
+    # -------- DUT CONFIG --------
     ${DUT}=            Set Variable    ${device_config["BB"]}
     ${dut_ip}=         Set Variable    ${DUT["ip"]}
     ${dut_user}=       Set Variable    ${DUT["user"]}
@@ -73,16 +82,17 @@ Load Device Info
     ${dut_exec_id}=    Set Variable    ${DUT.get("execution_id", "1")}
     ${protocol}=       Set Variable    ${DUT.get("connection_protocol", "SSH")}
 
+    # -------- PC CONFIG --------
     ${PC}=             Set Variable    ${test_config["PC"]}
     ${pc_name}=        Set Variable    ${PC["name"]}
     ${pc_ip}=          Set Variable    ${PC["ip"]}
     ${pc_user}=        Set Variable    ${PC["user"]}
     ${pc_pass}=        Set Variable    ${PC["password"]}
-    ${PING_TARGET}=    Set Variable    ${PC["ping_ip"]}
     ${pc_dev_id}=      Set Variable    ${PC.get("device_id", "2002")}
     ${pc_exec_id}=     Set Variable    ${PC.get("execution_id", "1")}
     ${pc_protocol}=    Set Variable    ${PC.get("connection_protocol", "SSH")}
 
+    # -------- DEVICE LIST --------
     ${dut_device}=    Create Dictionary
     ...    name=DUT
     ...    protocol=${protocol}
@@ -94,7 +104,7 @@ Load Device Info
 
     ${pc_device}=    Create Dictionary
     ...    name=${pc_name}
-    ...    protocol=${protocol}
+    ...    protocol=${pc_protocol}
     ...    ip=${pc_ip}
     ...    user=${pc_user}
     ...    pass=${pc_pass}
@@ -104,17 +114,19 @@ Load Device Info
     @{DEVICE_LIST}=    Create List    ${dut_device}    ${pc_device}
     ${DEVICE_COUNT}=   Get Length    ${DEVICE_LIST}
 
+    # -------- SUITE VARIABLES  --------
     Set Suite Variable    ${DEVICE_LIST}
     Set Suite Variable    ${DEVICE_COUNT}
     Set Suite Variable    ${DUT_NAME}    DUT
     Set Suite Variable    ${pc_name}
-    Set Suite Variable    ${PING_TARGET}
     Set Suite Variable    ${CONNECTION_PROTOCOL}    ${protocol}
     Set Suite Variable    ${DEVICE_ID}              ${dut_dev_id}
     Set Suite Variable    ${EXECUTION_ID}           ${dut_exec_id}
+    Set Suite Variable    ${dut_ip}
+    Set Suite Variable    ${dut_user}
+    Set Suite Variable    ${dut_pass}
 
-    Set Ping Ip    ${PING_TARGET}
-
+    # -------- DISPLAY CONFIG --------
     Log To Console    ------------------------------------------------------------
     Log To Console    Configuration Loaded:
     Log To Console    - Protocol: ${CONNECTION_PROTOCOL}
@@ -123,22 +135,4 @@ Load Device Info
     Log To Console    - Execution ID: ${EXECUTION_ID}
     Log To Console    - Devices Loaded: ${DEVICE_COUNT}
     Log To Console    ------------------------------------------------------------
-
-
-RUN Delete Existing Ping Rules
-    Delete Ping Rules    ${DUT_NAME}
-
-
-RUN Add Block Ping Rule And Verify
-    Add Block Ping Rule    ${DUT_NAME}
-    Verify Ping Failure    ${pc_name}
-
-
-RUN Delete Block Rule And Add Allow Rule
-    Delete Ping Rules    ${DUT_NAME}
-    Add Allow Ping Rule  ${DUT_NAME}
-
-
-RUN Verify Ping Is Allowed
-    Verify Ping Success    ${pc_name}
 

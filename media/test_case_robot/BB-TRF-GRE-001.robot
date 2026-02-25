@@ -1,5 +1,5 @@
 *** Settings ***
-Library           ../../../resources/keywords/BB-TRF-VXL-001.py
+Library           ../../../resources/keywords/BB-TRF-GRE-001.py
 Library           ../../../resources/keywords/execution/connection_manager.py
 Library           OperatingSystem
 Library           JSONLibrary
@@ -22,18 +22,18 @@ ${EXECUTION_ID}         ${EMPTY}
 
 
 *** Test Cases ***
-BB-TRF-VXL-001 VxLAN Tunnel End-to-End Test
-    [Tags]    BB-TRF-VXL-001
+BB-TRF-GRE-001 GRE Tunnel End-to-End Test
+    [Tags]    BB-TRF-GRE-001 
 
    # Load Device Info
-    Log Message To Custom File    ==== Starting VXLAN Tunnel Test ====
+    Log Message To Custom File    ==== Starting GRE Tunnel Test ====
 
-    Run VXLAN Setup
-    Run VXLAN Setup on PC
-    Run VXLAN Verification 
-    Run VXLAN Teardown
+    Run GRE Setup
+    Run GRE Setup on PC
+    Run GRE Verification 
+    Run GRE Teardown
   
-    Log Message To Custom File    ==== VXLAN Tunnel End-to-End Test Successful ====
+    Log Message To Custom File    ==== GRE Tunnel End-to-End Test Successful ====
 
 
 *** Keywords ***
@@ -115,9 +115,9 @@ Load Device Info
     @{DEVICE_LIST}=    Create List    ${dut_device}    ${pc_device}   
     ${DEVICE_COUNT}=    Get Length    ${DEVICE_LIST}
 
-    # VXLAN PARAMETER
-    ${DUT_VXLAN}=      Set Variable    ${test_config["DUT_VXLAN"]}
-    ${PC_VXLAN}=       Set Variable    ${test_config["PC_VXLAN"]}
+    # GRE PARAMETER
+    ${DUT_GRE}=      Set Variable    ${test_config["DUT_GRE"]}
+    ${PC_GRE}=       Set Variable    ${test_config["PC_GRE"]}
 
 
     # Export to Suite
@@ -133,8 +133,8 @@ Load Device Info
     Set Suite Variable    ${pc_user}
     Set Suite Variable    ${pc_pass}
     Set Suite Variable    ${pc_name}
-    Set Suite Variable    ${DUT_VXLAN}
-    Set Suite Variable    ${PC_VXLAN}
+    Set Suite Variable    ${DUT_GRE}
+    Set Suite Variable    ${PC_GRE}
 
     Log To Console    ------------------------------------------------------------
     Log To Console    Configuration Loaded:
@@ -147,51 +147,49 @@ Load Device Info
 
 
 # ==========================================================
-# WRAPPER KEYWORDS FOR VXLAN (SSH or MQTT)
+# WRAPPER KEYWORDS FOR GRE (SSH or MQTT)
 # ==========================================================
-Run VXLAN Setup
-    Log To Console    ==== Running VxLAN Setup on ${dut_ip} ====
-    SET UP VXLAN TUNNEL ON DUT
+Run GRE Setup
+    Log To Console    ==== Running GRE Setup on ${dut_ip} ====
+    SET UP GRE TUNNEL
     ...    DUT
-    ...    ${DUT_VXLAN["tunnel_name"]}
-    ...    ${DUT_VXLAN["tunnel_id"]}
-    ...    ${DUT_VXLAN["underlay_iface"]}
-    ...    ${DUT_VXLAN["remote_ip"]}
-    ...    ${DUT_VXLAN["overlay_ip"]}  
-    ...    ${DUT_VXLAN["dstport"]} 
+    ...    ${DUT_GRE["tunnel_name"]}
+    ...    ${DUT_GRE["underlay_iface"]}
+    ...    ${DUT_GRE["local_ip"]}
+    ...    ${DUT_GRE["remote_ip"]}
+    ...    ${DUT_GRE["overlay_ip"]}  
 
-Run VXLAN Setup on PC
-    Log To Console    ==== Running VXLAN Setup on ${pc_ip} ====
+Run GRE Setup on PC
+    Log To Console    ==== Running GRE Setup on ${pc_ip} ====
 
-    SET UP VXLAN TUNNEL ON PC
+    SET UP GRE TUNNEL ON RPI
     ...    ${pc_name}
     ...    ${pc_pass}
-    ...    ${PC_VXLAN["tunnel_name"]}
-    ...    ${PC_VXLAN["tunnel_id"]}
-    ...    ${PC_VXLAN["underlay_iface"]}
-    ...    ${PC_VXLAN["remote_ip"]}
-    ...    ${PC_VXLAN["overlay_ip"]}  
-    ...    ${PC_VXLAN["dstport"]} 
+    ...    ${PC_GRE["tunnel_name"]}
+    ...    ${PC_GRE["underlay_iface"]}
+    ...    ${PC_GRE["local_ip"]}
+    ...    ${PC_GRE["remote_ip"]}
+    ...    ${PC_GRE["overlay_ip"]}
 
-Run VXLAN Verification 
-    [Documentation]    Verify VXLAN tunnels 
-    Log To Console    ==== Running VXLAN Verification ====
-    Log To Console    --- Verifying VXLAN tunnel ${DUT_VXLAN["tunnel_name"]} on  (${dut_ip}) ---
+Run GRE Verification 
+    [Documentation]    Verify GRE tunnels 
+    Log To Console    ==== Running GRE Verification ====
+    Log To Console    --- Verifying GRE tunnel ${DUT_GRE["tunnel_name"]} on  (${dut_ip}) ---
 
 
-    VERIFY VXLAN TUNNEL
-    ...    ${CONNECTION_PROTOCOL}    DUT    ${dut_pass}  ${pc_name}   
-    ...    ${DUT_VXLAN["underlay_iface"]}    ${DUT_VXLAN["local_ip"]}    ${DUT_VXLAN["remote_ip"]}    
-    ...    ${DUT_VXLAN["overlay_ip"]}    ${PC_VXLAN["overlay_ip"]}    ${DUT_VXLAN["tunnel_id"]}
+    VERIFY GRE TUNNEL
+    ...    ${CONNECTION_PROTOCOL}    DUT   ${dut_pass}  
+    ...    ${pc_name}   
+    ...    ${DUT_GRE["underlay_iface"]}    ${DUT_GRE["local_ip"]}    ${DUT_GRE["remote_ip"]}    ${DUT_GRE["overlay_ip"]}    ${PC_GRE["overlay_ip"]}
 
     
-Run VXLAN Teardown
-    [Documentation]    Start teardown VXLAN tunnels
-    Log To Console    ==== VXLAN tunnel teardown ====
-    Log Message To Custom File    --- Teardown VXLAN tunnels on (${dut_ip}) and (${pc_ip}) ---
+Run GRE Teardown
+    [Documentation]    Start teardown GRE tunnels
+    Log To Console    ==== GRE tunnel teardown ====
+    Log Message To Custom File    --- Teardown GRE tunnels on (${dut_ip}) and (${pc_ip}) ---
 
-    TEARDOWN VXLAN TUNNEL
-    ...    DUT    ${dut_pass}    ${DUT_VXLAN["tunnel_name"]}
+    TEARDOWN GRE TUNNEL
+    ...    DUT    ${dut_pass}    ${DUT_GRE["tunnel_name"]}
 
-    TEARDOWN VXLAN TUNNEL
-    ...    ${pc_name}    ${pc_pass}    ${PC_VXLAN["tunnel_name"]}    
+    TEARDOWN GRE TUNNEL
+    ...    ${pc_name}    ${pc_pass}    ${PC_GRE["tunnel_name"]}    

@@ -1,5 +1,5 @@
 *** Settings ***
-Library           ../../../resources/keywords/BB-FF-001.py
+Library           ../../../resources/keywords/BB-SEC-ACC-001.py
 Library           ../../../resources/keywords/execution/connection_manager.py
 Library           OperatingSystem
 Library           JSONLibrary
@@ -22,15 +22,12 @@ ${EXECUTION_ID}         ${EMPTY}
 
 
 *** Test Cases ***
-BB-FF-001 Firewall Rule Ping Behavior Test
-    [Documentation]    Verify firewall blocks/allows ICMP echo-request from LAN
-    [Tags]    BB-FF-001
-    Log Message To Custom File    ==== Starting Firewall Ping Rule Test ====
-    RUN Delete Existing Ping Rules
-    RUN Add Block Ping Rule And Verify
-    RUN Delete Block Rule And Add Allow Rule
-    RUN Verify Ping Is Allowed
-    Log Message To Custom File    ==== Firewall Ping Rule Test Completed Successfully ====
+BB-SEC-ACC-001 Verify PC Can SSH To BB
+    [Documentation]    Verify PC can SSH into BB device
+    [Tags]    BB-SEC-ACC-001
+    Log Message To Custom File    ==== Starting SSH Access Control Test ====
+    RUN Verify SSH Access
+    Log Message To Custom File    ==== SSH Access Control Test Completed Successfully ====
 
 
 *** Keywords ***
@@ -78,7 +75,6 @@ Load Device Info
     ${pc_ip}=          Set Variable    ${PC["ip"]}
     ${pc_user}=        Set Variable    ${PC["user"]}
     ${pc_pass}=        Set Variable    ${PC["password"]}
-    ${PING_TARGET}=    Set Variable    ${PC["ping_ip"]}
     ${pc_dev_id}=      Set Variable    ${PC.get("device_id", "2002")}
     ${pc_exec_id}=     Set Variable    ${PC.get("execution_id", "1")}
     ${pc_protocol}=    Set Variable    ${PC.get("connection_protocol", "SSH")}
@@ -106,39 +102,30 @@ Load Device Info
 
     Set Suite Variable    ${DEVICE_LIST}
     Set Suite Variable    ${DEVICE_COUNT}
-    Set Suite Variable    ${DUT_NAME}    DUT
+    Set Suite Variable    ${DUT_NAME}            DUT
     Set Suite Variable    ${pc_name}
-    Set Suite Variable    ${PING_TARGET}
+    Set Suite Variable    ${dut_ip}
+    Set Suite Variable    ${dut_user}
+    Set Suite Variable    ${dut_pass}
     Set Suite Variable    ${CONNECTION_PROTOCOL}    ${protocol}
     Set Suite Variable    ${DEVICE_ID}              ${dut_dev_id}
     Set Suite Variable    ${EXECUTION_ID}           ${dut_exec_id}
-
-    Set Ping Ip    ${PING_TARGET}
 
     Log To Console    ------------------------------------------------------------
     Log To Console    Configuration Loaded:
     Log To Console    - Protocol: ${CONNECTION_PROTOCOL}
     Log To Console    - DUT IP: ${dut_ip}
+    Log To Console    - PC IP: ${pc_ip}
     Log To Console    - Device ID: ${DEVICE_ID}
     Log To Console    - Execution ID: ${EXECUTION_ID}
     Log To Console    - Devices Loaded: ${DEVICE_COUNT}
     Log To Console    ------------------------------------------------------------
 
 
-RUN Delete Existing Ping Rules
-    Delete Ping Rules    ${DUT_NAME}
-
-
-RUN Add Block Ping Rule And Verify
-    Add Block Ping Rule    ${DUT_NAME}
-    Verify Ping Failure    ${pc_name}
-
-
-RUN Delete Block Rule And Add Allow Rule
-    Delete Ping Rules    ${DUT_NAME}
-    Add Allow Ping Rule  ${DUT_NAME}
-
-
-RUN Verify Ping Is Allowed
-    Verify Ping Success    ${pc_name}
+RUN Verify SSH Access
+    VERIFY SSH ACCESS PC TO BB
+    ...    ${pc_name}
+    ...    ${dut_ip}
+    ...    ${dut_user}
+    ...    ${dut_pass}
 

@@ -5620,8 +5620,50 @@ def check_and_complete_execution(test_group_execution_id):
 
 
 
+# @swagger_auto_schema(method='get', auto_schema=None)
+@api_view(["DELETE"])
+def cleanup_test_management_data(request):
+    """
+    DELETE /api/test-management/cleanup/
+    Superuser only — deletes ALL test management data for UAT cleanup
+    """
+    if not request.user.is_superuser:
+        return Response(
+            {"detail": "Only superusers can perform cleanup."},
+            status=status.HTTP_403_FORBIDDEN
+        )
 
+    with transaction.atomic():
+        counts = {}
 
+        # Order matters — delete children before parents
+        TestCaseExecution = load_model("TestCaseExecution")
+        TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
+        TestSuiteExecution = load_model("TestSuiteExecution")
+        TestSuiteCase = load_model("TestSuiteCase")
+        TestDeviceGroupDevice = load_model("TestDeviceGroupDevice")
+        ScheduledExecution = load_model("ScheduledExecution")
+        ExecutionArtifact = load_model("ExecutionArtifact")
+
+        counts["TestCaseExecution"]        = TestCaseExecution.objects.all().delete()[0]
+        counts["TestSuiteExecutionDevice"] = TestSuiteExecutionDevice.objects.all().delete()[0]
+        counts["ExecutionArtifact"]        = ExecutionArtifact.objects.all().delete()[0]
+        counts["ScheduledExecution"]       = ScheduledExecution.objects.all().delete()[0]
+        counts["TestSuiteExecution"]       = TestSuiteExecution.objects.all().delete()[0]
+        counts["TestSuiteCase"]            = TestSuiteCase.objects.all().delete()[0]
+        counts["TestSuite"]                = TestSuite.objects.all().delete()[0]
+        counts["TestDeviceGroupDevice"]    = TestDeviceGroupDevice.objects.all().delete()[0]
+        counts["TestDeviceGroup"]          = TestDeviceGroup.objects.all().delete()[0]
+        counts["TestCase"]                 = TestCase.objects.all().delete()[0]
+        counts["TestCategory"]             = TestCategory.objects.all().delete()[0]
+
+    return Response(
+        {
+            "detail": "All test management data deleted successfully.",
+            "deleted_counts": counts,
+        },
+        status=status.HTTP_200_OK
+    )
 
 
 # Create view instances
