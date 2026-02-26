@@ -24,7 +24,7 @@ from common_helper import (
 VOLTAGE_MIN = 0.8
 VOLTAGE_MAX = 1.2
 CURRENT_MIN = 0.0
-CURRENT_MAX = 5.0
+CURRENT_MAX = 6.0
 NUM_READS = 5
 SENSOR_SCRIPT = "/usr/bin/sensor_monitor.py"
 TARGET_SENSOR = "INA220_HWMON6"

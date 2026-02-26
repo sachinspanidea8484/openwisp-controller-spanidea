@@ -100,7 +100,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+     sys.exit(main())
 
 
 #  python3 BB-SU-005.py CONFIGURATION='{"expected_version":"23.05.5"}'

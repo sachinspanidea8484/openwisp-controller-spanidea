@@ -113,11 +113,11 @@ def main():
     if test_passed:
         log("Initial / default configuration is correct", level="PASS")
         log("Test Case PASSED", level="PASS")
-        return EXIT_SUCCESS
+        sys.exit(EXIT_SUCCESS)
     else:
         log("Initial / default configuration does not match expected values", level="FAIL")
         log("Test Case FAILED", level="FAIL")
-        return EXIT_FAILED
+        sys.exit(EXIT_FAILED)
 
 
 if __name__ == "__main__":

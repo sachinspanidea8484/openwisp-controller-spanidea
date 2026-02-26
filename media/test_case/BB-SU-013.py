@@ -10,15 +10,23 @@
 # END_DESCRIPTION
 
 import os
-import subprocess
-from datetime import datetime
-import argparse
-import json
 import sys
+import json
 import time
+from datetime import datetime
+
+# Import Common Helper
+from common_helper import (
+    log,
+    run_local_command,
+    verify_file_exists,
+    parse_configuration,
+    EXIT_SUCCESS,
+    EXIT_FAILED
+)
 
 # ==================================================
-# Integrated Rollback Test - FINAL VERSION
+# Integrated Rollback Test - Using Common Helper
 # ==================================================
 
 ROOT_DIR = "/root"
@@ -26,32 +34,16 @@ LOG_FILE = "/usr/bin/tests/config_rollback_combined.log"
 STATE_FILE = "/root/rollback_phase.txt"
 BACKUP_PATH_FILE = "/root/rollback_backup_path.txt"
 
-# ---------------- Logging ----------------
-
-def log(msg):
-    ts = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-    print(f"{ts} {msg}")
-    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
-    with open(LOG_FILE, "a") as f:
-        f.write(f"{ts} {msg}\n")
-
-# ---------------- Command Runner ----------------
-
-def run(cmd, allow_fail=False):
-    log(f"Executing: {cmd}")
-    result = subprocess.run(cmd, shell=True)
-    if result.returncode != 0 and not allow_fail:
-        raise RuntimeError(f"Command failed ({result.returncode}): {cmd}")
-    return result.returncode
 
 # ---------------- Interface Detection ----------------
 
 def get_up_interfaces():
-    try:
-        cmd = "ip -o addr show | grep -v ' lo ' | awk '{print $2}' | sort -u"
-        return subprocess.check_output(cmd, shell=True).decode().split()
-    except:
+    cmd = "ip -o addr show | grep -v ' lo ' | awk '{print $2}' | sort -u"
+    out, err, rc = run_local_command(cmd, allow_fail=True)
+    if rc != 0:
         return []
+    return out.split()
+
 
 # ---------------- rc.local Handling ----------------
 
@@ -75,6 +67,7 @@ def update_rc_local(config_str):
                 f.write(f"{exec_line}\n")
             f.write(line)
 
+
 def clear_rc_local():
     script_path = os.path.abspath(__file__)
     if not os.path.exists("/etc/rc.local"):
@@ -88,28 +81,28 @@ def clear_rc_local():
             if script_path not in line:
                 f.write(line)
 
+
 # ---------------- Cleanup ----------------
 
 def full_cleanup():
     log("Starting cleanup...")
+
     clear_rc_local()
 
-    try:
-        if os.path.exists(BACKUP_PATH_FILE):
-            with open(BACKUP_PATH_FILE, "r") as f:
-                backup_path = f.read().strip()
+    if os.path.exists(BACKUP_PATH_FILE):
+        with open(BACKUP_PATH_FILE, "r") as f:
+            backup_path = f.read().strip()
 
-            if os.path.exists(backup_path):
-                os.remove(backup_path)
-                log(f"Deleted backup archive: {backup_path}")
+        if os.path.exists(backup_path):
+            os.remove(backup_path)
+            log("Deleted backup archive: %s", backup_path)
 
-        for f in [STATE_FILE, BACKUP_PATH_FILE]:
-            if os.path.exists(f):
-                os.remove(f)
+    for f in [STATE_FILE, BACKUP_PATH_FILE]:
+        if os.path.exists(f):
+            os.remove(f)
 
-        log("Cleanup complete.")
-    except Exception as e:
-        log(f"Cleanup error: {e}")
+    log("Cleanup complete.")
+
 
 # ==================================================
 # ================= PHASE 0 ========================
@@ -117,50 +110,54 @@ def full_cleanup():
 
 def phase_initial(config):
     log("=== Phase 0: Baseline & Backup ===")
-
+    
     modified_file = config.get("MODIFIED_CONFIG_FILE")
-    if not modified_file or not os.path.exists(modified_file):
-        log("MODIFIED_CONFIG_FILE missing.")
-        sys.exit(1)
+    print(modified_file)
+    if not verify_file_exists(modified_file):
+        sys.exit(EXIT_FAILED)
 
     passed_ifaces = []
 
     for iface in get_up_interfaces():
-        if run(f"ping -I {iface} {config['PING_IP']} -c {config['PING_COUNT']}", True) == 0:
-            log(f"Baseline OK: {iface}")
+        cmd = f"ping -I {iface} {config['PING_IP']} -c {config['PING_COUNT']}"
+        _, _, rc = run_local_command(cmd, allow_fail=True)
+
+        if rc == 0:
+            log("Baseline OK: %s", iface)
             passed_ifaces.append(iface)
 
     if not passed_ifaces:
-        log("No interfaces passed baseline.")
-        sys.exit(1)
+        log("No interfaces passed baseline.", level="FAIL")
+        sys.exit(EXIT_FAILED)
 
     config["PASSED_INTERFACES"] = passed_ifaces
 
-    # Create backup
+    # -------- Backup --------
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_file = f"{ROOT_DIR}/sysupgrade_backup_{ts}.tar.gz"
-    run(f"sysupgrade -b {backup_file}")
 
-    if not os.path.exists(backup_file):
-        log("Backup creation failed.")
-        sys.exit(1)
+    _, _, rc = run_local_command(f"sysupgrade -b {backup_file}")
+    if rc != 0 or not os.path.exists(backup_file):
+        log("Backup creation failed.", level="FAIL")
+        sys.exit(EXIT_FAILED)
 
     with open(BACKUP_PATH_FILE, "w") as f:
         f.write(backup_file)
 
-    log(f"Backup created: {backup_file}")
+    log("Backup created: %s", backup_file)
 
-    # Apply modified config
-    run(f"tar -xzf {modified_file} -C /")
-    run("sync")
+    # -------- Apply Modified Config --------
+    run_local_command(f"tar -xzf {modified_file} -C /")
+    run_local_command("sync")
 
     with open(STATE_FILE, "w") as f:
         f.write("1")
-
+    print("REBOOT_TRIGGER")  # Required for automation detection
     update_rc_local(json.dumps(config))
 
     log("Rebooting after config push...")
-    run("reboot", True)
+    run_local_command("reboot", allow_fail=True)
+
 
 # ==================================================
 # ================= PHASE 1 ========================
@@ -171,44 +168,44 @@ def phase_after_first_reboot(config):
 
     time.sleep(15)
 
-    target_ifaces = config.get("PASSED_INTERFACES", [])
     any_fail = False
 
-    for iface in target_ifaces:
-        if run(f"ping -I {iface} {config['PING_IP']} -c {config['PING_COUNT']}", True) != 0:
-            log(f"Failed after reboot: {iface}")
+    for iface in config.get("PASSED_INTERFACES", []):
+        cmd = f"ping -I {iface} {config['PING_IP']} -c {config['PING_COUNT']}"
+        _, _, rc = run_local_command(cmd, allow_fail=True)
+
+        if rc != 0:
+            log("Failed after reboot: %s", iface, level="FAIL")
             any_fail = True
         else:
-            log(f"Still working: {iface}")
+            log("Still working: %s", iface, level="PASS")
 
     if not any_fail:
-        print("CONFIG PUSH SUCCESS")
+        log("CONFIG PUSH SUCCESS", level="PASS")
         full_cleanup()
-        sys.exit(0)
+        sys.exit(EXIT_SUCCESS)
 
     # -------- Rollback --------
-    print("ROLLBACK TRIGGERED")
-    log("Restoring backup...")
+    log("ROLLBACK TRIGGERED")
 
-    if not os.path.exists(BACKUP_PATH_FILE):
-        log("Backup path file missing.")
-        sys.exit(1)
+    if not verify_file_exists(BACKUP_PATH_FILE):
+        sys.exit(EXIT_FAILED)
 
     with open(BACKUP_PATH_FILE, "r") as f:
         backup_src = f.read().strip()
 
-    if not os.path.exists(backup_src):
-        log("Backup archive missing.")
-        sys.exit(1)
+    if not verify_file_exists(backup_src):
+        sys.exit(EXIT_FAILED)
 
     with open(STATE_FILE, "w") as f:
         f.write("2")
 
-    run(f"tar -xzf {backup_src} -C /")
-    run("sync")
+    run_local_command(f"tar -xzf {backup_src} -C /")
+    run_local_command("sync")
 
     log("Rebooting for rollback...")
-    run("reboot", True)
+    run_local_command("reboot", allow_fail=True)
+
 
 # ==================================================
 # ================= PHASE 2 ========================
@@ -222,18 +219,24 @@ def phase_after_second_reboot(config):
     success = True
 
     for iface in config.get("PASSED_INTERFACES", []):
-        if run(f"ping -I {iface} {config['PING_IP']} -c {config['PING_COUNT']}", True) != 0:
-            log(f"Recovery failed: {iface}")
+        cmd = f"ping -I {iface} {config['PING_IP']} -c {config['PING_COUNT']}"
+        _, _, rc = run_local_command(cmd, allow_fail=True)
+
+        if rc != 0:
+            log("Recovery failed: %s", iface, level="FAIL")
             success = False
         else:
-            log(f"Recovery OK: {iface}")
+            log("Recovery OK: %s", iface, level="PASS")
 
     if success:
-        log("System recovered successfully.")
+        log("System recovered successfully.", level="PASS")
     else:
-        log("Recovery incomplete.")
+        log("Recovery incomplete.", level="FAIL")
 
     full_cleanup()
+
+    sys.exit(EXIT_SUCCESS if success else EXIT_FAILED)
+
 
 # ==================================================
 # ================= MAIN ===========================
@@ -241,14 +244,11 @@ def phase_after_second_reboot(config):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("config")
-    args = parser.parse_args()
+    if len(sys.argv) < 2:
+        log("CONFIGURATION argument missing", level="FAIL")
+        sys.exit(EXIT_FAILED)
 
-    raw = args.config.split("CONFIGURATION=", 1)[-1] \
-        if "CONFIGURATION=" in args.config else args.config
-
-    cfg = json.loads(raw)
+    config = parse_configuration(sys.argv[1])
 
     if not os.path.exists(STATE_FILE):
         phase = 0
@@ -260,11 +260,12 @@ if __name__ == "__main__":
             phase = 0
 
     if phase == 0:
-        phase_initial(cfg)
+        phase_initial(config)
     elif phase == 1:
-        phase_after_first_reboot(cfg)
+        phase_after_first_reboot(config)
     elif phase == 2:
-        phase_after_second_reboot(cfg)
+        phase_after_second_reboot(config)
+
 
 
 
