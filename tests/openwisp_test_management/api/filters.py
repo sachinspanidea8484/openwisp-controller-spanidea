@@ -9,7 +9,7 @@ TestCase = load_model("TestCase")
 TestSuite = load_model("TestSuite")
 TestSuiteExecution = load_model("TestSuiteExecution")
 TestDeviceGroup = load_model("TestDeviceGroup")
-from ..base.models import TestTypeChoices  # ADD THIS IMPORT
+from ..base.models import TestTypeChoices  
 
 
 

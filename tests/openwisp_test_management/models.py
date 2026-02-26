@@ -52,7 +52,7 @@ class TestSuiteCase(AbstractTestSuiteCase):
     class Meta(AbstractTestSuiteCase.Meta):
         abstract = False
         swappable = swappable_setting("test_management", "TestSuiteCase")
-        default_permissions = ()  # ← Add this line to prevent permission creation
+        default_permissions = ()  #  Add this line to prevent permission creation
 
 
 
@@ -80,7 +80,7 @@ class TestSuiteExecutionDevice(AbstractTestSuiteExecutionDevice):
     class Meta(AbstractTestSuiteExecutionDevice.Meta):
         abstract = False
         swappable = swappable_setting("test_management", "TestSuiteExecutionDevice")
-        default_permissions = ()  # ← This disables default add, change, delete, view permissions
+        default_permissions = ()  
 
 
 class TestCaseExecution(AbstractTestCaseExecution):
@@ -90,7 +90,7 @@ class TestCaseExecution(AbstractTestCaseExecution):
     class Meta(AbstractTestCaseExecution.Meta):
         abstract = False
         swappable = swappable_setting("test_management", "TestCaseExecution")
-        default_permissions = ()  # ← This disables default permissions
+        default_permissions = () 
 
 
 
@@ -111,7 +111,7 @@ class TestDeviceGroupDevice(AbstractTestDeviceGroupDevice):
     class Meta(AbstractTestDeviceGroupDevice.Meta):
         abstract = False
         swappable = swappable_setting("test_management", "TestDeviceGroupDevice")
-        default_permissions = ()  # Disable default permissions
+        default_permissions = ()  
 
 class ExecutionArtifact(AbstractExecutionArtifact):
 

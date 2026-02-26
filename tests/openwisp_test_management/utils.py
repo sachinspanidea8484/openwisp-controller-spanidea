@@ -1,198 +1,3 @@
-# import zipfile
-# import requests
-
-# from io import BytesIO
-# import os
-# import logging
-# from django.core.files.storage import default_storage
-
-# logger = logging.getLogger(__name__)
-# from .settings import EXECUTOR_SERVER_IP ,OPENWISP_SERVER_IP ,MEDIA_URL
-
-
-
-
-
-# def build_testcase_scripts_zip(queryset):
-
-#     zip_buffer = BytesIO()
- 
-#     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
- 
-#         # ================= TEST CASE FILES =================
-
-#         for tc in queryset:
-
-#             test_case_id = (tc.test_case_id or "").strip()
- 
-#             if not test_case_id:
-
-#                 logger.warning(f"Skipping TestCase {tc.pk}: missing test_case_id")
-
-#                 continue
- 
-#             folder_name = test_case_id
- 
-#             if tc.robot_script and tc.test_type == 1:
-
-#                 robot_name = tc.robot_script.name
-
-#                 if default_storage.exists(robot_name):
-
-#                     ext = os.path.splitext(robot_name)[1] or ".robot"
-
-#                     with default_storage.open(robot_name, "rb") as f:
-
-#                         zip_file.writestr(
-
-#                             f"{folder_name}/{folder_name}{ext}", f.read()
-
-#                         )
- 
-#             if tc.python_script:
-
-#                 python_name = tc.python_script.name
-
-#                 if default_storage.exists(python_name):
-
-#                     ext = os.path.splitext(python_name)[1] or ".py"
-
-#                     with default_storage.open(python_name, "rb") as f:
-
-#                         zip_file.writestr(
-
-#                             f"{folder_name}/{folder_name}{ext}", f.read()
-
-#                         )
- 
-#         # ================= API BUNDLE (ROOT LEVEL) =================
-
-#         api_zip_buffer = fetch_api_zip()
- 
-#         if api_zip_buffer:
-
-#             with zipfile.ZipFile(api_zip_buffer, "r") as api_zip:
-
-#                 for member in api_zip.infolist():
-
-#                     if member.is_dir():
-
-#                         continue
- 
-#                     # ✅ avoid directory traversal
-
-#                     filename = os.path.basename(member.filename)
-
-#                     if not filename:
-
-#                         continue
- 
-#                     zip_file.writestr(
-
-#                         f"api_bundle/{filename}",
-
-#                         api_zip.read(member.filename)
-
-#                     )
- 
-#     zip_buffer.seek(0)
-
-#     return zip_buffer
- 
- 
-# def fetch_api_zip():
-
-#     url = f"${EXECUTOR_SERVER_IP}/"
-    
- 
-#     try:
-
-#         response = requests.get(url, timeout=30)
-
-#         response.raise_for_status()
- 
-#         if "zip" not in response.headers.get("Content-Type", ""):
-
-#             logger.warning("API did not return a ZIP file")
-
-#             return None
- 
-#         return BytesIO(response.content)
- 
-#     except requests.RequestException as e:
-
-#         logger.error(f"API ZIP fetch failed: {e}")
-
-#         return None
- 
-
-
-
-
-
-
-
-
-# def build_testcase_scripts_zip_old(queryset):
-#     """
-#     Creates a ZIP containing:
-#     <test_case_id>/
-#         <test_case_id>.robot
-#         <test_case_id>.py
-
-#     - Validates file existence
-#     - Skips missing files
-#     - Logs warnings instead of crashing
-#     """
-
-#     zip_buffer = BytesIO()
-
-#     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-#         for tc in queryset:
-#             test_case_id = (tc.test_case_id or "").strip()
-
-#             # ✅ Validate Test Case ID
-#             if not test_case_id:
-#                 logger.warning(f"Skipping TestCase {tc.pk}: missing test_case_id")
-#                 continue
-
-#             folder_name = test_case_id
-
-#             # ================= ROBOT SCRIPT =================
-#             if tc.robot_script:
-#                 robot_name = tc.robot_script.name  # storage-relative path
-
-#                 if default_storage.exists(robot_name):
-#                     ext = os.path.splitext(robot_name)[1] or ".robot"
-#                     zip_path = f"{folder_name}/{folder_name}{ext}"
-
-#                     with default_storage.open(robot_name, "rb") as f:
-#                         zip_file.writestr(zip_path, f.read())
-#                 else:
-#                     logger.warning(
-#                         f"Robot script missing for TestCase {test_case_id}: {robot_name}"
-#                     )
-
-#             # ================= PYTHON SCRIPT =================
-#             if tc.python_script:
-#                 python_name = tc.python_script.name
-
-#                 if default_storage.exists(python_name):
-#                     ext = os.path.splitext(python_name)[1] or ".py"
-#                     zip_path = f"{folder_name}/{folder_name}{ext}"
-
-#                     with default_storage.open(python_name, "rb") as f:
-#                         zip_file.writestr(zip_path, f.read())
-#                 else:
-#                     logger.warning(
-#                         f"Python script missing for TestCase {test_case_id}: {python_name}"
-#                     )
-
-#     zip_buffer.seek(0)
-#     return zip_buffer
-
-
-
 import zipfile
 import requests
 from io import BytesIO
@@ -238,9 +43,9 @@ def build_all_testcases_zip(queryset, include_media_test_case=True):
         
         if device_zip_buffer:
             main_zip.writestr("Device(NB).zip", device_zip_buffer.getvalue())
-            logger.info("✓ Added Device(NB).zip to main archive")
+            logger.info("Added Device(NB).zip to main archive")
         else:
-            logger.warning("⚠ Device(NB).zip is empty or failed")
+            logger.warning("Device(NB).zip is empty or failed")
         
         # ================= 2. FETCH Robot_Framework.zip =================
         logger.info("Fetching Robot_Framework.zip from executor server...")
@@ -248,12 +53,12 @@ def build_all_testcases_zip(queryset, include_media_test_case=True):
         
         if robot_zip_buffer:
             main_zip.writestr("Robot_Framework.zip", robot_zip_buffer.getvalue())
-            logger.info("✓ Added Robot_Framework.zip to main archive")
+            logger.info("Added Robot_Framework.zip to main archive")
         else:
-            logger.warning("⚠ Robot_Framework.zip fetch failed or empty")
+            logger.warning("Robot_Framework.zip fetch failed or empty")
     
     main_zip_buffer.seek(0)
-    logger.info(f"✓ All_TestCase.zip created successfully ({len(main_zip_buffer.getvalue())} bytes)")
+    logger.info(f"All_TestCase.zip created successfully ({len(main_zip_buffer.getvalue())} bytes)")
     
     return main_zip_buffer
 
@@ -344,7 +149,7 @@ def build_device_testcases_zip(queryset, include_media_test_case=True):
             logger.info(f"Added {file_count} files matching database test_case_id")
     
     zip_buffer.seek(0)
-    logger.info(f"✓ Device(NB).zip created with {file_count} files ({len(zip_buffer.getvalue())} bytes)")
+    logger.info(f"Device(NB).zip created with {file_count} files ({len(zip_buffer.getvalue())} bytes)")
     
     return zip_buffer
 def fetch_robot_framework_zip():
@@ -377,13 +182,13 @@ def fetch_robot_framework_zip():
         try:
             with zipfile.ZipFile(zip_buffer, 'r') as test_zip:
                 file_list = test_zip.namelist()
-                logger.info(f"✓ Received valid ZIP with {len(file_list)} files")
+                logger.info(f"Received valid ZIP with {len(file_list)} files")
         except zipfile.BadZipFile:
             logger.error("Received data is not a valid ZIP file")
             return None
         
         zip_buffer.seek(0)
-        logger.info(f"✓ Robot Framework ZIP fetched successfully ({len(response.content)} bytes)")
+        logger.info(f"Robot Framework ZIP fetched successfully ({len(response.content)} bytes)")
         
         return zip_buffer
     

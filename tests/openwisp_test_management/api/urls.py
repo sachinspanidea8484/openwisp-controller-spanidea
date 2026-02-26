@@ -27,9 +27,8 @@ urlpatterns = [
         views.test_category_detail,
         name="api_test_category_detail",
     ),
-
     # ========================================================================
-    # TEST CASE ENDPOINTS
+    # TEST EXECUTION ENDPOINTS
     # ========================================================================
     # List all Exections OR create new Execution
     path(
@@ -43,6 +42,45 @@ urlpatterns = [
         views.test_execution_detail,
         name="api_test_execution_detail",
     ),
+    path(
+        "execution/<uuid:execution_id>/start-execution/",
+        views.test_execution_start,
+        name="api_test_execution_start",
+    ),
+
+    path(
+        "execution/<uuid:execution_id>/history/",
+        views.test_execution_history,
+        name="api_test_execution_history",
+    ),
+    path(
+        "execution/<uuid:execution_id>/all-history/",
+        views.test_execution_all_history,
+        name="api_test_execution_all_history",
+    ),
+    path(
+        "execution/<uuid:execution_id>/history/export/",
+        views.test_execution_history_export,
+        name="api_test_execution_history_export",
+    ),
+    path(
+        "execution/<uuid:execution_id>/abort-execution/",
+        views.test_execution_abort_view,
+        name="api_test_execution_abort",
+    ),
+    path(
+        "execution/<uuid:execution_id>/re-execute/",
+        views.test_execution_re_execute,
+        name="api_test_execution_re_execute"
+    ),
+    path(
+        "execution/<uuid:execution_id>/re-execute-selected/",
+        views.test_execution_re_execute_selected,
+        name="api_test_execution_re_execute_selected"
+    ),
+    # ========================================================================
+    # TEST CASE ENDPOINTS
+    # ========================================================================
     path(
         "test-cases/",
         views.test_case_list,
@@ -133,50 +171,11 @@ urlpatterns = [
     ),
 
 
-    path(
-        "execution/<uuid:execution_id>/start-execution/",
-        views.test_execution_start,
-        name="api_test_execution_start",
-    ),
-
-    path(
-        "execution/<uuid:execution_id>/history/",
-        views.test_execution_history,
-        name="api_test_execution_history",
-    ),
-    path(
-        "execution/<uuid:execution_id>/all-history/",
-        views.test_execution_all_history,
-        name="api_test_execution_all_history",
-    ),
-    path(
-        "execution/<uuid:execution_id>/history/export/",
-        views.test_execution_history_export,
-        name="api_test_execution_history_export",
-    ),
-    path(
-        "execution/<uuid:execution_id>/abort-execution/",
-        views.test_execution_abort_view,
-        name="api_test_execution_abort",
-    ),
-    path(
-        "execution/<uuid:execution_id>/re-execute/",
-        views.test_execution_re_execute,
-        name="api_test_execution_re_execute"
-    ),
-    path(
-        "execution/<uuid:execution_id>/re-execute-selected/",
-        views.test_execution_re_execute_selected,
-        name="api_test_execution_re_execute_selected"
-    ),
-    
-
-
     # Internal APIS  
     path(
         "category/get-test-cases/",
         executor_views.get_categories_test_cases,
-        name="api_categories_test_cases",  # Fixed typo: cateogries -> categories
+        name="api_categories_test_cases",  
     ),
 
     path(
@@ -189,13 +188,11 @@ urlpatterns = [
         executor_views.upload_allure_report,
         name="api_upload_allure_report",
     ),
-        # Test Case Execution endpoints
     path(
         "test-result/",
         executor_views.TestResultView.as_view(),
         name="api_test_result",
     ),
-
     path(
         "test-result/running/",
         executor_views.TestRunningResultView.as_view(),
@@ -203,39 +200,39 @@ urlpatterns = [
     ),
     path(
         "test-group/<uuid:suite_id>/details/",
-                executor_views.get_test_suite_details,
-                name="api_test_suite_details",
+        executor_views.get_test_suite_details,
+        name="api_test_suite_details",
     ),
      path(
-                "device-groups/<uuid:group_id>/devices/",
-                executor_views.get_device_group_devices,
-                name="api_device_group_devices",
-            ),
+        "device-groups/<uuid:group_id>/devices/",
+        executor_views.get_device_group_devices,
+        name="api_device_group_devices",
+    ),
     path(
-                "devices/",
-                executor_views.get_available_devices,
-                name="api_get_available_devices",  # Made name more specific to avoid conflicts
-            ),
+        "devices/",
+        executor_views.get_available_devices,
+        name="api_get_available_devices",  
+    ),
 
 
     path(
-                "device-groups/",
-                executor_views.TestDeviceGroupViewSet.as_view({
-                    "get": "list",      # GET /device-groups/
-                    "post": "create"    # POST /device-groups/
-                }),
-                name="device-group-list",
-            ),
-            path(
-                "test-suite/<uuid:suite_id>/details/",
-                executor_views.get_test_suite_details,
-                name="api_test_suite_details",
-            ),
-                      path(
-                "device-groups/<uuid:group_id>/devices/<uuid:execution_id>",
-                executor_views.get_device_group_devices,
-                name="api_device_group_devices",
-            ),
+        "device-groups/",
+        executor_views.TestDeviceGroupViewSet.as_view({
+            "get": "list",      # GET /device-groups/
+            "post": "create"    # POST /device-groups/
+        }),
+        name="device-group-list",
+    ),
+    path(
+        "test-suite/<uuid:suite_id>/details/",
+        executor_views.get_test_suite_details,
+        name="api_test_suite_details",
+    ),
+    path(
+        "device-groups/<uuid:group_id>/devices/<uuid:execution_id>",
+        executor_views.get_device_group_devices,
+        name="api_device_group_devices",
+    ),
 
     # Un Use APIS  
     # path(

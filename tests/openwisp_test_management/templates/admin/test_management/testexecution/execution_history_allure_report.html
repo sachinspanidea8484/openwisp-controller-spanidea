@@ -33,7 +33,7 @@
         letter-spacing: 0.5px;
     }
 
-    /* Summary Card - OpenWISP Style */
+    /* Summary Card */
     .summary-content {
         padding: 10px 20px 0px;
     }
@@ -105,7 +105,7 @@
         border: 1px solid #bce8f1;
     }
 
-    /* Device Cards - OpenWISP Style */
+    /* Device Cards */
     .device-card {
         border: 1px solid #e3e3e3;
         border-radius: 4px;
@@ -145,7 +145,7 @@
         color: #333;
     }
 
-    /* Progress Bar - OpenWISP Style */
+    /* Progress Bar */
     .progress-container {
         display: flex;
         align-items: center;
@@ -180,7 +180,7 @@
         white-space: nowrap;
     }
 
-    /* Test Results Table - OpenWISP Style */
+    /* Test Results Table */
     .results-table {
         width: 100%;
         border-collapse: collapse;
@@ -222,7 +222,7 @@
         color: #666;
     }
 
-    /* Action Buttons - OpenWISP Style */
+    /* Action Buttons */
     .action-buttons {
         display: flex;
         gap: 8px;
@@ -281,7 +281,7 @@
         height: 14px;
     }
 
-    /* Error Message - OpenWISP Style */
+    /* Error Message */
     .error-section {
         background: #f2dede;
         border-top: 1px solid #ebccd1;
@@ -298,7 +298,7 @@
         margin-right: 20px;
     }
 
-    /* Loading State - OpenWISP Style */
+    /* Loading State */
     .loading-container {
         text-align: center;
         padding: 60px 20px;
@@ -434,11 +434,9 @@ function getCookie(name) {
 const csrftoken = getCookie('csrftoken');
 const executionId = '{{ execution_id }}';
 
-// Display execution data with OpenWISP styling
+// Display execution data 
 function displayExecutionData(data) {
-    // Update page title
     
-    // Update summary
     const summaryRows = document.getElementById('summary-rows');
     summaryRows.innerHTML = `
         <div class="summary-row">
@@ -485,7 +483,7 @@ function displayExecutionData(data) {
                 progressClass = 'warning';
             }
             
-                        // Build test results table
+            // Build test results table
             let testResultsHtml = '';
             if (device.test_cases && device.test_cases.length > 0) {
                 let tableRows = '';
@@ -564,22 +562,6 @@ function displayExecutionData(data) {
             let errorHtml = '';
             if (device.device_execution_status === 'failed' && device.error_message) {
                 const errorText = device.error_message.substring(0, 200);
-                // errorHtml = `
-                //     <div class="error-section">
-                //         <div class="error-text">
-                //             <strong>Error:</strong> ${errorText}${device.error_message.length > 200 ? '...' : ''}
-                //         </div>
-                //         <button class="btn-action warning" 
-                //                 onclick="retryDeviceTests('${device.device_execution_id}')" 
-                //                 title="Retry all failed tests">
-                //             <svg class="btn-icon" fill="currentColor" viewBox="0 0 20 20">
-                //                 <path d="M10 3v2a5 5 0 0 0-3.54 8.54l-1.41 1.41A7 7 0 0 1 10 3zm4.95 2.05A7 7 0 0 1 10 17v-2a5 5 0 0 0 3.54-8.54l1.41-1.41zM10 20l-4-4 4-4v8zm0-12V0l4 4-4 4z"/>
-                //             </svg>
-                //             Retry All Failed
-                //         </button>
-                //     </div>
-                // `;
-
                  errorHtml = ``;
             }
             
@@ -614,8 +596,6 @@ function displayExecutionData(data) {
     }
 }
 
-// Simplified retry function without CSRF token
-// Update the retryTest function
 function retryTest(executionId) {
     if (!confirm('Are you sure you want to retry this test?')) {
         return;
@@ -630,10 +610,10 @@ function retryTest(executionId) {
     fetch(`/api/v1/test-management/test-case-execution/${executionId}/retry/`, {
         method: 'POST',
         headers: {
-            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'X-CSRFToken': csrftoken,  
             'Content-Type': 'application/json'
         },
-        credentials: 'same-origin',  // Important for CSRF
+        credentials: 'same-origin',  
         body: JSON.stringify({})
     })
     .then(response => {
@@ -660,7 +640,7 @@ function retryTest(executionId) {
     });
 }
 
-// Update the retryDeviceTests function similarly
+
 function retryDeviceTests(deviceExecutionId) {
     if (!confirm('Are you sure you want to retry all failed tests for this device?')) {
         return;
@@ -674,10 +654,10 @@ function retryDeviceTests(deviceExecutionId) {
     fetch(`/api/v1/test-management/device-execution/${deviceExecutionId}/retry-all/`, {
         method: 'POST',
         headers: {
-            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'X-CSRFToken': csrftoken,  
             'Content-Type': 'application/json'
         },
-        credentials: 'same-origin',  // Important for CSRF
+        credentials: 'same-origin',  
         body: JSON.stringify({})
     })
     .then(response => {

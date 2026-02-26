@@ -1,7 +1,6 @@
 (function($) {
     'use strict';
     
-    let allDevices = [];
     let selectedDeviceIds = new Set();
     let organizationDevices = [];
     $(document).ready(function () {
@@ -81,13 +80,10 @@
         }
     }
     
-// In your device_group_form.js, update the loadOrganizationDevices function:
 
 function loadOrganizationDevices(orgId) {
-    // Show loading state
     $('#available-devices').html('<option disabled>Loading devices...</option>');
     
-    // Use the correct URL pattern
     const url = '/api/v1/test-management/get-organization-devices/';
     
     // Fetch devices from server
@@ -233,8 +229,7 @@ function loadOrganizationDevices(orgId) {
     }
     
     function checkDeviceLimit(orgId) {
-        // This could be enhanced to fetch actual device limits from the server
-        // For now, just show the selected count
+        
         const selectedCount = selectedDeviceIds.size;
         if (selectedCount > 0) {
             $('#device-limit-info').show();

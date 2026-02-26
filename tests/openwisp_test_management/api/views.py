@@ -243,15 +243,15 @@ class TestCategoryListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
     API endpoint for listing and creating test categories
     
-    GET  → List all categories (with filters, search, pagination)
-    POST → Create new category
+    GET  : List all categories (with filters, search, pagination)
+    POST : Create new category
     """
     # Basic configuration
     # SQL: SELECT * FROM test_category
     queryset = TestCategory.objects.all()
 
-    # Model instance → JSON (for response)
-    # JSON → Model instance (for creation)
+    # Model instance : JSON (for response)
+    # JSON : Model instance (for creation)
     serializer_class = TestCategorySerializer
 
     # Instead of returning 1000 categories
@@ -328,11 +328,11 @@ class TestExecutionListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
     API endpoint for listing and creating test executions
     
-    GET  → List all test executions (with filters, search, pagination)
+    GET  : List all test executions (with filters, search, pagination)
     - Superusers see all test executions
     - Regular users see only test executions they created
 
-    POST → Create new test execution
+    POST : Create new test execution
 
         Example:
         # For Individual test cases
@@ -440,8 +440,8 @@ class TestExecutionListView(ProtectedAPIMixin, generics.ListCreateAPIView):
 
         return qs
 
-    # Model instance → JSON (for response)
-    # JSON → Model instance (for creation)
+    # Model instance : JSON (for response)
+    # JSON : Model instance (for creation)
     serializer_class = TestSuiteExecutionSerializer
 
     # Instead of returning 1000 test executions
@@ -712,47 +712,6 @@ class TestExecutionDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyA
         
         return super().perform_destroy(instance)
 
-class TestExecutionStartViewOld(ProtectedExternalAPIMixin, APIView):
-    """
-    API endpoint for starting a test execution
-    
-    POST /api/v1/test-management/execution/<uuid:pk>/start-execution/
-    - Start a test execution
-    """
-
-    def post(self, request, execution_id):
-        from ..tasks import execute_test_suite as execute_test_suite_task
-        execution = get_object_or_404(TestExecution, id=execution_id)
-
-        # 🔒 Safety checks
-        if execution.is_executed:
-            return Response(
-                {"detail": "Test Execution is already executed."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Optional: permission check
-        if execution.created_by != request.user:
-            return Response(
-                {"detail": "Not allowed to start this execution."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Update status
-        execution.is_executed = True
-        execution.save(update_fields=['is_executed'])
-
-        # 🚀 Trigger async execution
-        execute_test_suite_task.delay(str(execution.id))
-
-        return Response(
-            {
-                "execution_id": execution.id,
-                "status": execution.status,
-                "message": "Execution started successfully"
-            },
-            status=status.HTTP_202_ACCEPTED
-        )
 
 class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
     """
@@ -819,7 +778,7 @@ class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
             ).exclude(config_file__isnull= False).exclude(config_file="").only("device_id", "testcase_id")
         }
 
-        # 3️⃣ Parse uploaded artifacts
+        # Parse uploaded artifacts
         uploaded = {}
         invalid_keys = []
 
@@ -1002,7 +961,7 @@ class TestExecutionReExecuteSelectedView(ProtectedExternalAPIMixin, APIView):
             device_tests_info = serializer.validated_data["device_tests_info"]
 
             with transaction.atomic():
-                # 🔁 Create new test execution
+                # Create new test execution
                 new_execution = create_test_execution_clone_for_selected_tests(execution, device_tests_info, request)
                 new_execution.is_executed= True
                 new_execution.save()
@@ -1637,8 +1596,8 @@ class TestCaseListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
     API endpoint for listing and creating test cases
 
-    GET  → List test cases
-    POST → Create test case
+    GET  : List test cases
+    POST : Create test case
     """
     serializer_class = TestCaseSerializer
     pagination_class = ListViewPagination
@@ -1671,10 +1630,10 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
     """
     API endpoint for retrieving, updating, and deleting a test case
 
-    GET    → Retrieve test case details
-    PUT    → Update test case
-    PATCH  → Partial update
-    DELETE → Delete test case (only if deletable)
+    GET    : Retrieve test case details
+    PUT    : Update test case
+    PATCH  : Partial update
+    DELETE : Delete test case (only if deletable)
     """
     lookup_field = "pk"
     parser_classes = (MultiPartParser, FormParser)
@@ -1878,8 +1837,8 @@ class TestCaseImportApiView(ProtectedAPIMixin, generics.CreateAPIView):
 # ============================================================================
 class TestSuiteListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
-    GET  → list test groups 
-    POST → create test group
+    GET  : list test groups 
+    POST : create test group
     """
     serializer_class = TestSuiteSerializer
     pagination_class = ListViewPagination
@@ -1896,6 +1855,11 @@ class TestSuiteListView(ProtectedAPIMixin, generics.ListCreateAPIView):
 
 
 class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET    : detail with test_cases_detail 
+    PUT/PATCH : update accepts test_case_ids[]
+    Delete test case (only if deletable)
+    """
     queryset = TestSuite.objects.all()
 
     def get_serializer_class(self):
@@ -1926,7 +1890,7 @@ class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVi
 class TestCasesByCategoryView(ProtectedAPIMixin, generics.ListAPIView):
     """
     GET /test-management/test-cases-by-category/?category_ids=<uuid>,<uuid>
-    - If no category_ids provided → returns all test cases
+    - If no category_ids provided : returns all test cases
     """
     serializer_class = TestCaseMinimalSerializer
 

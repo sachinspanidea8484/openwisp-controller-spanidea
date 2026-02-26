@@ -1017,7 +1017,7 @@ class TestCaseSerializer(ValidatedModelSerializer):
                 "Invalid Robot file: missing '*** Test Cases ***' section"
             )
 
-        # ✅ Write back modified content
+        # Write back modified content
         file.seek(0)
         file.file.write(content.encode("utf-8"))
         file.seek(0)
@@ -1071,15 +1071,12 @@ class TestSuiteCaseSerializer(serializers.ModelSerializer):
 
 class TestSuiteListSerializer(TestSuiteSerializer):
     """Lightweight serializer for list views"""
-    # category_name = serializers.CharField(source="category.name", read_only=True)
     
     class Meta(BaseMeta):
         model = TestSuite
         fields = [
             "id",
             "name",
-            # "category",
-            # "category_name",
             "is_active",
             "test_case_count",
             "execution_count",
@@ -1089,7 +1086,6 @@ class TestSuiteListSerializer(TestSuiteSerializer):
         read_only_fields = BaseMeta.read_only_fields + [
             "test_case_count",
             "execution_count",
-            # "category_name",
         ]        
 
 
@@ -1124,7 +1120,6 @@ class TestSuiteExecutionDeviceSerializer(serializers.ModelSerializer):
             "completed_at",
             "output",
         ]
-        # read_only_fields = ["started_at", "completed_at"]
 
 from django.contrib.auth import get_user_model
 
@@ -1162,7 +1157,6 @@ class TestSuiteExecutionSerializer(serializers.ModelSerializer):
         read_only=True
     )
 
-    #status = serializers.IntegerField(read_only=True)
     status_display = serializers.CharField(read_only=True)
     active_device_count = serializers.IntegerField(read_only=True)
     is_re_execution = serializers.BooleanField(read_only=True)
@@ -1547,7 +1541,6 @@ class TestSuiteExecutionSerializerOld(ValidatedModelSerializer):
         help_text=_("List of device IDs to execute the test suite on")
     )
     device_count = serializers.IntegerField(read_only=True)
-    # status_summary = serializers.SerializerMethodField()
     
     class Meta(BaseMeta):
         model = TestSuiteExecution
@@ -1559,7 +1552,6 @@ class TestSuiteExecutionSerializerOld(ValidatedModelSerializer):
             "device_ids",
             "device_count",
             "is_executed",
-            # "status_summary",
             "created",
             "modified",
         ]
@@ -1568,10 +1560,6 @@ class TestSuiteExecutionSerializerOld(ValidatedModelSerializer):
             "device_count",
             # "status_summary",
         ]
-    
-    # def get_status_summary(self, obj):
-    #     """Return status summary"""
-    #     return obj.status_summary
     
     def validate_device_ids(self, value):
         """Validate device IDs have working SSH connections"""
@@ -1741,15 +1729,6 @@ class TestCaseExecutionResultSerializer(serializers.Serializer):
             TestExecutionStatus.CANCELLED: []  # Terminal state
         }
         
-        # if current_status in valid_transitions:
-        #     if new_status not in valid_transitions[current_status] and new_status != current_status:
-        #         raise serializers.ValidationError({
-        #             "status": _(
-        #                 f"Invalid status transition from '{current_status}' to '{new_status}'. "
-        #                 f"Valid transitions: {', '.join(valid_transitions[current_status])}"
-        #             )
-        #         })
-        
         return data
     
 
@@ -1776,16 +1755,7 @@ class TestSuiteExecutionDeleteSerializer(serializers.Serializer):
 # serializers.py
 class TestSuiteExecutionDeleteAllSerializer(serializers.Serializer):
     """Serializer for complete test data deletion"""
-    # confirm = serializers.BooleanField(
-    #     required=True,
-    #     help_text=_("Confirm deletion of ALL related test data including categories, test cases, and test suites")
-    # )
-    # force_delete = serializers.BooleanField(
-    #     required=False,
-    #     default=False,
-    #     help_text=_("Force delete even if test cases/categories are used elsewhere")
-    # )
-    
+
     def validate_confirm(self, value):
         """Ensure deletion is confirmed"""
         # if not value:
