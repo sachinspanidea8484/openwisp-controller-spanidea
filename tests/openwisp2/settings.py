@@ -14,6 +14,8 @@ EXECUTOR_SERVER_IP: str = os.getenv('EXECUTOR_SERVER_IP', "http://172.17.0.1:808
 OPENWISP_SERVER_IP: str = os.getenv('OPENWISP_SERVER_IP', "http://172.17.0.1:8000")
 OPENWISP_CONTROLLER_API_HOST: str = os.getenv('OPENWISP_SERVER_IP', "http://172.17.0.1:8000")
 SHOW_RE_EXECUTION : bool = True
+EXECUTION_HISTORY_AUTO_REFRESH_TIME: str = os.getenv('OPENWISP_SERVER_IP', 60)
+
 
 
 
@@ -405,7 +407,6 @@ EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-# EMAIL_HOST_USER = 'ashutoshmathur1711@gmail.com'
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 

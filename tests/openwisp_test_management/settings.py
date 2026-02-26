@@ -23,6 +23,9 @@ EMAIL_HOST_USER = getattr(
     settings, "EMAIL_HOST_USER", ""
 )
 
+EXECUTION_HISTORY_AUTO_REFRESH_TIME = getattr(
+    settings, "EXECUTION_HISTORY_AUTO_REFRESH_TIME", 60
+)
 
 
 

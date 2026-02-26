@@ -3134,6 +3134,8 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
         preserved_filters=self.get_preserved_filters(request),
         has_view_permission=True,
         show_re_execution= getattr(settings, "SHOW_RE_EXECUTION"),
+        execution_history_auto_refresh_time= getattr(settings, "EXECUTION_HISTORY_AUTO_REFRESH_TIME"),
+
         )
 
         return TemplateResponse(

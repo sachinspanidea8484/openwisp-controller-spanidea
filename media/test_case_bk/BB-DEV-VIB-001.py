@@ -1,134 +1,87 @@
-import subprocess
-import sys
-import os
-import time
-from datetime import datetime
+# START_DESCRIPTION
+# 1. Execute IMU/vibration sensor script or fallback method.
+# 2. Collect Gyroscope and Accelerometer data.
+# 3. Parse raw sensor output into structured values.
+# 4. Repeat sensor readings multiple times.
+# 5. Verify readings show variation across iterations.
+# 6. If variation detected, mark test as PASSED.
+# END_DESCRIPTION
 
-# === Config ===
+#!/usr/bin/env python3
+import sys, os, time
+from common_helper import log, run_local_command, EXIT_SUCCESS, EXIT_FAILED
+
 SENSOR_SCRIPT = "/usr/bin/read_sensor.py"
 NUM_READS = 5
-
-# Fallback sysfs paths
 GYRO_PATH = "/sys/bus/iio/devices/iio:device0"
 ACCEL_PATH = "/sys/bus/iio/devices/iio:device1"
 
 
-def log(message):
-    timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-    print(f"{timestamp} {message}")
-
-
-def run_local_command(command):
-    """Run a shell command and capture stdout/stderr."""
+def read_val(path):   #read the value from the function
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
-        return result.stdout.strip(), result.stderr.strip()
-    except Exception as e:
-        return "", str(e)
+        with open(path) as f: return f.read().strip()
+    except: return "0"
 
 
-# =====================
-# Fallback IMU readers
-# =====================
-def read_value(path):
-    try:
-        with open(path, "r") as f:
-            return f.read().strip()
-    except Exception:
-        return "0"
-
-
-def fallback_sensor_read():
-    """Directly read IMU sensor from sysfs, fallback if script not found."""
+def fallback_read():
     start = time.time()
 
-    # Read gyro
-    gyro_raw = {
-        "x": int(read_value(f"{GYRO_PATH}/in_anglvel_x_raw")),
-        "y": int(read_value(f"{GYRO_PATH}/in_anglvel_y_raw")),
-        "z": int(read_value(f"{GYRO_PATH}/in_anglvel_z_raw")),
-    }
-    gyro_scale = float(read_value(f"{GYRO_PATH}/in_anglvel_scale"))
+    gyro_raw = {k: int(read_val(f"{GYRO_PATH}/in_anglvel_{k}_raw")) for k in "xyz"}
+    gyro_scale = float(read_val(f"{GYRO_PATH}/in_anglvel_scale"))
     gyro = {k: round(v * gyro_scale, 3) for k, v in gyro_raw.items()}
 
-    # Read accel
-    accel_raw = {
-        "x": int(read_value(f"{ACCEL_PATH}/in_accel_x_raw")),
-        "y": int(read_value(f"{ACCEL_PATH}/in_accel_y_raw")),
-        "z": int(read_value(f"{ACCEL_PATH}/in_accel_z_raw")),
-    }
-    accel_scale = float(read_value(f"{ACCEL_PATH}/in_accel_scale"))
+    accel_raw = {k: int(read_val(f"{ACCEL_PATH}/in_accel_{k}_raw")) for k in "xyz"}
+    accel_scale = float(read_val(f"{ACCEL_PATH}/in_accel_scale"))
     accel = {k: round(v * accel_scale, 3) for k, v in accel_raw.items()}
 
-    elapsed = time.time() - start
-
-    output = f"Gyro: {gyro}\nAccel: {accel}\nRead + compute time: {elapsed:.6f} seconds"
-    return output
+    return f"Gyro: {gyro}\nAccel: {accel}\nRead time: {time.time()-start:.6f}s"
 
 
-def parse_sensor_data(output):
-    lines = output.strip().splitlines()
-    gyro_data = {}
-    accel_data = {}
-
-    for line in lines:
-        if line.startswith("Gyro:"):
-            gyro_str = line.replace("Gyro:", "").strip()
-            gyro_data = eval(gyro_str)
-        elif line.startswith("Accel:"):
-            accel_str = line.replace("Accel:", "").strip()
-            accel_data = eval(accel_str)
-
-    if not gyro_data or not accel_data:
-        raise ValueError("Missing Gyro or Accel data")
-
-    return gyro_data, accel_data
+def parse_data(out):
+    gyro = accel = None
+    for line in out.splitlines():
+        if line.startswith("Gyro:"): gyro = eval(line.replace("Gyro:", "").strip())
+        elif line.startswith("Accel:"): accel = eval(line.replace("Accel:", "").strip())
+    if not gyro or not accel: raise ValueError("Missing Gyro/Accel data")
+    return gyro, accel
 
 
-def verify_vibration_data():
-    log(f"[STEP 1] Reading vibration/IMU sensor data {NUM_READS} times...")
-
+def main():
+    log("[STEP 1] Starting Vibration/IMU Sensor Test (BB-DEV-VIB-001)")
     readings = []
 
-    for i in range(NUM_READS):
-        # Prefer sensor script if available
-        if os.path.isfile(SENSOR_SCRIPT):
-            output, error = run_local_command(f"python3 {SENSOR_SCRIPT}")
-            if error:
-                log(f"[WARN] Sensor script error, using fallback (iteration {i+1}): {error}")
-                output = fallback_sensor_read()
-        else:
-            output = fallback_sensor_read()
+    for i in range(1, NUM_READS + 1):
 
-        log(f"[INFO] Raw Sensor Data (iteration {i+1}):")
-        print(output)
+        if os.path.isfile(SENSOR_SCRIPT):
+            out, err, rc = run_local_command(f"python3 {SENSOR_SCRIPT}", allow_fail=True)
+            if rc != 0:
+                log("[WARN] Sensor script failed, using fallback", level="WARN")
+                out = fallback_read()
+        else:
+            out = fallback_read()
+
+        log("[INFO] Raw Sensor Data (iteration %d):", i)
+        for l in out.splitlines(): log("%s", l)
 
         try:
-            gyro_data, accel_data = parse_sensor_data(output)
-            log(f"[PARSED] Iteration {i+1} ... Gyro: {gyro_data}, Accel: {accel_data}")
-            readings.append((gyro_data, accel_data))
+            gyro, accel = parse_data(out)
+            log("[PARSED] Iteration %d ... Gyro: %s, Accel: %s", i, gyro, accel)
+            readings.append((gyro, accel))
         except Exception as e:
-            log(f"[ERROR] Iteration {i+1} failed to parse sensor data: {str(e)}")
-            return False
+            log("[FAIL] Iteration %d parse error: %s", i, str(e), level="FAIL")
+            sys.exit(EXIT_FAILED)
 
-    # STEP 2: Compare readings for variation
-    first_read = readings[0]
-    all_identical = all(r == first_read for r in readings)
+        time.sleep(1)
 
-    if all_identical:
-        log("[FAIL] All vibration readings are identical ... no variation detected.")
-        return False
-    else:
-        log("[PASS] Vibration readings show variation across samples.")
-        return True
+    if all(r == readings[0] for r in readings):
+        log("[FAIL] All vibration readings identical. No variation detected.", level="FAIL")
+        sys.exit(EXIT_FAILED)
+
+    log("[PASS] Vibration readings show variation across samples.", level="PASS")
+    log("[RESULT] SUCCESS ... Vibration/IMU sensor verification passed.", level="PASS")
+    sys.exit(EXIT_SUCCESS)
 
 
 if __name__ == "__main__":
-    success = verify_vibration_data()
-    if success:
-        log("[RESULT] SUCCESS ... Vibration/IMU sensor verification passed.")
-        sys.exit(0)
-    else:
-        log("[RESULT] FAILURE ... Vibration/IMU sensor verification failed.")
-        sys.exit(1)
+    main()
 

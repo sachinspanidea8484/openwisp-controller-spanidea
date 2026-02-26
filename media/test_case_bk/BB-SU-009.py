@@ -1,67 +1,86 @@
+# START_DESCRIPTION
+# 1. Retrieve watchdog status from system.
+# 2. Configure watchdog timeout value.
+# 3. Disable watchdog and confirm no reboot occurs.
+# 4. Enable watchdog and stop feeding it.
+# 5. Verify system reboot is triggered after timeout.
+# 6. If reboot behavior matches expectation, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
-import time
-import subprocess
-from datetime import datetime
-import sys
-# === EXIT CODES ===
-EXIT_SUCCESS = 0
-EXIT_FAILED = 1
-LOG_FILE = "/tmp/watchdog_test.log"
-def log(message):
-    timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-    msg = f"{timestamp} {message}"
-    print(msg)
-    with open(LOG_FILE, "a") as f:
-        f.write(msg + "\n")
+import sys, time
+from common_helper import (
+    log,
+    run_local_command,
+    parse_configuration,
+    EXIT_SUCCESS,
+    EXIT_FAILED
+)
+
+
 def run_cmd(cmd, desc):
-    log(f"[STEP] {desc}")
-    try:
-        result = subprocess.run(cmd, shell=True, check=True, text=True, capture_output=True)
-        if result.stdout.strip():
-            log(f"[INFO] {result.stdout.strip()}")
-        if result.stderr.strip():
-            log(f"[WARN] {result.stderr.strip()}")
-    except subprocess.CalledProcessError as e:
-        log(f"[FAIL] Command execution failed")
-        if e.stderr:
-            log(f"[ERROR] {e.stderr.strip()}")
-        raise
-def wait_sec(seconds, desc):
-    log(f"[STEP] {desc} ({seconds}s)")
-    for i in range(seconds):
-        log(f"[INFO] Waiting... {i+1}/{seconds} seconds")
+    log("[STEP] %s", desc)
+    out, err, rc = run_local_command(cmd, allow_fail=True)
+
+    if rc != 0:
+        log("[FAIL] Command failed: %s", cmd, level="FAIL")
+        if err:
+            log("[ERROR] %s", err, level="FAIL")
+        raise Exception("Command execution failed")
+
+    if out:
+        log("[INFO] %s", out)
+    if err:
+        log("[WARN] %s", err, level="WARN")
+
+
+def wait_sec(sec, desc):
+    log("[STEP] %s (%ds)", desc, sec)
+    for i in range(sec):
+        log("[INFO] Waiting... %d/%d seconds", i + 1, sec)
         time.sleep(1)
+
+
 def main():
-    log("WATCHDOG TEST STARTED")
+    config = parse_configuration(sys.argv[1] if len(sys.argv) > 1 else None)
+
+    timeout = config.get("timeout")
+    if not timeout:
+        log("[FAIL] Missing 'timeout' in CONFIGURATION", level="FAIL")
+        return EXIT_FAILED
+
+    log("WATCHDOG TEST STARTED (Timeout=%ds)", timeout)
 
     try:
-        # -------- CYCLE 1 --------
+        # ===== CYCLE 1 =====
         run_cmd("ubus call system watchdog", "Check Status")
-        run_cmd("ubus call system watchdog '{\"magicclose\": true}'", "Magic Close (Disable Watchdog)")
-        run_cmd("ubus call system watchdog '{\"timeout\":10}'", "Set Timeout 10s")
+        run_cmd("ubus call system watchdog '{\"magicclose\": true}'", "Disable Watchdog")
+        run_cmd(f"ubus call system watchdog '{{\"timeout\":{timeout}}}'", "Set Timeout")
         run_cmd("ubus call system watchdog '{\"stop\":true}'", "Stop Feed (Cycle 1)")
-        wait_sec(10, "Waiting Cycle 1")
+        wait_sec(timeout + 2, "Waiting Cycle 1")
 
-        log("[INFO] Device is NOT rebooted because watchdog is disabled (magicclose enabled)")
+        log("[INFO] Device NOT rebooted (watchdog disabled)")
 
-        # -------- CYCLE 2 --------
+        # ===== CYCLE 2 =====
         log("SECOND CYCLE")
         run_cmd("ubus call system watchdog '{\"stop\":false}'", "Resume Feed")
         run_cmd("ubus call system watchdog '{\"magicclose\": false}'", "Enable Watchdog")
-        run_cmd("ubus call system watchdog '{\"timeout\":10}'", "Reset Timeout")
-        print("REBOOT_TRIGGER")
+        run_cmd(f"ubus call system watchdog '{{\"timeout\":{timeout}}}'", "Reset Timeout")
+
+        print("REBOOT_TRIGGER")  # Required for automation detection
 
         run_cmd("ubus call system watchdog '{\"stop\":true}'", "Stop Feed (Cycle 2)")
 
-        # === SUCCESS EXIT HERE ===
-        log("[PASS] Watchdog reboot triggered successfully")
+        log("[PASS] Watchdog reboot triggered successfully", level="PASS")
         return EXIT_SUCCESS
 
     except Exception as e:
-        log(f"[ERROR] Test execution failed: {e}")
+        log("[FAIL] Test execution failed: %s", str(e), level="FAIL")
         return EXIT_FAILED
 
-if __name__ == "__main__":
-    exit_code = main()
-    sys.exit(exit_code)
 
+if __name__ == "__main__":
+    sys.exit(main())
+
+
+#python3 BB-SU-006.py CONFIGURATION='{"timeout":15}'

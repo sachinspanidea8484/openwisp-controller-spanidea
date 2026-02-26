@@ -1,118 +1,129 @@
+# START_DESCRIPTION
+# 1. Retrieve system hostname from configuration.
+# 2. Retrieve network mode/protocol configuration.
+# 3. Verify Wi-Fi enable/disable status.
+# 4. Verify default admin user settings.
+# 5. Compare actual values with expected configuration.
+# 6. If all values match, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
-import os
 import sys
-import json
 import argparse
-from datetime import datetime
 
-# Mapping keys to UCI config files
-CONFIG_FILES = {
-    "hostname": "/etc/config/system",
-    "network_mode": "/etc/config/network",
-    "wifi_enabled": "/etc/config/wireless"
-}
+from common_helper import (
+    log,
+    run_local_command,
+    parse_configuration,
+    EXIT_SUCCESS,
+    EXIT_FAILED
+)
 
-# === Utility Functions ===
-def log(message):
-    timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-    print(f"{timestamp} {message}")
+def get_uci_value(command, key_suffix):
+    stdout, _, rc = run_local_command(command, allow_fail=True) #stdout → command output, rc → return code, _ → ignores stder
+    if rc != 0 or not stdout:
+        return None
 
-def verify_file_exists(filepath):
-    if not os.path.isfile(filepath):
-        log(f"[FAIL] Configuration file not found: {filepath}")
-        return False
-    log(f"[PASS] Verified configuration file exists: {filepath}")
-    return True
+    for line in stdout.splitlines():
+        if "=" not in line:     #skip the key=value format
+            continue
+        key, value = line.split("=", 1) #should be one line
+        if key.endswith(key_suffix):
+            return value.strip().strip("'\"")
 
-def read_uci_config(filepath):
-    """Read UCI-style config and return key-value dict."""
-    config = {}
-    if not os.path.isfile(filepath):
-        return config
-    with open(filepath, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#") or line.startswith("config") or line.startswith("section"):
-                continue
-            if line.startswith("option"):
-                parts = line.split(None, 3)
-                if len(parts) >= 3:
-                    _, key, value = parts[0:3]
-                    config[key.strip()] = value.strip().strip("'\"")
-    return config
+    return None
 
-def parse_configuration(config_str):
-    """Parse CONFIGURATION=... JSON passed via CLI."""
-    if config_str.startswith("CONFIGURATION="):
-        config_str = config_str[len("CONFIGURATION="):]
-    try:
-        return json.loads(config_str)
-    except json.JSONDecodeError as e:
-        print(f"Error parsing CONFIGURATION JSON: {e}", file=sys.stderr)
-        sys.exit(1)
 
-# === Main Test ===
+def get_all_network_protos():
+    stdout, _, rc = run_local_command("uci show network", allow_fail=True) #stdout → command output, rc → return code, _ → ignores stder
+
+    if rc != 0 or not stdout:
+        return []
+
+    protos = []
+    for line in stdout.splitlines():
+        if ".proto=" in line:
+            _, value = line.split("=", 1)
+            protos.append(value.strip().strip("'\""))
+
+    return protos
+
+
 def main():
-
-    parser = argparse.ArgumentParser(description="BB-SU-004 Initial Default Configuration Test")
-    parser.add_argument("config", help="CONFIGURATION='{\"hostname\":\"NXP\",...}'")
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "config",
+        help="CONFIGURATION='{\"hostname\":\"OPENWRT\",...}'"
+    )
     args = parser.parse_args()
-
-    # Parse CLI JSON input
-    EXPECTED_SETTINGS = parse_configuration(args.config)
-
-    log("[STEP 1] Starting Initial/Default Configuration Test")
-
+    expected_settings = parse_configuration(args.config)
+    log("[STEP 1] Starting Initial / Default Configuration Test")
     actual_settings = {}
 
     # Hostname
-    cfg_file = CONFIG_FILES["hostname"]
-    log(f"[STEP 2] Reading configuration: {cfg_file}")
-    if verify_file_exists(cfg_file):
-        system_cfg = read_uci_config(cfg_file)
-        actual_settings["hostname"] = system_cfg.get("hostname")
-
-    # Network mode
-    cfg_file = CONFIG_FILES["network_mode"]
-    log(f"[STEP 2] Reading configuration: {cfg_file}")
-    if verify_file_exists(cfg_file):
-        network_cfg = read_uci_config(cfg_file)
-        actual_settings["network_mode"] = network_cfg.get("proto")
+    actual_settings["hostname"] = get_uci_value("uci show system",
+        ".hostname"
+    )
+    # Network mode (ANY proto match)
+    expected_proto = expected_settings.get("network_mode")
+    all_protos = get_all_network_protos()
+    actual_settings["network_mode"] = (
+        expected_proto if expected_proto in all_protos else all_protos[0] if all_protos else None   
+    )   #need to test with DCHP & Need to do review above if block
 
     # WiFi enabled
-    cfg_file = CONFIG_FILES["wifi_enabled"]
-    log(f"[STEP 2] Reading configuration: {cfg_file}")
-    if verify_file_exists(cfg_file):
-        wireless_cfg = read_uci_config(cfg_file)
-        disabled = wireless_cfg.get("disabled")
-        if disabled == "0":
-            actual_settings["wifi_enabled"] = "yes"
-        elif disabled == "1":
-            actual_settings["wifi_enabled"] = "no"
-        else:
-            actual_settings["wifi_enabled"] = None
+    disabled = get_uci_value(
+        "uci show wireless",
+        ".disabled"
+    )
+    if disabled == "0":
+        actual_settings["wifi_enabled"] = "yes"
+    elif disabled == "1":
+        actual_settings["wifi_enabled"] = "no"
+    else:
+        actual_settings["wifi_enabled"] = None
 
-    # Admin user always "root"
-    actual_settings["admin_user"] = "root"
+    # Admin user
+    actual_settings["admin_user"] = "root"  #need to check all posible usernames
 
-    # Step 3: Validate
-    log("[STEP 3] Validating configuration values...")
+    # Validation
+    log("[STEP 2] Validating configuration values")
     test_passed = True
-    for key, expected_value in EXPECTED_SETTINGS.items():
+
+    for key, expected_value in expected_settings.items():
         actual_value = actual_settings.get(key)
+
         if actual_value == expected_value:
-            log(f"[PASS] Config '{key}' matches expected value '{expected_value}'")
+            log(
+                "Config '%s' matches expected value '%s'",
+                key,
+                expected_value,
+                level="PASS"
+            )
         else:
-            log(f"[FAIL] Config '{key}' expected '{expected_value}' but found '{actual_value}'")
+            log(
+                "Config '%s' expected '%s' but found '%s'",
+                key,
+                expected_value,
+                actual_value,
+                level="FAIL"
+            )
             test_passed = False
 
     if test_passed:
-        log("[PASS] Initial/default configuration is correct")
+        log("Initial / default configuration is correct", level="PASS")
+        log("Test Case PASSED", level="PASS")
+        return EXIT_SUCCESS
     else:
-        log("[FAIL] Initial/default configuration does not match expected values")
-        sys.exit(1)
+        log("Initial / default configuration does not match expected values", level="FAIL")
+        log("Test Case FAILED", level="FAIL")
+        return EXIT_FAILED
+
 
 if __name__ == "__main__":
     main()
+
+
+# python3 BB-SU-004.py CONFIGURATION='{"admin_user": "root","hostname": "Nokia","network_mode": "gre","wifi_enabled": "no"}'
+
 

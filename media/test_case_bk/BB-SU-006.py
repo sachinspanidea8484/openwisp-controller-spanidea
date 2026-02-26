@@ -1,93 +1,137 @@
+# START_DESCRIPTION
+# 1. Detect connected hardware components (modems, Wi-Fi radios).
+# 2. Count installed USB cellular modems.
+# 3. Detect Wi-Fi radio count using mandatory command.
+# 4. Compare detected hardware count with expected inventory.
+# 5. If hardware inventory matches expected values, mark test as PASSED.
+# END_DESCRIPTION
+
 #!/usr/bin/env python3
-import os
 import sys
-import json
 import argparse
-import subprocess
-from datetime import datetime
+from common_helper import (
+    log,
+    run_local_command,
+    parse_configuration,
+    EXIT_SUCCESS,
+    EXIT_FAILED
+)
 
-def log(message):
-    timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-    print(f"{timestamp} {message}")
+# Known cellular modem vendor keywords
+MODEM_KEYWORDS = ["telit", "quectel", "fibocom", "sierra", "huawei", "simcom"]
 
-def parse_configuration(config_str):
-    if config_str.startswith("CONFIGURATION="):
-        config_str = config_str[len("CONFIGURATION="):]
-    try:
-        return json.loads(config_str)
-    except json.JSONDecodeError as e:
-        print(f"Error parsing CONFIGURATION JSON: {e}", file=sys.stderr)
-        sys.exit(1)
 
+# -----------------------------------------------------------
+# Detect Installed USB Cellular Modems
+# -----------------------------------------------------------
 def get_installed_modems():
-    modems_found = []
-    try:
-        output = subprocess.check_output("lsusb", shell=True, text=True)
-        for line in output.splitlines():
-            if any(k in line.lower() for k in ["telit","quectel","fibocom","sierra","huawei","simcom"]):
-                model = line.split(":")[-1].strip()
-                modems_found.append(model)
-    except:
-        pass
-    return modems_found
+    """
+    Detect connected USB cellular modems using 'lsusb'.
+    Returns list of modem description lines.
+    """
+    stdout, _, rc = run_local_command("lsusb", allow_fail=True)
 
-def get_wifi_interfaces():
-    wifi_list = []
-    try:
-        output = subprocess.check_output("iwinfo | grep Hardware", shell=True, text=True)
-        for line in output.splitlines():
-            iface = line.split()[0].strip()
-            wifi_list.append(iface)
-    except:
-        pass
-    return wifi_list
+    if rc != 0 or not stdout:
+        return []
 
+    return [
+        line.strip()
+        for line in stdout.splitlines()
+        if any(vendor in line.lower() for vendor in MODEM_KEYWORDS)
+    ]
+
+
+# -----------------------------------------------------------
+# Detect Wi-Fi Radios (MANDATORY COMMAND USED)
+# -----------------------------------------------------------
+def get_wifi_radio_count():
+    """
+    Detect number of Wi-Fi radios using mandatory command:
+    iw phy | grep "wiphy index" | wc -l
+    Returns integer radio count.
+    """
+    stdout, _, rc = run_local_command(
+        'iw phy | grep "wiphy index" | wc -l',
+        allow_fail=True
+    )
+
+    if rc != 0 or not stdout:
+        return 0
+
+    try:
+        return int(stdout.strip())
+    except ValueError:
+        return 0
+
+
+# -----------------------------------------------------------
+# Main Test Execution
+# -----------------------------------------------------------
 def main():
-    parser = argparse.ArgumentParser(description="BB-SU-006 Modem & Wi-Fi Interface Verification Test")
-    parser.add_argument("config", help="CONFIGURATION='{\"expected_modems\":0,\"expected_wifi\":1}'")
+
+    # ---------------- CLI Parsing ----------------
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "config",
+        help='CONFIGURATION=\'{"expected_modems":0,"expected_wifi":1}\''
+    )
     args = parser.parse_args()
 
-    config = parse_configuration(args.config)
+    expected = parse_configuration(args.config)
 
-    EXPECTED_MODEMS = config.get("expected_modems")
-    EXPECTED_WIFI = config.get("expected_wifi")
+    exp_modems = expected.get("expected_modems")
+    exp_wifi = expected.get("expected_wifi")
 
-    if EXPECTED_MODEMS is None or EXPECTED_WIFI is None:
-        log("[FAIL] Missing expected_modems or expected_wifi in CONFIGURATION JSON.")
-        sys.exit(1)
+    if exp_modems is None or exp_wifi is None:
+        log("Missing expected_modems or expected_wifi in CONFIGURATION", level="FAIL")
+        sys.exit(EXIT_FAILED)
 
-    log("[STEP 1] Starting Modem and Wi-Fi Interface Verification Test")
+    log("[STEP 1] Starting Modem & Wi-Fi Verification Test")
 
-    modems_found = get_installed_modems()
-    wifi_found = get_wifi_interfaces()
+    # ---------------- Detection Phase ----------------
+    modems = get_installed_modems()
+    wifi_count = get_wifi_radio_count()
 
-    actual_settings = {
-        "expected_modems": len(modems_found),
-        "expected_wifi": len(wifi_found)
-    }
+    log("Detected %s modem(s)", len(modems))
+    log("Detected %s Wi-Fi radio(s)", wifi_count)
 
-    log(f"[INFO] Detected Modems ({len(modems_found)}): {modems_found or 'None'}")
-    log(f"[INFO] Detected Wi-Fi Interfaces ({len(wifi_found)}): {wifi_found or 'None'}")
-
-    # === EXACT SAME VALIDATION BEHAVIOR AS BB-SU-004 ===
+    # ---------------- Validation Phase ----------------
     test_passed = True
 
-    for key, expected_value in config.items():
-        actual_value = actual_settings.get(key)
-
-        if actual_value == expected_value:
-            log(f"[PASS] Config '{key}' matches expected value '{expected_value}'")
-        else:
-            log(f"[FAIL] Config '{key}' expected '{expected_value}' but found '{actual_value}'")
-            test_passed = False
-
-    if test_passed:
-        log("[PASS] All expected hardware counts verified successfully.")
-        log("[PASS] Test Case PASSED.")
+    # Validate modem count
+    if len(modems) == exp_modems:
+        log("Modem count matches expected '%s'", exp_modems, level="PASS")
     else:
-        log("[FAIL] Test Case FAILED.")
-        sys.exit(1)
+        log(
+            "Modem count expected '%s' but found '%s'",
+            exp_modems,
+            len(modems),
+            level="FAIL"
+        )
+        test_passed = False
+
+    # Validate Wi-Fi radio count
+    if wifi_count == exp_wifi:
+        log("Wi-Fi radio count matches expected '%s'", exp_wifi, level="PASS")
+    else:
+        log(
+            "Wi-Fi radio count expected '%s' but found '%s'",
+            exp_wifi,
+            wifi_count,
+            level="FAIL"
+        )
+        test_passed = False
+
+    # ---------------- Final Result ----------------
+    if test_passed:
+        log("Hardware verification successful", level="PASS")
+        log("Test Case PASSED", level="PASS")
+        sys.exit(EXIT_SUCCESS)
+    else:
+        log("Hardware verification failed", level="FAIL")
+        log("Test Case FAILED", level="FAIL")
+        sys.exit(EXIT_FAILED)
+
 
 if __name__ == "__main__":
     main()
-
