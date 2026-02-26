@@ -1321,6 +1321,13 @@ class TestSuiteExecutionCreateSerializer(serializers.Serializer):
         ]
     )
 
+    notification_emails = serializers.ListField(
+        child=serializers.EmailField(),
+        required=False,
+        allow_empty=True,
+        write_only=True,
+    )
+
     class Meta:
         model = load_model("TestSuiteExecution")
         fields = [
@@ -1339,6 +1346,8 @@ class TestSuiteExecutionCreateSerializer(serializers.Serializer):
             validated_data["test_selection_type"]
         ]
         test_cases_data = validated_data.pop("individual_test_cases", [])
+        emails = validated_data.pop("notification_emails", [])
+        validated_data["notification_emails"] = ",".join(emails)
 
         device_list = validated_data.pop("devices", [])
         # Set created_by from request user
