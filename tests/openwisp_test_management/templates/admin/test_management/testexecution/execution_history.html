@@ -710,7 +710,7 @@
 <script>
 // CSRF token helper
 
-const EXECUTION_HISTORY_REFRESH_INTERVAL = parseInt("{{ EXECUTION_HISTORY_REFRESH_INTERVAL|escapejs }}",10);
+const EXECUTION_HISTORY_REFRESH_INTERVAL = parseInt("{{ EXECUTION_HISTORY_REFRESH_INTERVAL|escapejs }}",10) * 1000;
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
