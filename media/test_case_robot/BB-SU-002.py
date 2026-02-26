@@ -1,12 +1,11 @@
 # START_DESCRIPTION
-# 1. Initialize custom log file for initial connection verification.
-# 2. Verify that the PC is logged in with the expected OS user.
-# 3. Execute 'whoami' on PC and validate returned username.
-# 4. If protocol is MQTT, skip strict user validation.
-# 5. From PC, attempt SSH login to BB using valid credentials.
-# 6. Execute 'echo BB_CONNECTED' to confirm shell access.
-# 7. Confirm BB is reachable and accessible from PC.
-# 8. Log all execution steps and outputs for traceability.
+# 1. Verify PC login session using 'whoami' command.
+# 2. Confirm logged-in username matches expected user.
+# 3. From PC, attempt SSH login to DUT (BB) using valid credentials.
+# 4. Execute a simple verification command on DUT (e.g., echo BB_CONNECTED).
+# 5. Confirm DUT shell/dashboard access is successful.
+# 6. If login or command execution fails, mark test as FAILED.
+# 7. If access and validation succeed, mark test as PASSED.
 # END_DESCRIPTION
 
 import os

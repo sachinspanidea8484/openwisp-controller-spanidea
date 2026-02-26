@@ -1,11 +1,11 @@
 # START_DESCRIPTION
-# 1. Initialize custom log file for SSH access control test.
-# 2. From the specified PC, attempt SSH login to the BB using valid credentials.
-# 3. Use sshpass with StrictHostKeyChecking disabled to avoid host key prompts.
-# 4. Execute a simple command (echo ACCESS_OK) on successful login.
-# 5. Verify that the command execution is successful and ACCESS_OK is received in output.
-# 6. If login fails or ACCESS_OK is not present, mark test as failed.
-# 7. Log all stdout, stderr, and execution details in custom log file.
+# 1. From the specified PC, initiate SSH login to the DUT (BB).
+# 2. Use valid credentials for authentication.
+# 3. Execute a verification command (e.g., echo ACCESS_OK) upon login.
+# 4. Confirm command output is received successfully.
+# 5. Verify that SSH access is allowed as per configured access control policy.
+# 6. If authentication fails or expected output is not received, mark test as FAILED.
+# 7. If SSH access works as expected, mark test as PASSED.
 # END_DESCRIPTION
 
 import os

@@ -1,3 +1,16 @@
+# START_DESCRIPTION
+
+# 1. Initialize logging and establish SSH connections to DUT and all 2 PC’s.
+# 2. Configure DUT in Wi-Fi AP mode and bridge Ethernet + Wi-Fi interfaces.
+# 3. Connect PC's as Wi-Fi client to BB and verify all PC’s obtain correct IPs.
+# 4. Run ping tests among PCs to confirm connectivity and capture baseline latency.
+# 5. Start DUT resource monitoring (CPU, memory, interrupts) in parallel with tests.
+# 6. Execute simultaneous bidirectional iperf3 traffic (15 min, 450 Mbps each direction): PC1↔PC2, PC2↔PC1.
+# 7. Collect post-test DUT resource stats and fetch iperf3 logs for validation.
+# 8. Consolidate all results into custom log file and gracefully close SSH sessions.
+
+#END_DESCRIPTION
+
 import re
 import time
 import threading

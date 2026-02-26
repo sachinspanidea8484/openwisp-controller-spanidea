@@ -1,13 +1,12 @@
 # START_DESCRIPTION
-# 1. Initialize custom log file for LuCI web access test.
-# 2. From PC, attempt login to BB LuCI interface using HTTP/HTTPS.
-# 3. Submit username and password via POST request.
-# 4. Verify HTTP 200 response and confirm LuCI dashboard content is returned.
-# 5. Store session object for further dashboard verification.
-# 6. Access LuCI dashboard page using existing session.
-# 7. Confirm dashboard is accessible and content is valid.
-# 8. If login or dashboard verification fails, mark test as failed.
-# 9. Log HTTP responses and execution details.
+# 1. From PC, access DUT (BB) LuCI web interface using HTTP or HTTPS.
+# 2. Submit valid username and password credentials.
+# 3. Verify successful login response from web server.
+# 4. Access LuCI dashboard page using authenticated session.
+# 5. Confirm dashboard content loads correctly.
+# 6. Verify web access is allowed as per configured access control policy.
+# 7. If login or dashboard access fails, mark test as FAILED.
+# 8. If web access works as expected, mark test as PASSED.
 # END_DESCRIPTION
 
 import os

@@ -188,7 +188,7 @@ Run Full Mesh TCP Test
 
 Run Full Mesh UDP Test
     Log Message To Custom File    Running full-mesh UDP iperf3 test
-    Stop All Iperf Servers    ${PC_LIST}
+   # Stop All Iperf Servers    ${PC_LIST}
     Start Iperf Servers Dynamic   ${PC_LIST}
     Monitor System Stats Around Iperf    ${DUT}    ${DURATION}
 

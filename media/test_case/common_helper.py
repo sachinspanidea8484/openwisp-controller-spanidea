@@ -2,16 +2,13 @@
 Common Helper for NBAPI Testcases
 """
 import os
-import re
 import sys
-import time
 import json
 import subprocess
 from datetime import datetime
 
 EXIT_SUCCESS = 0
 EXIT_FAILED = 1
-MAX_RETRIES = 3
 
 def log(message, *args, level="INFO"):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -118,6 +115,7 @@ def parse_sensor_output(block):
     return voltage, current
 
 
+
 ######################################################################
 
 def parse_ip_stats(output):
@@ -211,7 +209,7 @@ def parse_config(config_str):
 def get_modem_status(interface):
     log(f"Getting modem full status for {interface}...")
 
-    # STEP 1: Get all modem sections from UCI
+    # Modem sections
     stdout, _, rc = run_local_command("uci show network | grep '.device='", allow_fail=True)
 
     if rc != 0 or not stdout.strip():
@@ -229,7 +227,7 @@ def get_modem_status(interface):
     modem_name = None
     qmi_device = None
 
-    # STEP 2: Map interface -> modem
+    # interface -> modem
     for modem in modem_sections:
         stdout, _, rc = run_local_command(f"ifstatus {modem}", allow_fail=True)
         if rc != 0 or not stdout:
@@ -250,7 +248,6 @@ def get_modem_status(interface):
         log(f"No modem mapped to interface {interface}", level="FAIL")
         return None
 
-    # STEP 3: Get USB Device Root
     qmi_base = os.path.basename(qmi_device)
     stdout, _, rc = run_local_command(f"readlink -f /sys/class/usbmisc/{qmi_base}/device/..", allow_fail=True)
 
@@ -260,18 +257,14 @@ def get_modem_status(interface):
 
     usb_device_root = stdout.strip()
 
-    # STEP 4: Detect AT Port (Fixed duplicate probing)
-    # Using -maxdepth 2 avoids finding nested paths like .../ttyUSB0/tty/ttyUSB0
     stdout, _, rc = run_local_command(f"find {usb_device_root} -maxdepth 2 -name 'ttyUSB*'", allow_fail=True)
     
     at_port = None
     if rc == 0 and stdout:
-        # Using a set comprehension to ensure each port is unique (e.g., /dev/ttyUSB0)
         unique_ports = {f"/dev/{os.path.basename(p.strip())}" for p in stdout.splitlines() if 'ttyUSB' in p}
         potential_ports = sorted(list(unique_ports))
         
         for tty_dev in potential_ports:
-            # Probing with a 1s timeout
             probe_cmd = f"echo 'AT' | socat -T 1 - '{tty_dev},raw,echo=0,crnl'"
             resp, _, _ = run_local_command(probe_cmd, allow_fail=True)
 
@@ -282,13 +275,12 @@ def get_modem_status(interface):
     if not at_port:
         log("No functional AT port detected", level="WARN")
 
-    # STEP 5: Detect Network Type via QMI (Fixed False 5G detection)
+    # Detect Network Type 
     stdout, _, rc = run_local_command(f"qmicli -d {qmi_device} --nas-get-signal-info", allow_fail=True)
     
     network_type = "No Signal"
     if rc == 0 and stdout:
-        # We look for the 5G section and ensure RSRP is actually a number, not 'n/a'
-        # re.DOTALL allows the '.' to match newlines
+      
         has_5g = re.search(r"5G:.*?RSRP:\s+'-\d+", stdout, re.DOTALL | re.IGNORECASE)
         has_lte = re.search(r"LTE:.*?RSRP:\s+'-\d+", stdout, re.DOTALL | re.IGNORECASE)
 
@@ -306,8 +298,6 @@ def get_modem_status(interface):
         "network_type": network_type
     }
 
-
-    
 
 def ensure_modem_connected(modem_iface,qmi_device):
     log("Checking modem connection status...")

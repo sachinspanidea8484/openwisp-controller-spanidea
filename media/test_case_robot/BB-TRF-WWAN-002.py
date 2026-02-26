@@ -1,9 +1,11 @@
 # START_DESCRIPTION
 
-#1.Initialize logging + SSH connections (DUT + 2 PCs). 
-# 2. Start idle network ping to establish baseline values for CPU load and memory usage values 
-# 3.Start logging of CPU load, memory usage, OS interrupt data 
-# 4.For each of the 2 GbE interfaces, execute iperf3 (each test for each port for 2 min) 
+
+# 1. Initialize logging and establish SSH connections to DUT and all 2 PC’s.
+# 2. Configure DUT in Wi-Fi AP mode and bridge Ethernet + Wi-Fi interfaces.
+# 3. Connect PC's as Wi-Fi client to BB and verify all PC’s obtain correct IPs.
+# 4. Run ping tests among PCs to confirm connectivity and capture baseline latency.
+
 
 #     a.450 MBPS unidirectional PC → BB UDP 
 

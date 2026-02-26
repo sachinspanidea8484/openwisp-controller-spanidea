@@ -1,3 +1,25 @@
+# START_DESCRIPTION
+
+# 1. Initialize logging + SSH connections (DUT + 2 PCs).
+# 2. Detect active interfaces (Ethernet) on PCs and log assigned IPs.
+# 3. Run management ping checks among all devices to verify connectivity.
+# 4.check the ifconfig rx,tx  errror inputs
+# 5. Capture baseline DUT resource stats (CPU, memory, interrupts).
+# 6.For the 2 pc's , execute iperf3 
+#         a. 450 MBPS unidirectional PC → BB UDP      
+#         b. 450 MBPS unidirectional PC → BB TCP
+#         c. 450 mbpss unidirectional BB → PC UDP
+#         d. 450 mbpss unidirectional BB → PC TCP
+#         e. 450 mbps bidirectional each direction PC ↔ BB TCP
+# 7. Collect post-test DUT stats, consolidate logs (pings, iperf, monitoring, tcpdump), and close all connections.
+# 8.check the rx,tx error inputs 
+# 8.ping checks among all devices to verify connectivity.
+
+# END_DESCRIPTION
+
+
+
+
 import time
 import threading
 from robot.api.deco import keyword

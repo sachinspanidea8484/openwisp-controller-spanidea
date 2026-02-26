@@ -1,15 +1,14 @@
 # START_DESCRIPTION
-# 1. Initialize custom log file for DoS protection test.
-# 2. Detect PC IP address dynamically.
-# 3. Send multiple invalid SSH login attempts to BB using wrong password.
-# 4. Repeat failed login attempts based on configured max_attempts.
-# 5. Check dropbear.log for bad password attempt entries.
-# 6. Verify if PC IP appears in fail2ban ban list.
-# 7. Attempt valid SSH login after cooldown period.
-# 8. Poll periodically until login is unblocked or timeout occurs.
-# 9. Confirm that valid login succeeds after unblock.
-# 10. Log total test duration and final status (BLOCKED / UNBLOCKED).
-# END_DESCRIPTION
+# 1. Detect PC IP address dynamically.
+# 2. Send multiple invalid SSH login attempts to BB using wrong password.
+# 3. Repeat failed login attempts based on configured max_attempts.
+# 4. Check dropbear.log for bad password attempt entries.
+# 5. Verify if PC IP appears in fail2ban ban list.
+# 6. Attempt valid SSH login after cooldown period.
+# 7. Poll periodically until login is unblocked or timeout occurs.
+# 8. Confirm that valid login succeeds after unblock.
+# 9. Log total test duration and final status (BLOCKED / UNBLOCKED).
+# END_DESCRIPTIONN
 
 import os
 import time

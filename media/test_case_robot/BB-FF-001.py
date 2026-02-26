@@ -1,14 +1,13 @@
 # START_DESCRIPTION
-# 1. Initialize custom log file for firewall ping rule verification.
-# 2. Set target PING_IP to be used for testing.
-# 3. Add firewall rule to allow ICMP echo-request (ping) traffic.
-# 4. Commit firewall configuration and restart firewall service.
-# 5. From PC, verify ping to BB succeeds.
-# 6. Modify firewall rule to block ICMP echo-request traffic.
-# 7. Commit and restart firewall service again.
-# 8. From PC, verify ping to BB fails (100% packet loss expected).
-# 9. Delete custom ping firewall rules and restore system state.
-# 10. Log all firewall configuration steps and ping results.
+# 1. Set the target PING_IP for firewall verification.
+# 2. Add firewall rule to allow ICMP echo-request (ping) traffic.
+# 3. Commit firewall configuration and restart firewall service.
+# 4. From PC, verify ping to router succeeds.
+# 5. Modify firewall rule to block ICMP echo-request traffic.
+# 6. Commit firewall configuration and restart firewall service.
+# 7. From PC, verify ping to router fails (100% packet loss expected).
+# 8. Delete custom firewall rules and restore default configuration.
+# 9. If ping behavior matches rule configuration, mark test as PASSED.
 # END_DESCRIPTION
 
 import os

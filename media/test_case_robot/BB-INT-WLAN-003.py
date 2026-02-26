@@ -1,7 +1,7 @@
 # START_DESCRIPTION
 
 # 1. Initialize logging + SSH connections (DUT + 2 PCs).
-# 2. Detect active interfaces (Wi-Fi/Ethernet) on PCs and log assigned IPs.
+# 2. Detect active interfaces (Wi-Fi) on PCs and log assigned IPs.
 # 3. Run management ping checks among all devices to verify connectivity.
 # 4.check the ifconfig rx,tx  errror inputs
 # 5. Capture baseline DUT resource stats (CPU, memory, interrupts).

@@ -2,9 +2,9 @@
 
 #1.Initialize logging + SSH connections (DUT + 2 PCs). 
 
-#2.Configure Dynamic IP on the PC1 & PC2 Ethernet interface. 
+#2.Configure static IP on the PC1 & PC2 Ethernet interface. 
 
-#3.Verify the Ping check From the PC1 ↔ PC2 (DYNAMIC ip). 
+#3.Verify the Ping check From the PC1 ↔ PC2 (static ip). 
 
 #4.Capture baseline CPU, memory, and interrupt statistics from DUT. 
 

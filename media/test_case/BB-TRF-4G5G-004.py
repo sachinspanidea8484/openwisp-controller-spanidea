@@ -15,10 +15,13 @@ Dual 4G/5G WAN Validation
 
 python3 BB-TRF-4G5G-004.py CONFIGURATION='{"wan4g_interface":"wwan0","wan5g_interface":"wwan1","remote_ping_ip":"8.8.8.8","test_duration":"60","error_threshold_percent":"10"}'
 """
+import os
 import re
 import sys
 import time
+import json
 import argparse
+from datetime import datetime
 from common_helper import (log,run_local_command,parse_config, validate_ifconfig_errors, EXIT_SUCCESS, EXIT_FAILED)
 
 MAX_RETRIES = 3
