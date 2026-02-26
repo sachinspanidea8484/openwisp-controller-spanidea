@@ -709,6 +709,8 @@
 
 <script>
 // CSRF token helper
+
+const EXECUTION_HISTORY_REFRESH_INTERVAL = parseInt("{{ EXECUTION_HISTORY_REFRESH_INTERVAL|escapejs }}",10) * 1000;
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -1656,9 +1658,11 @@ let refreshInterval = null;
 
 function startAutoRefresh() {
     if (!refreshInterval) {
-        refreshInterval = setInterval(() => {
-            loadExecutionHistory();
-        }, 30000); // 30 seconds
+        if(!(execution_status && execution_status===3)){
+            refreshInterval = setInterval(() => {
+                loadExecutionHistory();
+            }, EXECUTION_HISTORY_REFRESH_INTERVAL);      
+        }
     }
 }
 

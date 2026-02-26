@@ -1,3 +1,5 @@
 from django.conf import settings
 
 OPENWISP_CONTROLLER_API_HOST = getattr(settings, "OPENWISP_CONTROLLER_API_HOST", None)
+
+EXECUTION_HISTORY_REFRESH_INTERVAL = getattr(settings, "EXECUTION_HISTORY_REFRESH_INTERVAL" , 60000)

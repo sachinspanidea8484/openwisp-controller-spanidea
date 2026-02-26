@@ -20,7 +20,7 @@ EXECUTION_HISTORY_AUTO_REFRESH_TIME: str = os.getenv('OPENWISP_SERVER_IP', 60)
 
 
 
-
+EXECUTION_HISTORY_REFRESH_INTERVAL= os.getenv('EXECUTION_HISTORY_REFRESH_INTERVAL', 60000)
 
 # Suppress dj_rest_auth deprecation warnings
 import warnings
@@ -384,6 +384,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "openwisp_utils.admin_theme.context_processor.menu_groups",
                 "openwisp_notifications.context_processors.notification_api_settings",
+                "openwisp_controller.context_processors.controller_api_settings"
             ],
         },
     }
