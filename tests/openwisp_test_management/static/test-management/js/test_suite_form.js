@@ -24,7 +24,7 @@
 
   const csrftoken = getCookie("csrftoken");
 
-  // GLOBAL STATE MANAGEMENT - This is the key change
+  // GLOBAL STATE MANAGEMENT 
   const globalState = {
     selectedTestCases: new Map(), // test_case_id -> { testCaseData, order }
     currentApiTestCases: [], // Current API response
@@ -33,7 +33,7 @@
 
     setSearchTerm: function (term) {
       this.searchTerm = term.toLowerCase().trim();
-      console.log(`Global State: Set search term to "${this.searchTerm}"`);
+      console.info(`Global State: Set search term to "${this.searchTerm}"`);
     },
 
     // Get filtered test cases based on search term
@@ -56,7 +56,7 @@
         );
       });
 
-      console.log(
+      console.info(
         `Global State: Filtered ${filtered.length} of ${testCasesToFilter.length} test cases`
       );
       return filtered;
@@ -107,7 +107,7 @@
         selected_at: Date.now(),
       });
 
-      console.log(
+      console.info(
         `Global State: Added test case ${testCase.name} (ID: ${testCaseId}) with order ${order}`
       );
       this.logState();
@@ -119,7 +119,7 @@
       if (this.selectedTestCases.has(testCaseId)) {
         const removed = this.selectedTestCases.get(testCaseId);
         this.selectedTestCases.delete(testCaseId);
-        console.log(
+        console.info(
           `Global State: Removed test case ID ${testCaseId} (${removed.testCaseData.name})`
         );
         this.reorderTestCases();
@@ -165,7 +165,7 @@
         this.selectedTestCases.set(id, item);
       });
 
-      console.log("Global State: Reordered test cases");
+      console.info("Global State: Reordered test cases");
     },
 
     // Get count of selected test cases
@@ -176,20 +176,20 @@
     // Clear all selected test cases
     clear: function () {
       this.selectedTestCases.clear();
-      console.log("Global State: Cleared all test cases");
+      console.info("Global State: Cleared all test cases");
     },
 
     // Set current API test cases
     setCurrentApiTestCases: function (testCases) {
       this.currentApiTestCases = testCases || [];
-      console.log(
+      console.info(
         `Global State: Set current API test cases (${this.currentApiTestCases.length})`
       );
     },
 
     // Merge API test cases with selected test cases for UI display
     getMergedTestCasesForDisplay: function () {
-      console.log("Global State: Merging test cases for display");
+      console.info("Global State: Merging test cases for display");
 
       // Create a map of current API test cases for quick lookup
       const apiTestCasesMap = new Map();
@@ -205,7 +205,7 @@
         if (!apiTestCasesMap.has(testCaseId)) {
           // This selected test case is not in current category/API response
           // but we want to show it so user can see their selection
-          console.log(
+          console.info(
             `Adding selected test case from global state: ${item.testCaseData.name}`
           );
           mergedTestCases.push({
@@ -236,25 +236,24 @@
         }
       });
 
-      console.log(
+      console.info(
         `Global State: Merged ${mergedTestCases.length} test cases for display`
       );
-      console.log(`- API test cases: ${this.currentApiTestCases.length}`);
-      console.log(`- Selected test cases: ${this.selectedTestCases.size}`);
+      
 
       return mergedTestCases;
     },
 
     // Debug logging
     logState: function () {
-      console.log("=== GLOBAL STATE ===");
-      console.log("Selected test cases:", this.selectedTestCases.size);
+      console.info("=== GLOBAL STATE ===");
+      console.info("Selected test cases:", this.selectedTestCases.size);
       this.selectedTestCases.forEach((item, id) => {
-        console.log(
+        console.info(
           `  ${id}: ${item.testCaseData.name} (order: ${item.order})`
         );
       });
-      console.log("===================");
+      console.info("===================");
     },
   };
 
@@ -283,8 +282,7 @@
       if (scriptElement) {
         const existingTestCasesJson =
           scriptElement.textContent || scriptElement.innerText;
-        console.log("Raw JSON string:", existingTestCasesJson);
-
+        
         if (
           existingTestCasesJson &&
           existingTestCasesJson.trim() !== "" &&
@@ -301,7 +299,6 @@
               }
             });
 
-            console.log("Initialized global state with existing test cases");
             globalState.logState();
 
             syncLegacyState();
@@ -310,10 +307,10 @@
             updateHiddenInput();
           }
         } else {
-          console.log("No existing test cases to initialize");
+          console.info("No existing test cases to initialize");
         }
       } else {
-        console.log("No existing test cases data script element found");
+        console.info("No existing test cases data script element found");
       }
     } catch (e) {
       console.error("Error initializing existing test cases:", e);
@@ -393,7 +390,6 @@
 
   // UI Update Functions
   function displayTestCasesTable(testCases = null) {
-    console.log("displayTestCasesTable called");
 
     const tbody = getElement(".test-cases-table tbody");
     if (tbody.length === 0) {
@@ -405,8 +401,7 @@
 
     // Use merged test cases if no specific test cases provided
     const testCasesToDisplay = testCases || globalState.getFilteredTestCases();
-    console.log(`Displaying ${testCasesToDisplay.length} test cases`);
-
+    
     if(testCasesToDisplay.length===0 && globalState.searchTerm){
       tbody.html(`
       <tr class="no-search-results">
@@ -453,7 +448,6 @@
       tbody.append(row);
     });
 
-    console.log("Table rows added:", tbody.find("tr").length);
     updateSelectAllCheckbox();
     updateSelectionCount();
     updateHiddenInput();
@@ -522,8 +516,7 @@
   }
 
   function performSearch(searchTerm) {
-    console.log(`Performing search: "${searchTerm}"`);
-
+    
     // Update global state with search term
     globalState.setSearchTerm(searchTerm);
 
@@ -582,7 +575,6 @@
 
     const sortedIds = globalState.getOrderedIds();
     input.val(JSON.stringify(sortedIds));
-    console.log("Updated hidden input:", JSON.stringify(sortedIds));
 
     // Sync legacy state
     syncLegacyState();
@@ -623,7 +615,6 @@
         if (testCaseData) {
           globalState.addTestCase(testCaseData);
           row.addClass("selected");
-          console.log(`Selected test case: ${testCaseData.name}`);
         } else {
           console.error(`Test case data not found for ID: ${testCaseId}`);
           $(this).prop("checked", false); // Revert checkbox
@@ -636,7 +627,7 @@
             ?.name || testCaseId;
         globalState.removeTestCase(testCaseId);
         row.removeClass("selected");
-        console.log(`Unselected test case: ${testCaseName}`);
+        
       }
 
       updateHiddenInput();
@@ -719,14 +710,6 @@
       //   return false;
       // }
 
-      console.log(
-        "Form submitted with test cases:",
-        globalState.getOrderedIds()
-      );
-      console.log(
-        "Global state at submission:",
-        globalState.getOrderedTestCases()
-      );
     });
   }
 
@@ -736,19 +719,17 @@
 
     if (applyButton && categorySelect) {
       applyButton.addEventListener("click", function () {
-        console.log("Apply button clicked");
         const categoryId = Array.from(categorySelect.selectedOptions)?.map(
           (option) => option.value
         );
-        console.log("Selected category IDs:", categoryId);
-
+       
         const container = getElement("#test-cases-container");
         const tbody = container.find(".test-cases-table tbody");
         const errorDiv = getElement("#test-case-error");
         const successDiv = getElement("#test-case-success");
 
         // if (categoryId.length === 0) {
-        //   console.log("No categories selected, hiding container");
+        //   console.info("No categories selected, hiding container");
         //   container.addClass("hidden");
         //   errorDiv.hide();
         //   successDiv.hide();
@@ -767,8 +748,6 @@
         successDiv.hide();
         getElement(".field-category").removeClass("has-error");
 
-        // KEY CHANGE: Don't clear global state - this preserves selected test cases across category changes
-        console.log("Preserving global state during category change");
         globalState.logState();
 
         // Construct API URL
@@ -780,7 +759,6 @@
           apiUrl = `/api/v1/test-management/category/get-test-cases/?category_ids=${queryString}`;
         }
 
-        console.log("Calling API:", apiUrl);
 
         // Fetch test cases
         $.ajax({
@@ -791,10 +769,9 @@
             "X-Requested-With": "XMLHttpRequest",
           },
           success: function (data) {
-            console.log("API Response:", data);
 
             if (data.test_cases && data.test_cases.length > 0) {
-              console.log("Found test cases from API, updating global state");
+              
 
               // Update global state with new API test cases
               globalState.setCurrentApiTestCases(data.test_cases);
@@ -803,20 +780,14 @@
               displayTestCasesTable();
 
               container.removeClass("hidden");
-              console.log(
-                "Container visibility ensured:",
-                !container.hasClass("hidden")
-              );
+             
             } else {
-              console.log("No test cases found from API");
+              
 
               // Even if no API test cases, we might have selected test cases to show
               globalState.setCurrentApiTestCases([]);
 
               if (globalState.getCount() > 0) {
-                console.log(
-                  "Showing only selected test cases from global state"
-                );
                 displayTestCasesTable();
               } else {
                 tbody.html(
@@ -845,7 +816,7 @@
 
             // Even on error, show selected test cases from global state if any
             if (globalState.getCount() > 0) {
-              console.log(
+              console.info(
                 "API failed, but showing selected test cases from global state"
               );
               globalState.setCurrentApiTestCases([]);
@@ -869,19 +840,19 @@
 
   // Additional utility functions for global state management
   function debugGlobalState() {
-    console.log("=== DEBUG GLOBAL STATE ===");
-    console.log("Selected test cases count:", globalState.getCount());
-    console.log(
+    console.info("=== DEBUG GLOBAL STATE ===");
+    console.info("Selected test cases count:", globalState.getCount());
+    console.info(
       "Current API test cases count:",
       globalState.currentApiTestCases.length
     );
-    console.log("Ordered IDs:", globalState.getOrderedIds());
-    console.log(
+    console.info("Ordered IDs:", globalState.getOrderedIds());
+    console.info(
       "Merged test cases for display:",
       globalState.getMergedTestCasesForDisplay().length
     );
     globalState.logState();
-    console.log("========================");
+    console.info("========================");
   }
 
   // Add global functions for debugging (can be called from browser console)
@@ -893,15 +864,13 @@
 
   // Document Ready Initialization
   $(document).ready(function () {
-    console.log("Initializing Test Suite form with Global State Management");
+    console.info("Initializing Test Suite form with Global State Management");
 
     // Create the test cases container
     const categoryField = getElement(".field-category");
     if (categoryField.length) {
-      console.log("Creating test cases container on page load");
       const container = createTestCasesContainer();
       categoryField.after(container);
-      console.log("Container created and inserted");
     } else {
       console.error("Category field not found on page load!");
     }
@@ -926,10 +895,6 @@
           existingTestCases = JSON.parse(existingTestCasesJson);
           isEditMode =
             Array.isArray(existingTestCases) && existingTestCases.length > 0;
-          console.log(
-            "Edit mode detected with pre-selected test cases:",
-            existingTestCases.length
-          );
         } catch (e) {
           console.error("Error parsing existing test cases JSON:", e);
         }
@@ -939,7 +904,7 @@
     if (isEditMode) {
       const container = getElement("#test-cases-container");
       container.removeClass("hidden");
-      console.log("Showing test cases container in edit mode");
+      
 
       // Map existing test cases to expected format and set as current API test cases
       const testCasesForDisplay = existingTestCases.map((tc) => ({
@@ -955,11 +920,9 @@
       globalState.setCurrentApiTestCases(testCasesForDisplay);
       displayTestCasesTable(testCasesForDisplay);
 
-      console.log("Displayed pre-selected test cases in edit mode");
       debugGlobalState();
     } else {
       // NOT IN EDIT MODE - LOAD ALL TEST CASES INITIALLY
-      console.log("Not in edit mode - loading all test cases initially");
 
       const container = getElement("#test-cases-container");
       const tbody = container.find(".test-cases-table tbody");
@@ -981,10 +944,10 @@
           "X-Requested-With": "XMLHttpRequest",
         },
         success: function (data) {
-          console.log("Initial load - API Response:", data);
+          
 
           if (data.test_cases && data.test_cases.length > 0) {
-            console.log("Found test cases from API for initial load");
+            console.info("Found test cases from API for initial load");
 
             // Update global state with all test cases
             globalState.setCurrentApiTestCases(data.test_cases);
@@ -994,7 +957,7 @@
 
             container.removeClass("hidden");
           } else {
-            console.log("No test cases found for initial load");
+            console.info("No test cases found for initial load");
             tbody.html(
               '<tr><td colspan="5" class="no-test-cases">No active test cases available</td></tr>'
             );
@@ -1038,9 +1001,6 @@
     if (getElement("#id_category").val()) {
       getElement("#id_category").trigger("change");
     }
-
-    console.log("Test Suite form initialized with Global State Management");
-    console.log("Available debug functions: window.testSuiteDebug");
 
     // Initial state log
     debugGlobalState();

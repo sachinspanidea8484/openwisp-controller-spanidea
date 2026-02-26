@@ -17,7 +17,7 @@
     // Extract text between markers
     let extracted = text.slice(start + START_MARKER.length, end).trim();
     
-    // Clean up: Remove leading # and spaces from each line
+    //  Remove leading # and spaces from each line
     let lines = extracted.split('\n');
     let cleanedLines = lines.map(line => {
         // Remove leading # and spaces
@@ -73,7 +73,7 @@
 
             const currentDescription = description.val().trim();
             
-            // **NEW: Check if extracted content is same as current description**
+            //  Check if extracted content is same as current description
             if (currentDescription === extracted) {
                 // Same content, no need to ask or update
                 return;
@@ -94,7 +94,7 @@
     });
 }
 
-    // **NEW: Warning for file replacement**
+    //  Warning for file replacement
     function checkFileReplacement() {
         const pythonInput = $("#id_python_script");
         const robotInput = $("#id_robot_script");
@@ -115,7 +115,7 @@
             }
         }
 
-        // **Python file change warning**
+        // Python file change warning
         pythonInput.on("change", function () {
             const file = this.files[0];
             if (!file) return;
@@ -138,7 +138,7 @@
             }
         });
 
-        // **Robot file change warning**
+        // Robot file change warning
         robotInput.on("change", function () {
             const file = this.files[0];
             if (!file) return;
@@ -161,7 +161,7 @@
             }
         });
 
-        // **Test Case ID change warning (when robot file exists)**
+        // Test Case ID change warning (when robot file exists)
         testCaseIdInput.on("blur", function () {
             const newId = $(this).val();
             const originalId = $(this).data("original-value");

@@ -616,7 +616,7 @@ class FirmwareUpgradeView(APIView):
                 # Trigger async upgrade task after transaction commits
                 transaction.on_commit(lambda: upgrade_firmware.delay(operation.pk))
 
-                logger.info(f"✅ Upgrade operation {operation.id} created for device {device.name}")
+                logger.info(f"Upgrade operation {operation.id} created for device {device.name}")
                 
                 return Response(
                     {

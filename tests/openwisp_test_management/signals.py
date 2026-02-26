@@ -1,5 +1,4 @@
 import os
-import zipfile
 from django.conf import settings
 from django.db.models.signals import post_save , pre_save
 from django.dispatch import receiver
@@ -30,10 +29,10 @@ def capture_old_testcase_data(sender, instance, **kwargs):
         instance._old_robot_script = old.robot_script.name if old.robot_script else None
         instance._is_new = False
 
-        # Detect test_case_id change
+        #  Detect test_case_id change
         test_case_id_changed = old.test_case_id != instance.test_case_id
 
-        # FIXED: Properly detect file replacement (even if filename same)
+        #  Properly detect file replacement (even if filename same)
         python_changed = False
         robot_changed = False
 
@@ -95,7 +94,7 @@ def robot_framework_server_push(sender, instance, created, **kwargs):
     """
     print(f"file push ::")
     # Only push for Robot Framework test type
-    if instance.test_type != 1:  # Assuming 1 = ROBOT_FRAMEWORK
+    if instance.test_type != 1:  # 1 = ROBOT_FRAMEWORK
         return
     
     # Check if push is needed
@@ -107,7 +106,7 @@ def robot_framework_server_push(sender, instance, created, **kwargs):
         return
     
     try:
-        # CRITICAL FIX: Reload instance to get UPDATED file paths after rename
+        # Reload instance to get UPDATED file paths after rename
         test_case_id_changed = getattr(instance, '_test_case_id_changed', False)
         python_changed = getattr(instance, '_python_changed', False)
         robot_changed = getattr(instance, '_robot_changed', False)
@@ -116,7 +115,7 @@ def robot_framework_server_push(sender, instance, created, **kwargs):
         if test_case_id_changed and not python_changed and not robot_changed:
             # Files were renamed, reload from DB to get new paths
             instance.refresh_from_db()
-            print(f"Reloaded instance after file rename")
+            print(f"[DEBUG] Reloaded instance after file rename")
         
         if is_new:
             print(f"NEW test case - Starting file push: {instance.test_case_id}")
@@ -281,10 +280,6 @@ def capture_old_testcase_id(sender, instance, **kwargs):
 
     old = sender.objects.filter(pk=instance.pk).values("test_case_id").first()
     instance._old_test_case_id = old["test_case_id"] if old else None
-
-
-
-
 
 @receiver(post_save, sender=TestCase, dispatch_uid="rename_files_first")
 def handle_id_and_file_changes(sender, instance, created, **kwargs):

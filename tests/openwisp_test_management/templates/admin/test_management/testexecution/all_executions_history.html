@@ -33,7 +33,7 @@
         letter-spacing: 0.5px;
     }
 
-    /* Summary Card - OpenWISP Style */
+    /* Summary Card  */
     .summary-content {
         padding: 10px 20px 0px;
     }
@@ -129,7 +129,7 @@
         border: 1px solid #f5c6cb;
     }
 
-    /* Device Cards - OpenWISP Style */
+    /* Device Cards  */
     .device-card {
         border: 1px solid #e3e3e3;
         border-radius: 4px;
@@ -169,7 +169,7 @@
         color: #333;
     }
 
-    /* Progress Bar - OpenWISP Style */
+    /* Progress Bar  */
     .progress-container {
         display: flex;
         align-items: center;
@@ -249,7 +249,7 @@
         color: #666;
     }
 
-    /* Action Buttons - OpenWISP Style */
+    /* Action Buttons  */
     .action-buttons {
         display: flex;
         gap: 8px;
@@ -308,7 +308,7 @@
         height: 14px;
     }
 
-    /* Error Message - OpenWISP Style */
+    /* Error Message */
     .error-section {
         background: #f2dede;
         border-top: 1px solid #ebccd1;
@@ -325,7 +325,7 @@
         margin-right: 20px;
     }
 
-    /* Loading State - OpenWISP Style */
+    /* Loading State  */
     .loading-container {
         text-align: center;
         padding: 60px 20px;
@@ -414,177 +414,177 @@
     gap: 8px;
     transition: all 0.3s ease;
     box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-}
+    }
 
-.status-0 {
-  background-color: gray;
-  color: white;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-weight: bold;
-}
-.status-1 {
-  background-color: orange;
-  color: white;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-weight: bold;
-}
-.status-2 {
-  background-color: blue;
-  color: white;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-weight: bold;
-}
-.status-3 {
-  background-color: green;
-  color: white;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-weight: bold;
-}
-.status-4{
+    .status-0 {
+    background-color: gray;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    }
+    .status-1 {
     background-color: orange;
     color: white;
     padding: 3px 8px;
     border-radius: 4px;
     font-weight: bold;
-}
-.section-header{
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-   padding: 7px 5px;
-    cursor: pointer;
-    margin-bottom: 10px;
-    background-color: #faf8f8;
-}
-.section-header .header-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.arrow-icon {
-    width: 18px;
-    height: 18px;
-    transition: transform 0.25s ease;
-    color: #374151; /* neutral gray */
-}
-.abort-button-class {
-    background-color: #e5e7eb; /* light gray */
-    color: #374151;            /* dark gray text */
-    border: 1px solid #d1d5db;
-    padding: 10px 18px;
-    font-size: 15px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background 0.2s ease;
-}
-
-.abort-button-class:hover:not(:disabled) {
-    background-color: #d1d5db;
-}
-
-.abort-button-class:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-
-.re-execute-button {
-    background-color: #ebc98f;   
-    color: #464141;
-    border: 1px solid #d97706;
-    padding: 10px 18px;
-    font-size: 15px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.re-execute-button:hover:not(:disabled) {
-    background-color: #edbc6a;  
-}
-
-.re-execute-button:disabled {
-    background-color: #fde68a;   
-    color: #92400e;
-    cursor: not-allowed;
-    opacity: 0.7;
-}
-
-/* rotated when expanded */
-.section-header.open .arrow-icon {
-    transform: rotate(90deg);
-}
-
-
-
-/* Device Status Badge Styles */
-.device-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.3px;
-    transition: all 0.2s ease;
-}
-
-/* Online Status */
-.device-status.status-online {
-    background: #e8f5e9;
-    color: #2e7d32;
-    border: 1px solid #a5d6a7;
-}
-
-/* Offline Status */
-.device-status.status-offline {
-    background: #ffebee;
-    color: #c62828;
-    border: 1px solid #ef9a9a;
-}
-
-/* Status Dot Animation */
-.status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-}
-
-.status-online .status-dot {
-    background: #2e7d32;
-    animation: pulse-online 2s infinite;
-}
-
-.status-offline .status-dot {
-    background: #c62828;
-}
-
-/* Pulse Animation for Online Status */
-@keyframes pulse-online {
-    0%, 100% {
-        opacity: 1;
-        box-shadow: 0 0 0 0 rgba(46, 125, 50, 0.7);
     }
-    50% {
+    .status-2 {
+    background-color: blue;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    }
+    .status-3 {
+    background-color: green;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    }
+    .status-4{
+        background-color: orange;
+        color: white;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+    }
+    .section-header{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    padding: 7px 5px;
+        cursor: pointer;
+        margin-bottom: 10px;
+        background-color: #faf8f8;
+    }
+    .section-header .header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .arrow-icon {
+        width: 18px;
+        height: 18px;
+        transition: transform 0.25s ease;
+        color: #374151; /* neutral gray */
+    }
+    .abort-button-class {
+        background-color: #e5e7eb; /* light gray */
+        color: #374151;            /* dark gray text */
+        border: 1px solid #d1d5db;
+        padding: 10px 18px;
+        font-size: 15px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background 0.2s ease;
+    }
+
+    .abort-button-class:hover:not(:disabled) {
+        background-color: #d1d5db;
+    }
+
+    .abort-button-class:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+
+    .re-execute-button {
+        background-color: #ebc98f;   
+        color: #464141;
+        border: 1px solid #d97706;
+        padding: 10px 18px;
+        font-size: 15px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .re-execute-button:hover:not(:disabled) {
+        background-color: #edbc6a;  
+    }
+
+    .re-execute-button:disabled {
+        background-color: #fde68a;   
+        color: #92400e;
+        cursor: not-allowed;
         opacity: 0.7;
-        box-shadow: 0 0 0 4px rgba(46, 125, 50, 0);
     }
-}
 
-/* Disabled Button Style */
-.btn-action.disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    pointer-events: none;
-}
+    /* rotated when expanded */
+    .section-header.open .arrow-icon {
+        transform: rotate(90deg);
+    }
+
+
+
+    /* Device Status Badge Styles */
+    .device-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        transition: all 0.2s ease;
+    }
+
+    /* Online Status */
+    .device-status.status-online {
+        background: #e8f5e9;
+        color: #2e7d32;
+        border: 1px solid #a5d6a7;
+    }
+
+    /* Offline Status */
+    .device-status.status-offline {
+        background: #ffebee;
+        color: #c62828;
+        border: 1px solid #ef9a9a;
+    }
+
+    /* Status Dot Animation */
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .status-online .status-dot {
+        background: #2e7d32;
+        animation: pulse-online 2s infinite;
+    }
+
+    .status-offline .status-dot {
+        background: #c62828;
+    }
+
+    /* Pulse Animation for Online Status */
+    @keyframes pulse-online {
+        0%, 100% {
+            opacity: 1;
+            box-shadow: 0 0 0 0 rgba(46, 125, 50, 0.7);
+        }
+        50% {
+            opacity: 0.7;
+            box-shadow: 0 0 0 4px rgba(46, 125, 50, 0);
+        }
+    }
+
+    /* Disabled Button Style */
+    .btn-action.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
 
 </style>
 {% endblock %}
@@ -688,10 +688,6 @@ function formatDateTime(dateValue) {
 }
 
 function displayExecutionData(data) {
-    // Update page title
-    
-    // Update summary
-    
     const reExecutionDiv = document.getElementById('re-execution-details');
     const items= data.re_execution_data || [];
     if(!items.length){
@@ -774,7 +770,7 @@ function abortAllTests() {
     fetch(`/api/v1/test-management/execution/${executionId}/abort-execution/`, {
         method: 'POST',
         headers: {
-            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'X-CSRFToken': csrftoken,  
             'Content-Type': 'application/json'
         },
         credentials: 'same-origin',  // Important for CSRF
@@ -819,10 +815,10 @@ function abortTest(executionId) {
     fetch(`/api/v1/test-management/test-case-execution/${executionId}/abort/`, {
         method: 'POST',
         headers: {
-            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'X-CSRFToken': csrftoken,  
             'Content-Type': 'application/json'
         },
-        credentials: 'same-origin',  // Important for CSRF
+        credentials: 'same-origin',  
         body: JSON.stringify({})
     })
     .then(response => {
@@ -849,8 +845,6 @@ function abortTest(executionId) {
     });
 }
 
-// Simplified retry function without CSRF token
-// Update the retryTest function
 function retryTest(executionId) {
     if (!confirm('Are you sure you want to retry this test?')) {
         return;
@@ -865,10 +859,10 @@ function retryTest(executionId) {
     fetch(`/api/v1/test-management/test-case-execution/${executionId}/retry/`, {
         method: 'POST',
         headers: {
-            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'X-CSRFToken': csrftoken, 
             'Content-Type': 'application/json'
         },
-        credentials: 'same-origin',  // Important for CSRF
+        credentials: 'same-origin', 
         body: JSON.stringify({})
     })
     .then(response => {
@@ -895,7 +889,6 @@ function retryTest(executionId) {
     });
 }
 
-// Update the retryDeviceTests function similarly
 function retryDeviceTests(deviceExecutionId) {
     if (!confirm('Are you sure you want to retry all failed tests for this device?')) {
         return;
@@ -909,10 +902,10 @@ function retryDeviceTests(deviceExecutionId) {
     fetch(`/api/v1/test-management/device-execution/${deviceExecutionId}/retry-all/`, {
         method: 'POST',
         headers: {
-            'X-CSRFToken': csrftoken,  // Make sure this is included
+            'X-CSRFToken': csrftoken, 
             'Content-Type': 'application/json'
         },
-        credentials: 'same-origin',  // Important for CSRF
+        credentials: 'same-origin', 
         body: JSON.stringify({})
     })
     .then(response => {
@@ -1419,7 +1412,7 @@ document.addEventListener('visibilitychange', function() {
     if (!isPageVisible) {
         stopAutoRefresh();
     } else {
-        // Check if we should restart auto-refresh
+        // Check for restart auto-refresh
         const hasPending = document.querySelectorAll('.status-indicator.pending, .status-indicator.running').length > 0;
         if (hasPending) {
             startAutoRefresh();

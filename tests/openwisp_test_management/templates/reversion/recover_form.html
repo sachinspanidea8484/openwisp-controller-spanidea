@@ -63,9 +63,11 @@
   {% endif %}
 
   
+    {% if show_test_case_selection %}
+      <script src="{% static 'test-management/js/test_suite_form.js' %}"></script>
+    {% endif %}
 
-  <script src="{% static 'test-management/js/test_suite_form.js' %}"></script>
-{% endblock %}
+    {% endblock %}
 
 {% block after_field_sets %}
     {{ block.super }}

@@ -16,9 +16,6 @@ def testsuite_execution_status_notification(sender, instance, created, **kwargs)
     """
     from .tasks import send_execution_completed_email ,send_execution_completed_notification
 
-    f">>>>>>>>>>>>>> notification emails for execution {instance.pk}." ,
-
-    
     # Only trigger for completed executions
     if instance.execution_status != 3:
         return

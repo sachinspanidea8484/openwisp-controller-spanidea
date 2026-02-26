@@ -103,15 +103,9 @@
             try {
               var jsonContent = e.target.result;
 
-              // Validate JSON
-              // JSON.parse(jsonContent);
-              console.log("jsonContent:", jsonContent);
-
               // Populate the params field
               $paramsField.val(jsonContent);
 
-              // Show success message
-              //   showMessage("JSON file loaded successfully!", "success");
             } catch (error) {
               //   showMessage("Invalid JSON file: " + error.message, "error");
             }
@@ -146,7 +140,7 @@
       }, 3000);
     }
 
-    // NOTE: MODAL FOR TEST SCRIPT GUIDELINES
+    // MODAL FOR TEST SCRIPT GUIDELINES
     var modalHTML = `
       <div class="modal fade" id="guidelineModal" tabindex="-1">
         <div class="modal-dialog modal-lg">

@@ -21,14 +21,13 @@
   // Store available devices and selected devices
   let availableDevices = [];
   let selectedDevices = new Map(); // Map of device_id -> device_data
-  let configPushTestCases = [];
   let pendingGroupSelection = null;
-  let isSubmitting= false;
+  let isSubmitting = false;
   function applyDisabledState() {
     if (window.disabledViewMode) {
       $(".device-selector select, .device-selector button").prop(
         "disabled",
-        true
+        true,
       );
       $(".remove-device-btn, .remove-all-btn").prop("disabled", true);
     }
@@ -52,9 +51,9 @@
     // Insert after h1
     const h1 = document.querySelector("#content");
     h1.insertAdjacentHTML("beforebegin", msgHtml);
-    
+
     const msg = document.querySelector(".messagelist");
-    msg.scrollIntoView({behavior:"smooth", block:"center"})
+    msg.scrollIntoView({ behavior: "smooth", block: "center" });
     // Auto-remove after 5 seconds
     setTimeout(() => {
       if (msg) {
@@ -145,11 +144,10 @@
       processData: false,
       contentType: false,
       success: function (data) {
-        fileInput.value=""
-        console.log("successs", data);
+        fileInput.value = "";
       },
       error: function (data) {
-        console.log("error", data);
+        console.info("error", data);
       },
     });
   }
@@ -163,21 +161,17 @@
       alert("Please select a file before clicking Run");
       return;
     }
-    console.log(btn.classList)
     btn.classList.add("loading");
-   
+
     uploadConfigOverDevice(deviceId, file, fileInput, tcName);
     btn.classList.remove("loading");
-   
-
   });
 
-
-  // CHANGE: Updated handleGroupSelection to properly manage selectedDevices map
+  //  Updated handleGroupSelection to properly manage selectedDevices map
   function handleGroupSelection(groupId) {
     // Call API to fetch devices for the group
     const match = window.location.pathname.match(
-      /testsuiteexecution\/([0-9a-fA-F-]+)\/change\/$/
+      /testsuiteexecution\/([0-9a-fA-F-]+)\/change\/$/,
     );
     const executionId = match ? match[1] : null;
     const api_url = executionId
@@ -195,12 +189,12 @@
         const list = $("#selected-devices-list");
         list.empty(); // clear old devices
 
-        // CHANGE: Clear previous selections in the map
+        //  Clear previous selections in the map
         selectedDevices.clear();
 
         if (devices.length === 0) {
           list.append(
-            "<div class='no-devices-selected'>No devices in this group</div>"
+            "<div class='no-devices-selected'>No devices in this group</div>",
           );
         } else {
           devices.forEach((device) => {
@@ -216,18 +210,18 @@
               (selectedProtocol && selectedProtocol === "0")
                 ? "checked"
                 : "";
-            // CHANGE: Add devices to selectedDevices map
+            // Add devices to selectedDevices map
             selectedDevices.set(String(device.id), device);
 
-            // CHANGE: Updated UI structure to match single device selection
+            // Updated UI structure to match single device selection
             list.append(`
                 <div class="selected-device-item" data-device-id="${device.id}">
                     <div class="device-info">
                         <div class="device-name">${device.name}</div>
                         <div class="device-details">
                           ${device.organization || ""} - ${
-              device.management_ip || ""
-            } - ${device.status || ""}
+                            device.management_ip || ""
+                          } - ${device.status || ""}
                         </div>
                     </div>
 
@@ -258,11 +252,11 @@
               `);
           });
           // Update device count
-          // CHANGE: Use updateDeviceCount function for consistency
+          // Use updateDeviceCount function for consistency
           updateDeviceCount();
-          // CHANGE: Update hidden input to sync form data
+          // Update hidden input to sync form data
           updateHiddenInput();
-         
+
           $("#device-selection select").prop("disabled", true);
           // Swap "Add Devices from Group" with "Remove All"
           $("#add-group-btn").replaceWith(`
@@ -270,8 +264,6 @@
                       window.disabledViewMode ? "disabled" : ""
                     }>Remove All Devices</button>
                 `);
-
-          // CHANGE: Removed the click handler from here - it's now delegated
         }
       },
       error: function () {
@@ -280,13 +272,13 @@
     });
   }
 
-  // CHANGE: NEW FUNCTION - Load device groups for group mode
+  // Load device groups for group mode
   function loadDeviceGroups() {
     const dropdown = $("#device-dropdown");
     dropdown.empty();
     dropdown.append('<option value="">Loading groups...</option>');
     $.ajax({
-      url: "/api/v1/test-management/device-groups", // CHANGE: Adjust this endpoint to match your API
+      url: "/api/v1/test-management/device-groups", // Adjust this endpoint to match your API
       method: "GET",
       headers: {
         "X-CSRFToken": csrftoken,
@@ -298,7 +290,7 @@
         if (data && data.length > 0) {
           data.forEach(function (group) {
             dropdown.append(
-              `<option value="${group.id}">${group.name}</option>`
+              `<option value="${group.id}">${group.name}</option>`,
             );
           });
           if (pendingGroupSelection) {
@@ -309,7 +301,7 @@
             if (dropdown.find(`option[value='${groupId}']`).length === 0) {
               // Add missing option
               dropdown.append(
-                `<option value="${groupId}">${groupName}</option>`
+                `<option value="${groupId}">${groupName}</option>`,
               );
             }
 
@@ -324,7 +316,7 @@
           }
         } else {
           dropdown.append(
-            '<option value="">No device groups available</option>'
+            '<option value="">No device groups available</option>',
           );
         }
         applyDisabledState();
@@ -337,7 +329,7 @@
     });
   }
 
-  // CHANGE: Completely replaced the radio button change handler with improved version
+  // Completely replaced the radio button change handler with improved version
   // Remove any existing radio button handlers first to avoid duplicates
   $(document).off("change", "#id_device_selection input[type=radio]");
   $(document).off("change", "#id_test_selection_type input[type=radio]");
@@ -347,8 +339,7 @@
     "#id_test_selection_type input[type=radio]",
     function () {
       configPushTestCases = [];
-       
-    }
+    },
   );
 
   // Handle radio button changes
@@ -373,13 +364,12 @@
         const cont = createDeviceSelection("group");
         deviceSelectionField.after(cont);
 
-        loadDeviceGroups(); // CHANGE: Now calling the new loadDeviceGroups function
+        loadDeviceGroups(); //  Now calling the new loadDeviceGroups function
       }
-       
-    }
+    },
   );
 
-  // CHANGE: NEW - Delegated handler for device dropdown changes
+  // Delegated handler for device dropdown changes
   $(document).on("change", "#device-dropdown", function () {
     const value = $(this).val();
 
@@ -393,7 +383,7 @@
     }
   });
 
-  // CHANGE: NEW - Delegated handler for "Add Devices from Group" button
+  //  Delegated handler for "Add Devices from Group" button
   $(document).on("click", "#add-group-btn", function () {
     const groupId = $("#device-dropdown").val();
     if (groupId) {
@@ -401,7 +391,7 @@
     }
   });
 
-  // CHANGE: NEW - Delegated handler for "Remove All Devices" button
+  //  Delegated handler for "Remove All Devices" button
   $(document).on("click", "#remove-all-btn", function () {
     const list = $("#selected-devices-list");
     list
@@ -435,7 +425,6 @@
         "X-Requested-With": "XMLHttpRequest",
       },
       success: function (data) {
-        console.log("Available devices:", data);
         availableDevices = data.devices || [];
         updateDeviceDropdown();
         applyDisabledState();
@@ -443,7 +432,7 @@
       error: function (xhr, status, error) {
         console.error("Error loading devices:", error);
         $("#device-dropdown").html(
-          '<option value="">Error loading devices</option>'
+          '<option value="">Error loading devices</option>',
         );
         applyDisabledState();
       },
@@ -452,8 +441,7 @@
 
   function initializeDeviceSelection() {
     const selectedValue = $('input[name="device_selection"]:checked').val();
-    console.log("Initializing device selection, type:", selectedValue);
-
+   
     // Remove any existing container
     $("#device-selection").remove();
 
@@ -481,11 +469,6 @@
     initializeDeviceSelection();
   }
 
-
-
-  // Update device dropdown
-
-  // Update device dropdown
   function updateDeviceDropdown() {
     const dropdown = $("#device-dropdown");
     dropdown.empty();
@@ -533,13 +516,12 @@
     const tbody = testCasesDisplay.find("tbody");
     if (!testSuiteId) {
       testCasesDisplay.hide();
-      //   deviceSelection.hide();
       return;
     }
 
     // Show loading
     tbody.html(
-      '<tr><td colspan="4" style="text-align: center; padding: 20px;"><div class="loading-spinner"></div> Loading test cases...</td></tr>'
+      '<tr><td colspan="4" style="text-align: center; padding: 20px;"><div class="loading-spinner"></div> Loading test cases...</td></tr>',
     );
     testCasesDisplay.show();
     deviceSelection.show();
@@ -555,13 +537,12 @@
         "X-Requested-With": "XMLHttpRequest",
       },
       success: function (data) {
-        console.log("Test suite details:", data);
         displayTestCases(data.test_cases);
       },
       error: function (xhr, status, error) {
         console.error("Error loading test suite details:", error);
         tbody.html(
-          '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #dc3545;">Error loading test cases</td></tr>'
+          '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #dc3545;">Error loading test cases</td></tr>',
         );
       },
     });
@@ -574,7 +555,7 @@
 
     if (!testCases || testCases.length === 0) {
       tbody.html(
-        '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #999;">No test cases in this test group</td></tr>'
+        '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #999;">No test cases in this test group</td></tr>',
       );
       return;
     }
@@ -600,12 +581,10 @@
             `);
 
       tbody.append(row);
-      
     });
     configPushTestCases = testCases.filter(
-      (t) => t.is_configuration_push_required
+      (t) => t.is_configuration_push_required,
     );
-     
   }
   $(document).ready(function () {
     if (window.recoveredDevices && window.recoveredDevices.length > 0) {
@@ -624,25 +603,24 @@
     if (window.recoveredDeviceGroup?.id) {
       pendingGroupSelection = window.recoveredDeviceGroup;
     }
-   
-    if(window.scheduled_dt_time){
+
+    if (window.scheduled_dt_time) {
       const element = document.getElementById("schedule-execution-info");
       element.innerHTML = `<strong style={{}}>Scheduled Execution Time:</strong> ${(() => {
         const d = new Date(window.scheduled_dt_time);
         return `${String(d.getDate()).padStart(2, "0")}-${String(
-          d.getMonth() + 1
+          d.getMonth() + 1,
         ).padStart(2, "0")}-${d.getFullYear()} ${String(d.getHours()).padStart(
           2,
-          "0"
+          "0",
         )}:${String(d.getMinutes()).padStart(2, "0")}`;
       })()}`;
     }
 
-
     const target = document.querySelector(".field-individual_test_cases");
 
     if (!target) {
-      console.log("M2M field not found");
+      console.info("M2M field not found");
       return;
     }
 
@@ -650,7 +628,7 @@
       const chosenBox = document.getElementById("id_individual_test_cases_to");
 
       if (chosenBox) {
-        // attachM2MListeners();
+        
         const observer2 = new MutationObserver(() => {
           logValues();
         });
@@ -664,17 +642,16 @@
     });
 
     observer1.observe(target, { childList: true, subtree: true });
-   
 
     // Mutation observer to detect any change to options
     const el = document.querySelector("#testcase-config-json");
     const casetoconfigmapping = JSON.parse(el.textContent);
 
     function logValues() {
-      if(isSubmitting) return ;
+      if (isSubmitting) return;
       configPushTestCases = [];
       configPushTestCases = Array.from(
-        document.querySelectorAll("#id_individual_test_cases_to option")
+        document.querySelectorAll("#id_individual_test_cases_to option"),
       )
         .map((opt) => ({
           value: opt.value,
@@ -683,27 +660,22 @@
           id: opt.value,
         }))
         .filter((tc) => casetoconfigmapping[tc.value] === true);
-
-       
     }
   });
-  
- 
 
-  // CHANGE: Converted to delegated event handler for add device button
+  //  Converted to delegated event handler for add device button
   $(document).off("click", "#add-device-btn"); // Remove any existing direct handlers
   $(document).on("click", "#add-device-btn", function () {
     const deviceId = $("#device-dropdown").val();
 
     if (!deviceId) {
-      // You might want to uncomment this for better UX
-      // alert('Please select a device first');
+      
       return;
     }
 
     // Find device in available devices
     const device = availableDevices.find(
-      (d) => String(d.id) === String(deviceId)
+      (d) => String(d.id) === String(deviceId),
     );
     if (!device) {
       alert("Device not found");
@@ -718,7 +690,6 @@
     updateDeviceDropdown();
     updateDeviceCount();
     updateHiddenInput();
-     
 
     // Reset dropdown
     $("#device-dropdown").val("");
@@ -730,7 +701,7 @@
 
     if (selectedDevices.size === 0) {
       container.html(
-        '<div class="no-devices-selected">No devices selected</div>'
+        '<div class="no-devices-selected">No devices selected</div>',
       );
       return;
     }
@@ -769,8 +740,8 @@
                       </label>
                     </div>
                     <button type="button" class="remove-device-btn" data-device-id="${deviceId}" ${
-        window.disabledViewMode ? "disabled" : ""
-      }>Remove</button>
+                      window.disabledViewMode ? "disabled" : ""
+                    }>Remove</button>
                 </div>
             `);
       if (device?.status !== "Deactivated") {
@@ -791,7 +762,6 @@
     updateDeviceDropdown();
     updateDeviceCount();
     updateHiddenInput();
-     
   });
 
   // Update device count
@@ -825,13 +795,13 @@
       return { id, protocol: selectedProtocol };
     });
     input.val(JSON.stringify(deviceIds));
-    console.log("Updated selected devices:", deviceIds);
+    
 
     // Handle device group
     let groupInput = $('input[name="device_group"]');
     if (!groupInput.length) {
       groupInput = $(
-        '<input type="hidden" name="device_group" id="id_device_group">'
+        '<input type="hidden" name="device_group" id="id_device_group">',
       );
       $("form").append(groupInput);
     }
@@ -841,7 +811,7 @@
     if (selectedType === "1") {
       const groupId = $("#device-dropdown").val(); // or however you let user pick group
       groupInput.val(groupId);
-      console.log("Updated device_group:", groupId);
+      
     } else {
       groupInput.val(""); // not needed in single mode
     }
@@ -849,7 +819,7 @@
 
   // Form submission validation
   $("form").on("submit", function (e) {
-    isSubmitting=true;
+    isSubmitting = true;
     updateHiddenInput();
 
     // Validate test suite selection
@@ -866,10 +836,7 @@
     //     return false;
     // }
 
-    console.log(
-      "Form submitted with devices:",
-      Array.from(selectedDevices.keys())
-    );
+   
   });
 
   // Initialize on page load
@@ -880,5 +847,5 @@
     $("#id_test_suite").trigger("change");
   }
 
-  console.log("TestSuiteExecution form initialized");
+  console.info("TestSuiteExecution form initialized");
 })(django.jQuery);
