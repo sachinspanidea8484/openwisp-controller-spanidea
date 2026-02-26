@@ -1145,11 +1145,11 @@ class TestExecutionHistoryView(ProtectedExternalAPIMixin, APIView):
         execution = get_object_or_404(TestExecution, id=execution_id)
 
         # Optional: permission check
-        if execution.created_by != request.user:
-            return Response(
-                {"detail": "Not allowed to get history for this execution."},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        # if execution.created_by != request.user:
+        #     return Response(
+        #         {"detail": "Not allowed to get history for this execution."},
+        #         status=status.HTTP_403_FORBIDDEN
+        #     )
 
         try:        
             # Get all execution devices
