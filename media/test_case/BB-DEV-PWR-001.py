@@ -66,5 +66,5 @@ def main():
     return EXIT_FAILED
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
 
