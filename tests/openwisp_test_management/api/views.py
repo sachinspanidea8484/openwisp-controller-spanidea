@@ -909,7 +909,7 @@ class TestExecutionReExecuteView(ProtectedExternalAPIMixin, APIView):
         from ..tasks import execute_test_suite as execute_test_suite_task
         execution = get_object_or_404(TestExecution, pk=execution_id)
         # Optional: permission check
-        if execution.created_by != request.user:
+        if execution.created_by != request.user and not request.user.is_superuser:
             return Response(
                 {"detail": "Not allowed to start this execution."},
                 status=status.HTTP_403_FORBIDDEN
@@ -951,7 +951,7 @@ class TestExecutionReExecuteSelectedView(ProtectedExternalAPIMixin, APIView):
         try:
             execution = get_object_or_404(TestExecution, pk=execution_id)
             # Optional: permission check
-            if execution.created_by != request.user:
+            if execution.created_by != request.user and not request.user.is_superuser:
                 return Response(
                     {"detail": f"Not allowed to start this execution. As its created by: {execution.created_by}"},
                     status=status.HTTP_403_FORBIDDEN
@@ -991,7 +991,7 @@ class TestExecutionAbortView(ProtectedExternalAPIMixin, APIView):
         execution = get_object_or_404(TestExecution, id=execution_id)
 
         # Optional: permission check
-        if execution.created_by != request.user:
+        if execution.created_by != request.user and not request.user.is_superuser:
             return Response(
                 {"detail": "Not allowed to abort this execution."},
                 status=status.HTTP_403_FORBIDDEN
@@ -1058,11 +1058,11 @@ class TestExecutionHistoryExportView(ProtectedExternalAPIMixin, APIView):
         execution = get_object_or_404(TestExecution, id=execution_id)
 
         # Optional: permission check
-        if execution.created_by != request.user:
-            return Response(
-                {"detail": "Not allowed to export history for this execution."},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        # if execution.created_by != request.user:
+        #     return Response(
+        #         {"detail": "Not allowed to export history for this execution."},
+        #         status=status.HTTP_403_FORBIDDEN
+        #     )
 
         try:
             response = HttpResponse(content_type='text/csv')
