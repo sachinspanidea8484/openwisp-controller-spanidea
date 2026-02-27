@@ -211,11 +211,7 @@
                     <span class="summary-label">Duration:</span>
                     <span class="summary-value">{{ duration }}</span>
                 </div>
-                <div class="statistics">
-                    <span class="stat-item stat-passed">{{ passed_count }} Passed</span>
-                    <span class="stat-item stat-failed">{{ failed_count }} Failed</span>
-                    <span class="stat-item">(Total: {{ total_tests }})</span>
-                </div>
+              
             </div>
 
             <!-- Device Results Table -->
@@ -225,7 +221,8 @@
                     <tr>
                         <th>Device Name</th>
                         <th>Status</th>
-                        <th>Pass/Fail</th>
+                        <th>Pass/Fail/Abort</th>
+                        <th>Total</th>
                         <th style="text-align: center;">Report</th>
                     </tr>
                 </thead>
@@ -235,14 +232,15 @@
                         <td><strong>{{ device.name }}</strong></td>
                         <td>
                             {% if device.status == 'completed' %}
-                                <span class="status-badge status-completed">Completed</span>
+                                <span class="status-badge status-completed">Pass</span>
                             {% elif device.status == 'failed' %}
                                 <span class="status-badge status-failed">Failed</span>
                             {% else %}
                                 <span class="status-badge status-other">{{ device.status|title }}</span>
                             {% endif %}
                         </td>
-                        <td>{{ device.passed }}/{{ device.total }}</td>
+                       <td>{{ device.passed }}/{{ device.failed }}/{{ device.aborted }}</td>
+                       <td>{{ device.total }}</td>
                         <td style="text-align: center;">
                             {% if device.report_url %}
                                 <a href="{{ device.report_url }}" class="btn">View Report</a>

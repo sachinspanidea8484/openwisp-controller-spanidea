@@ -1,2 +1,0 @@
-guideline to upload test scripts.
-

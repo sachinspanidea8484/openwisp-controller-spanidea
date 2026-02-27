@@ -1036,7 +1036,7 @@ function displayExecutionData(data) {
    
     if(show_re_execution){
         reExecuteSection.innerHTML=`
-        <button ${data.status !== 3 ? "disabled" : ""}  id="reExecuteBtn" class="re-execute-button" onclick="reExecuteSelected('${data.execution_id}')">
+        <button   id="reExecuteBtn" class="re-execute-button" onclick="reExecuteSelected('${data.execution_id}')">
             Re-Execute Selected
             </button>`
             updateReExecuteButtonState();

@@ -1933,11 +1933,16 @@ def prepare_email_data(execution_id):
         if dev_exec.allure_report_path:
             media_path = dev_exec.allure_report_path.lstrip('/')
             report_url = f"{base_url}{MEDIA_URL}{media_path}"
+      
+        logger.debug(f"Statuses for {dev_exec.device.name}: {list(dev_cases.values_list('status', flat=True))}")
+
         
         device_stats.append({
             'name': dev_exec.device.name,
             'status': dev_exec.status,
             'passed': d_pass,
+            'failed': dev_cases.filter(status='failed').count(),
+            'aborted': dev_cases.filter(status='aborted').count(),
             'total': d_total,
             'report_url': report_url
         })
@@ -1983,7 +1988,7 @@ def prepare_email_data(execution_id):
     
     context = {
         'execution_name': execution.name,
-        'start_time': start_time.strftime("%Y-%m-%d %H:%M:%S"),
+        'start_time': timezone.localtime(start_time).strftime("%Y-%m-%d %H:%M:%S"),
         'duration': formatted_duration,
         'total_devices': execution.device_count,
         'total_tests': total_tests,
