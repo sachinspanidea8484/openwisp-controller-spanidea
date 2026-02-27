@@ -1614,13 +1614,13 @@ class TestCaseListView(ProtectedAPIMixin, generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = TestCase.objects.select_related("category")
+        return qs
+        # # Superusers see all test cases
+        # if self.request.user.is_superuser:
+        #     return qs
 
-        # Superusers see all test cases
-        if self.request.user.is_superuser:
-            return qs
-
-        # Normal users see only their own test cases or system test case
-        return qs.filter( Q(created_by=self.request.user) | Q(is_system_test_case=True) )
+        # # Normal users see only their own test cases or system test case
+        # return qs.filter( Q(created_by=self.request.user) | Q(is_system_test_case=True) )
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -1639,7 +1639,7 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
     parser_classes = (MultiPartParser, FormParser)
     def get_queryset(self):
         qs = TestCase.objects.select_related("category")
-
+        return qs
         if self.request.user.is_superuser:
             return qs
 
@@ -1654,7 +1654,7 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
         """
         Match admin delete behavior
         """
-        if not self.request.user.is_superuser and instance.is_system_test_case:
+        if not self.request.user.is_superuser and instance.created_by != self.request.user:
             raise ValidationError({
                 "detail": (
                     "User doesn't have permission to delete this test case."
@@ -1674,7 +1674,7 @@ class TestCaseDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVie
         instance = serializer.instance
         user = self.request.user
 
-        if not user.is_superuser and instance.is_system_test_case:
+        if not user.is_superuser and instance.created_by != user:
             raise ValidationError({
                 "detail": "User doesn't have permission to edit this system test case."
             })
@@ -1695,11 +1695,11 @@ class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
         Match admin visibility rules
         """
         qs = super().get_queryset()
+        return qs
+        # if self.request.user.is_superuser:
+        #     return qs
 
-        if self.request.user.is_superuser:
-            return qs
-
-        return qs.filter(Q(created_by=self.request.user) | Q(is_system_test_case=True))
+        # return qs.filter(Q(created_by=self.request.user) | Q(is_system_test_case=True))
     
     def get(self, request, *args, **kwargs):
        
@@ -1732,10 +1732,10 @@ class TestCaseExportApiView(ProtectedAPIMixin, APIView):
     SUPPORTED_FORMATS= ("xlsx", "csv")
    
     def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return TestCase.objects.all()
-        return TestCase.objects.filter(Q(created_by=user) | Q(is_system_test_case=True))
+        return TestCase.objects.all()
+        # user = self.request.user
+        # if user.is_superuser:
+        # return TestCase.objects.filter(Q(created_by=user) | Q(is_system_test_case=True))
     
   
     def get(self, request, export_format):

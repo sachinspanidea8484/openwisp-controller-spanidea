@@ -1422,7 +1422,7 @@ class TestCaseAdmin(BaseVersionAdmin):
         return self.readonly_fields
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-
+        return qs
         # Superusers see everything
         if request.user.is_superuser:
             return qs
@@ -1431,14 +1431,22 @@ class TestCaseAdmin(BaseVersionAdmin):
         return qs.filter( Q(created_by=request.user) | Q(is_system_test_case=True)) 
     
     def has_view_permission(self, request, obj=None):
-        if obj and not request.user.is_superuser:
-            return obj.created_by == request.user or obj.is_system_test_case
-        return super().has_view_permission(request, obj)
+        return True
 
     def has_change_permission(self, request, obj=None):
-        if obj and not request.user.is_superuser:
-            return obj.created_by == request.user
-        return super().has_change_permission(request, obj)
+        if obj is None:
+            # Allow access to the change list page
+            return True
+
+        if request.user.is_superuser:
+            return True
+
+        # Only owner can modify
+        return obj.created_by == request.user
+
+        # if obj and not request.user.is_superuser:
+        #     return obj.created_by == request.user
+        # return super().has_change_permission(request, obj)
     
     def name_with_tooltip(self,obj):
         tooltip_text= obj.description or "No description available"
@@ -1543,9 +1551,18 @@ class TestCaseAdmin(BaseVersionAdmin):
         return super().recover_view(request, version_id, extra_context=extra_context)
 
     def has_delete_permission(self, request, obj=None):
-        if obj and not request.user.is_superuser:
-            return obj.created_by == request.user and obj.is_deletable
-        return super().has_delete_permission(request, obj)
+        if obj is None:
+            return True
+
+        if request.user.is_superuser:
+            return True
+
+        # Only owner can delete and only if deletable
+        return obj.created_by == request.user and obj.is_deletable
+        # if obj and not request.user.is_superuser:
+        #     return obj.created_by == request.user and obj.is_deletable
+        # return super().has_delete_permission(request, obj)
+
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
         form.request= request
@@ -1655,7 +1672,7 @@ class TestCaseAdmin(BaseVersionAdmin):
 
         # Check for undeletable test cases
         undeletable = [obj for obj in queryset if not obj.is_deletable]
-        restricted_test_case= [obj for obj in queryset if obj.is_system_test_case and not request.user.is_superuser ]
+        restricted_test_case= [obj for obj in queryset if obj.created_by != request.user and not request.user.is_superuser ]
         if restricted_test_case:
             msg = _("User doesn't have permission to delete test case(s): %s") % (
                 ", ".join([str(obj) for obj in restricted_test_case])
