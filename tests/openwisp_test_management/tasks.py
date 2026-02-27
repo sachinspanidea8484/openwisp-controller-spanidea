@@ -485,7 +485,7 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
                         device=device,
                         test_case=test_case,
                         status=TestExecutionStatus.PENDING,
-)
+            )
             test_execution.save()
             all_test_execution_ids.append(test_execution.id)
             
@@ -495,7 +495,7 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
             artifact= ExecutionArtifact.objects.filter(
              device= device,
              testcase=test_case,
-             execution= test_suite_execution
+             execution= test_suite_execution.parent_execution
             ).only("config_file", "is_pushed").first()
 
             # NEW: Prepare file parameters
@@ -503,7 +503,7 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
             file_download_url = None
 
 
-            if artifact and artifact.config_file and not artifact.is_pushed:
+            if artifact and artifact.config_file:
              # Build full download URL
              from django.conf import settings
              file_path = artifact.config_file.name  # e.g., "execution_artifacts/test.zip"
