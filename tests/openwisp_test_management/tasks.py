@@ -1,4 +1,3 @@
-# openwisp_test_management/tasks.py
 import logging
 from celery import shared_task
 from django.utils import timezone
@@ -912,8 +911,8 @@ def retry_test_execution(test_execution_id):
                 "test_type": test_case.test_type,
                 "params": test_case.params,
                 "execution_id": test_execution_id,
-                "is_file_required": is_file_required,  # NEW
-                "file_download_url": file_download_url  # NEW
+                "is_file_required": is_file_required, 
+                "file_download_url": file_download_url 
             }]
         }
         
