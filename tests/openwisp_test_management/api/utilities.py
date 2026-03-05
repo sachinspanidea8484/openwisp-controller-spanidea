@@ -483,12 +483,36 @@ class TestCasesResource(resources.ModelResource):
         
         test_case_id = row.get("test_case_id")
         test_type_from_file = row.get("test_type")
-        system_generated = row.get("is_system_test_case")
-        if system_generated:
-            if not self.user or not self.user.is_superuser:
+        test_type_mapping= {"Device" : 2 , "Robot Framework": 1}
+        pk= row.get("id")
+        system_generated=False
+        if pk:
+            existing_testcase_data = TestCase.objects.get(id= pk)
+            if not existing_testcase_data:
                 raise Exception(
-                    f"Non-superuser cannot import system test case: {test_case_id}"
-                )
+                        f"No test case found with id", field="test_case_id"
+                    )
+            system_generated= existing_testcase_data.is_system_test_case
+
+            if test_case_id != existing_testcase_data.test_case_id:
+                raise Exception(
+                        f"User cannot change test case id", field="test_case_id"
+                    )
+            if test_type_mapping[test_type_from_file] != existing_testcase_data.test_type:
+                raise Exception(
+                        f"User cannot change test type", field="test_case_id"
+                    )
+            if existing_testcase_data.is_system_test_case:
+                if not self.user or not self.user.is_superuser:
+                    raise Exception(
+                        f"Non-superuser cannot import system test case: {test_case_id}", field="test_case_id"
+                    )
+            if self.user != existing_testcase_data.created_by:
+                if not self.user or not self.user.is_superuser:
+                    raise Exception(
+                        f"User doesn't have permission to edit the testcase: {test_case_id}", field="test_case_id"
+                    )
+                
         if test_type_from_file == "Device":
             row["robot_script"]= None
         else:
