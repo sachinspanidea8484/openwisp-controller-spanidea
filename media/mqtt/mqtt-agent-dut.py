@@ -1194,7 +1194,6 @@ def download_and_prepare_config_file(file_download_url, execution_id):
             "wget",
             "-O", local_config_file,
             "--timeout=60",
-            "--header=Accept-Encoding: identity",
             file_download_url
         ]
         
