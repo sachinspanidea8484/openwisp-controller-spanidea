@@ -23,7 +23,8 @@ OpenWISP Controller is an open-source network management system for OpenWrt-base
 ├── docker-compose.yml              # Service orchestration
 ├── requirements.txt                # Python dependencies
 ├── requirements-test.txt           # Additional test/dev dependencies
-├── .env                            # Environment configuration
+├── example.env                     # Template — copy to .env and fill in values
+├── .env                            # Your local environment config (never commit this)
 ├── tests/
 │   ├── docker-entrypoint.sh        # Container startup script
 │   ├── openwisp2/                  # Django project settings and config
@@ -56,16 +57,32 @@ docker compose version
 
 ## Configuration
 
-All environment-specific values are managed through the `.env` file. A summary of key settings is below.
+### 1. Create your `.env` file
 
-### Application
+```bash
+cp example.env .env
+```
+
+Then open `.env` and fill in values for your environment. Never commit `.env` to version control.
+
+### Key Settings
+
+#### Application
 
 ```env
 APP_PORT=8000
+DEBUG_MODE=False
+DJANGO_SECRET_KEY=your-secret-key-here
+DJANGO_LOG_LEVEL=INFO
+DJANGO_LANGUAGE_CODE=en-gb
+TIME_ZONE=Asia/Kolkata
+ALLOWED_HOSTS=*
+CORS_ORIGIN_ALLOW_ALL=True
+```
 
-### Server Endpoints
+#### Server Endpoints
 
-These values must be updated based on your deployment environment:
+Update these based on your deployment environment:
 
 ```env
 # Local development
@@ -86,15 +103,54 @@ EXECUTOR_SERVER_IP=http://172.17.0.1:8080
 
 `EXECUTOR_SERVER_IP` is the address of the Test Executor service. It must be reachable from the OpenWISP container at runtime.
 
-### Email
+#### Email (Gmail SMTP)
+
+This project uses Gmail SMTP. You must use a **Google App Password**, not your regular Gmail password.
+
+**How to generate a Gmail App Password:**
+1. Go to your Google Account → [Security](https://myaccount.google.com/security)
+2. Enable **2-Step Verification** if not already enabled
+3. Go to **App Passwords** (search for it in the Security page)
+4. Select app: `Mail`, device: `Other` → give it a name (e.g. `openwisp`)
+5. Copy the 16-character password generated
 
 ```env
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USE_TLS=True
-EMAIL_HOST_USER=<your_email>
-EMAIL_HOST_PASSWORD=<your_app_password>
+EMAIL_HOST_USER=your-email@gmail.com
+EMAIL_HOST_PASSWORD=xxxx xxxx xxxx xxxx   # 16-char App Password (spaces are fine)
 ```
+
+#### Database
+
+```env
+DB_HOST=postgres
+DB_PORT=5432
+DB_USER=your-db-user
+DB_PASS=your-db-password
+DB_NAME=your-db-name
+```
+
+#### InfluxDB
+
+```env
+INFLUXDB_HOST=influxdb
+INFLUXDB_PORT=8086
+INFLUXDB_USER=your-influxdb-user
+INFLUXDB_PASS=your-influxdb-password
+INFLUXDB_NAME=your-influxdb-dbname
+```
+
+#### uWSGI
+
+```env
+UWSGI_PROCESSES=2
+UWSGI_THREADS=2
+UWSGI_LISTEN=100
+```
+
+---
 
 ## Services
 
@@ -102,7 +158,7 @@ The `docker-compose.yml` defines the following services:
 
 | Service | Description |
 |---|---|
-| `controller` | Django application server (uWSGI/Gunicorn), runs migrations and serves the API and admin UI |
+| `controller` | Django application server (uWSGI), runs migrations and serves the API and admin UI |
 | `celery-worker` | Handles asynchronous background tasks (test execution, notifications, etc.) |
 | `celery-beat` | Schedules periodic tasks (result polling, health checks, etc.) |
 | `postgres` | PostgreSQL 17 with PostGIS 3.5 extension for spatial data |
@@ -122,7 +178,11 @@ cd openwisp-controller
 
 ### 2. Configure environment
 
-Edit `.env` with the correct values for your target environment (local, DEV, or UAT). At minimum, set the correct `OPENWISP_SERVER_IP`, `OPENWISP_CONTROLLER_API_HOST`, and `EXECUTOR_SERVER_IP` for your deployment.
+```bash
+cp example.env .env
+```
+
+Edit `.env` with the correct values for your target environment (local, DEV, or UAT). At minimum, set the correct `OPENWISP_SERVER_IP`, `OPENWISP_CONTROLLER_API_HOST`, and `EXECUTOR_SERVER_IP`.
 
 ### 3. Build and start all services
 
@@ -145,9 +205,7 @@ Email:    admin@example.com
 Password: nokia001
 ```
 
-
 ---
-
 
 ## Logs and Monitoring
 
@@ -201,7 +259,3 @@ docker compose down -v --remove-orphans
 - [Django Documentation](https://docs.djangoproject.com/)
 - [Celery Documentation](https://docs.celeryq.dev/)
 - [Docker Documentation](https://docs.docker.com/)
-
-
-
-

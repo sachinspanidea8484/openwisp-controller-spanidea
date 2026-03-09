@@ -12,10 +12,10 @@ from import_export.formats.base_formats import XLSX,CSV
 
 EXECUTOR_SERVER_IP: str = os.getenv('EXECUTOR_SERVER_IP', "http://172.17.0.1:8080")
 OPENWISP_SERVER_IP: str = os.getenv('OPENWISP_SERVER_IP', "http://172.17.0.1:8000")
-OPENWISP_CONTROLLER_API_HOST: str = os.getenv('OPENWISP_CONTROLLER_API_HOST', "http://172.17.0.1:8000")
+OPENWISP_CONTROLLER_API_HOST: str = os.getenv('OPENWISP_SERVER_IP', "http://172.17.0.1:8000")
 SHOW_RE_EXECUTION : bool = True
 EXECUTION_HISTORY_AUTO_REFRESH_TIME: int = os.getenv('EXECUTION_HISTORY_AUTO_REFRESH_TIME', 60)
-EXECUTION_HISTORY_REFRESH_INTERVAL= os.getenv('EXECUTION_HISTORY_REFRESH_INTERVAL', 60)
+EXECUTION_HISTORY_REFRESH_INTERVAL= os.getenv('EXECUTION_HISTORY_AUTO_REFRESH_TIME', 60)
 
 # Suppress dj_rest_auth deprecation warnings
 import warnings
@@ -46,13 +46,13 @@ IMPORT_EXPORT_FORMATS=[CSV,XLSX]
 
 DJANGO_LOG_LEVEL = os.getenv('DJANGO_LOG_LEVEL', 'INFO')
 
-DEBUG = os.getenv('DEBUG_MODE', True)
+DEBUG = os.getenv('DEBUG_MODE', 'False') == 'True'
 TESTING = False
 SELENIUM_HEADLESS = True
 SHELL = "shell" in sys.argv or "shell_plus" in sys.argv
-REDIS_URL = "redis://redis:6379" 
+REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379')
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
 
 
 OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = ["*"]
@@ -99,9 +99,8 @@ if TESTING:
     if True:
         TIMESERIES_DATABASE['OPTIONS'] = {'udp_writes': True, 'udp_port': 8091}
 
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
-if not SECRET_KEY:
-    raise ValueError("DJANGO_SECRET_KEY environment variable is not set")
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'fn)t*+$)ugeyip6-#txyy$5wf2ervc0d2n#h)qb)y5@ly$t*@w')
+
 
 INSTALLED_APPS = [
     "daphne",
@@ -208,6 +207,7 @@ MIDDLEWARE = [
 
 ]
 
+# radius
 if DEBUG:
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
@@ -215,7 +215,7 @@ if DEBUG:
     CSRF_COOKIE_HTTPONLY = True
 else:
     SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = False
 
 
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
@@ -224,23 +224,12 @@ SAML_USE_NAME_ID_AS_USERNAME = True
 SAML_CREATE_UNKNOWN_USER = True
 SAML_CONFIG = {}
 
+# WARNING: for development only!
 AUTH_PASSWORD_VALIDATORS = []
 
-# Fix — restore Django defaults for production
-if not DEBUG:
-    AUTH_PASSWORD_VALIDATORS = [
-        {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-        {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
-        {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-        {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
-    ]
-else:
-    AUTH_PASSWORD_VALIDATORS = []
-
-INTERNAL_IPS = os.getenv('INTERNAL_IPS', ['127.0.0.1' , '10.10.10.10',
+INTERNAL_IPS = ['127.0.0.1' , '10.10.10.10',
 '54.234.248.241' ,'10.8.12.123' ,'192.168.201.37' , '0.0.0.0'
-                ]).split(',')
-
+                ]
 
 
 ROOT_URLCONF = "openwisp2.urls"
@@ -270,8 +259,7 @@ if TESTING:
 # TIME_ZONE = "UTC"
 TIME_ZONE = os.getenv('TIME_ZONE', 'Asia/Kolkata')
 
-LANGUAGE_CODE = os.getenv('DJANGO_LANGUAGE_CODE', "en-gb")
-LANGUAGE_CODE = "en-gb"
+LANGUAGE_CODE = os.getenv('DJANGO_LANGUAGE_CODE', 'en-gb')
 USE_TZ = True
 USE_I18N = True
 USE_L10N = False

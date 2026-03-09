@@ -10,12 +10,6 @@ urlpatterns = [
      path(
         "test-management/",
         include([
-    # NATIVE APIS
-
-    # ========================================================================
-    # TEST CATEGORY ENDPOINTS
-    # ========================================================================
-    # List all categories OR create new category
     path(
         "test-category/",
         views.test_category_list,
@@ -27,16 +21,11 @@ urlpatterns = [
         views.test_category_detail,
         name="api_test_category_detail",
     ),
-    # ========================================================================
-    # TEST EXECUTION ENDPOINTS
-    # ========================================================================
-    # List all Exections OR create new Execution
     path(
         "execution/",
         views.test_execution_list,
         name="api_test_execution_list",
     ),
-    # Get/Update/Delete specific Execution
     path(
         "execution/<uuid:pk>/",
         views.test_execution_detail,
@@ -78,9 +67,6 @@ urlpatterns = [
         views.test_execution_re_execute_selected,
         name="api_test_execution_re_execute_selected"
     ),
-    # ========================================================================
-    # TEST CASE ENDPOINTS
-    # ========================================================================
     path(
         "test-cases/",
         views.test_case_list,
@@ -107,39 +93,22 @@ urlpatterns = [
         name="test-case-import",
     ),
 
-
-    # ========================================================================
-    # TEST SUITE (TEST GROUP) ENDPOINTS
-    # ========================================================================
-    
-    # List and create test groups
     path(
         "test-group/",
         views.test_suite_list,
         name="api_test_group_list",
     ),
     
-    # Retrieve, update, delete test group
     path(
         "test-group/<uuid:pk>/",
         views.test_suite_detail,
         name="api_test_group_detail",
     ),
-    # ========================================================================
-    # TEST CASE LISTING (WITH CATEGORY FILTER)
-    # ========================================================================
-    
-    # List test cases with category filter
     path(
         "test-cases-by-category/",
         views.test_cases_by_category,
         name="api_test_cases_by_category",
     ),
-
-
-    # ================================================================
-    # DEVICE GROUP ENDPOINTS (NEW)
-    # ================================================================
     path(
         "device-group/",
         views.device_group_list,
@@ -151,8 +120,6 @@ urlpatterns = [
         name="api_device_group_detail",
     ),
     
-    # Get devices available for adding to groups
-    # Query with: ?organization={org_id}
     path(
         "devices-by-organization/",
         views.devices_by_organization,
@@ -234,37 +201,6 @@ urlpatterns = [
         name="api_device_group_devices",
     ),
 
-    # Un Use APIS  
-    # path(
-    #     "test-case-execution/result/",
-    #     executor_views.TestCaseExecutionResultView.as_view(),
-    #     name="api_test_case_execution_result",
-    # ),
-    # path(
-    #     "test-case-execution/<uuid:execution_id>/retry/",
-    #     executor_views.retry_test_execution,
-    #     name="api_retry_test_execution",
-    # ),
-    # path(
-    #     "test-case-execution/<uuid:execution_id>/abort/",
-    #     executor_views.abort_test_execution,
-    #     name="api_abort_test_execution",
-    # ),
-    # path(
-    #     "execution-details/",
-    #     executor_views.get_execution_details,
-    #     name="api_get_execution_details",
-    # ),
-    # path(
-    #     "devices/",
-    #     executor_views.get_available_devices,
-    #     name="api_get_available_devices",  # Made name more specific to avoid conflicts
-    # ),
-    # path(
-    #     "execution/available-devices/",
-    #     views.test_execution_available_devices,
-    #     name="api_test_execution_available_devices",
-    # ),
     path(
     "cleanup/",
     executor_views.cleanup_test_management_data,

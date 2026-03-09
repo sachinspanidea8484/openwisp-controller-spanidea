@@ -5497,7 +5497,6 @@ def check_and_complete_execution(test_group_execution_id):
 
 
 
-# @swagger_auto_schema(method='get', auto_schema=None)
 @api_view(["DELETE"])
 def cleanup_test_management_data(request):
     """

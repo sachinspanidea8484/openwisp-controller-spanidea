@@ -41,11 +41,6 @@ class BaseSerializer(ValidatedModelSerializer):
     """Base serializer for test management models"""
     pass
 
-
-
-# ============================================================================
-# TEST CATEGORY SERIALIZERS
-# ============================================================================
 class TestCategorySerializer(ValidatedModelSerializer):
     """
     Serializer for TestCategory List and Create operations
@@ -162,10 +157,6 @@ class TestCategoryDetailSerializer(ValidatedModelSerializer):
             test_cases = test_cases.filter(created_by=user)
         
         return test_cases.count()
-
-# ============================================================================
-# TEST SUITE (TEST GROUP) SERIALIZERS
-# ============================================================================
 
 class TestSuiteCaseSerializer(serializers.ModelSerializer):
     """Serializer for TestSuiteCase (join table with order)"""
@@ -327,10 +318,6 @@ class TestSuiteDetailSerializer(ValidatedModelSerializer):
         ).data
 
 
-# ============================================================================
-# TEST CASE LISTING WITH CATEGORY FILTER SERIALIZER
-# ============================================================================
-
 class TestCaseListSerializer(serializers.ModelSerializer):
     """Serializer for test case listing with category filter"""
     category_name = serializers.CharField(source='category.name', read_only=True)
@@ -364,13 +351,6 @@ class TestCaseListSerializer(serializers.ModelSerializer):
         return obj.test_suites.count()
 
 
-
-
-
-
-# ============================================================================
-# DEVICE GROUP SERIALIZERS
-# ============================================================================
 
 class TestDeviceGroupListSerializer(FilterSerializerByOrgManaged, ValidatedModelSerializer):
     """
@@ -1758,10 +1738,6 @@ class TestSuiteExecutionDeleteAllSerializer(serializers.Serializer):
 
     def validate_confirm(self, value):
         """Ensure deletion is confirmed"""
-        # if not value:
-        #     raise serializers.ValidationError(
-        #         _("You must confirm deletion by setting 'confirm' to true")
-        #     )
         return value
     
 

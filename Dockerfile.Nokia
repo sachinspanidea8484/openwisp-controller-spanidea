@@ -1,6 +1,10 @@
 # Multi-stage build for production
 FROM python:3.11-bullseye AS base
 
+# Declare build arguments
+ARG GIT_USER
+ARG GIT_TOKEN
+ 
 # Install system dependencies including WeasyPrint dependencies
 RUN apt-get update && \
     apt-get install --yes \
@@ -33,14 +37,21 @@ RUN apt-get update && \
     shared-mime-info \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-
+ 
 # Create openwisp user
 RUN useradd -m -d /opt/openwisp -s /bin/bash openwisp
-
+ 
 WORKDIR /opt/openwisp
-
+ 
 # Copy requirements files first for better caching
 COPY requirements-test.txt requirements.txt ./
+
+# Configure git to use credentials from build args
+RUN if [ -n "$GIT_USER" ] && [ -n "$GIT_TOKEN" ]; then \
+        git config --global credential.helper store && \
+        echo "https://${GIT_USER}:${GIT_TOKEN}@git.spanidea.com" > /root/.git-credentials && \
+        git config --global url."https://git.spanidea.com/".insteadOf "git://git.spanidea.com/" ; \
+    fi
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
@@ -48,13 +59,17 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements-test.txt && \
     pip install --no-cache-dir redis gunicorn watchdog
 
+# Clean up git credentials after installation
+RUN rm -f /root/.git-credentials && \
+    git config --global --unset credential.helper || true
+ 
 # Install SMS dependencies with compatible Twilio version
 RUN pip install --no-cache-dir sendsms==0.2.0 django-sendsms==0.5 twilio==6.63.2
-
+ 
 # Copy entire project including local modules
 COPY --chown=openwisp:openwisp . /opt/openwisp/
-
-# Create necessary directories with proper permissions
+ 
+# Create necessary directories with proper permissions INCLUDING logs
 RUN mkdir -p /opt/openwisp/media \
     /opt/openwisp/private/firmware \
     /opt/openwisp/static_collected \
@@ -69,25 +84,25 @@ RUN mkdir -p /opt/openwisp/media \
     /opt/openwisp/private \
     /opt/openwisp/static_collected \
     /opt/openwisp/logs
-
+ 
 # Make entrypoint executable BEFORE switching user
 RUN chmod +x /opt/openwisp/tests/docker-entrypoint.sh
-
-# Ensure proper ownership after pip install
+ 
+# Fix: Ensure proper ownership after pip install
 RUN chown -R openwisp:openwisp /opt/openwisp
-
+ 
+# Ensure the local modules are in Python path
 ENV PYTHONPATH=/opt/openwisp:$PYTHONPATH
-
+ 
 # Switch to non-root user
 USER openwisp
-
+ 
 WORKDIR /opt/openwisp/tests/
-
+ 
 ENV NAME=openwisp-controller \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/opt/openwisp:/opt/openwisp/tests:$PYTHONPATH
-
-EXPOSE 8000
-
+ 
 CMD ["sh", "docker-entrypoint.sh"]
+EXPOSE 8000

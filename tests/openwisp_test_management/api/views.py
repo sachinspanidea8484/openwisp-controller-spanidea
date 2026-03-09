@@ -76,9 +76,6 @@ from .utilities import TestCasesResource
 logger = logging.getLogger(__name__)
 
 
-# =========================
-# Models
-# =========================
 TestCategory = load_model("TestCategory")
 TestExecution = load_model("TestSuiteExecution")
 TestSuite = load_model("TestSuite")
@@ -236,9 +233,6 @@ def create_test_execution_clone_for_selected_tests(execution, device_tests_info_
     return new_execution
 
 
-# ============================================================================
-# TEST CATEGORY VIEWS
-# ============================================================================
 class TestCategoryListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
     API endpoint for listing and creating test categories
@@ -246,16 +240,11 @@ class TestCategoryListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     GET  : List all categories (with filters, search, pagination)
     POST : Create new category
     """
-    # Basic configuration
-    # SQL: SELECT * FROM test_category
+
     queryset = TestCategory.objects.all()
 
-    # Model instance : JSON (for response)
-    # JSON : Model instance (for creation)
     serializer_class = TestCategorySerializer
 
-    # Instead of returning 1000 categories
-    # Return 10 at a time
     pagination_class = ListViewPagination
     
     # Filtering and ordering configuration
@@ -321,9 +310,7 @@ class TestCategoryDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAP
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.parsers import JSONParser
 from drf_yasg import openapi
-# ============================================================================
-# TEST EXECUTIONS VIEWS
-# ============================================================================
+
 class TestExecutionListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
     API endpoint for listing and creating test executions
@@ -440,12 +427,7 @@ class TestExecutionListView(ProtectedAPIMixin, generics.ListCreateAPIView):
 
         return qs
 
-    # Model instance : JSON (for response)
-    # JSON : Model instance (for creation)
     serializer_class = TestSuiteExecutionSerializer
-
-    # Instead of returning 1000 test executions
-    # Return 10 at a time
     pagination_class = ListViewPagination
     
     # Filtering and ordering configuration
@@ -1093,7 +1075,6 @@ class TestExecutionHistoryExportView(ProtectedExternalAPIMixin, APIView):
             test_case_executions = TestCaseExecution.objects.filter(
                 test_suite_execution=execution
             ).select_related('device', 'test_case')
-            print("<<<test_case_executions>>>",test_case_executions)
             
             for device_exec in execution_devices:
                 device = device_exec.device
@@ -1168,7 +1149,6 @@ class TestExecutionHistoryView(ProtectedExternalAPIMixin, APIView):
             test_case_executions = TestCaseExecution.objects.filter(
                 test_suite_execution=execution
             ).select_related('device', 'test_case')
-            print("<<<test_case_executions>>>",test_case_executions)
             
             # Build response data
             devices_data = []
@@ -1459,12 +1439,6 @@ class TestExecutionAllHistoryView(ProtectedExternalAPIMixin, APIView):
     def get(self, request, execution_id):
         current_execution = get_object_or_404(TestExecution, id=execution_id)
 
-        # Optional: permission check
-        # if current_execution.created_by != request.user:
-        #     return Response(
-        #         {"detail": "Not allowed to get history for this execution."},
-        #         status=status.HTTP_403_FORBIDDEN
-        #     )
         try:
             execution = current_execution.parent_execution or current_execution
             
@@ -1615,12 +1589,6 @@ class TestCaseListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     def get_queryset(self):
         qs = TestCase.objects.select_related("category")
         return qs
-        # # Superusers see all test cases
-        # if self.request.user.is_superuser:
-        #     return qs
-
-        # # Normal users see only their own test cases or system test case
-        # return qs.filter( Q(created_by=self.request.user) | Q(is_system_test_case=True) )
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -1696,10 +1664,7 @@ class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
         """
         qs = super().get_queryset()
         return qs
-        # if self.request.user.is_superuser:
-        #     return qs
 
-        # return qs.filter(Q(created_by=self.request.user) | Q(is_system_test_case=True))
     
     def get(self, request, *args, **kwargs):
        
@@ -1733,9 +1698,7 @@ class TestCaseExportApiView(ProtectedAPIMixin, APIView):
    
     def get_queryset(self):
         return TestCase.objects.all()
-        # user = self.request.user
-        # if user.is_superuser:
-        # return TestCase.objects.filter(Q(created_by=user) | Q(is_system_test_case=True))
+
     
   
     def get(self, request, export_format):
@@ -1832,9 +1795,6 @@ class TestCaseImportApiView(ProtectedAPIMixin, generics.CreateAPIView):
         )
 
 
-# ============================================================================
-# TEST SUITE (GROUP) VIEWS
-# ============================================================================
 class TestSuiteListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
     GET  : list test groups 
@@ -1884,9 +1844,7 @@ class TestSuiteDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestroyAPIVi
             })
         super().perform_destroy(instance)
 
-# ============================================================================
-# TEST CASES BY CATEGORY (supports multiple category IDs)
-# ============================================================================
+
 class TestCasesByCategoryView(ProtectedAPIMixin, generics.ListAPIView):
     """
     GET /test-management/test-cases-by-category/?category_ids=<uuid>,<uuid>
@@ -1907,13 +1865,6 @@ class TestCasesByCategoryView(ProtectedAPIMixin, generics.ListAPIView):
                 qs = qs.filter(category__id__in=id_list)
         return qs
 
-
-
-
-
-# ============================================================================
-# TEST DEVICE GROUP VIEWS
-# ============================================================================
 
 class TestDeviceGroupListView(ProtectedAPIMixin, generics.ListCreateAPIView):
     """
@@ -1995,9 +1946,6 @@ class TestDeviceGroupDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestro
      super().perform_destroy(instance)
 
 
-# ============================================================================
-# DEVICE LISTING API (FOR ADDING TO GROUPS)
-# ============================================================================
 
 class DeviceListByOrganizationView(ProtectedAPIMixin, generics.ListAPIView):
     """
@@ -2040,14 +1988,11 @@ class DeviceListByOrganizationView(ProtectedAPIMixin, generics.ListAPIView):
 # Export view functions for urls.py
 test_suite_list = TestSuiteListView.as_view()
 test_suite_detail = TestSuiteDetailView.as_view()
-
 test_case_list = TestCaseListView.as_view()
 test_case_detail = TestCaseDetailView.as_view()
 test_cases_by_category = TestCasesByCategoryView.as_view()
-
 test_category_list = TestCategoryListView.as_view()
 test_category_detail = TestCategoryDetailView.as_view()
-
 test_execution_list = TestExecutionListView.as_view()
 test_execution_detail = TestExecutionDetailView.as_view()
 test_execution_start = TestExecutionStartView.as_view()
@@ -2058,12 +2003,9 @@ test_execution_history_export = TestExecutionHistoryExportView.as_view()
 test_execution_history = TestExecutionHistoryView.as_view()
 test_execution_all_history = TestExecutionAllHistoryView.as_view()
 test_execution_available_devices = TestExecutionAvailableDevicesView.as_view()
-
 export_all_scripts = ExportAllTestCaseScriptsView.as_view()
-
 device_group_list = TestDeviceGroupListView.as_view()
 device_group_detail = TestDeviceGroupDetailView.as_view()
 devices_by_organization = DeviceListByOrganizationView.as_view()
-
 test_case_export = TestCaseExportApiView.as_view()
 test_case_import = TestCaseImportApiView.as_view()
