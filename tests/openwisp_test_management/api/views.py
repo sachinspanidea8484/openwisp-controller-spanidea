@@ -1269,6 +1269,8 @@ class TestExecutionHistoryView(ProtectedExternalAPIMixin, APIView):
                     'connection_protocol': connection_protocol,''
                     'allure_report_full_path': allure_report_full_path,
                     "device_status" : device_status,
+                    "management_ip" : device.management_ip,
+                    "mac_address" : device.mac_address,
                     "is_deleted" : device.is_deleted,
                     'device_execution_status': device_exec.status,
                     'error_message': device_exec.output if device_exec.status == 'failed' else None,

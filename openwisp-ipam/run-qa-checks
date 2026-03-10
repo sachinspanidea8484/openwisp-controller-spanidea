@@ -1,0 +1,26 @@
+#!/bin/bash
+
+set -e
+
+echo ''
+echo 'Running checks for openwisp_ipam'
+
+openwisp-qa-check \
+          --migration-path ./openwisp_ipam/migrations/ \
+          --migration-module openwisp_ipam \
+          --csslinter \
+          --jslinter \
+          
+
+echo ''
+echo 'Running checks for SAMPLE_APP'
+
+SAMPLE_APP=1 openwisp-qa-check \
+              --skip-isort \
+              --skip-flake8 \
+              --skip-checkmigrations \
+              --skip-checkendline \
+              --skip-checkcommit \
+              --migration-path "./tests/openwisp2/sample_ipam/migrations
+                                ./tests/openwisp2/sample_users/migrations"
+

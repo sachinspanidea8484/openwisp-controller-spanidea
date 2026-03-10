@@ -44,7 +44,6 @@ OpenWISP Controller is an open-source network management system for OpenWrt-base
 
 - [Docker](https://docs.docker.com/get-docker/) v28 or later
 - [Docker Compose](https://docs.docker.com/compose/install/) v2.20 or later
-- Git access to the internal repository (credentials required at build time)
 
 Verify your installed versions:
 

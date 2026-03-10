@@ -16,12 +16,12 @@ NUM_READS = 5
 GYRO_PATH = "/sys/bus/iio/devices/iio:device0"
 ACCEL_PATH = "/sys/bus/iio/devices/iio:device1"
 
-
-def read_val(path):   #read the value from the function
+def read_val(path):
     try:
-        with open(path) as f: return f.read().strip()
-    except: return "0"
-
+        with open(path) as f:
+            return f.read().strip()
+    except:
+        return "0"
 
 def fallback_read():
     start = time.time()
@@ -36,32 +36,42 @@ def fallback_read():
 
     return f"Gyro: {gyro}\nAccel: {accel}\nRead time: {time.time()-start:.6f}s"
 
-
 def parse_data(out):
     gyro = accel = None
     for line in out.splitlines():
-        if line.startswith("Gyro:"): gyro = eval(line.replace("Gyro:", "").strip())
-        elif line.startswith("Accel:"): accel = eval(line.replace("Accel:", "").strip())
-    if not gyro or not accel: raise ValueError("Missing Gyro/Accel data")
+        if line.startswith("Gyro:"):
+            gyro = eval(line.replace("Gyro:", "").strip())
+        elif line.startswith("Accel:"):
+            accel = eval(line.replace("Accel:", "").strip())
+
+    if not gyro or not accel:
+        raise ValueError("Missing Gyro/Accel data")
+
     return gyro, accel
 
-
 def main():
+
+    log("[STEP 0] Verifying sensor script availability")
+
+    if not os.path.isfile(SENSOR_SCRIPT):
+        log("[FAIL] Required sensor script '%s' not found.", SENSOR_SCRIPT, level="FAIL")
+        sys.exit(EXIT_FAILED)
+
     log("[STEP 1] Starting Vibration/IMU Sensor Test (BB-DEV-VIB-001)")
+
     readings = []
 
     for i in range(1, NUM_READS + 1):
 
-        if os.path.isfile(SENSOR_SCRIPT):
-            out, err, rc = run_local_command(f"python3 {SENSOR_SCRIPT}", allow_fail=True)
-            if rc != 0:
-                log("[WARN] Sensor script failed, using fallback", level="WARN")
-                out = fallback_read()
-        else:
-            out = fallback_read()
+        out, err, rc = run_local_command(f"python3 {SENSOR_SCRIPT}", allow_fail=True)
+
+        if rc != 0:
+            log("[FAIL] Sensor script execution failed: %s", err, level="FAIL")
+            sys.exit(EXIT_FAILED)
 
         log("[INFO] Raw Sensor Data (iteration %d):", i)
-        for l in out.splitlines(): log("%s", l)
+        for l in out.splitlines():
+            log("%s", l)
 
         try:
             gyro, accel = parse_data(out)
@@ -81,7 +91,5 @@ def main():
     log("[RESULT] SUCCESS ... Vibration/IMU sensor verification passed.", level="PASS")
     sys.exit(EXIT_SUCCESS)
 
-
 if __name__ == "__main__":
     main()
-

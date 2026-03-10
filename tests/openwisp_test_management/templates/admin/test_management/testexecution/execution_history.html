@@ -607,6 +607,13 @@
     pointer-events: none;
 }
 
+.device-ip {
+    font-size: 14px;
+    font-weight:400;
+    margin-left: 10px;
+    color: #397ecc;
+}
+
 </style>
 {% endblock %}
 
@@ -1171,7 +1178,10 @@ function displayExecutionData(data) {
                 <div class="device-card">
                     <div class="device-header">
                         <div style="display: flex; align-items: baseline; ">
-                            <h3 class="device-title">${device.device_name || 'Unknown Device'}</h3>
+                            <h3 class="device-title">
+    ${device.device_name || 'Unknown Device'}
+    ${device.management_ip ? `<span class="device-ip">(${device.management_ip})</span>` : ''}
+</h3>
                              <!-- Device Status Badge -->
                 <span class="device-status ${device.device_status === 'Online' ? 'status-online' : 'status-offline'}">
                     <span class="status-dot"></span>

@@ -39,14 +39,17 @@ RUN useradd -m -d /opt/openwisp -s /bin/bash openwisp
 
 WORKDIR /opt/openwisp
 
+
+COPY --chown=openwisp:openwisp . /opt/openwisp/
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r requirements-test.txt
+
 # Copy requirements files first for better caching
 COPY requirements-test.txt requirements.txt ./
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir -r requirements-test.txt && \
-    pip install --no-cache-dir redis gunicorn watchdog
+
 
 # Install SMS dependencies with compatible Twilio version
 RUN pip install --no-cache-dir sendsms==0.2.0 django-sendsms==0.5 twilio==6.63.2
