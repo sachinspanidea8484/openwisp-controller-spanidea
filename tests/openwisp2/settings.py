@@ -237,9 +237,12 @@ if not DEBUG:
 else:
     AUTH_PASSWORD_VALIDATORS = []
 
-INTERNAL_IPS = os.getenv('INTERNAL_IPS', ['127.0.0.1' , '10.10.10.10',
+# INTERNAL_IPS = os.getenv('INTERNAL_IPS', ['127.0.0.1' , '10.10.10.10',
+# '54.234.248.241' ,'10.8.12.123' ,'192.168.201.37' , '0.0.0.0'
+#                 ]).split(',')
+INTERNAL_IPS =  ['127.0.0.1' , '10.10.10.10',
 '54.234.248.241' ,'10.8.12.123' ,'192.168.201.37' , '0.0.0.0'
-                ]).split(',')
+                ]
 
 
 

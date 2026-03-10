@@ -11,7 +11,9 @@ from django.http import HttpResponse
 from rest_framework.generics import GenericAPIView
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Q
+from django.db.models import Q 
+from drf_yasg.utils import swagger_auto_schema
+
 
 from .utilities import is_valid_uuid, schedule_execution, validate_schedule_time
 from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
@@ -1688,6 +1690,58 @@ class ExportAllTestCaseScriptsView(ProtectedAPIMixin,GenericAPIView):
         return response
 
 
+class TestCaseImportApiView(ProtectedAPIMixin, generics.CreateAPIView):
+    """
+    API endpoint for importing test cases
+
+    Import file supports .xlsx or .csv formats only
+    """
+    serializer_class= TestCaseImportSerializer
+    parser_classes = (MultiPartParser, FormParser)
+    queryset = TestCase.objects.none()
+
+    @swagger_auto_schema(auto_schema=None)
+    def post(self, request, *args, **kwargs):
+        return self.create(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        serializer = TestCaseImportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        file = serializer.validated_data["file"]
+        filename= file.name.lower()
+        resource = TestCasesResource(user= request.user)
+
+        dataset = Dataset()
+        
+        if filename.endswith(".xlsx"):
+            file.seek(0)
+            dataset.xlsx = file.read()
+        elif filename.endswith(".csv"):
+            file.seek(0)
+            text= file.read().decode("utf-8")
+            dataset.load(text, format="csv")
+        try:
+            result = resource.import_data(
+                dataset,
+                dry_run=False,
+                raise_errors=True,
+            )
+        except Exception as e:
+            return Response(
+                {"message": "Import failed", "error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {
+                "message": "Import completed successfully",
+                "created": result.totals["new"],
+                "updated": result.totals["update"],
+                "errors": result.totals["error"],
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
 class TestCaseExportApiView(ProtectedAPIMixin, APIView):
     """
     API endpoint for exporting all test cases
@@ -1699,13 +1753,10 @@ class TestCaseExportApiView(ProtectedAPIMixin, APIView):
     def get_queryset(self):
         return TestCase.objects.all()
 
-    
-  
+    @swagger_auto_schema(auto_schema=None)
     def get(self, request, export_format):
-       
-
         export_format = export_format.lower()
-        if export_format not in self.SUPPORTED_FORMATS : 
+        if export_format not in self.SUPPORTED_FORMATS: 
             raise ValidationError(
                 f"Invalid format. Supported Formats:{', '.join(self.SUPPORTED_FORMATS)}"
             )
@@ -1728,13 +1779,11 @@ class TestCaseExportApiView(ProtectedAPIMixin, APIView):
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 ),
                 "csv": (dataset.csv, "text/csv"),
-            
             }
         
             file_data, content_type = file_map[export_format]
         
             response = HttpResponse(file_data, content_type=content_type)
-        
             response["Content-Disposition"] = (
                 f'attachment; filename="test_cases.{export_format}"'
             )
