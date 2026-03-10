@@ -86,14 +86,29 @@ EXECUTOR_SERVER_IP=http://172.17.0.1:8080
 
 `EXECUTOR_SERVER_IP` is the address of the Test Executor service. It must be reachable from the OpenWISP container at runtime.
 
-### Email
+### Email Configuration
+
+To enable email notifications, configure the following environment variables in your `.env` file.
 
 ```env
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
+EMAIL_HOST=<smtp_server_host>
+EMAIL_PORT=<smtp_port>
 EMAIL_USE_TLS=True
-EMAIL_HOST_USER=<your_email>
-EMAIL_HOST_PASSWORD=<your_app_password>
+EMAIL_HOST_USER=<smtp_username>
+EMAIL_HOST_PASSWORD=<smtp_password>
+```
+
+**Description:**
+
+- `EMAIL_HOST` – SMTP server address provided by your email service provider.
+- `EMAIL_PORT` – SMTP port (commonly `587` for TLS or `465` for SSL).
+- `EMAIL_USE_TLS` – Enables secure TLS connection.
+- `EMAIL_HOST_USER` – SMTP username or email address used to send emails.
+- `EMAIL_HOST_PASSWORD` – SMTP password or app password.
+
+**Note:**  
+You can use **any third-party SMTP service** such as Gmail, Outlook, SendGrid, AWS SES, or any organization’s internal SMTP server. Configure the values according to your email provider.
+This configuration can be easily updated in the `.env` file without changing the application code.
 ```
 
 ## Services
@@ -142,7 +157,7 @@ This will build the application image, run database migrations via the entrypoin
 ```
 Username: admin
 Email:    admin@example.com
-Password: nokia001
+Password: admin
 ```
 
 

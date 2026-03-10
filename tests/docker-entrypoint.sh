@@ -19,7 +19,7 @@ EOF
 python manage.py makemigrations
 python manage.py migrate --no-input
 
-create_superuser admin admin@example.com nokia001
+create_superuser admin admin@example.com admin
 
 TEST_MANAGEMENT_LOAD=True
 
