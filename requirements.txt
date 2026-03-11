@@ -209,18 +209,8 @@ robotframework==7.2.2
 
 
 
-# # spanidea git  updates v5
-# django-loci @ git+https://sachin:fzeodnCo6ebQ3KWH4wzW@git.spanidea.com/nokia-test-automation/django-loci-spanidea.git@dev
-# django-x509 @ git+https://sachin:fzeodnCo6ebQ3KWH4wzW@git.spanidea.com/nokia-test-automation/django-x509-spanidea.git@dev
-# netdiff @ git+https://sachin:fzeodnCo6ebQ3KWH4wzW@git.spanidea.com/nokia-test-automation/netdiff-spanidea.git@dev
-# netjsonconfig @ git+https://sachin:fzeodnCo6ebQ3KWH4wzW@git.spanidea.com/nokia-test-automation/netjsonconfig-spanidea.git@dev
-# openwisp-ipam @ git+https://sachin:fzeodnCo6ebQ3KWH4wzW@git.spanidea.com/nokia-test-automation/openwisp-ipam-spanidea.git@dev
-# openwisp-notifications @ git+https://sachin:fzeodnCo6ebQ3KWH4wzW@git.spanidea.com/nokia-test-automation/openwisp-notifications-spanidea.git@dev
-# openwisp-users @ git+https://sachin:fzeodnCo6ebQ3KWH4wzW@git.spanidea.com/nokia-test-automation/openwisp-users-spanidea.git@dev
-# openwisp-utils @ git+https://sachin:fzeodnCo6ebQ3KWH4wzW@git.spanidea.com/nokia-test-automation/openwisp-utils-spanidea.git@dev
 
 
-# Local file installations (uncommented for local development) v2
 django-loci @ file:///opt/openwisp/django-loci
 django-x509 @ file:///opt/openwisp/django-x509
 netdiff @ file:///opt/openwisp/netdiff

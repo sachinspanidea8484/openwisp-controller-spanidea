@@ -241,9 +241,7 @@ if not DEBUG:
 else:
     AUTH_PASSWORD_VALIDATORS = []
 
-# INTERNAL_IPS = os.getenv('INTERNAL_IPS', ['127.0.0.1' , '10.10.10.10',
-# '54.234.248.241' ,'10.8.12.123' ,'192.168.201.37' , '0.0.0.0'
-#                 ]).split(',')
+
 INTERNAL_IPS =  ['127.0.0.1' , '10.10.10.10',
 '54.234.248.241' ,'10.8.12.123' ,'192.168.201.37' , '0.0.0.0'
                 ]
@@ -278,7 +276,6 @@ if TESTING:
 TIME_ZONE = os.getenv('TIME_ZONE', 'Asia/Kolkata')
 
 LANGUAGE_CODE = os.getenv('DJANGO_LANGUAGE_CODE', "en-gb")
-LANGUAGE_CODE = "en-gb"
 USE_TZ = True
 USE_I18N = True
 USE_L10N = False
