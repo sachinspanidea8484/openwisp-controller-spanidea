@@ -830,63 +830,6 @@ class AbstractScheduledExecution(models.Model):
         )
 
 
-class AbstractTestSuiteExecutionDevices(TimeStampedEditableModel):
-    """
-    Abstract model for Test Suite Execution Devices
-    Links devices to test executions
-    """
-    test_suite_execution = models.ForeignKey(
-        'test_management.TestSuiteExecution',
-        on_delete=models.CASCADE,
-        related_name='devices',
-        verbose_name=_("test execution")
-    )
-    device = models.ForeignKey(
-        'config.Device',
-        on_delete=models.CASCADE,
-        related_name='test_executions',
-        verbose_name=_("device")
-    )
-    status = models.CharField(
-        _("status"),
-        max_length=20,
-        choices=[
-            ('pending', _('Pending')),
-            ('running', _('Running')),
-            ('completed', _('Completed')),
-            ('failed', _('Failed')),
-        ],
-        default='pending',
-        help_text=_("Execution status on this device")
-    )
-    started_at = models.DateTimeField(
-        _("started at"),
-        null=True,
-        blank=True,
-        help_text=_("When execution started on this device")
-    )
-    completed_at = models.DateTimeField(
-        _("completed at"),
-        null=True,
-        blank=True,
-        help_text=_("When execution completed on this device")
-    )
-    output = models.TextField(
-        _("output"),
-        blank=True,
-        help_text=_("Execution output/logs")
-    )
-    
-    class Meta:
-        abstract = True
-        verbose_name = _("Test Group Execution Device")
-        verbose_name_plural = _("Test Group Execution Devices")
-        unique_together = ("test_suite_execution", "device")
-        ordering = ["test_suite_execution", "device"]
-    
-    def __str__(self):
-        return f"{self.test_suite_execution} - {self.device.name}"
-    
 
 class AbstractTestSuiteExecutionDevice(TimeStampedEditableModel):
     """
@@ -1267,9 +1210,7 @@ class AbstractTestDeviceGroupDevice(TimeStampedEditableModel):
     @property
     def is_deletable(self):
        """Check if device group can be deleted - not deletable if part of any execution"""
-       from ..swapper import load_model
-       TestSuiteExecution = load_model("TestSuiteExecution")
-       return not TestSuiteExecution.objects.filter(device_group=self).exists()
+       return not self.test_executions.exists()
 
 
 class AbstractExecutionArtifact(models.Model):

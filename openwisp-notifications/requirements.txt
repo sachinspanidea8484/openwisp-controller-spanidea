@@ -1,0 +1,6 @@
+openwisp-users @ file:///opt/openwisp/openwisp-users
+openwisp-utils[rest ,celery,channels] @ file:///opt/openwisp/openwisp-utils
+
+markdown~=3.8.0
+jsonfield>=2.1.0
+

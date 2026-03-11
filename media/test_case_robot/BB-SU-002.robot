@@ -5,7 +5,7 @@ Library    OperatingSystem
 Library    Collections
 Library    BuiltIn
 Library    JSONLibrary
-Resource   ../../resources/keywords/common_keywords.robot
+Resource   ../../../resources/keywords/common_keywords.robot
 
 Suite Setup       Initialize Test Environment
 Suite Teardown    Cleanup Test Environment

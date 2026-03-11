@@ -3768,6 +3768,7 @@ def get_category_test_cases(request, category_id):
 
 
 from uuid import UUID
+@swagger_auto_schema(methods=['GET'], auto_schema=None)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_categories_test_cases(request):
@@ -3902,7 +3903,7 @@ def get_test_suite_details(request, suite_id):
     
 
 
-    
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_available_devices(request):
@@ -4898,6 +4899,7 @@ def test_execution_abort(request, execution_id):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@swagger_auto_schema(methods=['POST'], auto_schema=None)
 @api_view(['POST'])
 def upload_allure_report(request, test_group_execution_id, dev_id):
     """
@@ -5126,7 +5128,7 @@ def get_device_groups(request):
         logger.error(f"Error fetching device groups: {e}")
         return Response({"error": str(e)}, status=500)
 
-
+@swagger_auto_schema(methods=['GET'], auto_schema=None)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_device_group_devices(request, group_id,execution_id=None):
@@ -5497,7 +5499,6 @@ def check_and_complete_execution(test_group_execution_id):
 
 
 
-# @swagger_auto_schema(method='get', auto_schema=None)
 @api_view(["DELETE"])
 def cleanup_test_management_data(request):
     """

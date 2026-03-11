@@ -1,0 +1,107 @@
+{% load admin_list i18n %}
+{% load range_display pagination_tags%}
+
+<style>
+  .custom-paginator {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    font-size: 14px;
+  }
+
+  .custom-paginator .pagination-controls {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .custom-paginator a,
+  .custom-paginator span {
+    display: inline-block;
+    padding: 6px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    text-decoration: none;
+    color: #333;
+    background-color: #f8f8f8;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .custom-paginator a:hover {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+  }
+
+  .custom-paginator .this-page {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+    font-weight: bold;
+  }
+
+  .custom-paginator .nav-btn {
+    padding: 6px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background-color: #f0f0f0;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .custom-paginator .nav-btn:hover {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+  }
+  .custom-paginator .result-count {
+    font-weight: 500;
+    background-color: none;
+    border: none;
+  }
+
+</style>
+
+
+<div class="custom-paginator">
+  <span class="result-count">
+    {% page_range_display cl %}
+    {% if cl.result_count == 1 %}
+      {{ cl.opts.verbose_name }}
+    {% else %}
+      {{ cl.opts.verbose_name_plural }}
+    {% endif %}
+  </span>
+
+  <div class="pagination-meta">
+    {% if pagination_required %}
+      <div class="pagination-controls">
+
+        {# First + Prev #}
+        {% if cl.page_num > 1 %}
+          <a href="?p=0" class="nav-btn" title="First Page">&laquo;</a>
+          <a href="?p={{ cl.page_num|add:"-1" }}" class="nav-btn" title="Previous Page">&lsaquo;</a>
+        {% endif %}
+
+        {# Page Numbers (windowed) #}
+        {% get_page_window cl as window %}
+        {% for i in window %}
+          <a href="?p={{ i|add:"1" }}"
+             class="{% if i == cl.page_num|add:"-1" %}this-page{% endif %}">
+             {{ i|add:"1" }}
+          </a>
+        {% endfor %}
+
+        {# Next + Last #}
+        {% if cl.page_num < cl.paginator.num_pages %}
+          <a href="?p={{ cl.page_num|add:"1" }}" class="nav-btn" title="Next Page">&rsaquo;</a>
+          <a href="?p={{ cl.paginator.num_pages }}" class="nav-btn" title="Last Page">&raquo;</a>
+        {% endif %}
+
+      </div>
+    {% endif %}
+  </div>
+</div>
+

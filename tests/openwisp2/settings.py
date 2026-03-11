@@ -9,18 +9,22 @@ load_dotenv()
 
 from import_export.formats.base_formats import XLSX,CSV
 
-
-EXECUTOR_SERVER_IP: str = os.getenv('EXECUTOR_SERVER_IP', "http://172.17.0.1:8080")
-OPENWISP_SERVER_IP: str = os.getenv('OPENWISP_SERVER_IP', "http://172.17.0.1:8000")
-OPENWISP_CONTROLLER_API_HOST: str = os.getenv('OPENWISP_SERVER_IP', "http://172.17.0.1:8000")
-SHOW_RE_EXECUTION : bool = True
-EXECUTION_HISTORY_AUTO_REFRESH_TIME: int = os.getenv('EXECUTION_HISTORY_AUTO_REFRESH_TIME', 60)
-EXECUTION_HISTORY_REFRESH_INTERVAL= os.getenv('EXECUTION_HISTORY_AUTO_REFRESH_TIME', 60)
-
 # Suppress dj_rest_auth deprecation warnings
 import warnings
 warnings.filterwarnings("ignore", message="app_settings.USERNAME_REQUIRED is deprecated")
 warnings.filterwarnings("ignore", message="app_settings.EMAIL_REQUIRED is deprecated")
+
+
+EXECUTOR_SERVER_IP: str = os.getenv('EXECUTOR_SERVER_IP', "http://172.17.0.1:8080")
+OPENWISP_SERVER_IP: str = os.getenv('OPENWISP_SERVER_IP', "http://172.17.0.1:8000")
+OPENWISP_CONTROLLER_API_HOST: str = os.getenv('OPENWISP_CONTROLLER_API_HOST', "http://172.17.0.1:8000")
+SHOW_RE_EXECUTION : bool = True
+EXECUTION_HISTORY_AUTO_REFRESH_TIME: int = os.getenv('EXECUTION_HISTORY_AUTO_REFRESH_TIME', 60)
+EXECUTION_HISTORY_REFRESH_INTERVAL= os.getenv('EXECUTION_HISTORY_REFRESH_INTERVAL', 60)
+OPENWISP_NOTIFICATIONS_EMAIL_ENABLED = False
+
+
+
 
 
 # monitoring
@@ -34,9 +38,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
 
-ACCOUNT_AUTHENTICATION_METHOD = "username_email"  # allows username + email login
+ACCOUNT_AUTHENTICATION_METHOD = "username_email" 
 ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_EMAIL_VERIFICATION = "optional"  # or "none" for dev/testing
+ACCOUNT_EMAIL_VERIFICATION = "optional"  
 
 ACCOUNT_LOGIN_METHODS = ["username", "email", "phone"]
 
@@ -50,26 +54,16 @@ DEBUG = os.getenv('DEBUG_MODE', True)
 TESTING = False
 SELENIUM_HEADLESS = True
 SHELL = "shell" in sys.argv or "shell_plus" in sys.argv
-REDIS_URL = "redis://redis:6379"  # Changed from "redis://localhost:6379"
+REDIS_URL = "redis://redis:6379" 
 
-# ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "controller","10.10.10.10" ,'192.168.122.1', '54.234.248.241' ,'10.8.12.123' ,'192.168.201.37' ]
 ALLOWED_HOSTS = ["*"]
 
 
-# radius
-# OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = ["127.0.0.1","10.10.10.10" ,'192.168.122.1', '54.234.248.241' ,'10.8.12.123' ,'192.168.201.37' ]
 OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = ["*"]
 
 
 OPENWISP_RADIUS_COA_ENABLED = True
 OPENWISP_RADIUS_ALLOWED_MOBILE_PREFIXES = ["+44", "+39", "+237", "+595"]
-
-
-
-
-
-
-
 
 
 
@@ -83,30 +77,25 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BROKER_CONNECTION_MAX_RETRIES = 100
 
 
-
-
-
-
+# Database
 DATABASES = {
     "default": {
         "ENGINE": "django.contrib.gis.db.backends.postgis",
-        "NAME": os.getenv('DB_NAME', "openwisp2"),
-        "USER": os.getenv('DB_USER', "openwisp2"),
-        "PASSWORD": os.getenv('DB_PASS', "openwisp2"),
-        "HOST": "postgres",  # Changed from "127.0.0.1" to "postgres"
-        "PORT": "5432",
+        "NAME": os.getenv('DB_NAME', 'openwisp2'),
+        "USER": os.getenv('DB_USER', 'openwisp2'),
+        "PASSWORD": os.getenv('DB_PASS', 'openwisp2'),
+        "HOST": os.getenv('DB_HOST', 'postgres'),
+        "PORT": os.getenv('DB_PORT', '5432'),
     }
 }
-
 # monitoring
 TIMESERIES_DATABASE = {
     'BACKEND': 'openwisp_monitoring.db.backends.influxdb',
-    'USER': 'openwisp',
-    'PASSWORD': 'openwisp',
-    'NAME': 'openwisp2',
-    'HOST': "influxdb",  # Changed from "localhost"
-    'PORT': '8086',
-    # UDP writes are disabled by default
+    'USER': os.getenv('INFLUXDB_USER', 'openwisp'),
+    'PASSWORD': os.getenv('INFLUXDB_PASS', 'openwisp'),
+    'NAME': os.getenv('INFLUXDB_NAME', 'openwisp2'),
+    'HOST': os.getenv('INFLUXDB_HOST', 'influxdb'),
+    'PORT': os.getenv('INFLUXDB_PORT', '8086'),
     'OPTIONS': {'udp_writes': False, 'udp_port': 8089},
 }
 
@@ -114,7 +103,9 @@ if TESTING:
     if True:
         TIMESERIES_DATABASE['OPTIONS'] = {'udp_writes': True, 'udp_port': 8091}
 
-SECRET_KEY = "fn)t*+$)ugeyip6-#txyy$5wf2ervc0d2n#h)qb)y5@ly$t*@w"
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("DJANGO_SECRET_KEY environment variable is not set")
 
 INSTALLED_APPS = [
     "daphne",
@@ -221,7 +212,6 @@ MIDDLEWARE = [
 
 ]
 
-# radius
 if DEBUG:
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
@@ -229,7 +219,7 @@ if DEBUG:
     CSRF_COOKIE_HTTPONLY = True
 else:
     SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = True
 
 
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
@@ -238,22 +228,31 @@ SAML_USE_NAME_ID_AS_USERNAME = True
 SAML_CREATE_UNKNOWN_USER = True
 SAML_CONFIG = {}
 
-# WARNING: for development only!
 AUTH_PASSWORD_VALIDATORS = []
 
-INTERNAL_IPS = ['127.0.0.1' , '10.10.10.10',
+# Fix — restore Django defaults for production
+if not DEBUG:
+    AUTH_PASSWORD_VALIDATORS = [
+        {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+        {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+        {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+        {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+    ]
+else:
+    AUTH_PASSWORD_VALIDATORS = []
+
+# INTERNAL_IPS = os.getenv('INTERNAL_IPS', ['127.0.0.1' , '10.10.10.10',
+# '54.234.248.241' ,'10.8.12.123' ,'192.168.201.37' , '0.0.0.0'
+#                 ]).split(',')
+INTERNAL_IPS =  ['127.0.0.1' , '10.10.10.10',
 '54.234.248.241' ,'10.8.12.123' ,'192.168.201.37' , '0.0.0.0'
                 ]
-# INTERNAL_IPS = []
+
 
 
 ROOT_URLCONF = "openwisp2.urls"
-
-# controller
 ASGI_APPLICATION = "openwisp2.asgi.application"
 
-# firmware
-# ASGI_APPLICATION = "openwisp2.routing.application"
 
 if not TESTING:
     CHANNEL_LAYERS = {
@@ -285,31 +284,26 @@ USE_I18N = True
 USE_L10N = False
 STATIC_URL = "/static/"
 MEDIA_URL = "/media/"
-MEDIA_ROOT = "/opt/openwisp/media/"  # Absolute path in container
+
+# Paths
+MEDIA_ROOT = os.getenv('MEDIA_ROOT', '/opt/openwisp/media/')
+STATIC_ROOT = os.getenv('STATIC_ROOT', '/opt/openwisp/static_collected/')
+PRIVATE_STORAGE_ROOT = os.getenv('PRIVATE_STORAGE_ROOT', '/opt/openwisp/private/firmware')
+
 
 from pathlib import Path
 ROOT_PATH= Path(__file__).resolve().parent.parent
-# TEST_SCRIPT_MEDIA_ROOT= ROOT_PATH   / "media/test_case"
-# TEST_SCRIPT_MEDIA_URL="/test-script-media/"
 TEST_SCRIPT_MEDIA_ROOT= "/opt/openwisp/media/test_case"
 TEST_SCRIPT_MEDIA_URL="/media/"
-CORS_ORIGIN_ALLOW_ALL = True
+CORS_ORIGIN_ALLOW_ALL = os.getenv('CORS_ORIGIN_ALLOW_ALL', 'True') == 'True'
 TEST_SCRIPT_MEDIA_ROOT_ZIP= "/opt/openwisp/media"
 
 MEDIA_ROOT_TEMP= ROOT_PATH /"media/tmp"
-# firmware
-PRIVATE_STORAGE_ROOT = "/opt/openwisp/private/firmware"
 
 
 AUTO_REFRESH_INTERVAL=60
 
-# additional statics 
-STATIC_ROOT = "/opt/openwisp/static_collected/"  # Absolute path in container
-
-# Dynamic static files discovery
 STATICFILES_DIRS = []
-
-# Define apps and their potential static/template directories
 EXTERNAL_APPS = {
     'openwisp_monitoring': {
         'submodules': ['device', 'monitoring', 'check'],
@@ -333,7 +327,6 @@ EXTERNAL_APPS = {
     }
 }
 
-# Collect static directories
 for app_name, app_config in EXTERNAL_APPS.items():
     for submodule in app_config['submodules']:
         if submodule:
@@ -345,9 +338,8 @@ for app_name, app_config in EXTERNAL_APPS.items():
             STATICFILES_DIRS.append(static_path)
             # print(f"Added static dir: {static_path}")
 
-# Template configuration
 TEMPLATE_DIRS = [
-    os.path.join(PROJECT_ROOT, "templates"),  # Project-level templates
+    os.path.join(PROJECT_ROOT, "templates"), 
 ]
 
 # Collect template directories
@@ -476,18 +468,16 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 
 CELERY_TASK_TRACK_STARTED = True
-CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes hard limit
-CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60  # 25 minutes soft limit
-CELERY_TASK_ACKS_LATE = True  # Acknowledge task after completion
-CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # Get one task at a time
-CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000  # Restart worker after 1000 tasks
+CELERY_TASK_TIME_LIMIT = 30 * 60 
+CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60  
+CELERY_TASK_ACKS_LATE = True  
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1 
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000 
 
-# Retry settings
-CELERY_TASK_DEFAULT_RETRY_DELAY = 60  # Retry after 60 seconds
+CELERY_TASK_DEFAULT_RETRY_DELAY = 60  
 CELERY_TASK_MAX_RETRIES = 3
 
-# Result expiration
-CELERY_RESULT_EXPIRES = 3600  # Results expire after 1 hour
+CELERY_RESULT_EXPIRES = 3600  
 
 # Monitoring
 CELERY_SEND_TASK_SENT_EVENT = True
@@ -777,7 +767,6 @@ REST_FRAMEWORK = {
 
 
 
-CORS_ORIGIN_ALLOW_ALL = True
 # local settings must be imported before test runner otherwise they'll be ignored
 try:
     from .local_settings import *

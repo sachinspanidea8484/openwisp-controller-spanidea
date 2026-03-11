@@ -16,7 +16,7 @@ class Command(BaseCommand):
     help = "Load system test cases from XLSX into database."
 
     DEFAULT_XLSX = os.path.join(
-        settings.MEDIA_ROOT, "system", "system_test_case.xlsx"
+        settings.MEDIA_ROOT, "system", "system_test_cases.xlsx"
     )
 
     TEST_TYPE_MAP = {

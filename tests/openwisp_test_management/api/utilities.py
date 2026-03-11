@@ -59,11 +59,7 @@ def _update_robot_content(content: bytes, test_case_id: str) -> bytes:
             count=1,
             flags=re.MULTILINE,
         )
-
-    # ----------------------------
-    # STEP 2: Update Library path (FIRST only)
-    # ----------------------------
-    # library_pattern = r'(Library\s+\.\./\.\./resources/keywords/)([A-Za-z0-9_\-]+)(\.py)' v1
+ 
     library_pattern = r'(Library\s+(?:\.\./)+resources/keywords/)([A-Za-z0-9_\-]+)(\.py)'
 
     match = re.search(library_pattern, text)
@@ -348,8 +344,6 @@ def update_robot_file_tag(robot_file, new_test_case_id):
                 )
             
             # STEP 2: Update Library path (FIRST occurrence only)
-                # ----------------------------
-            # library_pattern = r'(Library\s+\.\./\.\./resources/keywords/)([A-Za-z0-9_\-]+)(\.py)' v1
             library_pattern = r'(Library\s+(?:\.\./)+resources/keywords/)([A-Za-z0-9_\-]+)(\.py)'
             
             matches = list(re.finditer(library_pattern, content))

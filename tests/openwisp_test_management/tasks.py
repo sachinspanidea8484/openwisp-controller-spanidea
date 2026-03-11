@@ -30,11 +30,10 @@ from django.core.cache import cache
 import time
 # Create logger
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)  # Capture all levels
+logger.setLevel(logging.DEBUG)  
 
 LOG_FILE_PATH = "/opt/openwisp/logs/openwisp_test_management.log"
 
-# Load models using swapper pattern for better modularity
 TestSuiteExecution = load_model("TestSuiteExecution")
 TestSuiteExecutionDevice = load_model("TestSuiteExecutionDevice")
 TestCaseExecution = load_model("TestCaseExecution")
@@ -44,11 +43,6 @@ TestCase= load_model("TestCase")
 ExecutionArtifact= load_model("ExecutionArtifact")
 ExecutionEmailLog = load_model("ExecutionEmailLog")
 
-
-# ============================================================================
-# CONSTANTS & CONFIGURATION
-# ============================================================================
-
 EMAIL_BATCH_SIZE = 10  # Process emails in batches
 EMAIL_RATE_LIMIT = "10/m"  # Rate limit: 10 emails per minute
 EMAIL_MAX_RETRIES = 3
@@ -57,9 +51,6 @@ LOCK_TIMEOUT = 300  # 5 minutes lock timeout
 
 @shared_task
 def execute_test_suite(execution_id):
-    
-
-
     """
     Main task to execute a test suite on all devices.
     
@@ -1528,254 +1519,17 @@ def cleanup_old_executions():
 
 @shared_task
 def check_device_execution_completion(device_execution_id, retry_count=0):
-    """
-    Check if all tests are completed for a device and update its status.
-    
-    This task:
-    1. Counts pending/running tests for the device
-    2. If tests are still running, schedules a retry
-    3. If all tests are complete, generates a summary report
-    4. Updates device execution status and output
-    5. Triggers suite-level completion checking
-    
-    Args:
-        device_execution_id (int): Primary key of the TestSuiteExecutionDevice record
-        retry_count (int): Number of times this check has been retried
-        
-    Returns:
-        None
-        
-    Side Effects:
-        - Updates device execution status and output
-        - Schedules retry if tests are still running
-        - Triggers suite completion checking when device is done
-    """
-    # max_retries = 600  # Max 50 minutes of checking (600 * 5 seconds)
-    max_retries = 1440  # Max 24 hours of checking (1440 * 60 seconds)
-
-    
     logger.info(f"Checking device execution completion for ID: {device_execution_id} (retry: {retry_count})")
     print(f"[TASK] check_device_execution_completion - Device execution ID: {device_execution_id}, retry: {retry_count}")
     return
-    try:
-        # Retrieve device execution record
-        device_execution = TestSuiteExecutionDevice.objects.get(pk=device_execution_id)
-        test_suite_execution = device_execution.test_suite_execution
-        
-        logger.info(f"Retrieved device execution for device: {device_execution.device.name}")
-        print(f"[TASK] check_device_execution_completion - Device: {device_execution.device.name}")
-        
-        pending_or_running = TestCaseExecution.objects.filter(
-         test_suite_execution=test_suite_execution,
-         device=device_execution.device,
-         status__in=[TestExecutionStatus.PENDING, TestExecutionStatus.RUNNING],
-           ).count()
-        
-        logger.info(f"Found {pending_or_running} tests still pending/running")
-        print(f"[TASK] check_device_execution_completion - {pending_or_running} tests still pending/running")
-        
-        if pending_or_running > 0:
-            # Not all tests completed, check again later
-            if retry_count < max_retries:
-                logger.info(f"Tests still running, scheduling retry {retry_count + 1}/{max_retries} in 5 seconds")
-                print(f"[TASK] check_device_execution_completion - Scheduling retry {retry_count + 1}/{max_retries}")
-                
-                check_device_execution_completion.apply_async(
-                    args=[device_execution_id, retry_count + 1],
-                    countdown=30  # Check again in 1 hour (3600 seconds)
-
-                )
-                return
-            else:
-                logger.error(f"Max retries ({max_retries}) exceeded for device execution {device_execution_id}")
-                print(f"[ERROR] check_device_execution_completion - Max retries exceeded")
-                
-                # Force completion due to timeout
-                device_execution.status = 'failed'
-                device_execution.output = f"Timeout: Some tests did not complete within expected time"
-                device_execution.completed_at = timezone.now()
-                device_execution.save()
-                return
-        
-        # All tests completed, generate summary report
-        logger.info(f"All tests completed for device {device_execution.device.name}")
-        print(f"[TASK] check_device_execution_completion - All tests completed for {device_execution.device.name}")
-        
-        test_executions = TestCaseExecution.objects.filter(
-          test_suite_execution=test_suite_execution,
-          device=device_execution.device,
-        ).order_by('test_case__name')
-        
-        total_executions = test_executions.count()
-        logger.info(f"Retrieved {total_executions} test executions for summary")
-        print(f"[TASK] check_device_execution_completion - Retrieved {total_executions} test executions")
-        
-        # Build summary report
-        output_lines = []
-        total_tests = 0
-        passed_tests = 0
-        failed_tests = 0
-        
-        output_lines.append(f"Test Execution Summary for {device_execution.device.name}")
-        output_lines.append("=" * 60)
-        
-        # Process each test execution
-        for test_exec in test_executions:
-            total_tests += 1
-            duration = ""
-            
-            # Calculate duration
-            if test_exec.execution_duration:
-                duration = f" ({test_exec.formatted_duration})"
-            elif test_exec.started_at and test_exec.completed_at:
-                duration_delta = test_exec.completed_at - test_exec.started_at
-                duration = f" ({int(duration_delta.total_seconds())}s)"
-            
-            # Process based on status
-            if test_exec.status == TestExecutionStatus.SUCCESS:
-                passed_tests += 1
-                output_lines.append(f"{test_exec.test_case.name}: PASSED{duration}")
-                
-                logger.debug(f"Test PASSED: {test_exec.test_case.name}")
-                print(f"[DEBUG] check_device_execution_completion - PASSED: {test_exec.test_case.name}")
-
-                print(f"{test_exec.stdout}")
-
-                
-                
-                if test_exec.stdout and test_exec.stdout.strip():
-                    output_lines.append(f"   Output: {test_exec.stdout.strip()[:100]}...")
-                    
-            else:
-                failed_tests += 1
-                output_lines.append(f"{test_exec.test_case.name}: FAILED{duration}")
-                
-                logger.debug(f"Test FAILED: {test_exec.test_case.name}")
-                print(f"[DEBUG] check_device_execution_completion - FAILED: {test_exec.test_case.name}")
-                
-                if test_exec.error_message:
-                    output_lines.append(f"   Error: {test_exec.error_message}")
-                    
-        #         if test_exec.stdout and test_exec.stdout.strip():
-        #             output_lines.append(f"   Output: {test_exec.stdout.strip()[:100]}...")
-        
-        # Add summary statistics
-        output_lines.append("=" * 60)
-        output_lines.append(f"Total: {total_tests} | Passed: {passed_tests} | Failed: {failed_tests}")
-        
-        logger.info(f"Test summary - Total: {total_tests}, Passed: {passed_tests}, Failed: {failed_tests}")
-        print(f"[TASK] check_device_execution_completion - Summary: {total_tests} total, {passed_tests} passed, {failed_tests} failed")
-        
-        # Update device execution status
-        device_execution.status = 'completed' if failed_tests == 0 else 'failed'
-        device_execution.output = "\n".join(output_lines)
-        device_execution.completed_at = timezone.now()
-        device_execution.save()
-        
-        logger.info(f"Updated device execution status to '{device_execution.status}'")
-        print(f"[TASK] check_device_execution_completion - Updated status to '{device_execution.status}'")
-        
-        # Check if all devices in the suite are done
-        logger.info("Triggering suite completion check")
-        print(f"[TASK] check_device_execution_completion - Triggering suite completion check")
-        check_suite_execution_completion.delay(test_suite_execution.id)
-        
-    except TestSuiteExecutionDevice.DoesNotExist:
-        error_msg = f"Device execution with ID {device_execution_id} not found"
-        logger.error(error_msg)
-        print(f"[ERROR] check_device_execution_completion - {error_msg}")
-        
-    except Exception as e:
-        error_msg = f"Error checking device completion: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        print(f"[ERROR] check_device_execution_completion - {error_msg}")
-
 
 
 
 @shared_task
 def check_suite_execution_completion(suite_execution_id):
-    """
-    Check if all devices have completed execution for a test suite.
-    
-    This task:
-    1. Counts devices still in pending/running state
-    2. If all devices are complete, logs completion and can trigger notifications
-    3. Provides a central point for suite-level completion handling
-    
-    Args:
-        suite_execution_id (int): Primary key of the TestSuiteExecution record
-        
-    Returns:
-        None
-        
-    Side Effects:
-        - Logs completion status
-        - Can be extended to send notifications, generate reports, etc.
-    """
     logger.info(f"Checking suite execution completion for ID: {suite_execution_id}")
     print(f"[TASK] check_suite_execution_completion - Suite execution ID: {suite_execution_id}")
     return
-    try:
-        # Retrieve suite execution record
-        suite_execution = TestSuiteExecution.objects.get(pk=suite_execution_id)
-        logger.info(f"Retrieved suite execution: {suite_execution.test_suite.name}")
-        print(f"[TASK] check_suite_execution_completion - Suite: {suite_execution.test_suite.name}")
-        
-        # Count devices still running
-        total_devices = TestSuiteExecutionDevice.objects.filter(
-            test_suite_execution_id=suite_execution_id
-        ).count()
-        
-        pending_devices = TestSuiteExecutionDevice.objects.filter(
-            test_suite_execution_id=suite_execution_id,
-            status__in=['pending', 'running']
-        ).count()
-        
-        completed_devices = total_devices - pending_devices
-        
-        logger.info(f"Suite progress: {completed_devices}/{total_devices} devices completed")
-        print(f"[TASK] check_suite_execution_completion - Progress: {completed_devices}/{total_devices} devices completed")
-        
-        if pending_devices == 0:
-            logger.info(f"Test suite execution {suite_execution_id} completed on all devices")
-            print(f"[TASK] check_suite_execution_completion - All devices completed!")
-            
-            # Get completion statistics
-            completed_device_executions = TestSuiteExecutionDevice.objects.filter(
-                test_suite_execution_id=suite_execution_id,
-                status='completed'
-            ).count()
-            
-            failed_device_executions = TestSuiteExecutionDevice.objects.filter(
-                test_suite_execution_id=suite_execution_id,
-                status='failed'
-            ).count()
-            
-            logger.info(f"Suite completion stats - Completed: {completed_device_executions}, Failed: {failed_device_executions}")
-            print(f"[TASK] check_suite_execution_completion - Stats: {completed_device_executions} completed, {failed_device_executions} failed")
-            
-            # Here you could send notifications, generate reports, etc.
-            # For example:
-            # send_suite_completion_notification.delay(suite_execution_id)
-            # generate_suite_report.delay(suite_execution_id)
-            
-        else:
-            logger.info(f"Suite execution still in progress: {pending_devices} devices pending")
-            print(f"[TASK] check_suite_execution_completion - Still in progress: {pending_devices} devices pending")
-            
-    except TestSuiteExecution.DoesNotExist:
-        error_msg = f"Test suite execution with ID {suite_execution_id} not found"
-        logger.error(error_msg)
-        print(f"[ERROR] check_suite_execution_completion - {error_msg}")
-        
-    except Exception as e:
-        error_msg = f"Error checking suite completion: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        print(f"[ERROR] check_suite_execution_completion - {error_msg}")
-
-
-
 
 
 
@@ -1820,23 +1574,6 @@ def send_execution_completed_notification(self, instance_pk, created_by_id):
         execution_name = instance.name,
     )
 
- 
-
-
-
-
-
-
-
-
-
-
-
-
-
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
 
 def format_duration(start, end):
     """Format duration between two timestamps"""
@@ -1874,11 +1611,6 @@ def acquire_lock(lock_key, timeout=LOCK_TIMEOUT):
 def release_lock(lock_key):
     """Release a distributed lock"""
     cache.delete(lock_key)
-
-
-# ============================================================================
-# EMAIL DATA PREPARATION (Shared logic - computed once per execution)
-# ============================================================================
 
 def prepare_email_data(execution_id):
     """
@@ -2011,10 +1743,6 @@ def prepare_email_data(execution_id):
     }
 
 
-# ============================================================================
-# MAIN EMAIL ORCHESTRATION TASK
-# ============================================================================
-
 @shared_task(bind=True, max_retries=1, soft_time_limit=120, time_limit=180)
 def send_execution_completed_email(self, execution_id, created_by_id=None):
     """
@@ -2145,10 +1873,6 @@ def send_execution_completed_email(self, execution_id, created_by_id=None):
     finally:
         release_lock(lock_key)
 
-
-# ============================================================================
-# INDIVIDUAL EMAIL SEND TASK
-# ============================================================================
 
 @shared_task(
     bind=True,
@@ -2301,10 +2025,6 @@ def send_single_execution_email(self, execution_id, email_address):
         release_lock(lock_key)
 
 
-# ============================================================================
-# STATUS CHECK TASK
-# ============================================================================
-
 @shared_task(bind=True, max_retries=3)
 def check_and_update_execution_email_status(self, execution_id):
     """
@@ -2383,10 +2103,6 @@ def check_and_update_execution_email_status(self, execution_id):
         raise
 
 
-# ============================================================================
-# RETRY FAILED EMAILS TASK
-# ============================================================================
-
 @shared_task(bind=True)
 def retry_failed_emails(self, execution_id=None, max_age_hours=24):
     """
@@ -2432,9 +2148,6 @@ def retry_failed_emails(self, execution_id=None, max_age_hours=24):
     return {"status": "retried", "count": retried_count}
 
 
-# ============================================================================
-# CLEANUP TASK
-# ============================================================================
 
 @shared_task(bind=True)
 def cleanup_old_email_logs(self, days_to_keep=30):
@@ -2456,10 +2169,6 @@ def cleanup_old_email_logs(self, days_to_keep=30):
     
     return {"status": "cleaned", "deleted": deleted_count}
 
-
-# ============================================================================
-# BULK EMAIL TASK (For 50+ executions scenario)
-# ============================================================================
 
 @shared_task(bind=True, soft_time_limit=300, time_limit=360)
 def send_bulk_execution_emails(self, execution_ids):

@@ -1,0 +1,4 @@
+openwisp-users @ file:///opt/openwisp/openwisp-users
+openwisp-utils[rest] @ file:///opt/openwisp/openwisp-utils
+django-reversion~=5.1.0
+openpyxl~=3.1.5

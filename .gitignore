@@ -83,7 +83,8 @@ Pipfile.lock
 # private
 # media/allure_report/
 media/allure_report/**/*.html
-
+media/execution_artifacts/*
+!media/execution_artifacts/.gitkeep
 
 tests/openwisp2/celerybeat-schedule
 

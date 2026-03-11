@@ -11,11 +11,6 @@ TestSuiteExecution = load_model("TestSuiteExecution")
 TestDeviceGroup = load_model("TestDeviceGroup")
 from ..base.models import TestTypeChoices  
 
-
-
-# ============================================================================
-# TEST CATEGORY FILTERS
-# ============================================================================
 class TestCategoryFilter(filters.FilterSet):
     """
     Filter for TestCategory
@@ -37,10 +32,6 @@ class TestCategoryFilter(filters.FilterSet):
         model = TestCategory
         fields = ["name", "code"]
 
-
-# ============================================================================
-# TEST SUITE (TEST GROUP) FILTERS
-# ============================================================================
 class TestSuiteFilter(filters.FilterSet):
     name = filters.CharFilter(
         field_name="name",
@@ -57,9 +48,6 @@ class TestSuiteFilter(filters.FilterSet):
         fields = ["name", "is_active"]
 
 
-# ============================================================================
-# TEST CASE FILTERS (FOR LISTING API)
-# ============================================================================
 class TestCaseFilter(filters.FilterSet):
     name = filters.CharFilter(
         field_name="name",
@@ -98,10 +86,6 @@ class TestSuiteExecutionFilter(filters.FilterSet):
             "is_executed",
         ]        
 
-
-# ============================================================================
-# TEST DEVICE GROUP FILTERS
-# ============================================================================
 class TestDeviceGroupFilter(FilterDjangoByOrgManaged):
     """
     Filter for TestDeviceGroup
@@ -123,9 +107,6 @@ class TestDeviceGroupFilter(FilterDjangoByOrgManaged):
         fields = ["name", "organization"]
 
 
-# ============================================================================
-# DEVICE FILTER (FOR ADDING DEVICES TO GROUP)
-# ============================================================================
 class DeviceFilterForGroup(FilterDjangoByOrgManaged):
     """
     Filter devices by organization
