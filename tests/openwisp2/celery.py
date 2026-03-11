@@ -9,3 +9,5 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "openwisp2.settings")
 app = Celery("openwisp2")
 app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()
+
+app.autodiscover_tasks(['openwisp_test_management.tasks_influxdb'])

@@ -220,7 +220,7 @@ robotframework==7.2.2
 # openwisp-utils @ git+https://sachin:fzeodnCo6ebQ3KWH4wzW@git.spanidea.com/nokia-test-automation/openwisp-utils-spanidea.git@dev
 
 
-# Local file installations (uncommented for local development)
+# Local file installations (uncommented for local development) v2
 django-loci @ file:///opt/openwisp/django-loci
 django-x509 @ file:///opt/openwisp/django-x509
 netdiff @ file:///opt/openwisp/netdiff

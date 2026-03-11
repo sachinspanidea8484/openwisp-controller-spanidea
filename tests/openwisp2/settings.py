@@ -9,6 +9,11 @@ load_dotenv()
 
 from import_export.formats.base_formats import XLSX,CSV
 
+# Suppress dj_rest_auth deprecation warnings
+import warnings
+warnings.filterwarnings("ignore", message="app_settings.USERNAME_REQUIRED is deprecated")
+warnings.filterwarnings("ignore", message="app_settings.EMAIL_REQUIRED is deprecated")
+
 
 EXECUTOR_SERVER_IP: str = os.getenv('EXECUTOR_SERVER_IP', "http://172.17.0.1:8080")
 OPENWISP_SERVER_IP: str = os.getenv('OPENWISP_SERVER_IP', "http://172.17.0.1:8000")
@@ -16,11 +21,10 @@ OPENWISP_CONTROLLER_API_HOST: str = os.getenv('OPENWISP_CONTROLLER_API_HOST', "h
 SHOW_RE_EXECUTION : bool = True
 EXECUTION_HISTORY_AUTO_REFRESH_TIME: int = os.getenv('EXECUTION_HISTORY_AUTO_REFRESH_TIME', 60)
 EXECUTION_HISTORY_REFRESH_INTERVAL= os.getenv('EXECUTION_HISTORY_REFRESH_INTERVAL', 60)
+OPENWISP_NOTIFICATIONS_EMAIL_ENABLED = False
 
-# Suppress dj_rest_auth deprecation warnings
-import warnings
-warnings.filterwarnings("ignore", message="app_settings.USERNAME_REQUIRED is deprecated")
-warnings.filterwarnings("ignore", message="app_settings.EMAIL_REQUIRED is deprecated")
+
+
 
 
 # monitoring

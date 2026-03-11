@@ -20,11 +20,11 @@ def testsuite_execution_status_notification(sender, instance, created, **kwargs)
     if instance.execution_status != 3:
         return
     
-    if instance.execution_status== 3 : 
-        send_execution_completed_notification.delay(
-            instance.pk,
-            instance.created_by_id,
-        )
+    # if instance.execution_status== 3 : 
+    #     send_execution_completed_notification.delay(
+    #         instance.pk,
+    #         instance.created_by_id,
+    #     )
     
     # Skip if no notification emails configured
     if not instance.notification_emails:

@@ -33,6 +33,9 @@ class TestManagementConfig(ApiAppConfig):
         self.register_notification_types()
         self.connect_signals()
 
+        from .signals_influxdb import register_test_execution_signal
+        register_test_execution_signal()
+
     def connect_signals(self):
        
         from . import handlers
@@ -86,23 +89,23 @@ class TestManagementConfig(ApiAppConfig):
         )
 
     def register_notification_types(self):
-
-        register_notification_type(
-            "test_suite_execution_completed",
-            {
-                "verbose_name": _("Test Suite Execution"),
-                "verb": _("completed"),
-                "level": "success",
-                "email_subject": _(
-                    '[{site.name}] SUCCESS: Test Suite Execution Completed'
-                ),
-                "message": _(
-                    'Execution "{execution_name}" has completed successfully.'
-                ),
-                "extra_context": ["execution_name", "target_url"],
-                # ADD ONLY THIS LINE
-                "target_url": "/admin/test_management/testsuiteexecution/{target.pk}/history/",
-            },
+     register_notification_type(
+        "test_suite_execution_completed",
+        {
+            "verbose_name": _("Test Suite Execution"),
+            "verb": _("completed"),
+            "level": "success",
+            "email_subject": _(
+                '] SUCCESS: Test Suite Execution Completed'
+            ),
+            "message": _(
+                'Execution "{execution_name}" has completed successfully.'
+            ),
+            "extra_context": ["execution_name", "target_url"],
+            "target_url": "/admin/test_management/testsuiteexecution/{target.pk}/history/",
+            "web_notification": True,   
+            "email_notification": False, 
+        },
         models=[load_model("test_management", "TestSuiteExecution")],
-        )
+    )
 del ApiAppConfig

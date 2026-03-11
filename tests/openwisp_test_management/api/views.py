@@ -1990,7 +1990,11 @@ class TestDeviceGroupDetailView(ProtectedAPIMixin, generics.RetrieveUpdateDestro
           )
 
     def perform_destroy(self, instance):
-     if not instance.is_deletable:
+     # Direct ORM check - no model property needed
+     from ..swapper import load_model
+     TestSuiteExecution = load_model("TestSuiteExecution")
+     
+     if TestSuiteExecution.objects.filter(device_group=instance).exists():
           raise ValidationError({
                "detail": f"Cannot delete device group '{instance.name}' because it is part of an execution."
           })
