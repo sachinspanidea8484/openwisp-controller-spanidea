@@ -3608,9 +3608,10 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     # Convert to local timezone & ISO format for <input type="datetime-local">
                     local_dt = timezone.localtime(scheduled.scheduled_time)
                     scheduled_dt = local_dt.strftime('%Y-%m-%dT%H:%M')
-            print("....ax",scheduled_dt)
+            
             # Pass it to the template context
             extra_context['scheduled_datetime'] = scheduled_dt
+            extra_context["notification_emails"]= obj.notification_emails
             related_devices = TestSuiteExecutionDevice.objects.filter(
                 test_suite_execution=obj
             ).select_related("device")
