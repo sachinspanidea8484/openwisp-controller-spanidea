@@ -1,16 +1,20 @@
 import os
 import sys
-
-# Load environment variables from .env file
-from dotenv import load_dotenv
-
-# Load the .env file
-load_dotenv()
-
+from datetime import timedelta
 from import_export.formats.base_formats import XLSX,CSV
-
-# Suppress dj_rest_auth deprecation warnings
 import warnings
+from pathlib import Path
+
+
+
+
+
+from dotenv import load_dotenv
+load_dotenv()
+from celery.schedules import crontab
+
+
+
 warnings.filterwarnings("ignore", message="app_settings.USERNAME_REQUIRED is deprecated")
 warnings.filterwarnings("ignore", message="app_settings.EMAIL_REQUIRED is deprecated")
 
@@ -22,51 +26,24 @@ SHOW_RE_EXECUTION : bool = True
 EXECUTION_HISTORY_AUTO_REFRESH_TIME: int = os.getenv('EXECUTION_HISTORY_AUTO_REFRESH_TIME', 60)
 EXECUTION_HISTORY_REFRESH_INTERVAL= os.getenv('EXECUTION_HISTORY_REFRESH_INTERVAL', 60)
 OPENWISP_NOTIFICATIONS_EMAIL_ENABLED = False
-
-
-
-
-
-# monitoring
-from datetime import timedelta
-
-from celery.schedules import crontab
 SHELL = 'shell' in sys.argv or 'shell_plus' in sys.argv
-
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
-
 ACCOUNT_AUTHENTICATION_METHOD = "username_email" 
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_EMAIL_VERIFICATION = "optional"  
-
 ACCOUNT_LOGIN_METHODS = ["username", "email", "phone"]
-
 IMPORT_EXPORT_FORMATS=[CSV,XLSX]
-
-
-
 DJANGO_LOG_LEVEL = os.getenv('DJANGO_LOG_LEVEL', 'INFO')
-
 DEBUG = os.getenv('DEBUG_MODE', True)
 TESTING = False
 SELENIUM_HEADLESS = True
 SHELL = "shell" in sys.argv or "shell_plus" in sys.argv
 REDIS_URL = "redis://redis:6379" 
-
 ALLOWED_HOSTS = ["*"]
-
-
 OPENWISP_RADIUS_FREERADIUS_ALLOWED_HOSTS = ["*"]
-
-
 OPENWISP_RADIUS_COA_ENABLED = True
 OPENWISP_RADIUS_ALLOWED_MOBILE_PREFIXES = ["+44", "+39", "+237", "+595"]
-
-
-
 CELERY_BROKER_TRANSPORT_OPTIONS = {
     "visibility_timeout": 3600,  # 1 hour per task
     "socket_keepalive": True,    # keeps TCP alive
@@ -75,8 +52,9 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
 }
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BROKER_CONNECTION_MAX_RETRIES = 100
-
-
+INTERNAL_IPS =  ['127.0.0.1' , '10.10.10.10',
+'54.234.248.241' ,'10.8.12.123' ,'192.168.201.37' , '0.0.0.0'
+                ]
 # Database
 DATABASES = {
     "default": {
@@ -98,7 +76,6 @@ TIMESERIES_DATABASE = {
     'PORT': os.getenv('INFLUXDB_PORT', '8086'),
     'OPTIONS': {'udp_writes': False, 'udp_port': 8089},
 }
-
 if TESTING:
     if True:
         TIMESERIES_DATABASE['OPTIONS'] = {'udp_writes': True, 'udp_port': 8091}
@@ -116,7 +93,6 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.gis",
     "django.contrib.humanize",
-
     # all-auth
     "django.contrib.sites",
     "openwisp_users.accounts",
@@ -133,38 +109,29 @@ INSTALLED_APPS = [
     "openwisp_controller.subnet_division",
     "openwisp_notifications",
     "openwisp_ipam",
-
     # use firmware
     "openwisp_firmware_upgrader",
     "private_storage",
-
     # network topology
     "openwisp_network_topology",
     "openwisp_network_topology.integrations.device",
-
-
     # monitoring
     'openwisp_monitoring.monitoring',
     'openwisp_monitoring.device',
     'openwisp_monitoring.check',
     'nested_admin',
-
     # social login
     "allauth.socialaccount.providers.facebook",
     "allauth.socialaccount.providers.google",
-
     # openwisp radius
     "openwisp_radius",
     "openwisp2.integrations",
     "djangosaml2",
-
     # radius
     "dj_rest_auth",
     "dj_rest_auth.registration",
-
     # openwisp test management
     'openwisp_test_management',
-
     # openwisp2 admin theme
     # (must be loaded here)
     "openwisp_utils.admin_theme",
@@ -189,16 +156,13 @@ INSTALLED_APPS = [
     # 'debug_toolbar',
 ]
 EXTENDED_APPS = ("django_x509", "django_loci")
-
 AUTH_USER_MODEL = "openwisp_users.User"
 SITE_ID = 1
-
 STATICFILES_FINDERS = [
     "django.contrib.staticfiles.finders.FileSystemFinder",
     "django.contrib.staticfiles.finders.AppDirectoriesFinder",
     "openwisp_utils.staticfiles.DependencyFinder",
 ]
-
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -211,7 +175,6 @@ MIDDLEWARE = [
     "djangosaml2.middleware.SamlSessionMiddleware",
 
 ]
-
 if DEBUG:
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
@@ -221,13 +184,11 @@ else:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 
-
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SAML_ALLOWED_HOSTS = []
 SAML_USE_NAME_ID_AS_USERNAME = True
 SAML_CREATE_UNKNOWN_USER = True
 SAML_CONFIG = {}
-
 AUTH_PASSWORD_VALIDATORS = []
 
 # Fix — restore Django defaults for production
@@ -240,18 +201,8 @@ if not DEBUG:
     ]
 else:
     AUTH_PASSWORD_VALIDATORS = []
-
-
-INTERNAL_IPS =  ['127.0.0.1' , '10.10.10.10',
-'54.234.248.241' ,'10.8.12.123' ,'192.168.201.37' , '0.0.0.0'
-                ]
-
-
-
 ROOT_URLCONF = "openwisp2.urls"
 ASGI_APPLICATION = "openwisp2.asgi.application"
-
-
 if not TESTING:
     CHANNEL_LAYERS = {
         "default": {
@@ -261,45 +212,31 @@ if not TESTING:
     }
 else:
     CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
-
 # monitoring
-# avoid slowing down the test suite with mac vendor lookups
 if TESTING:
     OPENWISP_MONITORING_MAC_VENDOR_DETECTION = False
     OPENWISP_MONITORING_API_URLCONF = 'openwisp_monitoring.urls'
     OPENWISP_MONITORING_API_BASEURL = 'http://testserver'
     # for testing AUTO_IPERF3
     OPENWISP_MONITORING_AUTO_IPERF3 = True
-
-
-# TIME_ZONE = "UTC"
 TIME_ZONE = os.getenv('TIME_ZONE', 'Asia/Kolkata')
-
 LANGUAGE_CODE = os.getenv('DJANGO_LANGUAGE_CODE', "en-gb")
 USE_TZ = True
 USE_I18N = True
 USE_L10N = False
 STATIC_URL = "/static/"
 MEDIA_URL = "/media/"
-
 # Paths
 MEDIA_ROOT = os.getenv('MEDIA_ROOT', '/opt/openwisp/media/')
 STATIC_ROOT = os.getenv('STATIC_ROOT', '/opt/openwisp/static_collected/')
 PRIVATE_STORAGE_ROOT = os.getenv('PRIVATE_STORAGE_ROOT', '/opt/openwisp/private/firmware')
-
-
-from pathlib import Path
 ROOT_PATH= Path(__file__).resolve().parent.parent
 TEST_SCRIPT_MEDIA_ROOT= "/opt/openwisp/media/test_case"
 TEST_SCRIPT_MEDIA_URL="/media/"
 CORS_ORIGIN_ALLOW_ALL = os.getenv('CORS_ORIGIN_ALLOW_ALL', 'True') == 'True'
 TEST_SCRIPT_MEDIA_ROOT_ZIP= "/opt/openwisp/media"
-
 MEDIA_ROOT_TEMP= ROOT_PATH /"media/tmp"
-
-
 AUTO_REFRESH_INTERVAL=60
-
 STATICFILES_DIRS = []
 EXTERNAL_APPS = {
     'openwisp_monitoring': {
@@ -373,20 +310,12 @@ TEMPLATES = [
         },
     }
 ]
-
-
-
-
-
 FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
-
 LOGIN_REDIRECT_URL = "admin:index"
 ACCOUNT_LOGOUT_REDIRECT_URL = LOGIN_REDIRECT_URL
 OPENWISP_ORGANIZATION_USER_ADMIN = True  # tests will fail without this setting
 OPENWISP_ADMIN_DASHBOARD_ENABLED = True
 OPENWISP_CONTROLLER_GROUP_PIE_CHART = True
-
-
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
@@ -394,10 +323,8 @@ EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-
 # # monitoring
 OPENWISP_MONITORING_MANAGEMENT_IP_ONLY = False
-
 # radius
 SOCIALACCOUNT_PROVIDERS = {
     "facebook": {
@@ -410,10 +337,6 @@ SOCIALACCOUNT_PROVIDERS = {
     },
     "google": {"SCOPE": ["profile", "email"], "AUTH_PARAMS": {"access_type": "online"}},
 }
-
-
-
-
 if not TESTING:
     CACHES = {
         "default": {
@@ -424,31 +347,17 @@ if not TESTING:
             },
         }
     }
-
-
 # firmware
-# SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_ENGINE = "django.contrib.sessions.backends.db"  # Use database sessions for now
-
 AUTHENTICATION_BACKENDS = [
     'allauth.account.auth_backends.AuthenticationBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
-
-
-
-
-#     # Keep your ngrok URL if needed
-# ]
 CSRF_TRUSTED_ORIGINS = []
-
-
 SESSION_CACHE_ALIAS = "default"
-
 if not TESTING:
     CELERY_BROKER_URL = f"{REDIS_URL}/1"
     CELERY_RESULT_BACKEND = f"{REDIS_URL}/1"
-
 else:
     OPENWISP_RADIUS_GROUPCHECK_ADMIN = True
     OPENWISP_RADIUS_GROUPREPLY_ADMIN = True
@@ -463,23 +372,18 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
-
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60 
 CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60  
 CELERY_TASK_ACKS_LATE = True  
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1 
 CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000 
-
 CELERY_TASK_DEFAULT_RETRY_DELAY = 60  
 CELERY_TASK_MAX_RETRIES = 3
-
 CELERY_RESULT_EXPIRES = 3600  
-
 # Monitoring
 CELERY_SEND_TASK_SENT_EVENT = True
 CELERY_SEND_TASK_ERROR_EMAILS = True
-
 CELERY_BEAT_SCHEDULE = {
     'run_checks': {
         'task': 'openwisp_monitoring.check.tasks.run_checks',
@@ -536,33 +440,21 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 CELERY_EMAIL_BACKEND = EMAIL_BACKEND
-
-
-
-
 # SENDSMS_BACKEND = "sendsms.backends.console.SmsBackend"
 OPENWISP_RADIUS_EXTRA_NAS_TYPES = (("cisco", "Cisco Router"),)
-
 # Add this to your REST_AUTH configuration
 REST_AUTH = {
     "SESSION_LOGIN": False,
     "PASSWORD_RESET_SERIALIZER": "openwisp_radius.api.serializers.PasswordResetSerializer",
     "REGISTER_SERIALIZER": "openwisp_radius.api.serializers.RegisterSerializer",
 }
-
 # Add ACCOUNT settings to properly configure allauth
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
-
 ACCOUNT_EMAIL_VERIFICATION = "optional"  # or "mandatory" or "none"
-
 ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = "email_confirmation_success"
 ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = "email_confirmation_success"
-
 SAML_CSP_HANDLER = ''
-
-
 # network topology 
-
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -600,8 +492,6 @@ LOGGING = {
     "root": {"level": "INFO", "handlers": ["main_log", "console", "mail_admins"]},
     "loggers": {"py.warnings": {"handlers": ["console"]}},
 }
-
-
 # firmware
 OPENWISP_CUSTOM_OPENWRT_IMAGES = (
     (
@@ -635,7 +525,6 @@ if not TESTING and SHELL:
 DJANGO_LOCI_GEOCODE_STRICT_TEST = False
 OPENWISP_CONTROLLER_CONTEXT = {"vpnserver1": "vpn.testdomain.com"}
 OPENWISP_USERS_AUTH_API = True
-
 TEST_RUNNER = "openwisp_utils.tests.TimeLoggingTestRunner"
 
 # monitoring
@@ -654,9 +543,6 @@ LEAFLET_CONFIG = {
     ],
     'RESET_VIEW': False,
 }
-
-
-
 # monitoring
 if os.environ.get("SAMPLE_APP", False):
     # Replace Config
@@ -751,19 +637,12 @@ try:
     CORS_ORIGIN_ALLOW_ALL = True
 except ImportError:
     pass
-
-
 # for test management
 REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'test_management': '1000/minute',
     }
 }
-
-
-
-
-
 # local settings must be imported before test runner otherwise they'll be ignored
 try:
     from .local_settings import *

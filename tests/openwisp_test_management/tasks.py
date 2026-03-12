@@ -545,7 +545,7 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
         # Start completion checking
         logger.info("Starting completion checking process")
         print(f"[TASK] execute_selected_tests_on_device - Starting completion checking")
-        check_device_execution_completion.delay(device_execution_id)
+        
         
     except TestSuiteExecutionDevice.DoesNotExist:
         error_msg = f"Device execution with ID {device_execution_id} not found"
@@ -1517,19 +1517,11 @@ def cleanup_old_executions():
     return f"Cleaned up {deleted_count} records"
 
 
-@shared_task
-def check_device_execution_completion(device_execution_id, retry_count=0):
-    logger.info(f"Checking device execution completion for ID: {device_execution_id} (retry: {retry_count})")
-    print(f"[TASK] check_device_execution_completion - Device execution ID: {device_execution_id}, retry: {retry_count}")
-    return
 
 
 
-@shared_task
-def check_suite_execution_completion(suite_execution_id):
-    logger.info(f"Checking suite execution completion for ID: {suite_execution_id}")
-    print(f"[TASK] check_suite_execution_completion - Suite execution ID: {suite_execution_id}")
-    return
+
+
 
 
 
