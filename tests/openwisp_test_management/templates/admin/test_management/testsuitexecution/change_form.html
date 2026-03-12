@@ -44,6 +44,12 @@
           window.scheduled_dt_time = "{{ scheduled_datetime|escapejs }}"; 
       </script>
     {% endif %}
+
+    {% if notification_emails %}
+      <script>
+          window.notification_emails = "{{ notification_emails|escapejs }}"; 
+      </script>
+    {% endif %}
     <script>
         window.disabledViewMode = {{ hide_submit_row|yesno:"true,false" }}; 
     </script>
