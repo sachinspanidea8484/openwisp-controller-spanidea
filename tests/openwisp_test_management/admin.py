@@ -1454,6 +1454,23 @@ class TestCaseAdmin(BaseVersionAdmin):
         # Normal users see only their own test cases
         return qs.filter( Q(created_by=request.user) | Q(is_system_test_case=True)) 
     
+    def python_script_download(self, obj):
+        if obj and obj.python_script:
+            name = os.path.basename(obj.python_script.name)
+            return format_html('<a href="{}" download>{}</a>', obj.python_script.url, name)
+        return "-"
+
+    python_script_download.short_description = "Python Script"
+
+
+    def robot_script_download(self, obj):
+        if obj and obj.robot_script:
+            name = os.path.basename(obj.robot_script.name)
+            return format_html('<a href="{}" download>{}</a>', obj.robot_script.url, name)
+        return "-"
+
+    robot_script_download.short_description = "Robot Script"
+
     def has_view_permission(self, request, obj=None):
         return True
 
@@ -1512,50 +1529,54 @@ class TestCaseAdmin(BaseVersionAdmin):
 
     def get_fieldsets(self, request, obj=None):
         guidelines_url = static("guidelines/test_script_guidelines.docx")
-        base_fields= [
+
+        robot_field = "robot_script"
+        python_field = "python_script"
+
+        if obj and not self.has_change_permission(request, obj):
+            robot_field = "robot_script_download"
+            python_field = "python_script_download"
+
+        base_fields = [
             "category",
             "name",
             "test_case_id",
             "test_type",
         ]
-        # if request.user.is_superuser:
-        #     base_fields.append("is_system_test_case")
+
         fieldsets = [
             (
                 None,
-                {
-                        "fields": tuple(base_fields)
-                },
+                {"fields": tuple(base_fields)},
             ),
             (
-                    format_html(
-                        '<div style="display:flex; justify-content:space-between; align-items:center;">'
-                        '<span>{}</span>'
-                        '<a href="{}" download class="guidelines-link">'
-                        'Download Test Script Guidelines'
-                        '</a>'
-                        '</div>',
-                        _("Test Scripts"),
-                        guidelines_url,
-                    ),
+                format_html(
+                    '<div style="display:flex; justify-content:space-between; align-items:center;">'
+                    '<span>{}</span>'
+                    '<a href="{}" download class="guidelines-link">'
+                    'Download Test Script Guidelines'
+                    '</a>'
+                    '</div>',
+                    _("Test Scripts"),
+                    guidelines_url,
+                ),
                 {
-                        "fields": (
-                            "robot_script",
-                            "python_script",
-                        ),
-                        
+                    "fields": (
+                        robot_field,
+                        python_field,
+                    ),
                 },
             ),
             (
                 _("Additional Details"),
                 {
-                        "fields": (
-                            "params",
-                            "json_file",
-                            "description",
-                            "is_active",
-                            "is_configuration_push_required",
-                        ),
+                    "fields": (
+                        "params",
+                        "json_file",
+                        "description",
+                        "is_active",
+                        "is_configuration_push_required",
+                    ),
                 },
             ),
         ]

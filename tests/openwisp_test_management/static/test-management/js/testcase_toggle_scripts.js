@@ -213,8 +213,13 @@
     }
     function toggleScriptFields() {
         const testType = getTestTypeValue();
-        const pythonRow = $(".field-python_script").closest(".form-row, .field");
-        const robotRow = $(".field-robot_script").closest(".form-row, .field");
+        const pythonRow = $('[class*="field-python_script"]').closest(
+            ".form-row, .field-box, .field",
+        );
+        const robotRow = $('[class*="field-robot_script"]').closest(
+            ".form-row, .field-box, .field",
+        );
+        
 
         if (testType === "1") { // ROBOT
             robotRow.show();
