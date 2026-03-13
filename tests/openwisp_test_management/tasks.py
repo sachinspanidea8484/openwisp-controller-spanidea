@@ -50,7 +50,7 @@ EMAIL_RETRY_DELAY = 60  # seconds
 LOCK_TIMEOUT = 300  # 5 minutes lock timeout
 
 @shared_task
-def execute_test_suite(execution_id):
+def execute_test_suite(execution_id, auth_token_str):
     """
     Main task to execute a test suite on all devices.
     
@@ -95,7 +95,7 @@ def execute_test_suite(execution_id):
             
             # Queue the device execution task
             if not device_execution.device.is_deleted:
-                execute_tests_on_device.delay(device_execution.id)
+                execute_tests_on_device.delay(device_execution.id, auth_token_str)
             
         logger.info(f"Successfully queued test execution for {device_count} devices")
         print(f"[TASK] execute_test_suite - Successfully queued {device_count} device executions")
@@ -131,7 +131,7 @@ def is_device_reachable(device_id):
         return False
 
 @shared_task
-def execute_tests_on_device(device_execution_id):
+def execute_tests_on_device(device_execution_id, auth_token_str):
     """
     Execute all test cases on a single device by sending them to executor server.
     """
@@ -284,7 +284,8 @@ def execute_tests_on_device(device_execution_id):
                                 device_data,
                                 test_suite_data,
                                 device_execution_id,
-                                device_execution_connection_protocol
+                                device_execution_connection_protocol,
+                                auth_token_str
                 )
         else:
                 logger.warning("No tests found to execute")
@@ -312,7 +313,7 @@ def execute_tests_on_device(device_execution_id):
             print(f"[ERROR] execute_tests_on_device - Failed to update status")
 
 @shared_task
-def execute_selected_tests_in_test_execution(execution_id, device_tests_info_list):
+def execute_selected_tests_in_test_execution(execution_id, device_tests_info_list, auth_token_str):
     """
     Main task to execute selected tests in execution.
     
@@ -354,7 +355,7 @@ def execute_selected_tests_in_test_execution(execution_id, device_tests_info_lis
             print(f"List: {device_tests_info_list}")
             if len(device_tests_info_list.get(str(device_execution.device.id), [])) > 0:
                 # Queue the device execution task
-                execute_selected_tests_on_device.delay(device_execution.id, device_tests_info_list[str(device_execution.device.id)])
+                execute_selected_tests_on_device.delay(device_execution.id, device_tests_info_list[str(device_execution.device.id)], auth_token_str)
 
         logger.info(f"Successfully queued test execution for {device_count} devices")
         print(f"[TASK] execute_selected_tests_in_test_execution - Successfully queued {device_count} device executions")
@@ -370,7 +371,7 @@ def execute_selected_tests_in_test_execution(execution_id, device_tests_info_lis
         print(f"[ERROR] execute_selected_tests_in_test_execution - {error_msg}")
 
 @shared_task
-def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
+def execute_selected_tests_on_device(device_execution_id, selected_test_ids, auth_token_str):
     """
     Execute selected test cases on a single device by sending them to executor server.
     """
@@ -536,7 +537,8 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
                                 device_data,
                                 test_suite_data,
                                 device_execution_id,
-                                device_execution_connection_protocol
+                                device_execution_connection_protocol,
+                                auth_token_str
                 )
         else:
                 logger.warning("No tests found to execute")
@@ -570,7 +572,7 @@ def execute_selected_tests_on_device(device_execution_id, selected_test_ids):
 
 
 @shared_task
-def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite_data, device_execution_id ,device_execution_connection_protocol):
+def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite_data, device_execution_id ,device_execution_connection_protocol, auth_token_str):
     """
     Execute ALL test cases (Device Agent + Robot Framework) on executor server.
     The executor server will handle how to trigger each test case.
@@ -665,7 +667,8 @@ def execute_tests_on_executor_server(test_execution_ids, device_data, test_suite
         },
         "execution_metadata": {
             "device_execution_id": device_execution_id_str,
-            "test_execution_ids": test_execution_ids_str
+            "test_execution_ids": test_execution_ids_str,
+            "auth_token":  auth_token_str
         }
     }
     
