@@ -19,6 +19,7 @@ from .utilities import is_valid_uuid, schedule_execution, validate_schedule_time
 from openwisp_users.api.mixins import ProtectedAPIMixin as BaseProtectedAPIMixin
 from openwisp_users.api.permissions import DjangoModelPermissions
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.authtoken.models import Token
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.urls import reverse
 import logging
@@ -861,8 +862,9 @@ class TestExecutionStartView(ProtectedExternalAPIMixin, APIView):
                 execution.is_executed = True
                 execution.save(update_fields=["is_executed"])
 
+                token, _ = Token.objects.get_or_create(request.user)
                 transaction.on_commit(
-                    lambda: execute_test_suite_task.delay(str(execution.id))
+                    lambda: execute_test_suite_task.delay(str(execution.id), str(token.key))
                 )
             return Response(
                 {
@@ -949,7 +951,8 @@ class TestExecutionReExecuteSelectedView(ProtectedExternalAPIMixin, APIView):
                 new_execution = create_test_execution_clone_for_selected_tests(execution, device_tests_info, request)
                 new_execution.is_executed= True
                 new_execution.save()
-            start_selected_tests_execution.delay(str(new_execution.pk), device_tests_info)
+            token, _ = Token.objects.get_or_create(request.user)
+            start_selected_tests_execution.delay(str(new_execution.pk), device_tests_info, str(token.key))
                 
 
             return Response(

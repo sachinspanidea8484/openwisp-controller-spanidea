@@ -39,6 +39,7 @@ from django.db.models import Q
 import os
 import requests
 from urllib.parse import urlparse
+from rest_framework.authtoken.models import Token
 
 from openwisp_utils.admin import TimeReadonlyAdminMixin
 
@@ -3321,8 +3322,10 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     
                     execution_id = str(new_execution.id)
 
+                    token, _ = Token.objects.get_or_create(user=request.user)
+
                     transaction.on_commit(
-                        lambda eid=execution_id: execute_test_suite_task.delay(eid)
+                        lambda eid=execution_id: execute_test_suite_task.delay(eid, str(token.key))
                     )
                     re_executed_count += 1
                     logger.info(f"Re-executed {original.id} -> {new_execution.id}")
@@ -3542,8 +3545,9 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                 execution.is_executed = True
                 execution.save()
                 
+                token, _ = Token.objects.get_or_create(user=request.user)
                 # Launch Celery task
-                result = execute_test_suite_task.delay(str(execution.id))
+                result = execute_test_suite_task.delay(str(execution.id), str(token.key))
                 
                 executed_count += 1
                 
@@ -3815,8 +3819,9 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                     execution.is_executed = True
                     execution.save(update_fields=["is_executed"])
 
+                    token, _ = Token.objects.get_or_create(user=request.user)
                     transaction.on_commit(
-                        lambda eid=str(execution.id): execute_test_suite_task.delay(eid)
+                        lambda eid=str(execution.id): execute_test_suite_task.delay(eid, str(token.key))
                     )
 
                     executed_count += 1
@@ -3882,8 +3887,9 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
                         update_fields=["device_count", "testcase_count"]
                     )
 
+                    token, _ = Token.objects.get_or_create(user=request.user)
                     transaction.on_commit(
-                        lambda eid=str(new_execution.id): execute_test_suite_task.delay(eid)
+                        lambda eid=str(new_execution.id): execute_test_suite_task.delay(eid, str(token.key))
                     )
 
                     reexecuted_count += 1
