@@ -123,6 +123,7 @@
             </div>
         </div>
         <div id="schedule-execution-info"></div>
+        <div id="notification-emails-info"></div>
         <div class="push-config-div"></div>
     `);
 
@@ -353,6 +354,8 @@
       // Remove old container
       $("#device-selection").remove();
       $("#schedule-execution-info").remove();
+      $("#notification-emails-info").remove();
+      
       $(".push-config-div").remove();
 
       if (selection === "0") {
@@ -616,6 +619,10 @@
         )}:${String(d.getMinutes()).padStart(2, "0")}`;
       })()}`;
     }
+    
+    const ele = document.getElementById("notification-emails-info");
+    ele.innerHTML = `<strong>Notification Emails:</strong> ${window.notification_emails || '-'}`;
+    
 
     const target = document.querySelector(".field-individual_test_cases");
 

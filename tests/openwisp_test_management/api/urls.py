@@ -201,11 +201,11 @@ urlpatterns = [
         name="api_device_group_devices",
     ),
 
-    path(
-    "cleanup/",
-    executor_views.cleanup_test_management_data,
-    name="api_cleanup_test_management_data",
-),
+#     path(
+#     "cleanup/",
+#     executor_views.cleanup_test_management_data,
+#     name="api_cleanup_test_management_data",
+# ),
         ]),
     ),
 ]
