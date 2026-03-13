@@ -174,6 +174,9 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "djangosaml2.middleware.SamlSessionMiddleware",
 
+    "openwisp_test_management.middleware.ProtectedMediaMiddleware",
+
+
 ]
 if DEBUG:
     SESSION_COOKIE_SECURE = False
