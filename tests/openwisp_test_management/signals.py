@@ -85,7 +85,21 @@ def capture_old_testcase_data(sender, instance, **kwargs):
         instance._is_new = True
         instance._needs_push = True
 
-        
+
+def get_service_token(instance):
+    """
+    Get or create the auth token for the user who created this test case.
+    """
+    from rest_framework.authtoken.models import Token
+ 
+    user = getattr(instance, 'created_by', None)
+ 
+    if not user:
+        logger.error("No created_by user found on test case instance")
+        return None
+ 
+    token, _ = Token.objects.get_or_create(user=user)
+    return token.key
 
 @receiver(post_save, sender=TestCase, dispatch_uid="push_to_executor_last")
 def robot_framework_server_push(sender, instance, created, **kwargs):
@@ -189,12 +203,9 @@ def push_to_executor_server(api_payload, instance):
     executor_api_url = EXECUTOR_SERVER_IP + "/api/v1/push-test-case"
     
     try:
-        print(f"Sending request to executor server: {executor_api_url}")
-        print(f"Operation: {api_payload['operation']}")
-        print(f"Changes: {api_payload['changes']}")
-        print(f"Robot URL: {api_payload.get('robot_script_url')}")
-        print(f"Python URL: {api_payload.get('python_script_url')}")
-        
+
+        token = get_service_token(instance)
+        api_payload["auth_token"] = token
         response = requests.post(
             executor_api_url,
             json=api_payload,
