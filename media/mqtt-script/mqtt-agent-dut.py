@@ -137,10 +137,12 @@ def on_message(client, userdata, msg):
                 current_test_suite_execution_id = test_suite_execution_id
                 is_file_required = data.get("is_file_required", False)
                 file_download_url = data.get("file_download_url")
+                auth_token = data.get("auth_token")
                 
                 # Store file parameters as function attributes for execute_test to access
                 execute_test.is_file_required = is_file_required
                 execute_test.file_download_url = file_download_url
+                execute_test.auth_token = auth_token
                 
                 log_message(f"Queueing test {test_id} for execution")
                 log_message(f"File required: {is_file_required}, URL: {file_download_url}")
@@ -545,7 +547,7 @@ def start_stuck_monitor():
         log_message("Started stuck test monitoring thread", "INFO")
 
 
-def download_test_script(test_id, helpers=None):
+def download_test_script(test_id, auth_token = None, helpers=None):
     """Download test script and helper files from server
     
     Args:
@@ -592,7 +594,8 @@ def download_test_script(test_id, helpers=None):
     os.makedirs(CONFIG["SCRIPTS_DIR"], exist_ok=True)
     
     # Download and save to file
-    cmd = ["wget", "-O", script_path, "--timeout=30", "-q", script_url]
+    # cmd = ["wget", "-O", script_path, "--timeout=30", "-q", script_url]
+    cmd = ["curl", "-o", script_path, "-H", f"Authorization: Bearer {auth_token}", "-m", "30", "-s", script_url]
     log_message(f"Executing command: {' '.join(cmd)}")
     
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -950,7 +953,8 @@ def execute_test(test_id, execution_id ,test_json_str):
             log_message("[SUCCESS] 'Running' status sent to executor successfully")
         
         # Download test script
-        success, result = download_test_script(test_id)
+        auth_token = getattr(execute_test, 'auth_token', None)
+        success, result = download_test_script(test_id, auth_token)
         if not success:
             duration = int(time.time() - start_time)
             completed_at = get_iso_timestamp()
