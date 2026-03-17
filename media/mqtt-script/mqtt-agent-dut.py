@@ -584,7 +584,7 @@ def download_test_script(test_id, auth_token = None, helpers=None):
             pass
             
         # Still download helper files even if test case exists
-        download_helper_files(helpers)
+        download_helper_files(helpers, auth_token)
         return True, script_path
     
     # If override is True or file doesn't exist, download it
@@ -624,11 +624,11 @@ def download_test_script(test_id, auth_token = None, helpers=None):
             pass
     
     # Download helper files
-    download_helper_files(helpers)
+    download_helper_files(helpers, auth_token)
 
     return True, script_path
 
-def download_helper_files(helpers):
+def download_helper_files(helpers, auth_token = None):
     """Download helper files to the scripts directory
     
     Args:
@@ -650,7 +650,8 @@ def download_helper_files(helpers):
         
         try:
             # Download helper file
-            cmd = ["wget", "-O", helper_path, "--timeout=30", "-q", helper_url]
+            # cmd = ["wget", "-O", helper_path, "--timeout=30", "-q", helper_url]
+            cmd = ["curl", "-o", helper_path, "-H", f"Authorization: Bearer {auth_token}", "-m", "30", "-s", helper_url]
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode != 0:
