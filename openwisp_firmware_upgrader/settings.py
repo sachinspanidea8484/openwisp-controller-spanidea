@@ -1,10 +1,20 @@
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.module_loading import import_string
+import json
+from pathlib import Path
 
 from openwisp_controller.connection import settings as conn_settings
 
 CUSTOM_OPENWRT_IMAGES = getattr(settings, "OPENWISP_CUSTOM_OPENWRT_IMAGES", None)
+
+_hardware_ids_path = Path(__file__).parent / "hardware_ids.json"
+with open(_hardware_ids_path) as _f:
+    NOKIA_OPENWRT_IMAGES = tuple(
+        (entry["image_file"], {"label": entry["label"], "boards": tuple(entry["boards"])})
+        for entry in json.load(_f)
+    )
+
 # fmt: off
 UPGRADERS_MAP = getattr(settings, 'OPENWISP_FIRMWARE_UPGRADERS_MAP', {
     conn_settings.DEFAULT_UPDATE_STRATEGIES[0][0]: 'openwisp_firmware_upgrader.upgraders.openwrt.OpenWrt',

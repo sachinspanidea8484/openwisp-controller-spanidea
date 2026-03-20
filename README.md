@@ -206,6 +206,57 @@ Password: admin
 
 ---
 
+## Firmware Hardware ID Configuration
+
+Device-to-firmware board mappings are maintained in a single JSON file:
+
+```
+openwisp_firmware_upgrader/hardware_ids.json
+```
+
+This file is the only place you need to edit when adding a new device type. `hardware.py` and `settings.py` load it automatically at startup — no code changes needed.
+
+### How to add a new device type
+
+**Step 1** — Find the exact model string the device reports.
+
+Option A — OpenWISP admin: Device detail → System tab → **Model** field
+
+Option B — SSH into the device:
+```bash
+cat /tmp/sysinfo/model
+```
+
+**Step 2** — Add a new entry to `hardware_ids.json`:
+
+```json
+{
+    "image_file": "firmware-filename.bin",
+    "label": "Nokia CDM Black Box Rev 3.0",
+    "boards": ["Exact model string from device"]
+}
+```
+
+If multiple hardware revisions share the same firmware image, list all boards:
+
+```json
+{
+    "image_file": "cdm-blackbox-unified.bin",
+    "label": "Nokia CDM Black Box (all revisions)",
+    "boards": [
+        "CDM Black Box Rev 2.0",
+        "CDM Black Box rev 1.0"
+    ]
+}
+```
+
+**Step 4** — Restart OpenWISP:
+
+```bash
+docker compose restart controller celery-worker
+```
+---
+
 ## Logs and Monitoring
 
 Application logs are written to `./logs/` on the host (mounted into the container):

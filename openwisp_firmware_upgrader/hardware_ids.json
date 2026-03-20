@@ -1,0 +1,22 @@
+[
+    {
+        "image_file": "cdm-blackbox-rev2-24.10-sysupgrade.bin",
+        "label": "Nokia CDM Black Box Rev 2.0",
+        "boards": ["CDM Black Box Rev 2.0"]
+    },
+    {
+        "image_file": "cdm-blackbox-rev1-23.05-sysupgrade.bin",
+        "label": "Nokia CDM Black Box rev 1.0",
+        "boards": ["CDM Black Box rev 1.0"]
+    },
+    {
+        "image_file": "nokia-cdm-blackbox-23.05-sysupgrade.bin",
+        "label": "Nokia CDM Black Box",
+        "boards": ["Nokia CDM Black Box"]
+    },
+    {
+        "image_file": "openwrt-layerscape-armv8_64b-fsl_ls1046a-frwy-sdboot-squashfs-sysupgrade.bin",
+        "label": "NXP LS1046A FRWY Board",
+        "boards": ["LS1046A FRWY Board"]
+    }
+]
