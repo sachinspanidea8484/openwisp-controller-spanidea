@@ -19,7 +19,7 @@ from datetime import datetime
 
 # ===== CONFIGURATION - UPDATE THESE =====
 DEVICE_ID = "coeNzYP0sFvBTdQYmy6Ahk504szIA81x"      # Change to match your device
-BROKER_HOST = "192.168.100.50"                      # MQTT broker IP (your executor server)
+BROKER_HOST = "44.199.94.165"                       # MQTT broker IP
 BROKER_PORT = 1883
 # =========================================
 

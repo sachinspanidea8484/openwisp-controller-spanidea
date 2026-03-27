@@ -28,8 +28,8 @@ IS_OVERRIDE_TEST_CASE=True
 # ===== CONFIGURATION =====
 CONFIG = {
     "SCRIPTS_DIR": "/usr/bin/tests",
-    "DOWNLOAD_URL": "http://10.10.10.10:8000/media/test_case/",
-    "RESULT_API": "http://10.10.10.10:8000/api/v1/test-management/device-test-result/",
+    "DOWNLOAD_URL": "http://44.193.103.240:8000/media/test_case/", # OpenWISP IP
+    "RESULT_API": "http://44.193.103.240:8000/api/v1/test-management/device-test-result/", # OpenWISP IP
     "LOCK_FILE": "/tmp/test_runner.lock",
     "LOG_FILE": "/var/log/mqtt_agent.log",
     "TIMEOUT": 86400,  # 24 hours max timeout
@@ -41,7 +41,7 @@ CONFIG = {
     "FORCE_KILL_TIMEOUT": 60,     # Time to wait before force killing
     "DEBUG_MODE": True,           # Enable detailed logging
     "MAX_WAIT_FOR_LOCK": 300,     # Max time to wait for lock (5 minutes)
-    "MQTT_BROKER_IP": "10.10.10.10",        # MQTT broker IP
+    "MQTT_BROKER_IP": "44.199.94.165",        # MQTT broker IP
     "MQTT_BROKER_PORT": 1883,       # MQTT broker port
     "DEVICE_ID": "3effd7c4-3890-42fd-bc02-b7c370a647c4",  #Device UUID from openwisp
     "KEEPALIVE": 60,

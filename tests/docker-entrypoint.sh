@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+echo ">>> Restoring default media files into PVC..."
+cp -Rn /opt/openwisp/media_defaults/* /opt/openwisp/media/ 2>/dev/null || true
+
 create_superuser() {
     local username="$1"
     local email="$2"
