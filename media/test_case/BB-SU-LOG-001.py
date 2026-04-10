@@ -1,3 +1,20 @@
+# START_DESCRIPTION
+# 1. Parse CONFIGURATION input and extract the network interface parameter.
+# 2. Validate the provided interface exists on the device.
+# 3. Restart the system log service to ensure logging is active.
+# 4. Verify system logs are accessible using the logread command.
+# 5. Generate user-level log messages (debug, info, warning, error) using logger.
+# 6. Verify generated user log messages are captured in system logs.
+# 7. Check availability of kernel logs using the dmesg command.
+# 8. Generate a system log message and verify it appears in logread output.
+# 9. Generate a kernel log message using /dev/kmsg and verify it appears in dmesg.
+# 10. Verify that the logd process is running.
+# 11. Induce a kernel-level network event (MTU change) on the provided interface.
+# 12. Verify the MTU change event is logged in dmesg output.
+# 13. If all logging mechanisms function correctly, mark the test as PASSED.
+# END_DESCRIPTION
+
+#!/usr/bin/env python3
 import sys
 import os
 
@@ -6,6 +23,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 from common_helper import (
     log,
     run_local_command,
+    parse_configuration,
     EXIT_SUCCESS,
     EXIT_FAILED
 )
@@ -81,30 +99,53 @@ def check_logd():
     log("logd process is running.", level="PASS")
 
 
-def induce_kernel_event():
-    log("Inducing kernel event (MTU change)...")
+def validate_interface(interface):
+    log(f"Validating interface: {interface}")
+    stdout, _, _ = run_local_command(f"ifconfig {interface}", allow_fail=True)
 
-    run_local_command("ifconfig eth0 mtu 1", check=False, allow_fail=True)
+    if not stdout:
+        raise AssertionError(f"Interface {interface} not found!")
+
+    log(f"Interface {interface} is valid.", level="PASS")
+
+
+def induce_kernel_event(interface):
+    log(f"Inducing kernel event (MTU change) on {interface}...")
+
+    run_local_command(f"ifconfig {interface} mtu 1", check=False, allow_fail=True)
 
     stdout, _, _ = run_local_command("dmesg | tail -n 5")
 
-    if "eth0" not in stdout:
-        raise AssertionError("MTU change error not logged in dmesg")
+    if interface not in stdout:
+        raise AssertionError(f"MTU change error not logged for {interface}")
 
     log("MTU change error logged in dmesg.", level="PASS")
 
 
 def main():
-    log("=== Starting Logging Testcase ===")
+    log("=== LOGGING TEST STARTED ===")
+
+    # ✅ Parse CLI CONFIGURATION
+    config = parse_configuration(sys.argv[1] if len(sys.argv) > 1 else None)
+
+    interface = config.get("interface")
+
+    # ✅ Validation
+    if not interface:
+        log("[FAIL] Missing 'interface' in CONFIGURATION", level="FAIL")
+        sys.exit(EXIT_FAILED)
+
+    log(f"[INFO] Using interface: {interface}")
 
     try:
+        validate_interface(interface)
         verify_logread()
         generate_user_logs()
         check_dmesg()
         generate_system_log()
         generate_kernel_log()
         check_logd()
-        induce_kernel_event()
+        induce_kernel_event(interface)
 
     except AssertionError as ae:
         log("Assertion Failed: %s", ae, level="FAIL")
@@ -114,7 +155,7 @@ def main():
         log("Unexpected Error: %s", e, level="FAIL")
         sys.exit(EXIT_FAILED)
 
-    log("All logging tests passed successfully.", level="PASS")
+    log("=== ALL LOGGING TESTS PASSED ===", level="PASS")
     sys.exit(EXIT_SUCCESS)
 
 
