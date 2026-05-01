@@ -1,5 +1,5 @@
 # START_DESCRIPTION
-# 1. Execute environmental sensor monitoring script.
+# 1. Read SHT4X temperature and humidity sensor directly from hwmon sysfs.
 # 2. Extract Temperature and Humidity values.
 # 3. Validate temperature within acceptable range.
 # 4. Collect multiple samples with delay.
@@ -8,57 +8,87 @@
 # END_DESCRIPTION
 
 #!/usr/bin/env python3
-import sys, time, re
-from common_helper import log, run_local_command, verify_file_exists, EXIT_SUCCESS, EXIT_FAILED
+import sys, os, time
+from common_helper import log, EXIT_SUCCESS, EXIT_FAILED
 
-SENSOR_SCRIPT = "/usr/bin/sensor_monitor.py"
-TARGET_SENSOR = "SHT4X_HWMON0"
-NUM_READINGS, DELAY = 5, 1
-TEMP_MIN, TEMP_MAX = -45, 80
-
-
-def extract_block(out):
-    m = re.search(r"SHT4X_HWMON0\s*\n(?: {2}.+\n?){2,5}", out)
-    return m.group(0).strip() if m else None
+HWMON_PATH = "/sys/class/hwmon/hwmon0"
+TEMP_MIN   = -45
+TEMP_MAX   = 80
+NUM_READINGS = 5
+DELAY        = 1
 
 
-def parse_values(block):
-    t = re.search(r"Temperature\s*\(.*C\)\s*:\s*([\d\.\-]+)", block)
-    h = re.search(r"Humidity\s*\(.*\)\s*:\s*([\d\.\-]+)", block)
-    return (float(t.group(1)) if t else None,
-            float(h.group(1)) if h else None)
+def read_file(path):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except Exception as e:
+        log("[WARN] Could not read %s: %s", path, str(e), level="WARN")
+        return None
+
+
+def verify_hwmon():
+    """Verify the hwmon device is SHT4X and required sysfs files exist."""
+    name = read_file(os.path.join(HWMON_PATH, "name"))
+    if not name:
+        log("[FAIL] Could not read hwmon name from %s", HWMON_PATH, level="FAIL")
+        return False
+    if not name.lower().startswith("sht4"):
+        log("[FAIL] Unexpected hwmon device '%s' at %s (expected SHT4X)", name, HWMON_PATH, level="FAIL")
+        return False
+
+    for fname in ("temp1_input", "humidity1_input"):
+        fpath = os.path.join(HWMON_PATH, fname)
+        if not os.path.exists(fpath):
+            log("[FAIL] Missing sysfs file: %s", fpath, level="FAIL")
+            return False
+
+    log("[INFO] SHT4X sensor confirmed at %s (name=%s)", HWMON_PATH, name)
+    return True
+
+
+def read_sht4x():
+    """Read temperature (°C) and humidity (%RH) from SHT4X hwmon sysfs."""
+    raw_temp = read_file(os.path.join(HWMON_PATH, "temp1_input"))
+    raw_hum  = read_file(os.path.join(HWMON_PATH, "humidity1_input"))
+
+    temp = float(raw_temp) / 1000.0 if raw_temp else None
+    hum  = float(raw_hum)  / 1000.0 if raw_hum  else None
+    return temp, hum
 
 
 def main():
     log("[STEP 1] Starting SHT4X Temperature & Humidity Test")
-    if not verify_file_exists(SENSOR_SCRIPT): sys.exit(EXIT_FAILED)
+
+    if not verify_hwmon():
+        sys.exit(EXIT_FAILED)
 
     readings = []
 
     for i in range(1, NUM_READINGS + 1):
-        out, _, rc = run_local_command(f"python3 {SENSOR_SCRIPT}", allow_fail=True)
-        if rc != 0 or not out:
-            log("[FAIL] No sensor output", level="FAIL"); sys.exit(EXIT_FAILED)
+        try:
+            temp, hum = read_sht4x()
+        except Exception as e:
+            log("[FAIL] Iteration %d: Failed to read SHT4X sensor: %s", i, str(e), level="FAIL")
+            sys.exit(EXIT_FAILED)
 
-        block = extract_block(out)
-        if not block:
-            log("[FAIL] %s block not found", TARGET_SENSOR, level="FAIL"); sys.exit(EXIT_FAILED)
-
-        log("[%d] Retrieved %s Data:", i, TARGET_SENSOR)
-        for l in block.splitlines(): log("%s", l)
-
-        temp, hum = parse_values(block)
         if temp is None or hum is None:
-            log("[FAIL] Could not parse Temperature/Humidity", level="FAIL"); sys.exit(EXIT_FAILED)
+            log("[FAIL] Iteration %d: Could not parse Temperature/Humidity", i, level="FAIL")
+            sys.exit(EXIT_FAILED)
+
+        log("[%d] SHT4X Sensor Data:", i)
+        log("  Temperature (°C)  : %.2f", temp)
+        log("  Humidity (%%RH)    : %.2f", hum)
 
         if not (TEMP_MIN <= temp <= TEMP_MAX):
-            log("[FAIL] Temperature %.2f°C out of range (%d-%d°C)",
-                temp, TEMP_MIN, TEMP_MAX, level="FAIL"); sys.exit(EXIT_FAILED)
+            log("[FAIL] Iteration %d: Temperature %.2f°C out of range (%d-%d°C)",
+                i, temp, TEMP_MIN, TEMP_MAX, level="FAIL")
+            sys.exit(EXIT_FAILED)
 
         readings.append((temp, hum))
         time.sleep(DELAY)
 
-    if len(readings)==NUM_READINGS and all(r==readings[0] for r in readings):
+    if len(readings) == NUM_READINGS and all(r == readings[0] for r in readings):
         log("[FAIL] All readings identical. Sensor not updating.", level="FAIL")
         sys.exit(EXIT_FAILED)
 
@@ -68,4 +98,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
