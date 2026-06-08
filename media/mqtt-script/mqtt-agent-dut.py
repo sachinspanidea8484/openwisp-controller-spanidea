@@ -23,6 +23,8 @@ import paho.mqtt.client as mqtt
 import logging
 from queue import Queue
 import shlex
+from urllib.parse import urlparse
+import uuid
 
 def uci_get(key):
     try:
@@ -35,15 +37,26 @@ def uci_get(key):
 
 # Read OpenWISP's config
 DEVICE_UUID = uci_get("openwisp.http.uuid")
-OPENWISP_IP = uci_get("openwisp.http.url")
+OPENWISP_URL = uci_get("openwisp.http.url")
 BROKER_IP = uci_get("openwisp.http.mqtt_broker_ip")
+
+if not DEVICE_UUID:
+    raise RuntimeError("Device UUID not found in UCI")
+
+if not OPENWISP_URL:
+    raise RuntimeError("OpenWISP URL not found in UCI")
+
+if not BROKER_IP:
+     BROKER_IP = urlparse(OPENWISP_URL).hostname
+
+DEVICE_UUID = str(uuid.UUID(DEVICE_UUID))
 
 IS_OVERRIDE_TEST_CASE=True 
 # ===== CONFIGURATION =====
 CONFIG = {
     "SCRIPTS_DIR": "/usr/bin/tests",
-    "DOWNLOAD_URL": f"{OPENWISP_IP}/media/test_case/", # OpenWISP IP
-    "RESULT_API": f"{OPENWISP_IP}/api/v1/test-management/device-test-result/", # OpenWISP IP
+    "DOWNLOAD_URL": f"{OPENWISP_URL}/media/test_case/", # OpenWISP IP
+    "RESULT_API": f"{OPENWISP_URL}/api/v1/test-management/device-test-result/", # OpenWISP IP
     "LOCK_FILE": "/tmp/test_runner.lock",
     "LOG_FILE": "/var/log/mqtt_agent.log",
     "TIMEOUT": 86400,  # 24 hours max timeout
