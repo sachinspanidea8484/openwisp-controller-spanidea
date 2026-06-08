@@ -57,5 +57,11 @@
       window.ORDERED_TESTCASE_IDS = {{ ordered_testcase_ids|default:"[]" | safe }};
     </script>
 
+   <script>
+window.testManagementConfig = {
+    sshEnabled: {{ TEST_MANAGEMENT_SSH_ENABLED|yesno:"true,false" }}
+};
+</script>
+
 <script src="{% static 'test-management/js/test_suite_execution_form.js' %}"></script>
 {% endblock %}

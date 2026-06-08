@@ -18,7 +18,7 @@ from celery.schedules import crontab
 warnings.filterwarnings("ignore", message="app_settings.USERNAME_REQUIRED is deprecated")
 warnings.filterwarnings("ignore", message="app_settings.EMAIL_REQUIRED is deprecated")
 
-
+TEST_MANAGEMENT_SSH_ENABLED: str = os.getenv('TEST_MANAGEMENT_SSH_ENABLED', False)
 EXECUTOR_SERVER_IP: str = os.getenv('EXECUTOR_SERVER_IP', "http://172.17.0.1:8080")
 OPENWISP_SERVER_IP: str = os.getenv('OPENWISP_SERVER_IP', "http://172.17.0.1:8000")
 OPENWISP_CONTROLLER_API_HOST: str = os.getenv('OPENWISP_CONTROLLER_API_HOST', "http://172.17.0.1:8000")

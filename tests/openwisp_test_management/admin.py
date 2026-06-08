@@ -3589,6 +3589,9 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
         extra_context = extra_context or {}
+        extra_context['TEST_MANAGEMENT_SSH_ENABLED'] = getattr(
+            settings, 'TEST_MANAGEMENT_SSH_ENABLED', True
+        )
         obj = self.get_object(request, object_id)
         if obj:
             device_group= getattr(obj, "device_group", None)
@@ -3665,6 +3668,13 @@ class TestSuiteExecutionAdmin(BaseVersionAdmin):
             if obj.test_case_execution_order:
                 extra_context["ordered_testcase_ids"] = obj.test_case_execution_order
         return super().change_view(request, object_id, form_url, extra_context)
+    
+    def add_view(self, request, form_url='', extra_context=None):
+        extra_context = extra_context or {}
+        extra_context['TEST_MANAGEMENT_SSH_ENABLED'] = getattr(
+            settings, 'TEST_MANAGEMENT_SSH_ENABLED', True
+        )
+        return super().add_view(request, form_url, extra_context)
     
     def recover_view(self, request, version_id, extra_context=None):
         extra_context = extra_context or {}

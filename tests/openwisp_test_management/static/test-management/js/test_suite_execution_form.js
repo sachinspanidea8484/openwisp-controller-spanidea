@@ -23,6 +23,8 @@
   let selectedDevices = new Map(); // Map of device_id -> device_data
   let pendingGroupSelection = null;
   let isSubmitting = false;
+  const SSH_ENABLED = window.testManagementConfig && window.testManagementConfig.sshEnabled === true;
+
   function applyDisabledState() {
     if (window.disabledViewMode) {
       $(".device-selector select, .device-selector button").prop(
@@ -237,16 +239,12 @@
                         }">
                         MQTT
                       </label>
-                      <label>
-                        <input type="radio" name="protocol_${
-                          device.id
-                        }" value="1" ${isssh} 
-                        ${window.disabledViewMode ? "disabled" : ""} 
-                        style="cursor : ${
-                          window.disabledViewMode ? "not-allowed" : "pointer"
-                        }">     
-                        SSH
-                      </label>
+                      ${SSH_ENABLED ? `<label>
+    <input type="radio" name="protocol_${device.id}" value="1" ${isssh} 
+    ${window.disabledViewMode ? "disabled" : ""} 
+    style="cursor : ${window.disabledViewMode ? "not-allowed" : "pointer"}">
+    SSH
+  </label>` : ''}
                     </div>
                   </div>  
                 </div>
@@ -741,10 +739,10 @@
                         <input type="radio" name="protocol_${device.id}" value="0" ${ismqttChecked}>
                         MQTT
                       </label>
-                      <label>
-                        <input type="radio" name="protocol_${device.id}" value="1" ${issshChecked}>
-                        SSH
-                      </label>
+                     ${SSH_ENABLED ? `<label>
+    <input type="radio" name="protocol_${device.id}" value="1" ${issshChecked}>
+    SSH
+  </label>` : ''}
                     </div>
                     <button type="button" class="remove-device-btn" data-device-id="${deviceId}" ${
                       window.disabledViewMode ? "disabled" : ""

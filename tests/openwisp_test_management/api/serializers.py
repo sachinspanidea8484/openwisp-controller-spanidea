@@ -1255,6 +1255,7 @@ class TestSuiteExecutionSerializer(serializers.ModelSerializer):
         return fields
 
 class TestSuiteExecutionCreateSerializer(serializers.Serializer):
+    ssh_enabled = getattr(settings, 'TEST_MANAGEMENT_SSH_ENABLED', True)
     id = serializers.UUIDField(read_only=True)
     name = serializers.CharField(required=True, allow_blank=False, max_length=50)
     individual_test_cases = serializers.PrimaryKeyRelatedField(
@@ -1363,6 +1364,7 @@ class TestSuiteExecutionCreateSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         individual_test_cases = validated_data.pop("individual_test_cases", None)
         device_list = validated_data.pop("devices", [])
+        ssh_enabled = getattr(settings, 'TEST_MANAGEMENT_SSH_ENABLED', False)
         validated_data["test_selection_type"] = self.TEST_SELECTION_MAP[
             validated_data["test_selection_type"]
         ]
@@ -1380,6 +1382,13 @@ class TestSuiteExecutionCreateSerializer(serializers.Serializer):
             )
         }
 
+        for device_data in device_list:
+         if not ssh_enabled and device_data.get("connection_protocol") == 1:
+             raise serializers.ValidationError(
+                  "SSH protocol is disabled in this environment."
+             )        
+
+
         if len(device_map) != len(device_list):
             raise serializers.ValidationError(
                 {"devices": "One or more device IDs are invalid."}
@@ -1388,6 +1397,8 @@ class TestSuiteExecutionCreateSerializer(serializers.Serializer):
             TestSuiteExecutionDevice.objects.filter(
                 test_suite_execution=instance
             ).delete()
+
+            
             for device_data in device_list:
                 TestSuiteExecutionDevice.objects.create(
                     test_suite_execution=instance,
@@ -1404,6 +1415,7 @@ class TestSuiteExecutionCreateSerializer(serializers.Serializer):
 
     # ---------- VALIDATION ----------
     def validate_devices(self, devices):
+        ssh_enabled = getattr(settings, 'TEST_MANAGEMENT_SSH_ENABLED', False)
         PROTOCOL_MAP = {
             "MQTT": 0,
             "SSH": 1,
@@ -1423,6 +1435,10 @@ class TestSuiteExecutionCreateSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     f"Invalid protocol {protocol}. Allowed: MQTT, SSH"
                 )
+            if not ssh_enabled and PROTOCOL_MAP[protocol] == 1:
+             raise serializers.ValidationError(
+                "SSH protocol is disabled in this environment."
+             )
 
             validated.append({
                 "device_id": device["device_id"],

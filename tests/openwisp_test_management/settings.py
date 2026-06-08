@@ -5,6 +5,10 @@ from pathlib import Path
 
 CURRENT_DIR= Path(__file__).resolve().parent.parent
 
+TEST_MANAGEMENT_SSH_ENABLED = getattr(
+    settings, "TEST_MANAGEMENT_SSH_ENABLED", False
+)
+
 EXECUTOR_SERVER_IP = getattr(
     settings, "EXECUTOR_SERVER_IP", "http://172.17.0.1:8080"
 )
